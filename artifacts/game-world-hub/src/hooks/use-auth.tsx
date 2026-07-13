@@ -46,16 +46,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, isError, location, setLocation]);
 
+  // Keep Electron's main process in sync with the current user status
+  useEffect(() => {
+    if (user && window.electronAPI) {
+      window.electronAPI.setStatus(user.status);
+    }
+  }, [user?.status]);
+
   const login = (newToken: string) => {
     localStorage.setItem("gwh_token", newToken);
     setToken(newToken);
-    // Invalidate me query so it refetches with the new token
+    // Give main process the JWT so it can poll notifications
+    window.electronAPI?.setAuthToken(newToken);
     queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
   };
 
   const logout = () => {
     localStorage.removeItem("gwh_token");
     setToken(null);
+    window.electronAPI?.clearAuthToken();
     queryClient.clear();
     setLocation("/login");
   };

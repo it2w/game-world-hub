@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2 } from "lucide-react";
-import { useEffect } from "react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const profileSchema = z.object({
   displayName: z.string().min(1).max(50),
@@ -40,6 +40,30 @@ export default function Settings() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Desktop-only: launch at startup state
+  const isElectron = !!window.electronAPI;
+  const [openAtLogin, setOpenAtLogin] = useState(false);
+  const [startupLoading, setStartupLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isElectron) return;
+    window.electronAPI!.getLoginItemSettings().then(s => setOpenAtLogin(s.openAtLogin)).catch(() => {});
+  }, [isElectron]);
+
+  const handleToggleStartup = async () => {
+    if (!isElectron) return;
+    setStartupLoading(true);
+    try {
+      const result = await window.electronAPI!.setLoginItem(!openAtLogin);
+      setOpenAtLogin(result.openAtLogin);
+      toast({ title: result.openAtLogin ? 'Will launch on startup' : 'Startup launch disabled' });
+    } catch {
+      toast({ title: 'Failed to update startup setting', variant: 'destructive' });
+    } finally {
+      setStartupLoading(false);
+    }
+  };
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -190,8 +214,34 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Platform Integration */}
+        {/* Platform Integration + Desktop */}
         <div className="space-y-8">
+          {/* Desktop-only: launch at startup */}
+          {isElectron && (
+            <div className="bg-card border border-border p-6">
+              <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+                <Monitor className="w-4 h-4" /> DESKTOP_OPTIONS
+              </h2>
+              <div className="flex items-center justify-between p-3 border border-border bg-background">
+                <div>
+                  <div className="font-mono text-sm">LAUNCH ON STARTUP</div>
+                  <div className="font-mono text-xs text-muted-foreground mt-0.5">
+                    Start Game World Hub automatically when Windows boots
+                  </div>
+                </div>
+                <Button
+                  variant={openAtLogin ? "default" : "outline"}
+                  size="sm"
+                  className="font-mono rounded-none text-xs h-8 min-w-[80px]"
+                  onClick={handleToggleStartup}
+                  disabled={startupLoading}
+                >
+                  {openAtLogin ? 'ENABLED' : 'DISABLED'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
               <LinkIcon className="w-4 h-4" /> NETWORK_LINKS

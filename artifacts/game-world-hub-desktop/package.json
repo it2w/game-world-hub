@@ -1,0 +1,86 @@
+{
+  "name": "@workspace/game-world-hub-desktop",
+  "version": "1.0.0",
+  "description": "Game World Hub — Windows Desktop App",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "NODE_ENV=development electron .",
+    "build:ts": "tsc --noEmit false",
+    "build:web": "pnpm --filter @workspace/game-world-hub run build",
+    "build:main": "tsc",
+    "build:icon": "node scripts/generate-icon.mjs",
+    "build": "pnpm run build:main",
+    "build:win": "pnpm run build:main && electron-builder --win",
+    "build:win:portable": "pnpm run build:main && electron-builder --win portable",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "electron-window-state": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "electron": "^32.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-builder-squirrel-windows": "25.1.8",
+    "typescript": "~5.9.3"
+  },
+  "build": {
+    "extends": null,
+    "appId": "com.gameworldhub.desktop",
+    "productName": "Game World Hub",
+    "copyright": "Copyright © 2025 Game World Hub",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Game World Hub",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeader": "build/icon.ico"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://releases.gameworldhub.example.com/updates/"
+    },
+    "protocols": [
+      {
+        "name": "Game World Hub",
+        "schemes": [
+          "gameworldhub"
+        ]
+      }
+    ]
+  }
+}

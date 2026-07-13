@@ -1,10 +1,11 @@
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/hooks/use-auth';
 import { Shell } from '@/components/layout/shell';
 import '@/lib/api';
+import { useEffect } from 'react';
 
 import Dashboard from '@/pages/dashboard';
 import Login from '@/pages/login';
@@ -26,6 +27,27 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Registers a listener for Electron deep-link / tray navigation events.
+ * Only active when running inside the desktop shell (window.electronAPI defined).
+ */
+function ElectronNavigationBridge() {
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    // Main process sends 'navigate' IPC messages for deep links and tray clicks
+    const unsubscribe = window.electronAPI.onNavigate((path: string) => {
+      navigate(path);
+    });
+
+    return unsubscribe;
+  }, [navigate]);
+
+  return null;
+}
 
 function Router() {
   return (
@@ -60,6 +82,7 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <AuthProvider>
+            <ElectronNavigationBridge />
             <Router />
           </AuthProvider>
         </WouterRouter>

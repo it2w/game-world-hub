@@ -56,7 +56,10 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       
-      <Route path="/">
+      {/* Any non-auth route renders inside the authenticated Shell layout.
+          A pathless <Route> matches everything not already handled above, so
+          the inner <Switch> resolves the actual page against the same location. */}
+      <Route>
         <Shell>
           <Switch>
             <Route path="/" component={Dashboard} />
@@ -72,7 +75,6 @@ function Router() {
           </Switch>
         </Shell>
       </Route>
-      <Route component={NotFound} />
     </Switch>
   );
 }

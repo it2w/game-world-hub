@@ -1,1 +1,3 @@
 - [Desktop bundled API server](desktop-bundled-api-server.md) — Electron forks the API bundle on a local port; DB is Postgres so the app still needs an external DATABASE_URL.
+- [WebRTC signaling](webrtc-signaling.md) — voice/screen mesh over WS at /api/ws; MUST authorize room joins server-side (party membership / call participant) or users can eavesdrop.
+- [wouter v3 layout routing](wouter-routing.md) — wrap the shared authenticated Shell in a pathless `<Route>`, not `<Route path="/">`, or every sub-route 404s.

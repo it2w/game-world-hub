@@ -256,10 +256,27 @@ function handleCallInvite(caller: Client, targetId: number): void {
   }
 }
 
+/**
+ * A direct-call invite is fanned out to every one of the callee's sessions. The
+ * first session to accept or decline wins (it deletes the pending call, so any
+ * later action is a no-op). Once one session has acted, this stops the callee's
+ * *other* sessions from ringing by clearing their invite UI.
+ */
+function clearOtherCalleeSessions(actor: Client, callId: string): void {
+  const sessions = clientsByUser.get(actor.userId);
+  if (!sessions) return;
+  for (const s of sessions) {
+    if (s !== actor) send(s.ws, { type: "call-cancelled", callId });
+  }
+}
+
 function handleCallAccept(callee: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.targetId !== callee.userId) return;
   pendingCalls.delete(callId);
+
+  // This session answered — stop the callee's other sessions from ringing.
+  clearOtherCalleeSessions(callee, callId);
 
   const callers = clientsByUser.get(call.callerId);
   if (!callers || callers.size === 0) {
@@ -278,6 +295,9 @@ function handleCallDecline(callee: Client, callId: string): void {
   if (!call || call.targetId !== callee.userId) return;
   pendingCalls.delete(callId);
   if (!rooms.has(call.room)) callRooms.delete(call.room);
+  // This session declined — clear the invite on the callee's other sessions so
+  // they stop ringing (only an explicit decline reaches this path now).
+  clearOtherCalleeSessions(callee, callId);
   const callers = clientsByUser.get(call.callerId);
   if (callers) {
     for (const c of callers) send(c.ws, { type: "call-declined", callId, by: callee.userId });

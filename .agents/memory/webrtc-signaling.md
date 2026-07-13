@@ -37,6 +37,16 @@ server only relays signaling over a WebSocket; all room/call state is in memory
   the first (`force-leave`).
 - Pending calls are per-user; only tear a call down on a user's **last**
   connection disconnecting, not any single tab.
+- **A direct-call invite fans out to ALL of the callee's sessions, but a call is
+  resolved per-user, not per-session.** A busy session must NOT auto-decline the
+  invite — a decline deletes the shared pending call and cancels it for the
+  user's other (possibly free) sessions. Busy sessions silently ignore; if every
+  session is busy the caller falls back to the server no-answer timeout.
+  **Why:** the old busy-tab auto-decline produced spurious "call declined" for
+  users signed in on multiple devices.
+  **How to apply:** first accept/decline wins (it deletes the pending call, so
+  later actions are no-ops); the acting session's server handler must send
+  `call-cancelled` to the callee's *other* sessions so their ringing UI clears.
 - Client provider must fully tear down (WS, mic/screen tracks, peers, pending
   call state) when auth flips to logged-out — tie teardown to the auth effect's
   cleanup, not to a stale in-cleanup condition.

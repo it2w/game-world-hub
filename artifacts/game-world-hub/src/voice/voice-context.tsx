@@ -314,11 +314,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "incoming-call":
-          // Ignore if already busy in another room/call.
+          // Only present the invite if this session is free. A busy session
+          // simply ignores it — it must NOT decline, since a decline cancels
+          // the call for this user's *other* (possibly free) sessions too. If
+          // every session is busy, the caller falls back to the server-side
+          // no-answer timeout.
           if (!activeRoomRef.current && !incomingCall) {
             setIncomingCall({ callId: msg.callId, room: msg.room, from: msg.from });
-          } else {
-            wsSend({ type: "call-decline", callId: msg.callId });
           }
           break;
 

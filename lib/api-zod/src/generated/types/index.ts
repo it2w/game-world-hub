@@ -8,6 +8,7 @@
 
 export * from './achievement';
 export * from './authResponse';
+export * from './blockedUser';
 export * from './contentLink';
 export * from './contentLinkInput';
 export * from './contentLinkInputPlatform';

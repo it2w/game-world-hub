@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { SendMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { isBlockedBetween } from "./blocks";
 
 const router: IRouter = Router();
 
@@ -214,6 +215,18 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // Block enforcement: don't allow messaging anyone blocked in either direction.
+  const others = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(eq(conversationParticipantsTable.conversationId, conversationId));
+  for (const p of others) {
+    if (p.userId !== myId && (await isBlockedBetween(myId, p.userId))) {
+      res.status(403).json({ error: "Unable to message this user" });
+      return;
+    }
   }
 
   const [msg] = await db

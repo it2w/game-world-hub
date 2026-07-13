@@ -281,12 +281,19 @@ export const FriendStatusState = {
   request_sent: 'request_sent',
   request_received: 'request_received',
   none: 'none',
+  blocked: 'blocked',
 } as const;
 
 export interface FriendStatus {
   state: FriendStatusState;
   /** @nullable */
   requestId: number | null;
+}
+
+export interface BlockedUser {
+  id: number;
+  user: User;
+  createdAt: string;
 }
 
 export interface FriendRequestInput {

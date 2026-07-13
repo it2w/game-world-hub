@@ -15,4 +15,5 @@ export const FriendStatusState = {
   request_sent: 'request_sent',
   request_received: 'request_received',
   none: 'none',
+  blocked: 'blocked',
 } as const;

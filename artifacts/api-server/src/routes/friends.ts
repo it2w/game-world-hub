@@ -3,6 +3,7 @@ import { eq, and, or, inArray } from "drizzle-orm";
 import { db, usersTable, friendRequestsTable, friendshipsTable, notificationsTable } from "@workspace/db";
 import { SendFriendRequestBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { hasBlocked, isBlockedBetween } from "./blocks";
 
 const router: IRouter = Router();
 
@@ -58,6 +59,12 @@ router.get("/friends/:friendId/status", requireAuth, async (req, res): Promise<v
   }
   if (friendId === myId) {
     res.json({ state: "self", requestId: null });
+    return;
+  }
+
+  // If I blocked them, surface that so the profile can offer "Unblock".
+  if (await hasBlocked(myId, friendId)) {
+    res.json({ state: "blocked", requestId: null });
     return;
   }
 
@@ -121,6 +128,12 @@ router.post("/friends/request", requireAuth, async (req, res): Promise<void> => 
 
   if (toUserId === myId) {
     res.status(400).json({ error: "Cannot send friend request to yourself" });
+    return;
+  }
+
+  // Blocked either direction: refuse without revealing who blocked whom.
+  if (await isBlockedBetween(myId, toUserId)) {
+    res.status(403).json({ error: "Unable to send friend request" });
     return;
   }
 

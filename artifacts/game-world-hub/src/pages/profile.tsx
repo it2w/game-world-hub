@@ -1,11 +1,11 @@
 import { useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Profile() {
@@ -33,6 +33,8 @@ export default function Profile() {
   const sendRequest = useSendFriendRequest();
   const acceptRequest = useAcceptFriendRequest();
   const removeFriend = useRemoveFriend();
+  const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
 
   const refreshRelationship = () => {
     queryClient.invalidateQueries({ queryKey: getGetFriendStatusQueryKey(userId) });
@@ -61,7 +63,21 @@ export default function Profile() {
     });
   };
 
-  const friendBusy = sendRequest.isPending || acceptRequest.isPending || removeFriend.isPending;
+  const handleBlock = () => {
+    blockUser.mutate({ userId }, {
+      onSuccess: () => { toast({ title: "User blocked" }); refreshRelationship(); },
+      onError: () => toast({ title: "Couldn't block user", variant: "destructive" }),
+    });
+  };
+
+  const handleUnblock = () => {
+    unblockUser.mutate({ userId }, {
+      onSuccess: () => { toast({ title: "User unblocked" }); refreshRelationship(); },
+      onError: () => toast({ title: "Couldn't unblock user", variant: "destructive" }),
+    });
+  };
+
+  const friendBusy = sendRequest.isPending || acceptRequest.isPending || removeFriend.isPending || blockUser.isPending || unblockUser.isPending;
 
   if (isLoading) return <div className="p-12 text-center font-mono text-muted-foreground animate-pulse">DOWNLOADING PROFILE DATA...</div>;
   if (!user) return <div className="p-12 text-center font-mono text-destructive">PROFILE NOT FOUND</div>;
@@ -92,29 +108,40 @@ export default function Profile() {
             </div>
 
             {friendStatus && friendStatus.state !== "self" && (
-              <div className="shrink-0">
-                {friendStatus.state === "none" && (
-                  <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                    <UserPlus className="w-4 h-4" /> ADD FRIEND
+              <div className="shrink-0 flex items-center gap-2">
+                {friendStatus.state === "blocked" ? (
+                  <Button onClick={handleUnblock} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2">
+                    <ShieldOff className="w-4 h-4" /> UNBLOCK
                   </Button>
-                )}
-                {friendStatus.state === "request_sent" && (
-                  <Button variant="outline" disabled className="font-mono rounded-none gap-2">
-                    <Clock className="w-4 h-4" /> REQUEST SENT
-                  </Button>
-                )}
-                {friendStatus.state === "request_received" && (
-                  <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                    <Check className="w-4 h-4" /> ACCEPT REQUEST
-                  </Button>
-                )}
-                {friendStatus.state === "friends" && (
-                  <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 group">
-                    <UserCheck className="w-4 h-4 group-hover:hidden" />
-                    <UserX className="w-4 h-4 hidden group-hover:block text-destructive" />
-                    <span className="group-hover:hidden">FRIENDS</span>
-                    <span className="hidden group-hover:inline text-destructive">REMOVE</span>
-                  </Button>
+                ) : (
+                  <>
+                    {friendStatus.state === "none" && (
+                      <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2">
+                        <UserPlus className="w-4 h-4" /> ADD FRIEND
+                      </Button>
+                    )}
+                    {friendStatus.state === "request_sent" && (
+                      <Button variant="outline" disabled className="font-mono rounded-none gap-2">
+                        <Clock className="w-4 h-4" /> REQUEST SENT
+                      </Button>
+                    )}
+                    {friendStatus.state === "request_received" && (
+                      <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2">
+                        <Check className="w-4 h-4" /> ACCEPT REQUEST
+                      </Button>
+                    )}
+                    {friendStatus.state === "friends" && (
+                      <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 group">
+                        <UserCheck className="w-4 h-4 group-hover:hidden" />
+                        <UserX className="w-4 h-4 hidden group-hover:block text-destructive" />
+                        <span className="group-hover:hidden">FRIENDS</span>
+                        <span className="hidden group-hover:inline text-destructive">REMOVE</span>
+                      </Button>
+                    )}
+                    <Button onClick={handleBlock} disabled={friendBusy} variant="ghost" size="icon" title="Block user" className="text-muted-foreground hover:text-destructive rounded-none">
+                      <Ban className="w-4 h-4" />
+                    </Button>
+                  </>
                 )}
               </div>
             )}

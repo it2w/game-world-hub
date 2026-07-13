@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./friendships";
+export * from "./blocks";
 export * from "./conversations";
 export * from "./parties";
 export * from "./lfg";

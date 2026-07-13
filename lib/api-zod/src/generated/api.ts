@@ -353,7 +353,7 @@ export const GetFriendStatusParams = zod.object({
 })
 
 export const GetFriendStatusResponse = zod.object({
-  "state": zod.enum(['self', 'friends', 'request_sent', 'request_received', 'none']),
+  "state": zod.enum(['self', 'friends', 'request_sent', 'request_received', 'none', 'blocked']),
   "requestId": zod.number().nullable()
 })
 
@@ -1162,6 +1162,50 @@ export const UnlinkContentParams = zod.object({
 })
 
 export const UnlinkContentResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List users the current user has blocked
+ */
+export const ListBlockedUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "user": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "createdAt": zod.string()
+})
+export const ListBlockedUsersResponse = zod.array(ListBlockedUsersResponseItem)
+
+
+/**
+ * @summary Block a user
+ */
+export const BlockUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const BlockUserResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Unblock a user
+ */
+export const UnblockUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const UnblockUserResponse = zod.object({
   "success": zod.boolean()
 })
 

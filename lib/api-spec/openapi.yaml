@@ -30,6 +30,8 @@ tags:
     description: Platform links
   - name: content
     description: Content creator channels (Twitch, YouTube, TikTok, Kick)
+  - name: blocks
+    description: Blocking unwanted users
 
 paths:
   /healthz:
@@ -940,6 +942,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # ── Blocks ────────────────────────────────────────────────────────────────
+  /blocks:
+    get:
+      operationId: listBlockedUsers
+      tags: [blocks]
+      summary: List users the current user has blocked
+      responses:
+        "200":
+          description: Blocked users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BlockedUser"
+
+  /users/{userId}/block:
+    post:
+      operationId: blockUser
+      tags: [blocks]
+      summary: Block a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+    delete:
+      operationId: unblockUser
+      tags: [blocks]
+      summary: Unblock a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unblocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   # ── Notifications ─────────────────────────────────────────────────────────
   /notifications:
     get:
@@ -1414,9 +1468,20 @@ components:
       properties:
         state:
           type: string
-          enum: [self, friends, request_sent, request_received, none]
+          enum: [self, friends, request_sent, request_received, none, blocked]
         requestId:
           type: ["integer", "null"]
+
+    BlockedUser:
+      type: object
+      required: [id, user, createdAt]
+      properties:
+        id:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
 
     FriendRequestInput:
       type: object

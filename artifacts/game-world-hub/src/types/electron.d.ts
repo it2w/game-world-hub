@@ -10,6 +10,9 @@ interface ElectronAPI {
   /** Always 'electron' when running in the desktop shell */
   readonly platform: 'electron';
 
+  /** Base URL of the bundled API server (e.g. http://127.0.0.1:53412) */
+  readonly apiBaseUrl: string;
+
   /** Send JWT to the main process so it can poll for notifications */
   setAuthToken(token: string): void;
 

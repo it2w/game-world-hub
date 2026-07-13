@@ -1,0 +1,1 @@
+- [Desktop bundled API server](desktop-bundled-api-server.md) — Electron forks the API bundle on a local port; DB is Postgres so the app still needs an external DATABASE_URL.

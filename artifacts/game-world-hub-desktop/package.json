@@ -10,12 +10,14 @@
     "build:web": "pnpm --filter @workspace/game-world-hub run build",
     "build:main": "tsc",
     "build:icon": "node scripts/generate-icon.mjs",
+    "build:server": "pnpm --filter @workspace/api-server run build",
     "build": "pnpm run build:main",
-    "build:win": "pnpm run build:main && electron-builder --win",
-    "build:win:portable": "pnpm run build:main && electron-builder --win portable",
+    "build:win": "pnpm run build:server && pnpm run build:main && electron-builder --win",
+    "build:win:portable": "pnpm run build:server && pnpm run build:main && electron-builder --win portable",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "electron-window-state": "^5.0.3"
   },
@@ -40,7 +42,12 @@
       "renderer/**/*",
       "package.json"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "../api-server/dist",
+        "to": "api-server/dist"
+      }
+    ],
     "win": {
       "target": [
         {

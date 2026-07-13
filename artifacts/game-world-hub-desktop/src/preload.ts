@@ -6,9 +6,19 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
+/** Read the bundled API server URL passed via webPreferences.additionalArguments */
+function getApiBaseUrl(): string {
+  const prefix = '--gwh-api-base=';
+  const arg = process.argv.find(a => a.startsWith(prefix));
+  return arg ? arg.slice(prefix.length) : '';
+}
+
 export type ElectronAPI = {
   /** 'electron' — lets the web app detect it is running in the desktop shell */
   readonly platform: 'electron';
+
+  /** Base URL of the bundled API server (e.g. http://127.0.0.1:53412) */
+  readonly apiBaseUrl: string;
 
   /** Call after successful login to give main process the JWT for notification polling */
   setAuthToken(token: string): void;
@@ -38,6 +48,8 @@ export type ElectronAPI = {
 // Expose safe subset of Electron APIs to the renderer (web app)
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: 'electron',
+
+  apiBaseUrl: getApiBaseUrl(),
 
   setAuthToken(token: string) {
     ipcRenderer.send('set-auth-token', token);

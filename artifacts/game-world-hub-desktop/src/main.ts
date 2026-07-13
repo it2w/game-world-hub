@@ -1,14 +1,21 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
 import { TrayManager } from './tray';
 import { NotificationPoller } from './notifications';
+import { startApiServer, stopApiServer } from './api-server';
 
 // ─── Config ────────────────────────────────────────────────────────────────
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_PORT = process.env.VITE_PORT || '5173';
-const API_BASE = process.env.GWH_API_URL || 'http://localhost:8080';
+
+/**
+ * Base URL of the bundled API server. Empty until the child process has
+ * started; populated by startApiServer() before the window is created so it
+ * can be handed to the renderer and the notification poller.
+ */
+let apiBaseUrl = '';
 
 /** URL the BrowserWindow loads */
 const WEB_URL = isDev
@@ -103,6 +110,9 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false,
       webSecurity: true,
+      // Hand the bundled API server's URL to the preload script so the web
+      // app can point its fetch client at the local backend.
+      additionalArguments: [`--gwh-api-base=${apiBaseUrl}`],
     },
     show: false, // shown once 'ready-to-show' fires
     frame: true,
@@ -199,8 +209,26 @@ function registerIpcHandlers(): void {
 
 registerProtocol();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpcHandlers();
+
+  // Start the bundled API server before creating the window so the renderer
+  // receives the correct local API URL and never loads against a dead backend.
+  try {
+    const api = await startApiServer();
+    apiBaseUrl = api.baseUrl;
+    console.log(`[main] bundled API server ready at ${apiBaseUrl}`);
+  } catch (err) {
+    console.error('[main] failed to start bundled API server:', err);
+    dialog.showErrorBox(
+      'Game World Hub',
+      `Could not start the local server.\n\n${(err as Error).message}`,
+    );
+    isQuitting = true;
+    app.quit();
+    return;
+  }
+
   createWindow();
 
   if (mainWindow) {
@@ -216,7 +244,7 @@ app.whenReady().then(() => {
       },
     });
 
-    notificationPoller = new NotificationPoller(mainWindow, API_BASE);
+    notificationPoller = new NotificationPoller(mainWindow, apiBaseUrl);
   }
 
   // macOS: re-create window if activated with no windows
@@ -239,4 +267,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   notificationPoller?.stop();
+  // Reliably tear down the bundled API server child process.
+  stopApiServer();
 });
+
+// Safety net: also kill the child if the main process is terminated abruptly.
+process.on('exit', () => stopApiServer());

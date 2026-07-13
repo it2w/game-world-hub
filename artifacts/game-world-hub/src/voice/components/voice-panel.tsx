@@ -55,6 +55,8 @@ export function VoicePanel() {
     setVoiceQuality,
     setScreenQuality,
     error,
+    canRejoin,
+    rejoin,
   } = useVoice();
 
   const [expanded, setExpanded] = useState(true);
@@ -89,9 +91,19 @@ export function VoicePanel() {
         {error && (
           <div
             role="alert"
-            className="px-3 py-2 text-[11px] leading-snug text-destructive border-b border-border bg-destructive/10"
+            className="px-3 py-2 border-b border-border bg-destructive/10 space-y-2"
           >
-            {error}
+            <p className="text-[11px] leading-snug text-destructive">{error}</p>
+            {canRejoin && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="w-full rounded-none h-7 text-[11px] uppercase tracking-widest"
+                onClick={() => void rejoin()}
+              >
+                Rejoin
+              </Button>
+            )}
           </div>
         )}
 

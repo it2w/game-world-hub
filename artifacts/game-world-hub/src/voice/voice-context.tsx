@@ -71,9 +71,11 @@ interface VoiceContextValue {
   incomingCall: IncomingCall | null;
   outgoingCall: OutgoingCall | null;
   error: string | null;
+  canRejoin: boolean;
 
   joinPartyVoice: (partyId: number, title: string) => Promise<void>;
   leaveVoice: () => void;
+  rejoin: () => Promise<void>;
   callUser: (user: CallUser) => void;
   acceptCall: () => Promise<void>;
   declineCall: () => void;
@@ -106,6 +108,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCall | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True only for the terminal "couldn't reconnect" failure, which offers a
+  // one-tap Rejoin. Distinguishes that fatal state from transient errors
+  // (e.g. a cancelled screen share) that should just auto-dismiss.
+  const [canRejoin, setCanRejoin] = useState(false);
 
   // Mutable refs (peer plumbing)
   const wsRef = useRef<WebSocket | null>(null);
@@ -231,6 +237,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       // they can rejoin rather than sitting in a silently-failing call.
       clearIceRestartTimer(userId);
       setError("Couldn't reconnect — try rejoining");
+      setCanRejoin(true);
       return;
     } else {
       record.count += 1;
@@ -568,11 +575,39 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     teardownRoom();
     setActiveRoom(null);
     activeRoomRef.current = null;
+    setCanRejoin(false);
   }, [wsSend, teardownRoom]);
+
+  // One-tap recovery from the terminal "couldn't reconnect" state. Tears down
+  // the broken peer connections and re-runs the existing join flow against the
+  // *same* room (party voice or 1:1 call), so both sides rebuild the mesh. The
+  // leave→join pair resets server-side membership so peers on the other end
+  // drop their stale peer objects (peer-left) and recreate them (peer-joined).
+  const rejoin = useCallback(async () => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    setError(null);
+    setCanRejoin(false);
+    for (const userId of Array.from(peersRef.current.keys())) destroyPeer(userId);
+    setPeersState({});
+    try {
+      await ensureMic();
+    } catch {
+      // The rejoin itself failed before we could re-establish anything —
+      // surface a fresh error so the user isn't left staring at a stale panel.
+      setError("Microphone access denied");
+      setCanRejoin(true);
+      return;
+    }
+    wsSend({ type: "leave", room: room.room });
+    wsSend({ type: "join", room: room.room });
+    broadcastState();
+  }, [destroyPeer, ensureMic, wsSend, broadcastState]);
 
   const joinPartyVoice = useCallback(
     async (partyId: number, title: string) => {
       setError(null);
+      setCanRejoin(false);
       const roomId = `party:${partyId}`;
       if (activeRoomRef.current?.room === roomId) return;
       // Leave any current room first (one active voice session at a time).
@@ -732,12 +767,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     [activeRoom],
   );
 
-  // Auto-clear transient errors.
+  // Auto-clear transient errors. The terminal "couldn't reconnect" failure is
+  // held open (canRejoin) so its Rejoin action stays available until the user
+  // acts or leaves.
   useEffect(() => {
-    if (!error) return;
+    if (!error || canRejoin) return;
     const t = setTimeout(() => setError(null), 5000);
     return () => clearTimeout(t);
-  }, [error]);
+  }, [error, canRejoin]);
 
   const peers = useMemo(() => Object.values(peersState), [peersState]);
 
@@ -754,8 +791,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     incomingCall,
     outgoingCall,
     error,
+    canRejoin,
     joinPartyVoice,
     leaveVoice,
+    rejoin,
     callUser,
     acceptCall,
     declineCall,

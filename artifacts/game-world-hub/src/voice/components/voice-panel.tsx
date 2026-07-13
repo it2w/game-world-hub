@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useVoice } from "../voice-context";
 import { VideoTile } from "./video-tile";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
   Loader2,
   Maximize2,
   X,
+  AlertTriangle,
 } from "lucide-react";
 
 /**
@@ -222,6 +223,14 @@ export function VoicePanel() {
   );
 }
 
+/**
+ * `disconnected` is frequently a transient blip that ICE recovers from on its
+ * own, so we don't want to alarm the user the instant it appears. Wait this long
+ * for it to clear before treating the peer as unreachable. `failed` is terminal
+ * and surfaces immediately.
+ */
+const DISCONNECT_GRACE_MS = 6000;
+
 function ParticipantRow({
   name,
   avatarUrl,
@@ -239,29 +248,75 @@ function ParticipantRow({
   connectionState: RTCPeerConnectionState;
   self?: boolean;
 }) {
-  const connecting = !self && connectionState !== "connected" && connectionState !== "failed";
+  // A lingering `disconnected` state only counts as unreachable after a grace
+  // period; a `failed` state is unreachable right away. Any other state (or a
+  // recovery back to `connected`) clears the warning.
+  const [lingeringDisconnect, setLingeringDisconnect] = useState(false);
+  useEffect(() => {
+    if (self || connectionState !== "disconnected") {
+      setLingeringDisconnect(false);
+      return;
+    }
+    const timer = setTimeout(() => setLingeringDisconnect(true), DISCONNECT_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [connectionState, self]);
+
+  const unreachable = !self && (connectionState === "failed" || lingeringDisconnect);
+  const connecting =
+    !self &&
+    !unreachable &&
+    connectionState !== "connected" &&
+    connectionState !== "failed";
+
   return (
-    <div className="flex items-center gap-2 px-1.5 py-1 rounded-none">
-      <div
-        className={`relative w-7 h-7 shrink-0 border ${
-          speaking ? "border-primary ring-2 ring-primary/60" : "border-border"
-        } transition-colors`}
-      >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+    <div className={`rounded-none ${unreachable ? "bg-destructive/10" : ""}`}>
+      <div className="flex items-center gap-2 px-1.5 py-1">
+        <div
+          className={`relative w-7 h-7 shrink-0 border ${
+            unreachable
+              ? "border-destructive"
+              : speaking
+                ? "border-primary ring-2 ring-primary/60"
+                : "border-border"
+          } transition-colors`}
+        >
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              className={`w-full h-full object-cover ${unreachable ? "opacity-50" : ""}`}
+            />
+          ) : (
+            <div className="w-full h-full bg-muted flex items-center justify-center text-[11px]">
+              {name.charAt(0)}
+            </div>
+          )}
+        </div>
+        <span className={`flex-1 text-xs truncate ${unreachable ? "text-muted-foreground" : ""}`}>
+          {name}
+        </span>
+        {unreachable ? (
+          <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
         ) : (
-          <div className="w-full h-full bg-muted flex items-center justify-center text-[11px]">
-            {name.charAt(0)}
-          </div>
+          <>
+            {connecting && (
+              <Loader2 className="w-3 h-3 text-muted-foreground animate-spin shrink-0" />
+            )}
+            {sharing && <Monitor className="w-3 h-3 text-primary shrink-0" />}
+            {muted ? (
+              <MicOff className="w-3 h-3 text-destructive shrink-0" />
+            ) : (
+              <Mic
+                className={`w-3 h-3 shrink-0 ${speaking ? "text-primary" : "text-muted-foreground"}`}
+              />
+            )}
+          </>
         )}
       </div>
-      <span className="flex-1 text-xs truncate">{name}</span>
-      {connecting && <Loader2 className="w-3 h-3 text-muted-foreground animate-spin shrink-0" />}
-      {sharing && <Monitor className="w-3 h-3 text-primary shrink-0" />}
-      {muted ? (
-        <MicOff className="w-3 h-3 text-destructive shrink-0" />
-      ) : (
-        <Mic className={`w-3 h-3 shrink-0 ${speaking ? "text-primary" : "text-muted-foreground"}`} />
+      {unreachable && (
+        <p className="px-1.5 pb-1.5 text-[10px] leading-tight text-destructive">
+          Couldn't reach {name} — their network may be blocking the call.
+        </p>
       )}
     </div>
   );

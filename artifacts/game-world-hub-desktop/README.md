@@ -48,6 +48,49 @@ pnpm run build:win:portable # portable .exe only
 
 Output files land in `dist-electron/`.
 
+> **Note:** `build:win` compiles the API server and Electron main process, but it
+> does **not** build the web renderer. Before running it, build the web app and
+> copy its output into `renderer/`:
+>
+> ```bash
+> pnpm --filter @workspace/game-world-hub run build
+> cp -r ../game-world-hub/dist/public/. renderer/
+> ```
+
+### Automated builds (GitHub Actions)
+
+The Windows installer cannot be produced in the Replit/Linux environment, so it
+is built on CI. The workflow at `.github/workflows/desktop-build.yml` runs on a
+`windows-latest` runner and:
+
+1. Triggers on every `v*` tag push (and can be run manually via
+   **workflow_dispatch**).
+2. Installs pnpm + Node, builds the web app, and stages it into `renderer/`.
+3. Prepares a code-signing certificate, then runs `pnpm run build:win`
+   (compiles the API server + Electron main, then `electron-builder --win`).
+4. Uploads the resulting `dist-electron/*.exe` files as both a workflow
+   artifact and assets on the GitHub Release for the tag.
+
+Cut a release by pushing a tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+#### Code signing
+
+The build signs the installer so Windows SmartScreen is less aggressive. To sign
+with a **trusted code-signing certificate**, add two repository secrets:
+
+- `WINDOWS_CERT_BASE64` — your `.pfx` certificate, base64-encoded
+  (`base64 -w0 cert.pfx` on Linux, or `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))` in PowerShell).
+- `WINDOWS_CERT_PASSWORD` — the certificate's password.
+
+If those secrets are absent, the workflow falls back to an **ephemeral
+self-signed certificate** so the installer is still signed — but Windows
+SmartScreen may still warn users until a trusted certificate is provided.
+
 ### Replacing the placeholder icon
 
 Generate or export your icon as a 256×256 PNG, then:

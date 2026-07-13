@@ -244,3 +244,134 @@ describe("signaling authorization", () => {
     evil.close();
   });
 });
+
+describe("multi-session direct calls", () => {
+  // A direct-call invite is a per-USER event that fans out to every one of the
+  // callee's open sessions, but the call is resolved per user (first
+  // accept/decline wins). These tests guard the subtle rules:
+  //   - a session that happens to be busy (already in a room) must not cancel
+  //     the invite for the callee's other, free sessions;
+  //   - once one session resolves the call, the callee's other sessions are told
+  //     to stop ringing via `call-cancelled`;
+  //   - the caller only hears `call-declined` from an explicit decline, never
+  //     because a busy session silently ignored the invite.
+
+  test("a busy session does not cancel the invite for the callee's free session", async () => {
+    const caller = new TestClient(memberA, "sigtest_a");
+    const busy = new TestClient(memberB, "sigtest_b"); // already in a party room
+    const free = new TestClient(memberB, "sigtest_b"); // free to answer
+    await Promise.all([caller.open(), busy.open(), free.open()]);
+
+    // Put one of the callee's sessions "in a room" so it counts as busy.
+    busy.send({ type: "join", room: `party:${partyId}` });
+    await busy.waitFor((m) => m.type === "joined");
+
+    caller.send({ type: "call-invite", to: memberB });
+    const ringing = await caller.waitFor((m) => m.type === "call-ringing");
+
+    // The free session must still ring on the same call.
+    const incoming = await free.waitFor((m) => m.type === "incoming-call");
+    assert.equal(incoming.callId, ringing.callId, "free session should ring on the same call");
+
+    // The pending call must NOT be cancelled by the busy session: the caller
+    // keeps ringing and hears no failure/decline/cancellation.
+    await caller.expectNothing(
+      (m) => m.type === "call-failed" || m.type === "call-declined",
+    );
+    await free.expectNothing((m) => m.type === "call-cancelled");
+
+    caller.close();
+    busy.close();
+    free.close();
+  });
+
+  test("when one free session accepts, the other session is told to stop ringing", async () => {
+    const caller = new TestClient(memberA, "sigtest_a");
+    const s1 = new TestClient(memberB, "sigtest_b");
+    const s2 = new TestClient(memberB, "sigtest_b");
+    await Promise.all([caller.open(), s1.open(), s2.open()]);
+
+    caller.send({ type: "call-invite", to: memberB });
+    const ringing = await caller.waitFor((m) => m.type === "call-ringing");
+    const callId: string = ringing.callId;
+    const inc1 = await s1.waitFor((m) => m.type === "incoming-call");
+    const inc2 = await s2.waitFor((m) => m.type === "incoming-call");
+    assert.equal(inc1.callId, callId);
+    assert.equal(inc2.callId, callId);
+
+    // s1 answers.
+    s1.send({ type: "call-accept", callId });
+    const accepted = await s1.waitFor((m) => m.type === "call-accepted");
+    assert.equal(accepted.callId, callId);
+    const callerAccepted = await caller.waitFor((m) => m.type === "call-accepted");
+    assert.equal(callerAccepted.by, memberB);
+
+    // s2 must be told the call is resolved so it stops ringing.
+    const cancelled = await s2.waitFor((m) => m.type === "call-cancelled");
+    assert.equal(cancelled.callId, callId);
+
+    caller.close();
+    s1.close();
+    s2.close();
+  });
+
+  test("when one free session declines, the other session stops ringing and the caller hears the decline", async () => {
+    const caller = new TestClient(memberA, "sigtest_a");
+    const s1 = new TestClient(memberB, "sigtest_b");
+    const s2 = new TestClient(memberB, "sigtest_b");
+    await Promise.all([caller.open(), s1.open(), s2.open()]);
+
+    caller.send({ type: "call-invite", to: memberB });
+    const ringing = await caller.waitFor((m) => m.type === "call-ringing");
+    const callId: string = ringing.callId;
+    await s1.waitFor((m) => m.type === "incoming-call");
+    await s2.waitFor((m) => m.type === "incoming-call");
+
+    // s2 declines.
+    s2.send({ type: "call-decline", callId });
+
+    // s1 (the callee's other session) must be told to stop ringing.
+    const cancelled = await s1.waitFor((m) => m.type === "call-cancelled");
+    assert.equal(cancelled.callId, callId);
+
+    // The caller hears exactly one decline, attributed to the callee user.
+    const declined = await caller.waitFor((m) => m.type === "call-declined");
+    assert.equal(declined.callId, callId);
+    assert.equal(declined.by, memberB);
+
+    caller.close();
+    s1.close();
+    s2.close();
+  });
+
+  test("caller is only told 'declined' by an explicit decline, never by a busy session ignoring the invite", async () => {
+    const caller = new TestClient(memberA, "sigtest_a");
+    const busy = new TestClient(memberB, "sigtest_b"); // busy, ignores the invite
+    const free = new TestClient(memberB, "sigtest_b"); // will explicitly decline
+    await Promise.all([caller.open(), busy.open(), free.open()]);
+
+    busy.send({ type: "join", room: `party:${partyId}` });
+    await busy.waitFor((m) => m.type === "joined");
+
+    caller.send({ type: "call-invite", to: memberB });
+    const ringing = await caller.waitFor((m) => m.type === "call-ringing");
+    const callId: string = ringing.callId;
+    await free.waitFor((m) => m.type === "incoming-call");
+
+    // The busy session simply not answering must NOT surface as a decline or
+    // failure to the caller — the call keeps ringing for the free session.
+    await caller.expectNothing(
+      (m) => m.type === "call-declined" || m.type === "call-failed",
+    );
+
+    // Only an explicit decline from the free session reaches the caller.
+    free.send({ type: "call-decline", callId });
+    const declined = await caller.waitFor((m) => m.type === "call-declined");
+    assert.equal(declined.callId, callId);
+    assert.equal(declined.by, memberB);
+
+    caller.close();
+    busy.close();
+    free.close();
+  });
+});

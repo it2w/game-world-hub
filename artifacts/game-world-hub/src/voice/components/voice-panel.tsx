@@ -54,6 +54,7 @@ export function VoicePanel() {
     leaveVoice,
     setVoiceQuality,
     setScreenQuality,
+    error,
   } = useVoice();
 
   const [expanded, setExpanded] = useState(true);
@@ -83,6 +84,16 @@ export function VoicePanel() {
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
         </div>
+
+        {/* Voice-level failure (e.g. a connection that couldn't be recovered). */}
+        {error && (
+          <div
+            role="alert"
+            className="px-3 py-2 text-[11px] leading-snug text-destructive border-b border-border bg-destructive/10"
+          >
+            {error}
+          </div>
+        )}
 
         {expanded && (
           <>

@@ -197,6 +197,17 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Bound ICE-restart attempts so a permanently broken path (e.g. no reachable
+  // TURN) can't loop forever. We allow a few restarts within a rolling window;
+  // exhausting them surfaces a clear failure instead of silently retrying.
+  const MAX_ICE_RESTART_ATTEMPTS = 3;
+  const ICE_RESTART_WINDOW_MS = 20000;
+  const iceRestartAttemptsRef = useRef<Map<number, { count: number; windowStart: number }>>(new Map());
+
+  const clearIceRestartAttempts = useCallback((userId: number) => {
+    iceRestartAttemptsRef.current.delete(userId);
+  }, []);
+
   const triggerIceRestart = useCallback(async (userId: number) => {
     const entry = peersRef.current.get(userId);
     if (!entry) return;
@@ -207,6 +218,23 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     // The connection may have healed on its own while the grace timer ran.
     const state = peer.pc.connectionState;
     if (state === "connected" || state === "closed") return;
+
+    // Enforce the retry ceiling. The window resets once it has elapsed since the
+    // first attempt, so occasional blips spread over time each get a fresh
+    // budget rather than accumulating toward a permanent lockout.
+    const now = Date.now();
+    const record = iceRestartAttemptsRef.current.get(userId);
+    if (!record || now - record.windowStart > ICE_RESTART_WINDOW_MS) {
+      iceRestartAttemptsRef.current.set(userId, { count: 1, windowStart: now });
+    } else if (record.count >= MAX_ICE_RESTART_ATTEMPTS) {
+      // Out of attempts within the window — stop looping and tell the user so
+      // they can rejoin rather than sitting in a silently-failing call.
+      clearIceRestartTimer(userId);
+      setError("Couldn't reconnect — try rejoining");
+      return;
+    } else {
+      record.count += 1;
+    }
 
     // Refresh ICE servers (fresh TURN credentials) for the restart, so a path
     // that requires relay can succeed even if the original credentials expired.
@@ -224,7 +252,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       if (!peersRef.current.has(userId)) return;
     }
     peer.restartIce(servers);
-  }, []);
+  }, [clearIceRestartTimer]);
 
   const handlePeerConnectionState = useCallback(
     (userId: number, state: RTCPeerConnectionState) => {
@@ -242,11 +270,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         clearIceRestartTimer(userId);
         void triggerIceRestart(userId);
       } else if (state === "connected" || state === "closed") {
-        // Recovered (or gone): drop any pending restart.
+        // Recovered (or gone): drop any pending restart and reset the attempt
+        // budget so a later blip starts fresh instead of inheriting old counts.
         clearIceRestartTimer(userId);
+        clearIceRestartAttempts(userId);
       }
     },
-    [triggerIceRestart, clearIceRestartTimer],
+    [triggerIceRestart, clearIceRestartTimer, clearIceRestartAttempts],
   );
 
   // ─── Peer lifecycle ───────────────────────────────────────────────────────
@@ -314,6 +344,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
 
   const destroyPeer = useCallback((userId: number) => {
     clearIceRestartTimer(userId);
+    clearIceRestartAttempts(userId);
     const entry = peersRef.current.get(userId);
     if (entry) {
       entry.peer.close();

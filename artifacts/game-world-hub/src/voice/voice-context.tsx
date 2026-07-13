@@ -181,6 +181,74 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     return stream;
   }, [ensureDetector]);
 
+  // ─── Connection recovery (ICE restart) ────────────────────────────────────
+
+  // How long a peer may sit in `disconnected` before we attempt to heal the
+  // path. Short networks blips often recover on their own within a second or
+  // two, so we wait before spending an ICE restart.
+  const ICE_RESTART_GRACE_MS = 2500;
+  const iceRestartTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  const clearIceRestartTimer = useCallback((userId: number) => {
+    const t = iceRestartTimersRef.current.get(userId);
+    if (t) {
+      clearTimeout(t);
+      iceRestartTimersRef.current.delete(userId);
+    }
+  }, []);
+
+  const triggerIceRestart = useCallback(async (userId: number) => {
+    const entry = peersRef.current.get(userId);
+    if (!entry) return;
+    const { peer } = entry;
+    // Only the impolite peer initiates, so both sides don't emit competing
+    // restart offers for the same broken path.
+    if (peer.isPolite) return;
+    // The connection may have healed on its own while the grace timer ran.
+    const state = peer.pc.connectionState;
+    if (state === "connected" || state === "closed") return;
+
+    // Refresh ICE servers (fresh TURN credentials) for the restart, so a path
+    // that requires relay can succeed even if the original credentials expired.
+    // Best-effort: fall back to the cached list on failure.
+    const token = localStorage.getItem("gwh_token");
+    let servers = iceServersRef.current;
+    if (token) {
+      try {
+        servers = await fetchIceServers(token);
+        iceServersRef.current = servers;
+      } catch {
+        /* keep cached servers */
+      }
+      // Peer may have been torn down while we awaited the fetch.
+      if (!peersRef.current.has(userId)) return;
+    }
+    peer.restartIce(servers);
+  }, []);
+
+  const handlePeerConnectionState = useCallback(
+    (userId: number, state: RTCPeerConnectionState) => {
+      if (state === "disconnected") {
+        // Give the path a chance to recover before restarting.
+        if (!iceRestartTimersRef.current.has(userId)) {
+          const timer = setTimeout(() => {
+            iceRestartTimersRef.current.delete(userId);
+            void triggerIceRestart(userId);
+          }, ICE_RESTART_GRACE_MS);
+          iceRestartTimersRef.current.set(userId, timer);
+        }
+      } else if (state === "failed") {
+        // `failed` won't recover on its own — restart immediately.
+        clearIceRestartTimer(userId);
+        void triggerIceRestart(userId);
+      } else if (state === "connected" || state === "closed") {
+        // Recovered (or gone): drop any pending restart.
+        clearIceRestartTimer(userId);
+      }
+    },
+    [triggerIceRestart, clearIceRestartTimer],
+  );
+
   // ─── Peer lifecycle ───────────────────────────────────────────────────────
 
   const createPeer = useCallback(
@@ -197,7 +265,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             ensureDetector().add(String(info.userId), stream);
           },
           onRemoteScreen: (stream) => patchPeer(info.userId, { screenStream: stream }),
-          onConnectionStateChange: (state) => patchPeer(info.userId, { connectionState: state }),
+          onConnectionStateChange: (state) => {
+            patchPeer(info.userId, { connectionState: state });
+            handlePeerConnectionState(info.userId, state);
+          },
         },
         polite,
         iceServersRef.current,
@@ -238,10 +309,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [wsSend, patchPeer, ensureDetector],
+    [wsSend, patchPeer, ensureDetector, handlePeerConnectionState],
   );
 
   const destroyPeer = useCallback((userId: number) => {
+    clearIceRestartTimer(userId);
     const entry = peersRef.current.get(userId);
     if (entry) {
       entry.peer.close();

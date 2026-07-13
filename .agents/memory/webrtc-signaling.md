@@ -32,6 +32,19 @@ server only relays signaling over a WebSocket; all room/call state is in memory
   the call lifecycle, keep that map's population/cleanup in lockstep or joins
   will silently start failing (or leak authorization).
 
+## Connection recovery (ICE restart)
+- A dropped path (`disconnected`/`failed`) is healed with `pc.restartIce()` over
+  the **existing** peer connection — never tear down/recreate the Peer or rejoin
+  the room, or you lose the tracks and UI state.
+- **Only the impolite peer initiates** the restart (mirrors the perfect-negotiation
+  polite/impolite split) so both sides don't emit competing restart offers.
+- `disconnected` waits a short grace period before restarting (blips self-heal);
+  `failed` restarts immediately. Refetch ICE servers before restart so relay can
+  use fresh TURN credentials.
+- **How to apply:** if you change the polite/impolite derivation, keep the
+  "impolite initiates" rule in lockstep, and cancel the grace timer on
+  `connected`/`closed` (and in destroyPeer) to avoid restarting a gone peer.
+
 ## Multi-tab & lifecycle
 - One peer per user per room: a second connection joining the same room evicts
   the first (`force-leave`).

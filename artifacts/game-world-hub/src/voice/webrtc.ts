@@ -109,6 +109,38 @@ export class Peer {
     };
   }
 
+  /** Whether this side is the polite peer (yields on offer glare). */
+  get isPolite(): boolean {
+    return this.polite;
+  }
+
+  /**
+   * Heal a broken connection path without tearing down the peer or rejoining
+   * the room. Optionally swaps in a fresh ICE server list (e.g. TURN with
+   * refreshed credentials) via `setConfiguration`, then asks the browser to
+   * re-gather candidates. `restartIce()` fires `onnegotiationneeded`, so the
+   * new offer flows through the same perfect-negotiation path and existing
+   * media tracks (mic/screen) resume once a working path is found.
+   *
+   * Should be initiated by the impolite peer only, so both sides don't emit
+   * competing restart offers.
+   */
+  restartIce(iceServers?: RTCIceServer[]): void {
+    if (this.pc.connectionState === "closed") return;
+    if (iceServers && iceServers.length > 0) {
+      try {
+        this.pc.setConfiguration({ iceServers });
+      } catch (err) {
+        console.warn("[voice] setConfiguration for ICE restart failed", err);
+      }
+    }
+    try {
+      this.pc.restartIce();
+    } catch (err) {
+      console.error("[voice] restartIce failed", err);
+    }
+  }
+
   /** Handle an inbound signaling payload from the remote peer. */
   async handleSignal(data: any): Promise<void> {
     try {

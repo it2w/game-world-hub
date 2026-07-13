@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Game World Hub"
+version = "1.0.0"
+id = "artifacts/game-world-hub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19409
+
+[services.development]
+run = "pnpm --filter @workspace/game-world-hub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/game-world-hub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/game-world-hub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19409"
+BASE_PATH = "/"

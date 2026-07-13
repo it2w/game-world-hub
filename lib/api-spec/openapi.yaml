@@ -3,13 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Game World Hub API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User profiles
+  - name: friends
+    description: Friend management
+  - name: messages
+    description: Chat messages
+  - name: parties
+    description: Gaming parties
+  - name: games
+    description: Game library
+  - name: platforms
+    description: Platform links
+
 paths:
   /healthz:
     get:
@@ -24,6 +39,861 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Username taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/status:
+    patch:
+      operationId: updateMyStatus
+      tags: [auth]
+      summary: Update online status and current game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ── Users ─────────────────────────────────────────────────────────────────
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/profile:
+    patch:
+      operationId: updateProfile
+      tags: [users]
+      summary: Update own profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /users/search:
+    get:
+      operationId: searchUsers
+      tags: [users]
+      summary: Search users by username
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  # ── Friends ───────────────────────────────────────────────────────────────
+  /friends:
+    get:
+      operationId: listFriends
+      tags: [friends]
+      summary: List friends
+      responses:
+        "200":
+          description: Friend list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendEntry"
+
+  /friends/requests:
+    get:
+      operationId: listFriendRequests
+      tags: [friends]
+      summary: List incoming friend requests
+      responses:
+        "200":
+          description: Pending requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendRequest"
+
+  /friends/request:
+    post:
+      operationId: sendFriendRequest
+      tags: [friends]
+      summary: Send a friend request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FriendRequestInput"
+      responses:
+        "201":
+          description: Request sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequest"
+        "400":
+          description: Already friends or request exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /friends/request/{requestId}/accept:
+    post:
+      operationId: acceptFriendRequest
+      tags: [friends]
+      summary: Accept a friend request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/request/{requestId}/reject:
+    post:
+      operationId: rejectFriendRequest
+      tags: [friends]
+      summary: Reject a friend request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/{friendId}:
+    delete:
+      operationId: removeFriend
+      tags: [friends]
+      summary: Remove a friend
+      parameters:
+        - name: friendId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/online-summary:
+    get:
+      operationId: getOnlineFriendsSummary
+      tags: [friends]
+      summary: Get online friends with their current games
+      responses:
+        "200":
+          description: Online friends summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnlineFriendsSummary"
+
+  # ── Messages ──────────────────────────────────────────────────────────────
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [messages]
+      summary: List conversations
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get messages in a conversation
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /conversations/direct/{userId}:
+    get:
+      operationId: getOrCreateDirectConversation
+      tags: [messages]
+      summary: Get or create a direct conversation with a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  # ── Parties ───────────────────────────────────────────────────────────────
+  /parties:
+    get:
+      operationId: listParties
+      tags: [parties]
+      summary: List public parties and parties you are a member of
+      responses:
+        "200":
+          description: Parties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Party"
+    post:
+      operationId: createParty
+      tags: [parties]
+      summary: Create a party
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartyInput"
+      responses:
+        "201":
+          description: Party created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+
+  /parties/{partyId}:
+    get:
+      operationId: getParty
+      tags: [parties]
+      summary: Get party details
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Party
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateParty
+      tags: [parties]
+      summary: Update party (leader only)
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+    delete:
+      operationId: deleteParty
+      tags: [parties]
+      summary: Delete party (leader only)
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /parties/{partyId}/invite:
+    post:
+      operationId: inviteToParty
+      tags: [parties]
+      summary: Invite a friend to the party
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartyInviteInput"
+      responses:
+        "200":
+          description: Invited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /parties/{partyId}/join:
+    post:
+      operationId: joinParty
+      tags: [parties]
+      summary: Join a party
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+
+  /parties/{partyId}/leave:
+    post:
+      operationId: leaveParty
+      tags: [parties]
+      summary: Leave a party
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Left
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /parties/activity-feed:
+    get:
+      operationId: getPartyActivityFeed
+      tags: [parties]
+      summary: Get recent party activity from friends
+      responses:
+        "200":
+          description: Party activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartyActivity"
+
+  # ── Party invites ─────────────────────────────────────────────────────────
+  /party-invites:
+    get:
+      operationId: listPartyInvites
+      tags: [parties]
+      summary: List pending party invites for current user
+      responses:
+        "200":
+          description: Invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartyInvite"
+
+  /party-invites/{inviteId}/accept:
+    post:
+      operationId: acceptPartyInvite
+      tags: [parties]
+      summary: Accept a party invite
+      parameters:
+        - name: inviteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+
+  /party-invites/{inviteId}/decline:
+    post:
+      operationId: declinePartyInvite
+      tags: [parties]
+      summary: Decline a party invite
+      parameters:
+        - name: inviteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── Games ─────────────────────────────────────────────────────────────────
+  /games:
+    get:
+      operationId: listAllGames
+      tags: [games]
+      summary: List all known games (master list)
+      responses:
+        "200":
+          description: Games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Game"
+    post:
+      operationId: addGame
+      tags: [games]
+      summary: Add a game to master list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameInput"
+      responses:
+        "201":
+          description: Game added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Game"
+
+  /users/{userId}/games:
+    get:
+      operationId: getUserGames
+      tags: [games]
+      summary: Get a user's game library
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserGame"
+    post:
+      operationId: addUserGame
+      tags: [games]
+      summary: Add a game to current user's library
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserGameInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGame"
+
+  /users/{userId}/games/{gameId}:
+    delete:
+      operationId: removeUserGame
+      tags: [games]
+      summary: Remove a game from user's library
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/{friendId}/common-games:
+    get:
+      operationId: getCommonGames
+      tags: [games]
+      summary: Get games shared between current user and a friend
+      parameters:
+        - name: friendId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Common games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Game"
+
+  # ── Platforms ─────────────────────────────────────────────────────────────
+  /users/{userId}/platforms:
+    get:
+      operationId: getUserPlatforms
+      tags: [platforms]
+      summary: Get a user's linked platforms
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Platform links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlatformLink"
+    post:
+      operationId: linkPlatform
+      tags: [platforms]
+      summary: Link a gaming platform
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformLinkInput"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformLink"
+
+  /users/{userId}/platforms/{platformId}:
+    delete:
+      operationId: unlinkPlatform
+      tags: [platforms]
+      summary: Unlink a platform
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: platformId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── Notifications ─────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [users]
+      summary: List notifications for current user
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{notificationId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [users]
+      summary: Mark a notification as read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [users]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +904,434 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    # ── Auth ────────────────────────────────────────────────────────────────
+    RegisterInput:
+      type: object
+      required: [username, password, displayName]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+        password:
+          type: string
+          minLength: 6
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 50
+
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    StatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [online, away, busy, offline]
+        currentGame:
+          type: ["string", "null"]
+
+    # ── Users ────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, username, displayName, status, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [online, away, busy, offline]
+        currentGame:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserProfile:
+      type: object
+      required: [id, username, displayName, status, createdAt, games, platforms]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [online, away, busy, offline]
+        currentGame:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserGame"
+        platforms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformLink"
+
+    ProfileUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        bio:
+          type: string
+          maxLength: 500
+        avatarUrl:
+          type: string
+
+    # ── Friends ──────────────────────────────────────────────────────────────
+    FriendEntry:
+      type: object
+      required: [id, friend, since]
+      properties:
+        id:
+          type: integer
+        friend:
+          $ref: "#/components/schemas/User"
+        since:
+          type: string
+
+    FriendRequest:
+      type: object
+      required: [id, from, to, status, createdAt]
+      properties:
+        id:
+          type: integer
+        from:
+          $ref: "#/components/schemas/User"
+        to:
+          $ref: "#/components/schemas/User"
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        createdAt:
+          type: string
+
+    FriendRequestInput:
+      type: object
+      required: [toUserId]
+      properties:
+        toUserId:
+          type: integer
+
+    OnlineFriendsSummary:
+      type: object
+      required: [onlineCount, friends]
+      properties:
+        onlineCount:
+          type: integer
+        friends:
+          type: array
+          items:
+            $ref: "#/components/schemas/FriendEntry"
+
+    # ── Messages ─────────────────────────────────────────────────────────────
+    Conversation:
+      type: object
+      required: [id, type, participants, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [direct, party]
+        name:
+          type: ["string", "null"]
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        unreadCount:
+          type: integer
+        createdAt:
+          type: string
+
+    Message:
+      type: object
+      required: [id, conversationId, sender, content, createdAt]
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        sender:
+          $ref: "#/components/schemas/User"
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    MessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+
+    # ── Parties ──────────────────────────────────────────────────────────────
+    Party:
+      type: object
+      required: [id, name, leader, members, maxSize, isPublic, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        game:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        leader:
+          $ref: "#/components/schemas/User"
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        maxSize:
+          type: integer
+        isPublic:
+          type: boolean
+        conversationId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    PartyInput:
+      type: object
+      required: [name, maxSize]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        game:
+          type: string
+        platform:
+          type: string
+        description:
+          type: string
+          maxLength: 500
+        maxSize:
+          type: integer
+          minimum: 2
+          maximum: 100
+        isPublic:
+          type: boolean
+
+    PartyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        game:
+          type: string
+        platform:
+          type: string
+        description:
+          type: string
+          maxLength: 500
+        maxSize:
+          type: integer
+          minimum: 2
+          maximum: 100
+        isPublic:
+          type: boolean
+
+    PartyInviteInput:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+
+    PartyInvite:
+      type: object
+      required: [id, party, invitedBy, createdAt]
+      properties:
+        id:
+          type: integer
+        party:
+          $ref: "#/components/schemas/Party"
+        invitedBy:
+          $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
+
+    PartyActivity:
+      type: object
+      required: [id, party, actor, action, createdAt]
+      properties:
+        id:
+          type: integer
+        party:
+          $ref: "#/components/schemas/Party"
+        actor:
+          $ref: "#/components/schemas/User"
+        action:
+          type: string
+          enum: [created, joined, left, invited]
+        createdAt:
+          type: string
+
+    # ── Games ─────────────────────────────────────────────────────────────────
+    Game:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        coverUrl:
+          type: ["string", "null"]
+        genre:
+          type: ["string", "null"]
+        platforms:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+
+    GameInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        coverUrl:
+          type: string
+        genre:
+          type: string
+        platforms:
+          type: array
+          items:
+            type: string
+
+    UserGame:
+      type: object
+      required: [id, game, addedAt]
+      properties:
+        id:
+          type: integer
+        game:
+          $ref: "#/components/schemas/Game"
+        addedAt:
+          type: string
+
+    UserGameInput:
+      type: object
+      required: [gameId]
+      properties:
+        gameId:
+          type: integer
+
+    # ── Platforms ─────────────────────────────────────────────────────────────
+    PlatformLink:
+      type: object
+      required: [id, platform, profileUrl, linkedAt]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+          enum: [steam, xbox, playstation, epic, battlenet, nintendo]
+        profileUrl:
+          type: string
+        username:
+          type: ["string", "null"]
+        linkedAt:
+          type: string
+
+    PlatformLinkInput:
+      type: object
+      required: [platform, profileUrl]
+      properties:
+        platform:
+          type: string
+          enum: [steam, xbox, playstation, epic, battlenet, nintendo]
+        profileUrl:
+          type: string
+        username:
+          type: string
+
+    # ── Notifications ─────────────────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, type, title, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [friend_request, party_invite, message, friend_online]
+        title:
+          type: string
+        body:
+          type: ["string", "null"]
+        isRead:
+          type: boolean
+        relatedId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string

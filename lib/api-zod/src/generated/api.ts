@@ -1103,7 +1103,7 @@ export const UnlinkPlatformResponse = zod.object({
  */
 export const ListNotificationsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['friend_request', 'party_invite', 'message', 'friend_online']),
+  "type": zod.enum(['friend_request', 'party_invite', 'message', 'friend_online', 'lfg_response']),
   "title": zod.string(),
   "body": zod.string().nullish(),
   "isRead": zod.boolean(),
@@ -1130,6 +1130,249 @@ export const MarkNotificationReadResponse = zod.object({
  */
 export const MarkAllNotificationsReadResponse = zod.object({
   "success": zod.boolean()
+})
+
+
+/**
+ * @summary List open LFG posts (optionally filtered by game/platform)
+ */
+export const ListLfgPostsQueryParams = zod.object({
+  "game": zod.coerce.string().optional(),
+  "platform": zod.coerce.string().optional()
+})
+
+export const ListLfgPostsResponseItem = zod.object({
+  "id": zod.number(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "game": zod.string(),
+  "platform": zod.string().nullish(),
+  "rank": zod.string().nullish(),
+  "description": zod.string(),
+  "neededPlayers": zod.number(),
+  "micRequired": zod.boolean(),
+  "status": zod.enum(['open', 'closed']),
+  "responseCount": zod.number(),
+  "responders": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "viewerHasResponded": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListLfgPostsResponse = zod.array(ListLfgPostsResponseItem)
+
+
+/**
+ * @summary Create an LFG post
+ */
+export const createLfgPostBodyGameMax = 100;
+
+export const createLfgPostBodyDescriptionMax = 500;
+
+export const createLfgPostBodyNeededPlayersMax = 20;
+
+export const createLfgPostBodyExpiresInHoursMax = 48;
+
+
+
+export const CreateLfgPostBody = zod.object({
+  "game": zod.string().min(1).max(createLfgPostBodyGameMax),
+  "platform": zod.string().optional(),
+  "rank": zod.string().optional(),
+  "description": zod.string().min(1).max(createLfgPostBodyDescriptionMax),
+  "neededPlayers": zod.number().min(1).max(createLfgPostBodyNeededPlayersMax).optional(),
+  "micRequired": zod.boolean().optional(),
+  "expiresInHours": zod.number().min(1).max(createLfgPostBodyExpiresInHoursMax).optional()
+})
+
+export const CreateLfgPostResponse = zod.object({
+  "id": zod.number(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "game": zod.string(),
+  "platform": zod.string().nullish(),
+  "rank": zod.string().nullish(),
+  "description": zod.string(),
+  "neededPlayers": zod.number(),
+  "micRequired": zod.boolean(),
+  "status": zod.enum(['open', 'closed']),
+  "responseCount": zod.number(),
+  "responders": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "viewerHasResponded": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Express interest in an LFG post
+ */
+export const RespondToLfgPostParams = zod.object({
+  "postId": zod.coerce.number()
+})
+
+export const respondToLfgPostBodyMessageMax = 300;
+
+
+
+export const RespondToLfgPostBody = zod.object({
+  "message": zod.string().max(respondToLfgPostBodyMessageMax).optional()
+})
+
+export const RespondToLfgPostResponse = zod.object({
+  "id": zod.number(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "game": zod.string(),
+  "platform": zod.string().nullish(),
+  "rank": zod.string().nullish(),
+  "description": zod.string(),
+  "neededPlayers": zod.number(),
+  "micRequired": zod.boolean(),
+  "status": zod.enum(['open', 'closed']),
+  "responseCount": zod.number(),
+  "responders": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "viewerHasResponded": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Close your LFG post
+ */
+export const CloseLfgPostParams = zod.object({
+  "postId": zod.coerce.number()
+})
+
+export const CloseLfgPostResponse = zod.object({
+  "id": zod.number(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "game": zod.string(),
+  "platform": zod.string().nullish(),
+  "rank": zod.string().nullish(),
+  "description": zod.string(),
+  "neededPlayers": zod.number(),
+  "micRequired": zod.boolean(),
+  "status": zod.enum(['open', 'closed']),
+  "responseCount": zod.number(),
+  "responders": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "viewerHasResponded": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete your LFG post
+ */
+export const DeleteLfgPostParams = zod.object({
+  "postId": zod.coerce.number()
+})
+
+export const DeleteLfgPostResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get the authenticated player's rank, XP and achievements
+ */
+export const GetPlayerProgressResponse = zod.object({
+  "level": zod.number(),
+  "rank": zod.string(),
+  "totalXp": zod.number(),
+  "xpIntoLevel": zod.number(),
+  "xpForNext": zod.number(),
+  "unlockedCount": zod.number(),
+  "totalCount": zod.number(),
+  "stats": zod.object({
+  "friends": zod.number(),
+  "partiesCreated": zod.number(),
+  "partiesJoined": zod.number(),
+  "messagesSent": zod.number(),
+  "lfgPosts": zod.number(),
+  "lfgResponses": zod.number(),
+  "games": zod.number(),
+  "platforms": zod.number()
+}),
+  "achievements": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "icon": zod.string(),
+  "current": zod.number(),
+  "target": zod.number(),
+  "unlocked": zod.boolean()
+}))
 })
 
 

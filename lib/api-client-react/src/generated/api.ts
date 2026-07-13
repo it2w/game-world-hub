@@ -29,6 +29,10 @@ import type {
   Game,
   GameInput,
   HealthStatus,
+  LfgPost,
+  LfgPostInput,
+  LfgRespondInput,
+  ListLfgPostsParams,
   LoginInput,
   Message,
   MessageInput,
@@ -42,6 +46,7 @@ import type {
   PartyUpdate,
   PlatformLink,
   PlatformLinkInput,
+  PlayerProgress,
   ProfileUpdate,
   RegisterInput,
   SearchUsersParams,
@@ -3335,4 +3340,450 @@ export const useMarkAllNotificationsRead = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getMarkAllNotificationsReadMutationOptions(options));
     }
+
+export const getListLfgPostsUrl = (params?: ListLfgPostsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lfg?${stringifiedParams}` : `/api/lfg`
+}
+
+/**
+ * @summary List open LFG posts (optionally filtered by game/platform)
+ */
+export const listLfgPosts = async (params?: ListLfgPostsParams, options?: RequestInit): Promise<LfgPost[]> => {
+
+  return customFetch<LfgPost[]>(getListLfgPostsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLfgPostsQueryKey = (params?: ListLfgPostsParams,) => {
+    return [
+    `/api/lfg`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLfgPostsQueryOptions = <TData = Awaited<ReturnType<typeof listLfgPosts>>, TError = ErrorType<unknown>>(params?: ListLfgPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLfgPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLfgPostsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLfgPosts>>> = ({ signal }) => listLfgPosts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLfgPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLfgPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listLfgPosts>>>
+export type ListLfgPostsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List open LFG posts (optionally filtered by game/platform)
+ */
+
+export function useListLfgPosts<TData = Awaited<ReturnType<typeof listLfgPosts>>, TError = ErrorType<unknown>>(
+ params?: ListLfgPostsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLfgPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLfgPostsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLfgPostUrl = () => {
+
+
+
+
+  return `/api/lfg`
+}
+
+/**
+ * @summary Create an LFG post
+ */
+export const createLfgPost = async (lfgPostInput: LfgPostInput, options?: RequestInit): Promise<LfgPost> => {
+
+  return customFetch<LfgPost>(getCreateLfgPostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(lfgPostInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLfgPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLfgPost>>, TError,{data: BodyType<LfgPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLfgPost>>, TError,{data: BodyType<LfgPostInput>}, TContext> => {
+
+const mutationKey = ['createLfgPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLfgPost>>, {data: BodyType<LfgPostInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLfgPost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLfgPostMutationResult = NonNullable<Awaited<ReturnType<typeof createLfgPost>>>
+    export type CreateLfgPostMutationBody = BodyType<LfgPostInput>
+    export type CreateLfgPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create an LFG post
+ */
+export const useCreateLfgPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLfgPost>>, TError,{data: BodyType<LfgPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLfgPost>>,
+        TError,
+        {data: BodyType<LfgPostInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLfgPostMutationOptions(options));
+    }
+
+export const getRespondToLfgPostUrl = (postId: number,) => {
+
+
+
+
+  return `/api/lfg/${postId}/respond`
+}
+
+/**
+ * @summary Express interest in an LFG post
+ */
+export const respondToLfgPost = async (postId: number,
+    lfgRespondInput: LfgRespondInput, options?: RequestInit): Promise<LfgPost> => {
+
+  return customFetch<LfgPost>(getRespondToLfgPostUrl(postId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(lfgRespondInput)
+  }
+);}
+
+
+
+
+
+export const getRespondToLfgPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToLfgPost>>, TError,{postId: number;data: BodyType<LfgRespondInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToLfgPost>>, TError,{postId: number;data: BodyType<LfgRespondInput>}, TContext> => {
+
+const mutationKey = ['respondToLfgPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToLfgPost>>, {postId: number;data: BodyType<LfgRespondInput>}> = (props) => {
+          const {postId,data} = props ?? {};
+
+          return  respondToLfgPost(postId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToLfgPostMutationResult = NonNullable<Awaited<ReturnType<typeof respondToLfgPost>>>
+    export type RespondToLfgPostMutationBody = BodyType<LfgRespondInput>
+    export type RespondToLfgPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Express interest in an LFG post
+ */
+export const useRespondToLfgPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToLfgPost>>, TError,{postId: number;data: BodyType<LfgRespondInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToLfgPost>>,
+        TError,
+        {postId: number;data: BodyType<LfgRespondInput>},
+        TContext
+      > => {
+      return useMutation(getRespondToLfgPostMutationOptions(options));
+    }
+
+export const getCloseLfgPostUrl = (postId: number,) => {
+
+
+
+
+  return `/api/lfg/${postId}/close`
+}
+
+/**
+ * @summary Close your LFG post
+ */
+export const closeLfgPost = async (postId: number, options?: RequestInit): Promise<LfgPost> => {
+
+  return customFetch<LfgPost>(getCloseLfgPostUrl(postId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCloseLfgPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeLfgPost>>, TError,{postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof closeLfgPost>>, TError,{postId: number}, TContext> => {
+
+const mutationKey = ['closeLfgPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof closeLfgPost>>, {postId: number}> = (props) => {
+          const {postId} = props ?? {};
+
+          return  closeLfgPost(postId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloseLfgPostMutationResult = NonNullable<Awaited<ReturnType<typeof closeLfgPost>>>
+
+    export type CloseLfgPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Close your LFG post
+ */
+export const useCloseLfgPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeLfgPost>>, TError,{postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof closeLfgPost>>,
+        TError,
+        {postId: number},
+        TContext
+      > => {
+      return useMutation(getCloseLfgPostMutationOptions(options));
+    }
+
+export const getDeleteLfgPostUrl = (postId: number,) => {
+
+
+
+
+  return `/api/lfg/${postId}`
+}
+
+/**
+ * @summary Delete your LFG post
+ */
+export const deleteLfgPost = async (postId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteLfgPostUrl(postId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLfgPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLfgPost>>, TError,{postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLfgPost>>, TError,{postId: number}, TContext> => {
+
+const mutationKey = ['deleteLfgPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLfgPost>>, {postId: number}> = (props) => {
+          const {postId} = props ?? {};
+
+          return  deleteLfgPost(postId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLfgPostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLfgPost>>>
+
+    export type DeleteLfgPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete your LFG post
+ */
+export const useDeleteLfgPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLfgPost>>, TError,{postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLfgPost>>,
+        TError,
+        {postId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteLfgPostMutationOptions(options));
+    }
+
+export const getGetPlayerProgressUrl = () => {
+
+
+
+
+  return `/api/achievements`
+}
+
+/**
+ * @summary Get the authenticated player's rank, XP and achievements
+ */
+export const getPlayerProgress = async ( options?: RequestInit): Promise<PlayerProgress> => {
+
+  return customFetch<PlayerProgress>(getGetPlayerProgressUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerProgressQueryKey = () => {
+    return [
+    `/api/achievements`
+    ] as const;
+    }
+
+
+export const getGetPlayerProgressQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerProgress>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerProgressQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerProgress>>> = ({ signal }) => getPlayerProgress({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerProgress>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerProgressQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerProgress>>>
+export type GetPlayerProgressQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the authenticated player's rank, XP and achievements
+ */
+
+export function useGetPlayerProgress<TData = Awaited<ReturnType<typeof getPlayerProgress>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerProgress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerProgressQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -12,7 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,22 @@ export function AppSidebar() {
                   <Link href="/parties">
                     <Activity className="w-4 h-4" />
                     <span>Parties</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/lfg")}>
+                  <Link href="/lfg">
+                    <Radar className="w-4 h-4" />
+                    <span>LFG</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/ranks")}>
+                  <Link href="/ranks">
+                    <Trophy className="w-4 h-4" />
+                    <span>Ranks</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

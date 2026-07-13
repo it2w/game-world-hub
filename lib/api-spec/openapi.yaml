@@ -20,6 +20,10 @@ tags:
     description: Chat messages
   - name: parties
     description: Gaming parties
+  - name: lfg
+    description: Looking For Group board
+  - name: achievements
+    description: Player ranks, XP and achievements
   - name: games
     description: Game library
   - name: platforms
@@ -894,6 +898,126 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # ── LFG (Looking For Group) ─────────────────────────────────────────────────
+  /lfg:
+    get:
+      operationId: listLfgPosts
+      tags: [lfg]
+      summary: List open LFG posts (optionally filtered by game/platform)
+      parameters:
+        - name: game
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: platform
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: LFG posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LfgPost"
+    post:
+      operationId: createLfgPost
+      tags: [lfg]
+      summary: Create an LFG post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LfgPostInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LfgPost"
+
+  /lfg/{postId}/respond:
+    post:
+      operationId: respondToLfgPost
+      tags: [lfg]
+      summary: Express interest in an LFG post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LfgRespondInput"
+      responses:
+        "200":
+          description: Responded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LfgPost"
+
+  /lfg/{postId}/close:
+    post:
+      operationId: closeLfgPost
+      tags: [lfg]
+      summary: Close your LFG post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LfgPost"
+
+  /lfg/{postId}:
+    delete:
+      operationId: deleteLfgPost
+      tags: [lfg]
+      summary: Delete your LFG post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /achievements:
+    get:
+      operationId: getPlayerProgress
+      tags: [achievements]
+      summary: Get the authenticated player's rank, XP and achievements
+      responses:
+        "200":
+          description: Player progression
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerProgress"
+
 components:
   schemas:
     HealthStatus:
@@ -919,6 +1043,142 @@ components:
           type: boolean
       required:
         - success
+
+    # ── LFG (Looking For Group) ───────────────────────────────────────────────
+    LfgPost:
+      type: object
+      required:
+        [id, author, game, description, neededPlayers, micRequired, status, responseCount, responders, viewerHasResponded, createdAt]
+      properties:
+        id:
+          type: integer
+        author:
+          $ref: "#/components/schemas/User"
+        game:
+          type: string
+        platform:
+          type: ["string", "null"]
+        rank:
+          type: ["string", "null"]
+        description:
+          type: string
+        neededPlayers:
+          type: integer
+        micRequired:
+          type: boolean
+        status:
+          type: string
+          enum: [open, closed]
+        responseCount:
+          type: integer
+        responders:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        viewerHasResponded:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    LfgPostInput:
+      type: object
+      required: [game, description]
+      properties:
+        game:
+          type: string
+          minLength: 1
+          maxLength: 100
+        platform:
+          type: string
+        rank:
+          type: string
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        neededPlayers:
+          type: integer
+          minimum: 1
+          maximum: 20
+        micRequired:
+          type: boolean
+        expiresInHours:
+          type: integer
+          minimum: 1
+          maximum: 48
+
+    LfgRespondInput:
+      type: object
+      properties:
+        message:
+          type: string
+          maxLength: 300
+
+    Achievement:
+      type: object
+      required: [id, name, description, icon, current, target, unlocked]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        current:
+          type: integer
+        target:
+          type: integer
+        unlocked:
+          type: boolean
+
+    PlayerProgress:
+      type: object
+      required:
+        [level, rank, totalXp, xpIntoLevel, xpForNext, unlockedCount, totalCount, stats, achievements]
+      properties:
+        level:
+          type: integer
+        rank:
+          type: string
+        totalXp:
+          type: integer
+        xpIntoLevel:
+          type: integer
+        xpForNext:
+          type: integer
+        unlockedCount:
+          type: integer
+        totalCount:
+          type: integer
+        stats:
+          type: object
+          required:
+            [friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games, platforms]
+          properties:
+            friends:
+              type: integer
+            partiesCreated:
+              type: integer
+            partiesJoined:
+              type: integer
+            messagesSent:
+              type: integer
+            lfgPosts:
+              type: integer
+            lfgResponses:
+              type: integer
+            games:
+              type: integer
+            platforms:
+              type: integer
+        achievements:
+          type: array
+          items:
+            $ref: "#/components/schemas/Achievement"
 
     # ── Auth ────────────────────────────────────────────────────────────────
     RegisterInput:
@@ -1324,7 +1584,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [friend_request, party_invite, message, friend_online]
+          enum: [friend_request, party_invite, message, friend_online, lfg_response]
         title:
           type: string
         body:

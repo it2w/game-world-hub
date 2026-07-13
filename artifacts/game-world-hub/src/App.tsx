@@ -15,6 +15,8 @@ import Friends from '@/pages/friends';
 import Chat from '@/pages/chat';
 import Parties from '@/pages/parties';
 import PartyDetail from '@/pages/party-detail';
+import Lfg from '@/pages/lfg';
+import Achievements from '@/pages/achievements';
 import Games from '@/pages/games';
 import Profile from '@/pages/profile';
 import Settings from '@/pages/settings';
@@ -68,6 +70,8 @@ function Router() {
             <Route path="/chat/:conversationId" component={Chat} />
             <Route path="/parties" component={Parties} />
             <Route path="/party/:partyId" component={PartyDetail} />
+            <Route path="/lfg" component={Lfg} />
+            <Route path="/ranks" component={Achievements} />
             <Route path="/games" component={Games} />
             <Route path="/profile/:userId" component={Profile} />
             <Route path="/settings" component={Settings} />

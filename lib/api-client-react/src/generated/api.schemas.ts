@@ -17,25 +17,13 @@ export interface SuccessResponse {
   success: boolean;
 }
 
-export interface RegisterInput {
-  /**
-     * @minLength 3
-     * @maxLength 30
-     */
-  username: string;
-  /** @minLength 6 */
-  password: string;
-  /**
-     * @minLength 1
-     * @maxLength 50
-     */
-  displayName: string;
-}
+export type LfgPostStatus = typeof LfgPostStatus[keyof typeof LfgPostStatus];
 
-export interface LoginInput {
-  username: string;
-  password: string;
-}
+
+export const LfgPostStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
 
 export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
 
@@ -59,6 +47,110 @@ export interface User {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+}
+
+export interface LfgPost {
+  id: number;
+  author: User;
+  game: string;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  rank?: string | null;
+  description: string;
+  neededPlayers: number;
+  micRequired: boolean;
+  status: LfgPostStatus;
+  responseCount: number;
+  responders: User[];
+  viewerHasResponded: boolean;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface LfgPostInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  game: string;
+  platform?: string;
+  rank?: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  description: string;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  neededPlayers?: number;
+  micRequired?: boolean;
+  /**
+     * @minimum 1
+     * @maximum 48
+     */
+  expiresInHours?: number;
+}
+
+export interface LfgRespondInput {
+  /** @maxLength 300 */
+  message?: string;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  current: number;
+  target: number;
+  unlocked: boolean;
+}
+
+export type PlayerProgressStats = {
+  friends: number;
+  partiesCreated: number;
+  partiesJoined: number;
+  messagesSent: number;
+  lfgPosts: number;
+  lfgResponses: number;
+  games: number;
+  platforms: number;
+};
+
+export interface PlayerProgress {
+  level: number;
+  rank: string;
+  totalXp: number;
+  xpIntoLevel: number;
+  xpForNext: number;
+  unlockedCount: number;
+  totalCount: number;
+  stats: PlayerProgressStats;
+  achievements: Achievement[];
+}
+
+export interface RegisterInput {
+  /**
+     * @minLength 3
+     * @maxLength 30
+     */
+  username: string;
+  /** @minLength 6 */
+  password: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  displayName: string;
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
 }
 
 export interface AuthResponse {
@@ -345,6 +437,7 @@ export const NotificationType = {
   party_invite: 'party_invite',
   message: 'message',
   friend_online: 'friend_online',
+  lfg_response: 'lfg_response',
 } as const;
 
 export interface Notification {
@@ -361,5 +454,10 @@ export interface Notification {
 
 export type SearchUsersParams = {
 q: string;
+};
+
+export type ListLfgPostsParams = {
+game?: string;
+platform?: string;
 };
 

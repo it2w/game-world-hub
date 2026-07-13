@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './achievement';
 export * from './authResponse';
 export * from './conversation';
 export * from './conversationType';
@@ -17,6 +18,11 @@ export * from './friendRequestStatus';
 export * from './game';
 export * from './gameInput';
 export * from './healthStatus';
+export * from './lfgPost';
+export * from './lfgPostInput';
+export * from './lfgPostStatus';
+export * from './lfgRespondInput';
+export * from './listLfgPostsParams';
 export * from './loginInput';
 export * from './message';
 export * from './messageInput';
@@ -34,6 +40,8 @@ export * from './platformLink';
 export * from './platformLinkInput';
 export * from './platformLinkInputPlatform';
 export * from './platformLinkPlatform';
+export * from './playerProgress';
+export * from './playerProgressStats';
 export * from './profileUpdate';
 export * from './registerInput';
 export * from './searchUsersParams';

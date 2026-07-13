@@ -14,4 +14,5 @@ export const NotificationType = {
   party_invite: 'party_invite',
   message: 'message',
   friend_online: 'friend_online',
+  lfg_response: 'lfg_response',
 } as const;

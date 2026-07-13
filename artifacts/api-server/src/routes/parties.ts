@@ -128,8 +128,14 @@ router.post("/party-invites/:inviteId/accept", requireAuth, async (req, res): Pr
     res.status(404).json({ error: "Invite not found" });
     return;
   }
+  if (invite.status === "accepted") {
+    // Already accepted — idempotent success
+    const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, invite.partyId));
+    res.json(await buildParty(party));
+    return;
+  }
   if (invite.status !== "pending") {
-    res.status(409).json({ error: "Invite is no longer pending" });
+    res.status(409).json({ error: "Invite has already been declined" });
     return;
   }
 
@@ -376,8 +382,27 @@ router.post("/parties/:partyId/leave", requireAuth, async (req, res): Promise<vo
   const partyId = parseInt(raw, 10);
   const myId = req.auth!.userId;
 
+  // Verify active membership before allowing leave
+  const [membership] = await db
+    .select()
+    .from(partyMembersTable)
+    .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, myId)));
+  if (!membership) {
+    res.status(400).json({ error: "Not a member of this party" });
+    return;
+  }
+
+  // Remove from party
   await db.delete(partyMembersTable).where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, myId)));
   await db.insert(partyActivityTable).values({ partyId, actorId: myId, action: "left" });
+
+  // Revoke access to party conversation
+  const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+  if (party?.conversationId) {
+    await db
+      .delete(conversationParticipantsTable)
+      .where(and(eq(conversationParticipantsTable.conversationId, party.conversationId), eq(conversationParticipantsTable.userId, myId)));
+  }
 
   res.json({ success: true });
 });

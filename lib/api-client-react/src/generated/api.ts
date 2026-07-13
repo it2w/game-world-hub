@@ -21,6 +21,8 @@ import type {
 
 import type {
   AuthResponse,
+  ContentLink,
+  ContentLinkInput,
   Conversation,
   ErrorResponse,
   FriendEntry,
@@ -3120,6 +3122,228 @@ export const useUnlinkPlatform = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUnlinkPlatformMutationOptions(options));
+    }
+
+export const getGetUserContentLinksUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/content`
+}
+
+/**
+ * @summary Get a user's linked content channels
+ */
+export const getUserContentLinks = async (userId: number, options?: RequestInit): Promise<ContentLink[]> => {
+
+  return customFetch<ContentLink[]>(getGetUserContentLinksUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserContentLinksQueryKey = (userId: number,) => {
+    return [
+    `/api/users/${userId}/content`
+    ] as const;
+    }
+
+
+export const getGetUserContentLinksQueryOptions = <TData = Awaited<ReturnType<typeof getUserContentLinks>>, TError = ErrorType<unknown>>(userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserContentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserContentLinksQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserContentLinks>>> = ({ signal }) => getUserContentLinks(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserContentLinks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUserContentLinksQueryResult = NonNullable<Awaited<ReturnType<typeof getUserContentLinks>>>
+export type GetUserContentLinksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a user's linked content channels
+ */
+
+export function useGetUserContentLinks<TData = Awaited<ReturnType<typeof getUserContentLinks>>, TError = ErrorType<unknown>>(
+ userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserContentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUserContentLinksQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLinkContentUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/content`
+}
+
+/**
+ * @summary Link a content creator channel
+ */
+export const linkContent = async (userId: number,
+    contentLinkInput: ContentLinkInput, options?: RequestInit): Promise<ContentLink> => {
+
+  return customFetch<ContentLink>(getLinkContentUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(contentLinkInput)
+  }
+);}
+
+
+
+
+
+export const getLinkContentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkContent>>, TError,{userId: number;data: BodyType<ContentLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkContent>>, TError,{userId: number;data: BodyType<ContentLinkInput>}, TContext> => {
+
+const mutationKey = ['linkContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkContent>>, {userId: number;data: BodyType<ContentLinkInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  linkContent(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkContentMutationResult = NonNullable<Awaited<ReturnType<typeof linkContent>>>
+    export type LinkContentMutationBody = BodyType<ContentLinkInput>
+    export type LinkContentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Link a content creator channel
+ */
+export const useLinkContent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkContent>>, TError,{userId: number;data: BodyType<ContentLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkContent>>,
+        TError,
+        {userId: number;data: BodyType<ContentLinkInput>},
+        TContext
+      > => {
+      return useMutation(getLinkContentMutationOptions(options));
+    }
+
+export const getUnlinkContentUrl = (userId: number,
+    linkId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/content/${linkId}`
+}
+
+/**
+ * @summary Unlink a content channel
+ */
+export const unlinkContent = async (userId: number,
+    linkId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getUnlinkContentUrl(userId,linkId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlinkContentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkContent>>, TError,{userId: number;linkId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlinkContent>>, TError,{userId: number;linkId: number}, TContext> => {
+
+const mutationKey = ['unlinkContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlinkContent>>, {userId: number;linkId: number}> = (props) => {
+          const {userId,linkId} = props ?? {};
+
+          return  unlinkContent(userId,linkId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlinkContentMutationResult = NonNullable<Awaited<ReturnType<typeof unlinkContent>>>
+
+    export type UnlinkContentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Unlink a content channel
+ */
+export const useUnlinkContent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkContent>>, TError,{userId: number;linkId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlinkContent>>,
+        TError,
+        {userId: number;linkId: number},
+        TContext
+      > => {
+      return useMutation(getUnlinkContentMutationOptions(options));
     }
 
 export const getListNotificationsUrl = () => {

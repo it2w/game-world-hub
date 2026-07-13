@@ -1,4 +1,4 @@
-import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey } from "@workspace/api-client-react";
+import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio } from "lucide-react";
 import { useEffect, useState } from "react";
+import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
 
 const profileSchema = z.object({
   displayName: z.string().min(1).max(50),
@@ -29,6 +30,11 @@ const platformSchema = z.object({
   username: z.string().optional()
 });
 
+const contentSchema = z.object({
+  platform: z.enum(["twitch", "youtube", "tiktok", "kick"]),
+  handle: z.string().min(1, "Required").max(100)
+});
+
 export default function Settings() {
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: platforms } = useGetUserPlatforms(me?.id || 0, { query: { enabled: !!me?.id, queryKey: getGetUserPlatformsQueryKey(me?.id || 0) } });
@@ -37,6 +43,10 @@ export default function Settings() {
   const updateStatus = useUpdateMyStatus();
   const linkPlatform = useLinkPlatform();
   const unlinkPlatform = useUnlinkPlatform();
+
+  const { data: contentLinks } = useGetUserContentLinks(me?.id || 0, { query: { enabled: !!me?.id, queryKey: getGetUserContentLinksQueryKey(me?.id || 0) } });
+  const linkContent = useLinkContent();
+  const unlinkContent = useUnlinkContent();
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,6 +88,11 @@ export default function Settings() {
   const platformForm = useForm<z.infer<typeof platformSchema>>({
     resolver: zodResolver(platformSchema),
     defaultValues: { platform: "steam", profileUrl: "", username: "" }
+  });
+
+  const contentForm = useForm<z.infer<typeof contentSchema>>({
+    resolver: zodResolver(contentSchema),
+    defaultValues: { platform: "twitch", handle: "" }
   });
 
   useEffect(() => {
@@ -134,6 +149,35 @@ export default function Settings() {
     unlinkPlatform.mutate(
       { userId: me.id, platformId },
       { onSuccess: () => queryClient.invalidateQueries() }
+    );
+  };
+
+  const onContentSubmit = (data: z.infer<typeof contentSchema>) => {
+    if (!me) return;
+    linkContent.mutate(
+      { userId: me.id, data },
+      {
+        onSuccess: () => {
+          contentForm.reset({ platform: data.platform, handle: "" });
+          toast({ title: `${contentMeta(data.platform)?.label ?? data.platform} channel linked` });
+          queryClient.invalidateQueries({ queryKey: getGetUserContentLinksQueryKey(me.id) });
+        },
+        onError: () => toast({ title: "Failed to link channel", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleUnlinkContent = (linkId: number) => {
+    if (!me) return;
+    unlinkContent.mutate(
+      { userId: me.id, linkId },
+      {
+        onSuccess: () => {
+          toast({ title: "Channel unlinked" });
+          queryClient.invalidateQueries({ queryKey: getGetUserContentLinksQueryKey(me.id) });
+        },
+        onError: () => toast({ title: "Failed to unlink channel", variant: "destructive" }),
+      }
     );
   };
 
@@ -295,6 +339,69 @@ export default function Settings() {
                     </FormItem>
                   )} />
                   <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkPlatform.isPending}>EXECUTE LINK</Button>
+                </form>
+              </Form>
+            </div>
+          </div>
+
+          {/* Content Channels */}
+          <div className="bg-card border border-border p-6">
+            <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+              <Radio className="w-4 h-4" /> CONTENT_CHANNELS
+            </h2>
+
+            <div className="space-y-3 mb-8">
+              {!contentLinks || contentLinks.length === 0 ? (
+                <div className="text-sm font-mono text-muted-foreground italic">NO CHANNELS BROADCASTING</div>
+              ) : (
+                contentLinks.map(c => {
+                  const meta = contentMeta(c.platform);
+                  const Icon = meta?.icon ?? Radio;
+                  return (
+                    <div key={c.id} className="p-3 border border-border bg-background flex items-center justify-between" style={{ borderLeft: `3px solid ${meta?.color ?? "var(--border)"}` }}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className="w-4 h-4 shrink-0" style={{ color: meta?.color }} />
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm">{meta?.label ?? c.platform}</div>
+                          <a href={c.channelUrl} target="_blank" rel="noreferrer" className="font-mono text-xs text-muted-foreground hover:text-primary truncate block">{c.handle}</a>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0" onClick={() => handleUnlinkContent(c.id)} disabled={unlinkContent.isPending}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="border-t border-border pt-6">
+              <h3 className="font-mono text-xs mb-4">GO LIVE // LINK A CHANNEL</h3>
+              <Form {...contentForm}>
+                <form onSubmit={contentForm.handleSubmit(onContentSubmit)} className="space-y-4">
+                  <FormField control={contentForm.control} name="platform" render={({ field }) => (
+                    <FormItem>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="font-mono rounded-none border-border bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="font-mono rounded-none border-border bg-card">
+                          {CONTENT_PLATFORM_KEYS.map(key => (
+                            <SelectItem key={key} value={key}>{CONTENT_PLATFORMS[key].label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
+                  <FormField control={contentForm.control} name="handle" render={({ field }) => (
+                    <FormItem>
+                      <FormControl><Input {...field} placeholder={CONTENT_PLATFORMS[contentForm.watch("platform")].placeholder} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )} />
+                  <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkContent.isPending}>LINK CHANNEL</Button>
                 </form>
               </Form>
             </div>

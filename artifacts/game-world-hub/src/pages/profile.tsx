@@ -1,7 +1,8 @@
 import { useRoute } from "wouter";
-import { useGetUser, useGetUserPlatforms, getGetUserQueryKey, getGetUserPlatformsQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon } from "lucide-react";
+import { contentMeta } from "@/lib/content-platforms";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Profile() {
@@ -14,6 +15,10 @@ export default function Profile() {
 
   const { data: platforms } = useGetUserPlatforms(userId, {
     query: { enabled: !!userId, queryKey: getGetUserPlatformsQueryKey(userId) }
+  });
+
+  const { data: contentLinks } = useGetUserContentLinks(userId, {
+    query: { enabled: !!userId, queryKey: getGetUserContentLinksQueryKey(userId) }
   });
 
   if (isLoading) return <div className="p-12 text-center font-mono text-muted-foreground animate-pulse">DOWNLOADING PROFILE DATA...</div>;
@@ -59,6 +64,29 @@ export default function Profile() {
               INIT: {format(new Date(user.createdAt), "yyyy.MM.dd")}
             </div>
           </div>
+
+          {contentLinks && contentLinks.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-1">
+              {contentLinks.map(c => {
+                const meta = contentMeta(c.platform);
+                const Icon = meta?.icon ?? Radio;
+                return (
+                  <a
+                    key={c.id}
+                    href={c.channelUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-xs font-mono bg-background border px-3 py-1.5 hover:bg-muted/30 transition-colors group"
+                    style={{ borderColor: meta?.color ?? "var(--border)" }}
+                  >
+                    <Icon className="w-4 h-4" style={{ color: meta?.color }} />
+                    <span>{c.handle}</span>
+                    <ExternalLink className="w-3 h-3 text-muted-foreground group-hover:text-foreground" />
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

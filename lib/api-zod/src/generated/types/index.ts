@@ -8,6 +8,10 @@
 
 export * from './achievement';
 export * from './authResponse';
+export * from './contentLink';
+export * from './contentLinkInput';
+export * from './contentLinkInputPlatform';
+export * from './contentLinkPlatform';
 export * from './conversation';
 export * from './conversationType';
 export * from './errorResponse';

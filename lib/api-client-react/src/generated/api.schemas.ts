@@ -429,6 +429,43 @@ export interface PlatformLinkInput {
   username?: string;
 }
 
+export type ContentLinkPlatform = typeof ContentLinkPlatform[keyof typeof ContentLinkPlatform];
+
+
+export const ContentLinkPlatform = {
+  twitch: 'twitch',
+  youtube: 'youtube',
+  tiktok: 'tiktok',
+  kick: 'kick',
+} as const;
+
+export interface ContentLink {
+  id: number;
+  platform: ContentLinkPlatform;
+  handle: string;
+  channelUrl: string;
+  linkedAt: string;
+}
+
+export type ContentLinkInputPlatform = typeof ContentLinkInputPlatform[keyof typeof ContentLinkInputPlatform];
+
+
+export const ContentLinkInputPlatform = {
+  twitch: 'twitch',
+  youtube: 'youtube',
+  tiktok: 'tiktok',
+  kick: 'kick',
+} as const;
+
+export interface ContentLinkInput {
+  platform: ContentLinkInputPlatform;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  handle: string;
+}
+
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 

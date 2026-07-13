@@ -28,6 +28,8 @@ tags:
     description: Game library
   - name: platforms
     description: Platform links
+  - name: content
+    description: Content creator channels (Twitch, YouTube, TikTok, Kick)
 
 paths:
   /healthz:
@@ -850,6 +852,75 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # ── Content channels ──────────────────────────────────────────────────────
+  /users/{userId}/content:
+    get:
+      operationId: getUserContentLinks
+      tags: [content]
+      summary: Get a user's linked content channels
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentLink"
+    post:
+      operationId: linkContent
+      tags: [content]
+      summary: Link a content creator channel
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentLinkInput"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentLink"
+
+  /users/{userId}/content/{linkId}:
+    delete:
+      operationId: unlinkContent
+      tags: [content]
+      summary: Unlink a content channel
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: linkId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   # ── Notifications ─────────────────────────────────────────────────────────
   /notifications:
     get:
@@ -1574,6 +1645,34 @@ components:
           type: string
         username:
           type: string
+
+    ContentLink:
+      type: object
+      required: [id, platform, handle, channelUrl, linkedAt]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+          enum: [twitch, youtube, tiktok, kick]
+        handle:
+          type: string
+        channelUrl:
+          type: string
+        linkedAt:
+          type: string
+
+    ContentLinkInput:
+      type: object
+      required: [platform, handle]
+      properties:
+        platform:
+          type: string
+          enum: [twitch, youtube, tiktok, kick]
+        handle:
+          type: string
+          minLength: 1
+          maxLength: 100
 
     # ── Notifications ─────────────────────────────────────────────────────────
     Notification:

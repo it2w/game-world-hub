@@ -1099,6 +1099,61 @@ export const UnlinkPlatformResponse = zod.object({
 
 
 /**
+ * @summary Get a user's linked content channels
+ */
+export const GetUserContentLinksParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const GetUserContentLinksResponseItem = zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['twitch', 'youtube', 'tiktok', 'kick']),
+  "handle": zod.string(),
+  "channelUrl": zod.string(),
+  "linkedAt": zod.string()
+})
+export const GetUserContentLinksResponse = zod.array(GetUserContentLinksResponseItem)
+
+
+/**
+ * @summary Link a content creator channel
+ */
+export const LinkContentParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const linkContentBodyHandleMax = 100;
+
+
+
+export const LinkContentBody = zod.object({
+  "platform": zod.enum(['twitch', 'youtube', 'tiktok', 'kick']),
+  "handle": zod.string().min(1).max(linkContentBodyHandleMax)
+})
+
+export const LinkContentResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.enum(['twitch', 'youtube', 'tiktok', 'kick']),
+  "handle": zod.string(),
+  "channelUrl": zod.string(),
+  "linkedAt": zod.string()
+})
+
+
+/**
+ * @summary Unlink a content channel
+ */
+export const UnlinkContentParams = zod.object({
+  "userId": zod.coerce.number(),
+  "linkId": zod.coerce.number()
+})
+
+export const UnlinkContentResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List notifications for current user
  */
 export const ListNotificationsResponseItem = zod.object({

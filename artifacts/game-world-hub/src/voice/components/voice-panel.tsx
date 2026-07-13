@@ -224,10 +224,15 @@ export function VoicePanel() {
 }
 
 /**
+ * When a peer that was already connected drops to `disconnected`/`failed`, the
+ * voice layer auto-heals the path with an ICE restart. We surface a
+ * "Reconnecting…" state while that heal is in flight, and only escalate to the
+ * terminal "unreachable" warning if it hasn't recovered within this window.
+ *
  * `disconnected` is frequently a transient blip that ICE recovers from on its
- * own, so we don't want to alarm the user the instant it appears. Wait this long
- * for it to clear before treating the peer as unreachable. `failed` is terminal
- * and surfaces immediately.
+ * own, so we don't alarm the user the instant it appears. A `failed` peer that
+ * never connected in the first place (initial-join failure) has nothing to
+ * recover, so it surfaces as unreachable immediately.
  */
 const DISCONNECT_GRACE_MS = 6000;
 
@@ -248,36 +253,64 @@ function ParticipantRow({
   connectionState: RTCPeerConnectionState;
   self?: boolean;
 }) {
-  // A lingering `disconnected` state only counts as unreachable after a grace
-  // period; a `failed` state is unreachable right away. Any other state (or a
-  // recovery back to `connected`) clears the warning.
-  const [lingeringDisconnect, setLingeringDisconnect] = useState(false);
+  // Track whether this peer ever reached `connected`. This is what distinguishes
+  // a mid-call drop (which the voice layer heals with an ICE restart → show
+  // "Reconnecting…") from a peer that simply hasn't connected yet on initial
+  // join (→ plain "connecting" spinner, no reconnecting indicator).
+  const [everConnected, setEverConnected] = useState(false);
   useEffect(() => {
-    if (self || connectionState !== "disconnected") {
-      setLingeringDisconnect(false);
+    if (!self && connectionState === "connected") setEverConnected(true);
+  }, [self, connectionState]);
+
+  const dropped =
+    !self && (connectionState === "disconnected" || connectionState === "failed");
+
+  // A dropped peer is given a grace window to heal before we treat it as
+  // unreachable. Exception: a `failed` peer that never connected has nothing to
+  // recover (initial-join failure), so it surfaces as unreachable at once.
+  const [graceElapsed, setGraceElapsed] = useState(false);
+  useEffect(() => {
+    if (!dropped) {
+      setGraceElapsed(false);
       return;
     }
-    const timer = setTimeout(() => setLingeringDisconnect(true), DISCONNECT_GRACE_MS);
+    if (connectionState === "failed" && !everConnected) {
+      setGraceElapsed(true);
+      return;
+    }
+    const timer = setTimeout(() => setGraceElapsed(true), DISCONNECT_GRACE_MS);
     return () => clearTimeout(timer);
-  }, [connectionState, self]);
+  }, [dropped, connectionState, everConnected]);
 
-  const unreachable = !self && (connectionState === "failed" || lingeringDisconnect);
+  const unreachable = dropped && graceElapsed;
+  // Mid-call self-heal in flight: a previously-connected peer dropped and the
+  // ICE restart hasn't given up yet. Clears automatically on recovery.
+  const reconnecting = dropped && everConnected && !graceElapsed;
+  // Initial connection still in progress (never connected, not yet failed).
   const connecting =
     !self &&
+    !everConnected &&
     !unreachable &&
+    !reconnecting &&
     connectionState !== "connected" &&
     connectionState !== "failed";
 
   return (
-    <div className={`rounded-none ${unreachable ? "bg-destructive/10" : ""}`}>
+    <div
+      className={`rounded-none ${
+        unreachable ? "bg-destructive/10" : reconnecting ? "bg-amber-500/10" : ""
+      }`}
+    >
       <div className="flex items-center gap-2 px-1.5 py-1">
         <div
           className={`relative w-7 h-7 shrink-0 border ${
             unreachable
               ? "border-destructive"
-              : speaking
-                ? "border-primary ring-2 ring-primary/60"
-                : "border-border"
+              : reconnecting
+                ? "border-amber-500"
+                : speaking
+                  ? "border-primary ring-2 ring-primary/60"
+                  : "border-border"
           } transition-colors`}
         >
           {avatarUrl ? (
@@ -297,6 +330,11 @@ function ParticipantRow({
         </span>
         {unreachable ? (
           <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
+        ) : reconnecting ? (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500 shrink-0">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Reconnecting…
+          </span>
         ) : (
           <>
             {connecting && (

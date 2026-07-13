@@ -38,7 +38,11 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **Voice/screen-share TURN**: WebRTC uses public STUN by default, which fails on symmetric-NAT / strict-firewall networks. The client fetches its ICE list from `GET /api/ice-servers`, which serves STUN always and adds TURN when configured via env. To enable relay in production, provision a TURN server (self-hosted coturn or a managed provider) and set on the API server:
+  - `TURN_URLS` — comma-separated (e.g. `turn:host:3478?transport=udp,turns:host:5349`)
+  - Ephemeral creds (recommended, coturn `use-auth-secret`): `TURN_STATIC_AUTH_SECRET` (a Replit Secret) + optional `TURN_CREDENTIAL_TTL` (seconds, default 86400)
+  - Or static creds: `TURN_USERNAME` + `TURN_CREDENTIAL`
+  Without `TURN_URLS`, calls fall back to STUN-only and still work on permissive networks.
 
 ## Pointers
 

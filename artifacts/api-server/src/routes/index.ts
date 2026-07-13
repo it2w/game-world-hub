@@ -8,6 +8,7 @@ import partiesRouter from "./parties";
 import gamesRouter from "./games";
 import platformsRouter from "./platforms";
 import notificationsRouter from "./notifications";
+import iceRouter from "./ice";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(partiesRouter);
 router.use(gamesRouter);
 router.use(platformsRouter);
 router.use(notificationsRouter);
+router.use(iceRouter);
 
 export default router;

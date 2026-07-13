@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Peer, getSignalingUrl } from "./webrtc";
+import { Peer, getSignalingUrl, fetchIceServers, ICE_SERVERS } from "./webrtc";
 import { SpeakingDetector } from "./audio";
 import { RemoteAudioSink } from "./components/remote-audio-sink";
 import {
@@ -120,6 +120,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const detectorRef = useRef<SpeakingDetector | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldConnectRef = useRef(false);
+  const iceServersRef = useRef<RTCIceServer[]>(ICE_SERVERS);
 
   useEffect(() => {
     activeRoomRef.current = activeRoom;
@@ -199,6 +200,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           onConnectionStateChange: (state) => patchPeer(info.userId, { connectionState: state }),
         },
         polite,
+        iceServersRef.current,
       );
 
       peersRef.current.set(info.userId, { peer, info });
@@ -392,6 +394,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     }
     const token = localStorage.getItem("gwh_token");
     if (!token) return;
+
+    // Refresh ICE servers (STUN + any TURN with fresh credentials) for the
+    // peers created during this session. Best-effort: failure falls back to
+    // STUN-only inside fetchIceServers.
+    void fetchIceServers(token).then((servers) => {
+      iceServersRef.current = servers;
+    });
 
     const ws = new WebSocket(getSignalingUrl(token));
     wsRef.current = ws;

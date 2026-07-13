@@ -9,16 +9,46 @@
  * a screen-share track at once — never deadlock.
  */
 
+/**
+ * Fallback ICE servers used before (or if) the server-provided list is
+ * fetched. STUN-only: sufficient for permissive networks but unable to relay
+ * media across symmetric NATs / restrictive firewalls. TURN servers (which do
+ * relay) are supplied at runtime by `fetchIceServers()` so their credentials
+ * live in server env/secrets rather than being baked into the client bundle.
+ */
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  // ── Production TURN placeholder ──────────────────────────────────────────
-  // Peer-to-peer connections fail across strict/symmetric NATs and many
-  // corporate networks. For reliable connectivity in production, run a TURN
-  // server (e.g. coturn) and add it here with real credentials:
-  //
-  // { urls: "turn:turn.your-domain.com:3478", username: "USER", credential: "SECRET" },
 ];
+
+/** Resolves the HTTP API base, mirroring `getSignalingUrl`'s desktop/browser split. */
+function getApiBase(): string {
+  const electronBase = window.electronAPI?.apiBaseUrl;
+  if (electronBase) return electronBase.replace(/\/+$/, "");
+  return window.location.origin;
+}
+
+/**
+ * Fetches the authoritative ICE server list (STUN + any configured TURN with
+ * fresh, possibly time-limited credentials) from the API. Falls back to the
+ * STUN-only {@link ICE_SERVERS} if the request fails or returns nothing, so a
+ * missing/unreachable endpoint never blocks a call — it just loses TURN relay.
+ */
+export async function fetchIceServers(token: string): Promise<RTCIceServer[]> {
+  try {
+    const res = await fetch(`${getApiBase()}/api/ice-servers`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`ice-servers responded ${res.status}`);
+    const data = (await res.json()) as { iceServers?: RTCIceServer[] };
+    if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+      return data.iceServers;
+    }
+  } catch (err) {
+    console.warn("[voice] failed to fetch ICE servers; using STUN-only fallback", err);
+  }
+  return ICE_SERVERS;
+}
 
 export interface PeerCallbacks {
   /** Send a signaling payload ({ description } or { candidate }) to the remote peer. */

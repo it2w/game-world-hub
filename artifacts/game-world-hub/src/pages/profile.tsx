@@ -1,13 +1,18 @@
 import { useRoute } from "wouter";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Profile() {
   const [, params] = useRoute("/profile/:userId");
   const userId = params?.userId ? parseInt(params.userId) : 0;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: user, isLoading } = useGetUser(userId, {
     query: { enabled: !!userId, queryKey: getGetUserQueryKey(userId) }
@@ -20,6 +25,43 @@ export default function Profile() {
   const { data: contentLinks } = useGetUserContentLinks(userId, {
     query: { enabled: !!userId, queryKey: getGetUserContentLinksQueryKey(userId) }
   });
+
+  const { data: friendStatus } = useGetFriendStatus(userId, {
+    query: { enabled: !!userId, queryKey: getGetFriendStatusQueryKey(userId) }
+  });
+
+  const sendRequest = useSendFriendRequest();
+  const acceptRequest = useAcceptFriendRequest();
+  const removeFriend = useRemoveFriend();
+
+  const refreshRelationship = () => {
+    queryClient.invalidateQueries({ queryKey: getGetFriendStatusQueryKey(userId) });
+    queryClient.invalidateQueries();
+  };
+
+  const handleAdd = () => {
+    sendRequest.mutate({ data: { toUserId: userId } }, {
+      onSuccess: () => { toast({ title: "Friend request sent" }); refreshRelationship(); },
+      onError: () => toast({ title: "Couldn't send request", variant: "destructive" }),
+    });
+  };
+
+  const handleAccept = () => {
+    if (!friendStatus?.requestId) return;
+    acceptRequest.mutate({ requestId: friendStatus.requestId }, {
+      onSuccess: () => { toast({ title: "Friend request accepted" }); refreshRelationship(); },
+      onError: () => toast({ title: "Couldn't accept request", variant: "destructive" }),
+    });
+  };
+
+  const handleRemove = () => {
+    removeFriend.mutate({ friendId: userId }, {
+      onSuccess: () => { toast({ title: "Friend removed" }); refreshRelationship(); },
+      onError: () => toast({ title: "Couldn't remove friend", variant: "destructive" }),
+    });
+  };
+
+  const friendBusy = sendRequest.isPending || acceptRequest.isPending || removeFriend.isPending;
 
   if (isLoading) return <div className="p-12 text-center font-mono text-muted-foreground animate-pulse">DOWNLOADING PROFILE DATA...</div>;
   if (!user) return <div className="p-12 text-center font-mono text-destructive">PROFILE NOT FOUND</div>;
@@ -43,9 +85,39 @@ export default function Profile() {
         </div>
 
         <div className="relative z-10 flex-1 text-center md:text-left space-y-4">
-          <div>
-            <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
-            <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
+              <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
+            </div>
+
+            {friendStatus && friendStatus.state !== "self" && (
+              <div className="shrink-0">
+                {friendStatus.state === "none" && (
+                  <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2">
+                    <UserPlus className="w-4 h-4" /> ADD FRIEND
+                  </Button>
+                )}
+                {friendStatus.state === "request_sent" && (
+                  <Button variant="outline" disabled className="font-mono rounded-none gap-2">
+                    <Clock className="w-4 h-4" /> REQUEST SENT
+                  </Button>
+                )}
+                {friendStatus.state === "request_received" && (
+                  <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2">
+                    <Check className="w-4 h-4" /> ACCEPT REQUEST
+                  </Button>
+                )}
+                {friendStatus.state === "friends" && (
+                  <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 group">
+                    <UserCheck className="w-4 h-4 group-hover:hidden" />
+                    <UserX className="w-4 h-4 hidden group-hover:block text-destructive" />
+                    <span className="group-hover:hidden">FRIENDS</span>
+                    <span className="hidden group-hover:inline text-destructive">REMOVE</span>
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
           
           {user.bio && (

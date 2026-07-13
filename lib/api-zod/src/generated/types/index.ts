@@ -19,6 +19,8 @@ export * from './friendEntry';
 export * from './friendRequest';
 export * from './friendRequestInput';
 export * from './friendRequestStatus';
+export * from './friendStatus';
+export * from './friendStatusState';
 export * from './game';
 export * from './gameInput';
 export * from './healthStatus';

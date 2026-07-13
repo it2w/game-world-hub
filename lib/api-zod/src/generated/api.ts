@@ -346,6 +346,19 @@ export const RemoveFriendResponse = zod.object({
 
 
 /**
+ * @summary Get the relationship status between the current user and another user
+ */
+export const GetFriendStatusParams = zod.object({
+  "friendId": zod.coerce.number()
+})
+
+export const GetFriendStatusResponse = zod.object({
+  "state": zod.enum(['self', 'friends', 'request_sent', 'request_received', 'none']),
+  "requestId": zod.number().nullable()
+})
+
+
+/**
  * @summary Get online friends with their current games
  */
 export const GetOnlineFriendsSummaryResponse = zod.object({

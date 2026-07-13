@@ -339,6 +339,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /friends/{friendId}/status:
+    get:
+      operationId: getFriendStatus
+      tags: [friends]
+      summary: Get the relationship status between the current user and another user
+      parameters:
+        - name: friendId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Relationship status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendStatus"
+
   /friends/online-summary:
     get:
       operationId: getOnlineFriendsSummary
@@ -1388,6 +1407,16 @@ components:
           enum: [pending, accepted, rejected]
         createdAt:
           type: string
+
+    FriendStatus:
+      type: object
+      required: [state, requestId]
+      properties:
+        state:
+          type: string
+          enum: [self, friends, request_sent, request_received, none]
+        requestId:
+          type: ["integer", "null"]
 
     FriendRequestInput:
       type: object

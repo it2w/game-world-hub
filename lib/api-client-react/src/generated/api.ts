@@ -28,6 +28,7 @@ import type {
   FriendEntry,
   FriendRequest,
   FriendRequestInput,
+  FriendStatus,
   Game,
   GameInput,
   HealthStatus,
@@ -1196,6 +1197,83 @@ export const useRemoveFriend = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRemoveFriendMutationOptions(options));
     }
+
+export const getGetFriendStatusUrl = (friendId: number,) => {
+
+
+
+
+  return `/api/friends/${friendId}/status`
+}
+
+/**
+ * @summary Get the relationship status between the current user and another user
+ */
+export const getFriendStatus = async (friendId: number, options?: RequestInit): Promise<FriendStatus> => {
+
+  return customFetch<FriendStatus>(getGetFriendStatusUrl(friendId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFriendStatusQueryKey = (friendId: number,) => {
+    return [
+    `/api/friends/${friendId}/status`
+    ] as const;
+    }
+
+
+export const getGetFriendStatusQueryOptions = <TData = Awaited<ReturnType<typeof getFriendStatus>>, TError = ErrorType<unknown>>(friendId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFriendStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFriendStatusQueryKey(friendId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFriendStatus>>> = ({ signal }) => getFriendStatus(friendId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: friendId !== null && friendId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFriendStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFriendStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getFriendStatus>>>
+export type GetFriendStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the relationship status between the current user and another user
+ */
+
+export function useGetFriendStatus<TData = Awaited<ReturnType<typeof getFriendStatus>>, TError = ErrorType<unknown>>(
+ friendId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFriendStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFriendStatusQueryOptions(friendId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetOnlineFriendsSummaryUrl = () => {
 

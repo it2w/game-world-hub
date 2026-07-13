@@ -46,6 +46,45 @@ router.get("/friends/online-summary", requireAuth, async (req, res): Promise<voi
   });
 });
 
+// GET /friends/:friendId/status — relationship between me and another user
+router.get("/friends/:friendId/status", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.friendId) ? req.params.friendId[0] : req.params.friendId;
+  const friendId = parseInt(raw, 10);
+  const myId = req.auth!.userId;
+
+  if (Number.isNaN(friendId)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+  if (friendId === myId) {
+    res.json({ state: "self", requestId: null });
+    return;
+  }
+
+  const [friendship] = await db.select().from(friendshipsTable)
+    .where(and(eq(friendshipsTable.userId, myId), eq(friendshipsTable.friendId, friendId)));
+  if (friendship) {
+    res.json({ state: "friends", requestId: null });
+    return;
+  }
+
+  const [sent] = await db.select().from(friendRequestsTable)
+    .where(and(eq(friendRequestsTable.fromUserId, myId), eq(friendRequestsTable.toUserId, friendId), eq(friendRequestsTable.status, "pending")));
+  if (sent) {
+    res.json({ state: "request_sent", requestId: sent.id });
+    return;
+  }
+
+  const [received] = await db.select().from(friendRequestsTable)
+    .where(and(eq(friendRequestsTable.fromUserId, friendId), eq(friendRequestsTable.toUserId, myId), eq(friendRequestsTable.status, "pending")));
+  if (received) {
+    res.json({ state: "request_received", requestId: received.id });
+    return;
+  }
+
+  res.json({ state: "none", requestId: null });
+});
+
 // GET /friends/requests
 router.get("/friends/requests", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;

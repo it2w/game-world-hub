@@ -272,6 +272,23 @@ export interface FriendRequest {
   createdAt: string;
 }
 
+export type FriendStatusState = typeof FriendStatusState[keyof typeof FriendStatusState];
+
+
+export const FriendStatusState = {
+  self: 'self',
+  friends: 'friends',
+  request_sent: 'request_sent',
+  request_received: 'request_received',
+  none: 'none',
+} as const;
+
+export interface FriendStatus {
+  state: FriendStatusState;
+  /** @nullable */
+  requestId: number | null;
+}
+
 export interface FriendRequestInput {
   toUserId: number;
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, shell } from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
 import { TrayManager } from './tray';
@@ -121,6 +121,26 @@ function createWindow(): void {
 
   // Persist window state (position + size + maximized)
   windowState.manage(mainWindow);
+
+  // Screen sharing: browsers grant getDisplayMedia automatically, but Electron
+  // requires an explicit handler to choose the capture source. On Windows/macOS
+  // this uses the OS picker; elsewhere we fall back to the primary screen.
+  mainWindow.webContents.session.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      desktopCapturer
+        .getSources({ types: ['screen', 'window'] })
+        .then((sources) => {
+          const primary = sources.find((s) => s.id.startsWith('screen:')) ?? sources[0];
+          if (primary) {
+            callback({ video: primary });
+          } else {
+            callback({});
+          }
+        })
+        .catch(() => callback({}));
+    },
+    { useSystemPicker: true },
+  );
 
   mainWindow.loadURL(WEB_URL).catch(err => {
     console.error('[window] failed to load URL:', WEB_URL, err);

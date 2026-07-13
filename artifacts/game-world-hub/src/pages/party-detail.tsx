@@ -15,7 +15,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
-import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus } from "lucide-react";
+import { useVoice } from "@/voice/voice-context";
+import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 
@@ -34,6 +35,9 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   const leaveParty = useLeaveParty();
   const deleteParty = useDeleteParty();
   const inviteToParty = useInviteToParty();
+
+  const { joinPartyVoice, leaveVoice, isInPartyVoice } = useVoice();
+  const inVoice = isInPartyVoice(partyId);
 
   const handleJoin = () => {
     joinParty.mutate({ partyId }, {
@@ -109,8 +113,25 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
         <div className="relative z-10 flex flex-col gap-2 min-w-[200px]">
           {isMember ? (
             <>
+              {inVoice ? (
+                <Button
+                  variant="default"
+                  className="w-full font-mono rounded-none bg-destructive hover:bg-destructive/90"
+                  onClick={() => leaveVoice()}
+                >
+                  <PhoneOff className="w-4 h-4 mr-2" /> LEAVE VOICE
+                </Button>
+              ) : (
+                <Button
+                  className="w-full font-mono rounded-none"
+                  onClick={() => void joinPartyVoice(party.id, party.name)}
+                >
+                  <Mic className="w-4 h-4 mr-2" /> JOIN VOICE
+                </Button>
+              )}
+
               {party.conversationId && (
-                <Button asChild className="w-full font-mono rounded-none">
+                <Button asChild variant="outline" className="w-full font-mono rounded-none border-border">
                   <Link href={`/chat/${party.conversationId}`}>OPEN COMMS</Link>
                 </Button>
               )}

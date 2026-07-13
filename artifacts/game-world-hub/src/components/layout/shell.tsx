@@ -2,6 +2,8 @@ import React from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { VoicePanel } from "@/voice/components/voice-panel";
+import { CallOverlays } from "@/voice/components/incoming-call-dialog";
 import { Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -34,6 +36,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+      <VoicePanel />
+      <CallOverlays />
     </SidebarProvider>
   );
 }

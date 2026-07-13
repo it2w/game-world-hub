@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/hooks/use-auth';
+import { VoiceProvider } from '@/voice/voice-context';
 import { Shell } from '@/components/layout/shell';
 import '@/lib/api';
 import { useEffect } from 'react';
@@ -82,8 +83,10 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <AuthProvider>
-            <ElectronNavigationBridge />
-            <Router />
+            <VoiceProvider>
+              <ElectronNavigationBridge />
+              <Router />
+            </VoiceProvider>
           </AuthProvider>
         </WouterRouter>
         <Toaster />

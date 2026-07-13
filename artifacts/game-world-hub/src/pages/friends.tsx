@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/status-badge";
-import { Search, UserPlus, Check, X, UserMinus, Play } from "lucide-react";
+import { useVoice } from "@/voice/voice-context";
+import { Search, UserPlus, Check, X, UserMinus, Play, Phone } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Friends() {
@@ -32,6 +33,7 @@ export default function Friends() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { callUser, activeRoom } = useVoice();
   
   const sendRequest = useSendFriendRequest();
   const acceptRequest = useAcceptFriendRequest();
@@ -152,6 +154,23 @@ export default function Friends() {
                     )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary disabled:opacity-30"
+                      title={activeRoom ? "Leave your current channel first" : "Start voice call"}
+                      disabled={!!activeRoom}
+                      onClick={() =>
+                        callUser({
+                          userId: entry.friend.id,
+                          username: entry.friend.username,
+                          displayName: entry.friend.displayName,
+                          avatarUrl: entry.friend.avatarUrl ?? null,
+                        })
+                      }
+                    >
+                      <Phone className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemove(entry.friend.id)}>
                       <UserMinus className="w-4 h-4" />
                     </Button>

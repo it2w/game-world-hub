@@ -24,3 +24,9 @@ id = "yqCDgj1pK5y6Nlo3BtF8u"
 uri = "file://screenshots/logo-final-login.jpg"
 type = "image"
 title = "الشعار الجديد — صفحة الدخول الفعلية"
+
+[[outputs]]
+id = "yAZ7e3vcgj5awPZHJOOX_"
+uri = "file://screenshots/logo-c-pixelforge.jpg"
+type = "image"
+title = "المفهوم C — روح الأركيد (Pixel Forge)"

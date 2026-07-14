@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "AAddUENM0dLpsuk3Ny69K"
+uri = "file://screenshots/logo-a-hexcore.jpg"
+type = "image"
+title = "الشعار A — النواة السداسية (Hex Core)"
+
+[[outputs]]
+id = "M99aVvB5eSnNwsGSxgAvr"
+uri = "file://screenshots/logo-hexforge.jpg"
+type = "image"
+title = "الشعار المزيج — Hex Forge (A×C)"

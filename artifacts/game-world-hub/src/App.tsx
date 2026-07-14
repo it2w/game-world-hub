@@ -17,7 +17,7 @@ import Parties from '@/pages/parties';
 import PartyDetail from '@/pages/party-detail';
 import Lfg from '@/pages/lfg';
 import Achievements from '@/pages/achievements';
-import Games from '@/pages/games';
+import LibraryPage from '@/pages/library';
 import Profile from '@/pages/profile';
 import Settings from '@/pages/settings';
 import NotFound from '@/pages/not-found';
@@ -72,7 +72,7 @@ function Router() {
             <Route path="/party/:partyId" component={PartyDetail} />
             <Route path="/lfg" component={Lfg} />
             <Route path="/ranks" component={Achievements} />
-            <Route path="/games" component={Games} />
+            <Route path="/games" component={LibraryPage} />
             <Route path="/profile/:userId" component={Profile} />
             <Route path="/settings" component={Settings} />
             <Route component={NotFound} />

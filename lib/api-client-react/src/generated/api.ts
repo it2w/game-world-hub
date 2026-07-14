@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddLibraryGameInput,
   AuthResponse,
   BlockedUser,
   ContentLink,
@@ -31,11 +32,16 @@ import type {
   FriendRequestInput,
   FriendStatus,
   Game,
+  GameAccount,
   GameInput,
   HealthStatus,
   LfgPost,
   LfgPostInput,
   LfgRespondInput,
+  LibraryGame,
+  LinkGameAccountInput,
+  LinkSteam201,
+  LinkSteamInput,
   ListLfgPostsParams,
   LoginInput,
   Message,
@@ -56,6 +62,7 @@ import type {
   SearchUsersParams,
   StatusUpdate,
   SuccessResponse,
+  SyncSteam200,
   User,
   UserGame,
   UserGameInput,
@@ -3642,6 +3649,586 @@ export const useUnblockUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUnblockUserMutationOptions(options));
+    }
+
+export const getGetGameAccountsUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/game-accounts`
+}
+
+/**
+ * @summary List a user's linked gaming accounts
+ */
+export const getGameAccounts = async (userId: number, options?: RequestInit): Promise<GameAccount[]> => {
+
+  return customFetch<GameAccount[]>(getGetGameAccountsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGameAccountsQueryKey = (userId: number,) => {
+    return [
+    `/api/users/${userId}/game-accounts`
+    ] as const;
+    }
+
+
+export const getGetGameAccountsQueryOptions = <TData = Awaited<ReturnType<typeof getGameAccounts>>, TError = ErrorType<unknown>>(userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGameAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGameAccountsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGameAccounts>>> = ({ signal }) => getGameAccounts(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGameAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGameAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof getGameAccounts>>>
+export type GetGameAccountsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a user's linked gaming accounts
+ */
+
+export function useGetGameAccounts<TData = Awaited<ReturnType<typeof getGameAccounts>>, TError = ErrorType<unknown>>(
+ userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGameAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGameAccountsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLibraryUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/library`
+}
+
+/**
+ * @summary List a user's games (imported + manual)
+ */
+export const getLibrary = async (userId: number, options?: RequestInit): Promise<LibraryGame[]> => {
+
+  return customFetch<LibraryGame[]>(getGetLibraryUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLibraryQueryKey = (userId: number,) => {
+    return [
+    `/api/users/${userId}/library`
+    ] as const;
+    }
+
+
+export const getGetLibraryQueryOptions = <TData = Awaited<ReturnType<typeof getLibrary>>, TError = ErrorType<unknown>>(userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLibraryQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLibrary>>> = ({ signal }) => getLibrary(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLibraryQueryResult = NonNullable<Awaited<ReturnType<typeof getLibrary>>>
+export type GetLibraryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a user's games (imported + manual)
+ */
+
+export function useGetLibrary<TData = Awaited<ReturnType<typeof getLibrary>>, TError = ErrorType<unknown>>(
+ userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLibraryQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLinkSteamUrl = () => {
+
+
+
+
+  return `/api/game-accounts/steam`
+}
+
+/**
+ * @summary Link Steam and import the owned-games library
+ */
+export const linkSteam = async (linkSteamInput: LinkSteamInput, options?: RequestInit): Promise<LinkSteam201> => {
+
+  return customFetch<LinkSteam201>(getLinkSteamUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(linkSteamInput)
+  }
+);}
+
+
+
+
+
+export const getLinkSteamMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkSteam>>, TError,{data: BodyType<LinkSteamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkSteam>>, TError,{data: BodyType<LinkSteamInput>}, TContext> => {
+
+const mutationKey = ['linkSteam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkSteam>>, {data: BodyType<LinkSteamInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  linkSteam(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkSteamMutationResult = NonNullable<Awaited<ReturnType<typeof linkSteam>>>
+    export type LinkSteamMutationBody = BodyType<LinkSteamInput>
+    export type LinkSteamMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Link Steam and import the owned-games library
+ */
+export const useLinkSteam = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkSteam>>, TError,{data: BodyType<LinkSteamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkSteam>>,
+        TError,
+        {data: BodyType<LinkSteamInput>},
+        TContext
+      > => {
+      return useMutation(getLinkSteamMutationOptions(options));
+    }
+
+export const getSyncSteamUrl = () => {
+
+
+
+
+  return `/api/game-accounts/steam/sync`
+}
+
+/**
+ * @summary Re-import the linked Steam library
+ */
+export const syncSteam = async ( options?: RequestInit): Promise<SyncSteam200> => {
+
+  return customFetch<SyncSteam200>(getSyncSteamUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSyncSteamMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncSteam>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncSteam>>, TError,void, TContext> => {
+
+const mutationKey = ['syncSteam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncSteam>>, void> = () => {
+
+
+          return  syncSteam(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncSteamMutationResult = NonNullable<Awaited<ReturnType<typeof syncSteam>>>
+
+    export type SyncSteamMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Re-import the linked Steam library
+ */
+export const useSyncSteam = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncSteam>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncSteam>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSyncSteamMutationOptions(options));
+    }
+
+export const getLinkGameAccountUrl = () => {
+
+
+
+
+  return `/api/game-accounts`
+}
+
+/**
+ * @summary Link a non-Steam gaming account
+ */
+export const linkGameAccount = async (linkGameAccountInput: LinkGameAccountInput, options?: RequestInit): Promise<GameAccount> => {
+
+  return customFetch<GameAccount>(getLinkGameAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(linkGameAccountInput)
+  }
+);}
+
+
+
+
+
+export const getLinkGameAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGameAccount>>, TError,{data: BodyType<LinkGameAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkGameAccount>>, TError,{data: BodyType<LinkGameAccountInput>}, TContext> => {
+
+const mutationKey = ['linkGameAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkGameAccount>>, {data: BodyType<LinkGameAccountInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  linkGameAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkGameAccountMutationResult = NonNullable<Awaited<ReturnType<typeof linkGameAccount>>>
+    export type LinkGameAccountMutationBody = BodyType<LinkGameAccountInput>
+    export type LinkGameAccountMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Link a non-Steam gaming account
+ */
+export const useLinkGameAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGameAccount>>, TError,{data: BodyType<LinkGameAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkGameAccount>>,
+        TError,
+        {data: BodyType<LinkGameAccountInput>},
+        TContext
+      > => {
+      return useMutation(getLinkGameAccountMutationOptions(options));
+    }
+
+export const getUnlinkGameAccountUrl = (accountId: number,) => {
+
+
+
+
+  return `/api/game-accounts/${accountId}`
+}
+
+/**
+ * @summary Unlink a gaming account
+ */
+export const unlinkGameAccount = async (accountId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getUnlinkGameAccountUrl(accountId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlinkGameAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkGameAccount>>, TError,{accountId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlinkGameAccount>>, TError,{accountId: number}, TContext> => {
+
+const mutationKey = ['unlinkGameAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlinkGameAccount>>, {accountId: number}> = (props) => {
+          const {accountId} = props ?? {};
+
+          return  unlinkGameAccount(accountId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlinkGameAccountMutationResult = NonNullable<Awaited<ReturnType<typeof unlinkGameAccount>>>
+
+    export type UnlinkGameAccountMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Unlink a gaming account
+ */
+export const useUnlinkGameAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkGameAccount>>, TError,{accountId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlinkGameAccount>>,
+        TError,
+        {accountId: number},
+        TContext
+      > => {
+      return useMutation(getUnlinkGameAccountMutationOptions(options));
+    }
+
+export const getAddLibraryGameUrl = () => {
+
+
+
+
+  return `/api/library`
+}
+
+/**
+ * @summary Add a game to the library manually
+ */
+export const addLibraryGame = async (addLibraryGameInput: AddLibraryGameInput, options?: RequestInit): Promise<LibraryGame> => {
+
+  return customFetch<LibraryGame>(getAddLibraryGameUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addLibraryGameInput)
+  }
+);}
+
+
+
+
+
+export const getAddLibraryGameMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addLibraryGame>>, TError,{data: BodyType<AddLibraryGameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addLibraryGame>>, TError,{data: BodyType<AddLibraryGameInput>}, TContext> => {
+
+const mutationKey = ['addLibraryGame'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addLibraryGame>>, {data: BodyType<AddLibraryGameInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addLibraryGame(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddLibraryGameMutationResult = NonNullable<Awaited<ReturnType<typeof addLibraryGame>>>
+    export type AddLibraryGameMutationBody = BodyType<AddLibraryGameInput>
+    export type AddLibraryGameMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a game to the library manually
+ */
+export const useAddLibraryGame = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addLibraryGame>>, TError,{data: BodyType<AddLibraryGameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addLibraryGame>>,
+        TError,
+        {data: BodyType<AddLibraryGameInput>},
+        TContext
+      > => {
+      return useMutation(getAddLibraryGameMutationOptions(options));
+    }
+
+export const getRemoveLibraryGameUrl = (gameId: number,) => {
+
+
+
+
+  return `/api/library/${gameId}`
+}
+
+/**
+ * @summary Remove a game from the library
+ */
+export const removeLibraryGame = async (gameId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getRemoveLibraryGameUrl(gameId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveLibraryGameMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeLibraryGame>>, TError,{gameId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeLibraryGame>>, TError,{gameId: number}, TContext> => {
+
+const mutationKey = ['removeLibraryGame'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeLibraryGame>>, {gameId: number}> = (props) => {
+          const {gameId} = props ?? {};
+
+          return  removeLibraryGame(gameId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveLibraryGameMutationResult = NonNullable<Awaited<ReturnType<typeof removeLibraryGame>>>
+
+    export type RemoveLibraryGameMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a game from the library
+ */
+export const useRemoveLibraryGame = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeLibraryGame>>, TError,{gameId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeLibraryGame>>,
+        TError,
+        {gameId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveLibraryGameMutationOptions(options));
     }
 
 export const getListNotificationsUrl = () => {

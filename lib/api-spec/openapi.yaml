@@ -32,6 +32,8 @@ tags:
     description: Content creator channels (Twitch, YouTube, TikTok, Kick)
   - name: blocks
     description: Blocking unwanted users
+  - name: library
+    description: Linked gaming accounts and game libraries (Steam import, manual add)
 
 paths:
   /healthz:
@@ -994,6 +996,167 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # ── Library ───────────────────────────────────────────────────────────────
+  /users/{userId}/game-accounts:
+    get:
+      operationId: getGameAccounts
+      tags: [library]
+      summary: List a user's linked gaming accounts
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Linked accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameAccount"
+
+  /users/{userId}/library:
+    get:
+      operationId: getLibrary
+      tags: [library]
+      summary: List a user's games (imported + manual)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Library games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LibraryGame"
+
+  /game-accounts/steam:
+    post:
+      operationId: linkSteam
+      tags: [library]
+      summary: Link Steam and import the owned-games library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkSteamInput"
+      responses:
+        "201":
+          description: Linked and imported
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [steamId, imported]
+                properties:
+                  steamId:
+                    type: string
+                  imported:
+                    type: integer
+
+  /game-accounts/steam/sync:
+    post:
+      operationId: syncSteam
+      tags: [library]
+      summary: Re-import the linked Steam library
+      responses:
+        "200":
+          description: Re-imported
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [imported]
+                properties:
+                  imported:
+                    type: integer
+
+  /game-accounts:
+    post:
+      operationId: linkGameAccount
+      tags: [library]
+      summary: Link a non-Steam gaming account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkGameAccountInput"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameAccount"
+
+  /game-accounts/{accountId}:
+    delete:
+      operationId: unlinkGameAccount
+      tags: [library]
+      summary: Unlink a gaming account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /library:
+    post:
+      operationId: addLibraryGame
+      tags: [library]
+      summary: Add a game to the library manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddLibraryGameInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibraryGame"
+
+  /library/{gameId}:
+    delete:
+      operationId: removeLibraryGame
+      tags: [library]
+      summary: Remove a game from the library
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   # ── Notifications ─────────────────────────────────────────────────────────
   /notifications:
     get:
@@ -1480,6 +1643,76 @@ components:
           type: integer
         user:
           $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
+
+    LinkSteamInput:
+      type: object
+      required: [input]
+      properties:
+        input:
+          type: string
+          description: Steam profile URL, vanity name, or SteamID64
+
+    LinkGameAccountInput:
+      type: object
+      required: [platform, handle]
+      properties:
+        platform:
+          type: string
+        handle:
+          type: string
+
+    AddLibraryGameInput:
+      type: object
+      required: [platform, name]
+      properties:
+        platform:
+          type: string
+        name:
+          type: string
+        coverUrl:
+          type: string
+        launchUri:
+          type: string
+
+    GameAccount:
+      type: object
+      required: [id, platform, createdAt]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+        externalId:
+          type: ["string", "null"]
+        handle:
+          type: ["string", "null"]
+        profileUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    LibraryGame:
+      type: object
+      required: [id, platform, name, source, createdAt]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+        name:
+          type: string
+        coverUrl:
+          type: ["string", "null"]
+        appId:
+          type: ["string", "null"]
+        launchUri:
+          type: ["string", "null"]
+        source:
+          type: string
+        playtimeMinutes:
+          type: ["integer", "null"]
         createdAt:
           type: string
 

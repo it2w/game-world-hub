@@ -296,6 +296,51 @@ export interface BlockedUser {
   createdAt: string;
 }
 
+export interface LinkSteamInput {
+  /** Steam profile URL, vanity name, or SteamID64 */
+  input: string;
+}
+
+export interface LinkGameAccountInput {
+  platform: string;
+  handle: string;
+}
+
+export interface AddLibraryGameInput {
+  platform: string;
+  name: string;
+  coverUrl?: string;
+  launchUri?: string;
+}
+
+export interface GameAccount {
+  id: number;
+  platform: string;
+  /** @nullable */
+  externalId?: string | null;
+  /** @nullable */
+  handle?: string | null;
+  /** @nullable */
+  profileUrl?: string | null;
+  createdAt: string;
+}
+
+export interface LibraryGame {
+  id: number;
+  platform: string;
+  name: string;
+  /** @nullable */
+  coverUrl?: string | null;
+  /** @nullable */
+  appId?: string | null;
+  /** @nullable */
+  launchUri?: string | null;
+  source: string;
+  /** @nullable */
+  playtimeMinutes?: number | null;
+  createdAt: string;
+}
+
 export interface FriendRequestInput {
   toUserId: number;
 }
@@ -515,6 +560,15 @@ export interface Notification {
 
 export type SearchUsersParams = {
 q: string;
+};
+
+export type LinkSteam201 = {
+  steamId: string;
+  imported: number;
+};
+
+export type SyncSteam200 = {
+  imported: number;
 };
 
 export type ListLfgPostsParams = {

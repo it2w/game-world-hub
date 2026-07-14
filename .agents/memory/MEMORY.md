@@ -6,3 +6,5 @@
 - [Friend relationship status](friend-relationship-status.md) — profile Add/Remove/Accept buttons need `GET /friends/:friendId/status`; outgoing pending requests aren't in any list endpoint.
 - [User blocking](user-blocking.md) — blocking must be enforced at every interaction (friends + DMs, both directions) and hidden from the blocked user; reuse hasBlocked/isBlockedBetween helpers.
 - [Frontend voice testing](frontend-voice-testing.md) — web artifact uses vitest+jsdom; test the voice provider by mocking the whole webrtc/audio/ws stack, not browser primitives.
+- [Orval request bodies](orval-codegen-request-bodies.md) — define POST/PATCH bodies as named `$ref` schemas, not inline, or the zod+types codegen collide on `<op>Body`.
+- [Game library integrations](game-library-integrations.md) — only Steam has a public owned-games API; Epic/BattleNet/Xbox are manual; launch via allowlisted protocol deep links.

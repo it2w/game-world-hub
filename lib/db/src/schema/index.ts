@@ -5,6 +5,7 @@ export * from "./conversations";
 export * from "./parties";
 export * from "./lfg";
 export * from "./games";
+export * from "./library";
 export * from "./platforms";
 export * from "./content-links";
 export * from "./notifications";

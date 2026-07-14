@@ -1211,6 +1211,131 @@ export const UnblockUserResponse = zod.object({
 
 
 /**
+ * @summary List a user's linked gaming accounts
+ */
+export const GetGameAccountsParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const GetGameAccountsResponseItem = zod.object({
+  "id": zod.number(),
+  "platform": zod.string(),
+  "externalId": zod.string().nullish(),
+  "handle": zod.string().nullish(),
+  "profileUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const GetGameAccountsResponse = zod.array(GetGameAccountsResponseItem)
+
+
+/**
+ * @summary List a user's games (imported + manual)
+ */
+export const GetLibraryParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const GetLibraryResponseItem = zod.object({
+  "id": zod.number(),
+  "platform": zod.string(),
+  "name": zod.string(),
+  "coverUrl": zod.string().nullish(),
+  "appId": zod.string().nullish(),
+  "launchUri": zod.string().nullish(),
+  "source": zod.string(),
+  "playtimeMinutes": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+export const GetLibraryResponse = zod.array(GetLibraryResponseItem)
+
+
+/**
+ * @summary Link Steam and import the owned-games library
+ */
+export const LinkSteamBody = zod.object({
+  "input": zod.string().describe('Steam profile URL, vanity name, or SteamID64')
+})
+
+export const LinkSteamResponse = zod.object({
+  "steamId": zod.string(),
+  "imported": zod.number()
+})
+
+
+/**
+ * @summary Re-import the linked Steam library
+ */
+export const SyncSteamResponse = zod.object({
+  "imported": zod.number()
+})
+
+
+/**
+ * @summary Link a non-Steam gaming account
+ */
+export const LinkGameAccountBody = zod.object({
+  "platform": zod.string(),
+  "handle": zod.string()
+})
+
+export const LinkGameAccountResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.string(),
+  "externalId": zod.string().nullish(),
+  "handle": zod.string().nullish(),
+  "profileUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Unlink a gaming account
+ */
+export const UnlinkGameAccountParams = zod.object({
+  "accountId": zod.coerce.number()
+})
+
+export const UnlinkGameAccountResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Add a game to the library manually
+ */
+export const AddLibraryGameBody = zod.object({
+  "platform": zod.string(),
+  "name": zod.string(),
+  "coverUrl": zod.string().optional(),
+  "launchUri": zod.string().optional()
+})
+
+export const AddLibraryGameResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.string(),
+  "name": zod.string(),
+  "coverUrl": zod.string().nullish(),
+  "appId": zod.string().nullish(),
+  "launchUri": zod.string().nullish(),
+  "source": zod.string(),
+  "playtimeMinutes": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove a game from the library
+ */
+export const RemoveLibraryGameParams = zod.object({
+  "gameId": zod.coerce.number()
+})
+
+export const RemoveLibraryGameResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List notifications for current user
  */
 export const ListNotificationsResponseItem = zod.object({

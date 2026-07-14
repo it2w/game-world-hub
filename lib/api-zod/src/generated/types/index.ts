@@ -7,6 +7,7 @@
  */
 
 export * from './achievement';
+export * from './addLibraryGameInput';
 export * from './authResponse';
 export * from './blockedUser';
 export * from './contentLink';
@@ -23,12 +24,17 @@ export * from './friendRequestStatus';
 export * from './friendStatus';
 export * from './friendStatusState';
 export * from './game';
+export * from './gameAccount';
 export * from './gameInput';
 export * from './healthStatus';
 export * from './lfgPost';
 export * from './lfgPostInput';
 export * from './lfgPostStatus';
 export * from './lfgRespondInput';
+export * from './libraryGame';
+export * from './linkGameAccountInput';
+export * from './linkSteam201';
+export * from './linkSteamInput';
 export * from './listLfgPostsParams';
 export * from './loginInput';
 export * from './message';
@@ -55,6 +61,7 @@ export * from './searchUsersParams';
 export * from './statusUpdate';
 export * from './statusUpdateStatus';
 export * from './successResponse';
+export * from './syncSteam200';
 export * from './user';
 export * from './userGame';
 export * from './userGameInput';

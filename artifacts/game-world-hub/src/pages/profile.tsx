@@ -1,6 +1,6 @@
 import { useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,10 @@ export default function Profile() {
 
   const { data: friendStatus } = useGetFriendStatus(userId, {
     query: { enabled: !!userId, queryKey: getGetFriendStatusQueryKey(userId) }
+  });
+
+  const { data: library } = useGetLibrary(userId, {
+    query: { enabled: !!userId, queryKey: getGetLibraryQueryKey(userId) }
   });
 
   const sendRequest = useSendFriendRequest();
@@ -216,22 +220,33 @@ export default function Profile() {
         {/* Library Preview */}
         <div className="bg-card border border-border p-6">
           <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-            <Library className="w-4 h-4" /> ACQUIRED_ASSETS
+            <Library className="w-4 h-4" /> GAME_LIBRARY {library && library.length > 0 ? `(${library.length})` : ""}
           </h2>
-          
+
           <div className="grid grid-cols-3 gap-2">
-            {user.games?.slice(0, 9).map((g: any) => (
-              <div key={g.id} className="aspect-[3/4] bg-background border border-border relative group overflow-hidden" title={g.game.name}>
-                {g.game.coverUrl ? (
-                  <img src={g.game.coverUrl} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+            {library?.slice(0, 9).map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => { if (g.launchUri) window.location.href = g.launchUri; }}
+                title={g.launchUri ? `Launch ${g.name}` : g.name}
+                className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-left"
+              >
+                {g.coverUrl ? (
+                  <img src={g.coverUrl} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" loading="lazy" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center font-mono text-xs text-center p-1 text-muted-foreground">
-                    {g.game.name.substring(0, 3).toUpperCase()}
+                    {g.name.substring(0, 3).toUpperCase()}
                   </div>
                 )}
-              </div>
+                {g.launchUri && (
+                  <span className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Play className="w-5 h-5 text-primary" />
+                  </span>
+                )}
+              </button>
             ))}
-            {user.games?.length === 0 && (
+            {(!library || library.length === 0) && (
               <div className="col-span-full text-sm font-mono text-muted-foreground italic">LIBRARY EMPTY</div>
             )}
           </div>
@@ -242,4 +257,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library } from "lucide-react";
+import { Library, Play } from "lucide-react";

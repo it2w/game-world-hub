@@ -13,16 +13,17 @@
   },
   "hero": {
     "status": "SYSTEM_ONLINE",
-    "typed": "Your social platform for the gaming world",
-    "sub": "See which friends are online, hop into a voice party in one click, share your screen mid-game, find teammates, and sync your Steam library — all in one hub.",
+    "typed": "Gaming alone? Wrong.",
+    "sub": "One second and you know who's online, who's playing what. Join the party, share your screen, find your squad — GWH is the only place you need.",
     "start": "Start free",
     "login": "Log in",
-    "scroll": "Scroll to explore"
+    "scroll": "Scroll to explore",
+    "counterLabel": "players online now"
   },
   "about": {
     "prompt": "> cat about.txt",
     "title": "What is Game World Hub?",
-    "body": "The idea is simple: one control room for your gaming social life. Instead of scattering your crew across chat apps and separate friend lists, GWH brings everyone together — see who's online and what they're playing right now, jump into a voice party with a single click, and find new teammates when you're short a player.",
+    "body": "Lost a match because you couldn't find a team? Don't know which friends are online right now? Tired of juggling three apps? GWH fixes all of that in one place.",
     "features": {
       "presence": { "title": "Live friend status", "desc": "See who's online, who's busy, and what each friend is playing right now." },
       "parties": { "title": "Voice parties", "desc": "Voice rooms for your squad — create, join, and leave with one click." },

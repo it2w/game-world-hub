@@ -54,3 +54,21 @@ id = "AO-b9cj3l_N6q7eJUAqDr"
 uri = "file://screenshots/landing-ar-pricing.jpg"
 type = "image"
 title = "أقسام: الاشتراكات + الدعم + اتصل بنا"
+
+[[outputs]]
+id = "RNWvf7rnJG6BZzGp4T6CG"
+uri = "file://screenshots/v2-hero-ar.jpg"
+type = "image"
+title = "الهيرو الجديد — ماتريكس + جزيئات + عداد حي + دردشة"
+
+[[outputs]]
+id = "nrMjkProuPGt_8rX2rEL1"
+uri = "file://screenshots/v2-about-ar.jpg"
+type = "image"
+title = "عن التطبيق + معاينة التطبيق الحية"
+
+[[outputs]]
+id = "DEivZuFxvKdt_vUPmbzXD"
+uri = "file://screenshots/v2-pricing-ar.jpg"
+type = "image"
+title = "الاشتراكات + الدعم + اتصل بنا"

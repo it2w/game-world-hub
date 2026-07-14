@@ -189,103 +189,84 @@ html[lang='ar'] {
 }
 
 /* ── Landing page (GWH_OS boot screen) ───────────────────────────── */
-@keyframes gwh-scanline {
-  0% { top: -12%; }
-  100% { top: 112%; }
-}
+@keyframes gwh-scanline { 0% { top: -12%; } 100% { top: 112%; } }
 .gwh-landing-scanline {
-  position: absolute;
-  inset-inline: 0;
-  top: -12%;
-  height: 120px;
+  position: absolute; inset-inline: 0; top: -12%; height: 120px;
   pointer-events: none;
   background: linear-gradient(to bottom, transparent, hsl(135 100% 50% / 0.05), transparent);
   animation: gwh-scanline 8s linear infinite;
 }
 
-@keyframes gwh-ticker-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.gwh-ticker-track {
-  animation: gwh-ticker-scroll 32s linear infinite;
-}
-.gwh-ticker:hover .gwh-ticker-track {
-  animation-play-state: paused;
-}
+@keyframes gwh-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.gwh-ticker-track { animation: gwh-ticker-scroll 32s linear infinite; }
+.gwh-ticker:hover .gwh-ticker-track { animation-play-state: paused; }
 
-@keyframes gwh-cursor-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-.gwh-cursor {
-  color: hsl(var(--primary));
-  animation: gwh-cursor-blink 1.06s steps(1) infinite;
-}
+@keyframes gwh-cursor-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.gwh-cursor { color: hsl(var(--primary)); animation: gwh-cursor-blink 1.06s steps(1) infinite; }
 
+/* ── Scroll-reveal with directional variants ── */
 .gwh-reveal {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transform: translateY(28px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
 }
-.gwh-reveal.is-visible {
-  opacity: 1;
-  transform: none;
-}
+.gwh-reveal[data-variant="left"]  { transform: translateX(-40px); }
+.gwh-reveal[data-variant="right"] { transform: translateX(40px); }
+.gwh-reveal[data-variant="pop"]   { transform: scale(0.92); }
+.gwh-reveal[data-variant="fade"]  { transform: none; }
+.gwh-reveal.is-visible { opacity: 1 !important; transform: none !important; }
 
-/* Corner brackets that light up on card hover (logical props for RTL). */
-.gwh-corner-card::before,
-.gwh-corner-card::after {
-  content: '';
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 1px solid hsl(var(--primary));
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
+/* ── Corner-bracket hover cards (logical props for RTL) ── */
+.gwh-corner-card::before, .gwh-corner-card::after {
+  content: ''; position: absolute; width: 12px; height: 12px;
+  border: 1px solid hsl(var(--primary)); opacity: 0;
+  transition: opacity 0.2s ease; pointer-events: none;
 }
-.gwh-corner-card::before {
-  top: -1px;
-  inset-inline-start: -1px;
-  border-inline-end: none;
-  border-bottom: none;
-}
-.gwh-corner-card::after {
-  bottom: -1px;
-  inset-inline-end: -1px;
-  border-inline-start: none;
-  border-top: none;
-}
-.gwh-corner-card:hover::before,
-.gwh-corner-card:hover::after {
-  opacity: 1;
-}
+.gwh-corner-card::before { top: -1px; inset-inline-start: -1px; border-inline-end: none; border-bottom: none; }
+.gwh-corner-card::after  { bottom: -1px; inset-inline-end: -1px; border-inline-start: none; border-top: none; }
+.gwh-corner-card:hover::before, .gwh-corner-card:hover::after { opacity: 1; }
 
-@keyframes gwh-progress-stripes {
-  from { background-position: 0 0; }
-  to { background-position: 24px 0; }
-}
+/* ── Striped progress bar ── */
+@keyframes gwh-progress-stripes { from { background-position: 0 0; } to { background-position: 24px 0; } }
 .gwh-progress-bar {
-  background-image: repeating-linear-gradient(
-    45deg,
-    hsl(var(--primary)) 0 8px,
-    hsl(var(--primary) / 0.55) 8px 16px
-  );
-  background-size: 24px 100%;
-  animation: gwh-progress-stripes 1s linear infinite;
+  background-image: repeating-linear-gradient(45deg, hsl(var(--primary)) 0 8px, hsl(var(--primary) / 0.55) 8px 16px);
+  background-size: 24px 100%; animation: gwh-progress-stripes 1s linear infinite;
 }
 
+/* ── Glitch title ── */
+.gwh-glitch { position: relative; display: inline-block; }
+.gwh-glitch::before, .gwh-glitch::after {
+  content: attr(data-text); position: absolute; inset: 0;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  clip-path: inset(0 0 100% 0); pointer-events: none;
+}
+@keyframes gwh-g1 {
+  0%   { clip-path: inset(8% 0 75% 0);  transform: translate(-4px, 0); color: hsl(0 100% 60% / 0.85); }
+  35%  { clip-path: inset(40% 0 36% 0); transform: translate(3px, 0); }
+  65%  { clip-path: inset(68% 0 10% 0); transform: translate(-3px, 0); }
+  100% { clip-path: inset(0 0 100% 0);  transform: translate(0, 0); }
+}
+@keyframes gwh-g2 {
+  0%   { clip-path: inset(62% 0 18% 0); transform: translate(4px, 0); color: hsl(195 100% 60% / 0.85); }
+  35%  { clip-path: inset(20% 0 55% 0); transform: translate(-3px, 0); }
+  65%  { clip-path: inset(47% 0 32% 0); transform: translate(3px, 0); }
+  100% { clip-path: inset(0 0 100% 0);  transform: translate(0, 0); }
+}
+.gwh-glitch--active::before { animation: gwh-g1 0.32s steps(2) both; }
+.gwh-glitch--active::after  { animation: gwh-g2 0.32s steps(2) both 0.06s; }
+
+/* ── Live counter dot pulse ── */
+@keyframes gwh-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.gwh-counter-dot { animation: gwh-dot-pulse 1.4s ease-in-out infinite; }
+
+/* ── Chat / log message slide-in ── */
+@keyframes gwh-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.gwh-msg { animation: gwh-msg-in 0.3s ease both; }
+
+/* ── Reduced-motion overrides ── */
 @media (prefers-reduced-motion: reduce) {
-  .gwh-landing-scanline,
-  .gwh-ticker-track,
-  .gwh-cursor,
-  .gwh-progress-bar {
-    animation: none;
-  }
-  .gwh-reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
+  .gwh-landing-scanline, .gwh-ticker-track, .gwh-cursor, .gwh-progress-bar,
+  .gwh-counter-dot, .gwh-msg { animation: none; }
+  .gwh-glitch--active::before, .gwh-glitch--active::after { animation: none; clip-path: inset(0 0 100% 0); }
+  .gwh-reveal { opacity: 1; transform: none; transition: none; }
 }

@@ -9,8 +9,11 @@ import {
   useUnlinkGameAccount,
   useAddLibraryGame,
   useRemoveLibraryGame,
+  useUpdateMyStatus,
   getGetLibraryQueryKey,
   getGetGameAccountsQueryKey,
+  getGetMeQueryKey,
+  getGetUserQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -69,6 +72,7 @@ export default function LibraryPage() {
 
   const { data: me } = useGetMe();
   const myId = me?.id ?? 0;
+  const updateStatus = useUpdateMyStatus();
 
   const { data: games } = useGetLibrary(myId, {
     query: { enabled: !!myId, queryKey: getGetLibraryQueryKey(myId) },
@@ -194,6 +198,18 @@ export default function LibraryPage() {
     }
     // Protocol deep-link: opens the platform client if installed on the user's device.
     window.location.href = launchUri;
+    toast({ title: `Launching ${name}…`, description: "If nothing opens, make sure the game's client is installed." });
+    // A web page can't detect the native process, so mark the game as our active
+    // presence ("ACTIVE PROCESS") when we trigger the launch.
+    updateStatus.mutate(
+      { data: { currentGame: name } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          if (myId) queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(myId) });
+        },
+      },
+    );
   };
 
   return (

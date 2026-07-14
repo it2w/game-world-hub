@@ -1,6 +1,6 @@
 import { useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,29 @@ export default function Profile() {
   const { data: library } = useGetLibrary(userId, {
     query: { enabled: !!userId, queryKey: getGetLibraryQueryKey(userId) }
   });
+
+  const { data: me } = useGetMe();
+  const updateStatus = useUpdateMyStatus();
+
+  const handleLaunch = (launchUri: string | null | undefined, name: string) => {
+    if (!launchUri) {
+      toast({ title: "No launch link", description: `${name} has no launch link — add one from the Library to launch it.` });
+      return;
+    }
+    // Protocol deep-link: opens the platform client if installed on the device.
+    window.location.href = launchUri;
+    toast({ title: `Launching ${name}…`, description: "If nothing opens, make sure the game's client is installed." });
+    // Reflect the launch as our active presence ("ACTIVE PROCESS").
+    updateStatus.mutate(
+      { data: { currentGame: name } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          if (me?.id) queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
+        },
+      },
+    );
+  };
 
   const sendRequest = useSendFriendRequest();
   const acceptRequest = useAcceptFriendRequest();
@@ -159,8 +182,13 @@ export default function Profile() {
 
           <div className="flex flex-wrap gap-4 justify-center md:justify-start pt-2">
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5">
-              <Gamepad2 className="w-4 h-4 text-primary" /> 
-              {user.currentGame ? <span className="text-primary">{user.currentGame}</span> : <span className="text-muted-foreground">NO ACTIVE PROCESS</span>}
+              <Gamepad2 className="w-4 h-4 text-primary" />
+              <span className="text-muted-foreground uppercase tracking-widest">Active Process:</span>
+              {user.currentGame ? (
+                <span className="text-primary flex items-center gap-1"><Radio className="w-3 h-3 animate-pulse" />{user.currentGame}</span>
+              ) : (
+                <span className="text-muted-foreground">NONE</span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5 text-muted-foreground">
               <Calendar className="w-4 h-4" /> 
@@ -228,7 +256,7 @@ export default function Profile() {
               <button
                 key={g.id}
                 type="button"
-                onClick={() => { if (g.launchUri) window.location.href = g.launchUri; }}
+                onClick={() => handleLaunch(g.launchUri, g.name)}
                 title={g.launchUri ? `Launch ${g.name}` : g.name}
                 className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-left"
               >

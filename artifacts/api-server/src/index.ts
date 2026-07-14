@@ -1,8 +1,35 @@
 import { createServer } from "node:http";
+import { and, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seed } from "./lib/seed";
 import { attachSignaling } from "./ws/signaling";
+
+// How long after the last heartbeat we treat a game as no longer running.
+const PRESENCE_STALE = "4 minutes";
+
+// Periodically clear currentGame for users whose open tabs stopped sending
+// heartbeats (i.e. they closed the site), so "Active Process" doesn't stick.
+function startPresenceSweep(): void {
+  setInterval(() => {
+    void db
+      .update(usersTable)
+      .set({ currentGame: null })
+      .where(
+        and(
+          isNotNull(usersTable.currentGame),
+          // Clear when the last heartbeat is stale OR was never recorded
+          // (e.g. legacy rows written before heartbeats existed).
+          or(
+            isNull(usersTable.lastActiveAt),
+            lt(usersTable.lastActiveAt, sql`now() - interval '${sql.raw(PRESENCE_STALE)}'`),
+          ),
+        ),
+      )
+      .catch((err) => logger.error({ err }, "presence sweep failed"));
+  }, 60_000);
+}
 
 const rawPort = process.env["PORT"];
 
@@ -30,4 +57,6 @@ server.listen(port, async () => {
   } catch (e) {
     logger.error({ err: e }, "Seed failed");
   }
+
+  startPresenceSweep();
 });

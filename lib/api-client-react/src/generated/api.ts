@@ -535,6 +535,78 @@ export const useUpdateMyStatus = <TError = ErrorType<unknown>,
       return useMutation(getUpdateMyStatusMutationOptions(options));
     }
 
+export const getMeHeartbeatUrl = () => {
+
+
+
+
+  return `/api/auth/me/heartbeat`
+}
+
+/**
+ * An open tab pings this while a game is active so the presence sweep does not clear currentGame.
+ * @summary Keep the current game session alive
+ */
+export const meHeartbeat = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getMeHeartbeatUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMeHeartbeatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof meHeartbeat>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof meHeartbeat>>, TError,void, TContext> => {
+
+const mutationKey = ['meHeartbeat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof meHeartbeat>>, void> = () => {
+
+
+          return  meHeartbeat(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MeHeartbeatMutationResult = NonNullable<Awaited<ReturnType<typeof meHeartbeat>>>
+
+    export type MeHeartbeatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Keep the current game session alive
+ */
+export const useMeHeartbeat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof meHeartbeat>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof meHeartbeat>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMeHeartbeatMutationOptions(options));
+    }
+
 export const getGetUserUrl = (userId: number,) => {
 
 

@@ -126,7 +126,11 @@ export default function Settings() {
     updateStatus.mutate(
       { data },
       {
-        onSuccess: () => toast({ title: "Status updated globally" })
+        onSuccess: () => {
+          // Going offline clears the active game server-side, so refresh /me
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          toast({ title: "Status updated globally" });
+        }
       }
     );
   };

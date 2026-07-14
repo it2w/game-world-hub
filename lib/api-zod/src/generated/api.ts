@@ -117,6 +117,13 @@ export const UpdateMyStatusResponse = zod.object({
 
 
 /**
+ * An open tab pings this while a game is active so the presence sweep does not clear currentGame.
+ * @summary Keep the current game session alive
+ */
+export const MeHeartbeatResponse = zod.void()
+
+
+/**
  * @summary Get a user profile
  */
 export const GetUserParams = zod.object({

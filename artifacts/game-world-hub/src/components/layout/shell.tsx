@@ -7,11 +7,31 @@ import { CallOverlays } from "@/voice/components/incoming-call-dialog";
 import { Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey } from "@workspace/api-client-react";
+import { useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey, useGetMe, getGetMeQueryKey, meHeartbeat } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+// While a game is active, keep an open-tab heartbeat so the server's presence
+// sweep does not clear currentGame. When the tab closes, heartbeats stop and
+// the sweep clears the active game after a few minutes.
+function useActivityHeartbeat(enabled: boolean) {
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), enabled } });
+  const hasActiveGame = enabled && !!me?.currentGame;
+
+  React.useEffect(() => {
+    if (!hasActiveGame) return;
+    // Fire immediately, then keep alive. Not gated on document.hidden so a
+    // backgrounded-but-open tab still counts as "playing".
+    meHeartbeat().catch(() => {});
+    const id = setInterval(() => {
+      meHeartbeat().catch(() => {});
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [hasActiveGame]);
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  useActivityHeartbeat(isAuthenticated);
 
   if (isLoading) {
     return (

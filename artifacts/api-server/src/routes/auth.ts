@@ -102,11 +102,39 @@ router.patch("/auth/me/status", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const data: { status?: string; currentGame?: string | null; lastActiveAt?: Date } = {
+    ...parsed.data,
+  };
+  // Going offline automatically clears your active game.
+  if (data.status === "offline") data.currentGame = null;
+  // Enforce the invariant even when the request only sets a game and leaves
+  // status untouched: a user who is already offline must never show a game.
+  if (data.currentGame && data.status === undefined) {
+    const [existing] = await db
+      .select({ status: usersTable.status })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.auth!.userId));
+    if (existing?.status === "offline") data.currentGame = null;
+  }
+  // Stamp activity whenever a game is (re)set, so the presence sweep only keeps
+  // it alive while an open tab keeps sending heartbeats.
+  if (data.currentGame) data.lastActiveAt = new Date();
+
   const [user] = await db.update(usersTable)
-    .set({ ...parsed.data })
+    .set(data)
     .where(eq(usersTable.id, req.auth!.userId))
     .returning();
   res.json(safeUser(user));
+});
+
+// POST /auth/me/heartbeat — an open tab pings this while a game is active so the
+// server knows the user is still around. When the pings stop (tab closed), the
+// background sweep clears currentGame after a few minutes.
+router.post("/auth/me/heartbeat", requireAuth, async (req, res): Promise<void> => {
+  await db.update(usersTable)
+    .set({ lastActiveAt: new Date() })
+    .where(eq(usersTable.id, req.auth!.userId));
+  res.status(204).end();
 });
 
 export default router;

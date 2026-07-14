@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { customFetch } from "@workspace/api-client-react/custom-fetch";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -62,6 +63,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Capture the token BEFORE clearing it so the best-effort status clear
+    // still carries a valid Authorization header.
+    const currentToken = localStorage.getItem("gwh_token");
+    if (currentToken) {
+      // Clear the active game on logout. keepalive lets it complete even as we navigate away.
+      customFetch("/api/auth/me/status", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${currentToken}` },
+        body: JSON.stringify({ currentGame: null }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     localStorage.removeItem("gwh_token");
     setToken(null);
     window.electronAPI?.clearAuthToken();

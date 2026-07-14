@@ -158,6 +158,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /auth/me/heartbeat:
+    post:
+      operationId: meHeartbeat
+      tags: [auth]
+      summary: Keep the current game session alive
+      description: An open tab pings this while a game is active so the presence sweep does not clear currentGame.
+      responses:
+        "204":
+          description: Heartbeat recorded
+
   # ── Users ─────────────────────────────────────────────────────────────────
   /users/{userId}:
     get:

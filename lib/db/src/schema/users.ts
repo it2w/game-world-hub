@@ -11,6 +11,9 @@ export const usersTable = pgTable("users", {
   bio: text("bio"),
   status: text("status").notNull().default("offline"), // online | away | busy | offline
   currentGame: text("current_game"),
+  // Last time the user's open tab reported activity (heartbeat). Used to auto-clear
+  // currentGame a few minutes after every tab is closed.
+  lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

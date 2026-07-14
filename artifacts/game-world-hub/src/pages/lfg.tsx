@@ -10,6 +10,7 @@ import {
   getGetMeQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,8 @@ export default function Lfg() {
     const m = Math.floor((ms % 3_600_000) / 60_000);
     return h > 0 ? t("time.leftHm", { h, m }) : t("time.leftM", { m });
   };
+
+  const { toast } = useToast();
 
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: posts, isLoading } = useListLfgPosts(undefined, {
@@ -396,7 +399,27 @@ export default function Lfg() {
                         size="sm"
                         className="font-mono rounded-none text-xs"
                         disabled={respond.isPending || isClosed}
-                        onClick={() => !isClosed && respond.mutate({ postId: post.id, data: {} }, { onSuccess: invalidate })}
+                        onClick={() =>
+                          !isClosed &&
+                          respond.mutate(
+                            { postId: post.id, data: {} },
+                            {
+                              onSuccess: invalidate,
+                              onError: (err: unknown) => {
+                                const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
+                                const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "";
+                                if (status === 409) {
+                                  if (msg.toLowerCase().includes("expired")) {
+                                    toast({ title: t("toasts.signalExpired"), variant: "destructive" });
+                                  } else {
+                                    toast({ title: t("toasts.signalClosed"), variant: "destructive" });
+                                  }
+                                  invalidate();
+                                }
+                              },
+                            },
+                          )
+                        }
                       >
                         {t("card.respond")}
                       </Button>

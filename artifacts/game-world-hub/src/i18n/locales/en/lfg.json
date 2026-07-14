@@ -55,5 +55,9 @@
     "closed": "CLOSED",
     "signalSent": "SIGNAL SENT",
     "respond": "RESPOND"
+  },
+  "toasts": {
+    "signalClosed": "Signal closed — this post is no longer open",
+    "signalExpired": "Signal expired — this post is no longer accepting responses"
   }
 }

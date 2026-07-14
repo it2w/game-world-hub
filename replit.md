@@ -40,6 +40,7 @@ Social gaming platform: presence, friends, parties, voice rooms, LFG, DMs, and r
 - Profiles: avatar + banner, photo gallery (max 12), wall comments (owner can toggle/delete; blocking enforced both directions)
 - Social: friends, blocking, DMs, parties with voice/screen share, LFG posts, game library (Steam sync)
 - Presence: online status + current game, auto-cleared by heartbeat/sweep
+- Landing: `/` shows a public marketing page to signed-out visitors (about, Windows app marked "coming soon", plans, support FAQ, contact via info@gmes.app); authed users see the dashboard there. Section hash links (`/#pricing`) jump on load; `/` must stay in the auth provider's public paths
 
 ## User preferences
 

@@ -36,3 +36,21 @@ id = "cyLV_6IQtImJk2KYgtAM3"
 uri = "file://screenshots/logo-arcade-login.jpg"
 type = "image"
 title = "الشعار الجديد أثناء التجمّع — صفحة الدخول الفعلية"
+
+[[outputs]]
+id = "BwBBh4vxuXYFRFINgC-0-"
+uri = "file://screenshots/landing-ar-hero.jpg"
+type = "image"
+title = "الصفحة الرئيسية الجديدة — الواجهة العلوية"
+
+[[outputs]]
+id = "IvEqAmJrhcpQXxjMteSdc"
+uri = "file://screenshots/landing-ar-about.jpg"
+type = "image"
+title = "أقسام: عن التطبيق + تطبيق وندوز"
+
+[[outputs]]
+id = "AO-b9cj3l_N6q7eJUAqDr"
+uri = "file://screenshots/landing-ar-pricing.jpg"
+type = "image"
+title = "أقسام: الاشتراكات + الدعم + اتصل بنا"

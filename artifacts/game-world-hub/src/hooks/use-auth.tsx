@@ -35,7 +35,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = !!user;
 
   useEffect(() => {
-    const publicPaths = ["/login", "/register"];
+    // "/" is the public landing page for guests; signed-in users see the dashboard there.
+    const publicPaths = ["/login", "/register", "/"];
     if (publicPaths.includes(location)) return;
 
     if (!token) {

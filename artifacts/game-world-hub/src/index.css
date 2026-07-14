@@ -187,3 +187,105 @@ html[lang='ar'] {
     transition: none;
   }
 }
+
+/* ── Landing page (GWH_OS boot screen) ───────────────────────────── */
+@keyframes gwh-scanline {
+  0% { top: -12%; }
+  100% { top: 112%; }
+}
+.gwh-landing-scanline {
+  position: absolute;
+  inset-inline: 0;
+  top: -12%;
+  height: 120px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, hsl(135 100% 50% / 0.05), transparent);
+  animation: gwh-scanline 8s linear infinite;
+}
+
+@keyframes gwh-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.gwh-ticker-track {
+  animation: gwh-ticker-scroll 32s linear infinite;
+}
+.gwh-ticker:hover .gwh-ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes gwh-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.gwh-cursor {
+  color: hsl(var(--primary));
+  animation: gwh-cursor-blink 1.06s steps(1) infinite;
+}
+
+.gwh-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.gwh-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Corner brackets that light up on card hover (logical props for RTL). */
+.gwh-corner-card::before,
+.gwh-corner-card::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid hsl(var(--primary));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.gwh-corner-card::before {
+  top: -1px;
+  inset-inline-start: -1px;
+  border-inline-end: none;
+  border-bottom: none;
+}
+.gwh-corner-card::after {
+  bottom: -1px;
+  inset-inline-end: -1px;
+  border-inline-start: none;
+  border-top: none;
+}
+.gwh-corner-card:hover::before,
+.gwh-corner-card:hover::after {
+  opacity: 1;
+}
+
+@keyframes gwh-progress-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 24px 0; }
+}
+.gwh-progress-bar {
+  background-image: repeating-linear-gradient(
+    45deg,
+    hsl(var(--primary)) 0 8px,
+    hsl(var(--primary) / 0.55) 8px 16px
+  );
+  background-size: 24px 100%;
+  animation: gwh-progress-stripes 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gwh-landing-scanline,
+  .gwh-ticker-track,
+  .gwh-cursor,
+  .gwh-progress-bar {
+    animation: none;
+  }
+  .gwh-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

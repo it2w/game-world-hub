@@ -1,0 +1,100 @@
+{
+  "nav": {
+    "about": "About",
+    "download": "Windows App",
+    "pricing": "Plans",
+    "support": "Support",
+    "contact": "Contact",
+    "login": "Log in",
+    "start": "Start free",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "switchLang": "العربية"
+  },
+  "hero": {
+    "status": "SYSTEM_ONLINE",
+    "typed": "Your social platform for the gaming world",
+    "sub": "See which friends are online, hop into a voice party in one click, share your screen mid-game, find teammates, and sync your Steam library — all in one hub.",
+    "start": "Start free",
+    "login": "Log in",
+    "scroll": "Scroll to explore"
+  },
+  "about": {
+    "prompt": "> cat about.txt",
+    "title": "What is Game World Hub?",
+    "body": "The idea is simple: one control room for your gaming social life. Instead of scattering your crew across chat apps and separate friend lists, GWH brings everyone together — see who's online and what they're playing right now, jump into a voice party with a single click, and find new teammates when you're short a player.",
+    "features": {
+      "presence": { "title": "Live friend status", "desc": "See who's online, who's busy, and what each friend is playing right now." },
+      "parties": { "title": "Voice parties", "desc": "Voice rooms for your squad — create, join, and leave with one click." },
+      "screen": { "title": "Screen sharing", "desc": "Stream your game straight to your party while you play." },
+      "chat": { "title": "Private & group chat", "desc": "Instant messages with your friends and groups, anytime." },
+      "lfg": { "title": "Looking for group", "desc": "Post a request or join players who need one more teammate." },
+      "library": { "title": "Steam library & ranks", "desc": "Link Steam to show your games, and track achievements and rank." }
+    }
+  },
+  "download": {
+    "prompt": "> download --windows",
+    "title": "Desktop app for Windows",
+    "body": "Built for your gaming rig: runs alongside your games, stays in the system tray, and delivers notifications without opening a browser.",
+    "p1": "Runs in the background with a system tray icon",
+    "p2": "Instant desktop notifications",
+    "p3": "Quick access with deep links to parties and chat",
+    "p4": "Same account and data everywhere",
+    "button": "Download for Windows",
+    "soon": "Coming soon",
+    "soonNote": "The Windows build is being prepared — it will be available for download right here.",
+    "webNote": "Don't want to wait? The full version runs in your browser now.",
+    "webCta": "Start in the browser",
+    "windowTitle": "GWH_DESKTOP.EXE",
+    "installing": "INSTALLER_STATUS: IN PREPARATION"
+  },
+  "pricing": {
+    "prompt": "> plans --list",
+    "title": "Plans & perks",
+    "body": "Every core feature is free today — an optional PRO tier with extra perks is on the way.",
+    "freeName": "PLAYER",
+    "freePrice": "Free",
+    "freeTag": "Available now",
+    "freeF1": "Friends, chat, and voice parties",
+    "freeF2": "Screen sharing inside parties",
+    "freeF3": "LFG matchmaking and ranks",
+    "freeF4": "Steam library sync and 2FA security",
+    "proName": "PRO",
+    "proPrice": "Soon",
+    "proTag": "In the works",
+    "proF1": "A distinctive badge next to your name",
+    "proF2": "Extra profile customization",
+    "proF3": "Priority support",
+    "proF4": "More perks announced later",
+    "note": "Pricing details will be announced when PRO launches.",
+    "cta": "Create your free account"
+  },
+  "support": {
+    "prompt": "> support --faq",
+    "title": "Support",
+    "body": "The most common questions — and if you can't find your answer, message us directly.",
+    "q1": "How do I get started?",
+    "a1": "Create a free account with the “Start free” button, then add your friends by username and start your first voice party.",
+    "q2": "Is it really free?",
+    "a2": "Yes — everything available today is completely free. The future PRO tier is optional and won't lock away core features.",
+    "q3": "How do I link my Steam library?",
+    "a3": "From the “Library” page inside the app, link your Steam account and your games and playtime will appear automatically.",
+    "q4": "Voice not working or calls failing?",
+    "a4": "First make sure your browser has microphone permission, then try another network if you can — some networks block calls. If the problem persists, message support and we'll help.",
+    "cta": "Didn't find your answer? Contact support",
+    "mailSubject": "Support request — Game World Hub"
+  },
+  "contact": {
+    "prompt": "> open_channel",
+    "title": "Contact us",
+    "body": "Questions, suggestions, partnerships — send us an email and we'll get back to you.",
+    "emailLabel": "Official email",
+    "button": "Send a message",
+    "mailSubject": "Inquiry — Game World Hub"
+  },
+  "footer": {
+    "tagline": "Your social platform for the gaming world.",
+    "links": "Sections",
+    "rights": "© {{year}} Game World Hub — All rights reserved."
+  }
+}

@@ -2,7 +2,7 @@ import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider } from '@/hooks/use-auth';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { VoiceProvider } from '@/voice/voice-context';
 import { Shell } from '@/components/layout/shell';
 import '@/lib/api';
@@ -24,6 +24,7 @@ import LibraryPage from '@/pages/library';
 import Profile from '@/pages/profile';
 import Settings from '@/pages/settings';
 import NotFound from '@/pages/not-found';
+import Landing from '@/pages/landing';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +56,16 @@ function ElectronNavigationBridge() {
   return null;
 }
 
+/**
+ * "/" is public: guests see the marketing landing page, signed-in users get
+ * their dashboard. Shell renders bare children for unauthenticated visitors,
+ * so the landing page controls the full viewport.
+ */
+function HomeRoute() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Dashboard /> : <Landing />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -67,7 +78,7 @@ function Router() {
       <Route>
         <Shell>
           <Switch>
-            <Route path="/" component={Dashboard} />
+            <Route path="/" component={HomeRoute} />
             <Route path="/friends" component={Friends} />
             <Route path="/chat" component={Chat} />
             <Route path="/chat/:conversationId" component={Chat} />

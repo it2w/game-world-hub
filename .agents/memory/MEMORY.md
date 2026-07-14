@@ -16,4 +16,4 @@
 - [Drizzle push fallback](drizzle-push-fallback.md) — drizzle-kit push hangs on interactive prompts; apply additive DDL via raw SQL kept in sync with schema.ts.
 - [Arabic i18n & RTL](i18n-arabic-rtl.md) — per-ns JSON bundles, gwh_lang key; new UI must use logical (ms/me/start/end) classes; server labels translate client-side via stable ids; user content stays as-is.
 - [Canvas visibility fallback](canvas-visibility-fallback.md) — this user often can't see canvas iframes; mirror every canvas reveal with presentAsset screenshots in chat.
-- [Screenshots vs mount animations](screenshot-mount-animations.md) — Screenshot captures ~1s after load; assemble-on-mount UI looks partial in stills — expected, explain it, don't retry.
+- [Screenshots vs mount animations](screenshot-mount-animations.md) — stills catch ~1s post-load (partial animations OK); shoot below-fold sections via /#hash — SPA must jump on mount.

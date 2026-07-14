@@ -19,3 +19,8 @@ a GWH route, use root-relative paths. To confirm an artifact's real base for any
 app, check the served HTML asset paths (root-relative `src="/src/main.tsx"` ⇒
 base `/`) or the artifact's registered previewPath — don't infer it from the
 directory/slug name.
+
+## `/` is the public guest landing
+`/` renders the marketing landing for signed-out visitors and the dashboard for authed users (HomeRoute).
+**Why:** launched 2026-07-14 as the pre-login home; a login redirect on `/` would kill the homepage.
+**How to apply:** any auth-guard change must keep `/`, `/login`, `/register` public.

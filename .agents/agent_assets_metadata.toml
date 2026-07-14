@@ -12,3 +12,9 @@ id = "M99aVvB5eSnNwsGSxgAvr"
 uri = "file://screenshots/logo-hexforge.jpg"
 type = "image"
 title = "الشعار المزيج — Hex Forge (A×C)"
+
+[[outputs]]
+id = "ewwxG2CM5_RPBGEoX7hOP"
+uri = "file://screenshots/logo-hexsplit.jpg"
+type = "image"
+title = "Hex Split — النواة بجانب السداسية (ناعم + بكسل)"

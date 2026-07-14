@@ -1915,7 +1915,7 @@ components:
     # ── Auth ────────────────────────────────────────────────────────────────
     RegisterInput:
       type: object
-      required: [username, password, displayName]
+      required: [username, password, displayName, email]
       properties:
         username:
           type: string
@@ -1930,6 +1930,7 @@ components:
           maxLength: 50
         email:
           type: string
+          minLength: 3
           maxLength: 255
 
     LoginInput:

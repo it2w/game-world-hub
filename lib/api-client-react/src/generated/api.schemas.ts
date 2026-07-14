@@ -162,8 +162,11 @@ export interface RegisterInput {
      * @maxLength 50
      */
   displayName: string;
-  /** @maxLength 255 */
-  email?: string;
+  /**
+     * @minLength 3
+     * @maxLength 255
+     */
+  email: string;
 }
 
 export interface LoginInput {

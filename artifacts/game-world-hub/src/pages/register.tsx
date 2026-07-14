@@ -15,7 +15,7 @@ import { AnimatedLogo } from "@/components/animated-logo";
 type RegisterForm = {
   username: string;
   displayName: string;
-  email?: string;
+  email: string;
   password: string;
 };
 
@@ -31,7 +31,11 @@ export default function Register() {
       z.object({
         username: z.string().min(3, t("register.validation.usernameMin")).max(30),
         displayName: z.string().min(1, t("register.validation.displayNameRequired")).max(50),
-        email: z.string().email(t("register.validation.emailInvalid")).max(255).optional().or(z.literal("")),
+        email: z
+          .string()
+          .min(1, t("register.validation.emailRequired"))
+          .email(t("register.validation.emailInvalid"))
+          .max(255),
         password: z.string().min(6, t("register.validation.passwordMin")),
       }),
     [t],
@@ -48,19 +52,16 @@ export default function Register() {
   });
 
   const onSubmit = (data: RegisterForm) => {
-    const email = data.email?.trim();
-    const payload = { ...data, email: email ? email : undefined };
+    const payload = { ...data, email: data.email.trim() };
     registerMutation.mutate({ data: payload }, {
       onSuccess: (resp) => {
         if (resp.token) {
           login(resp.token);
         }
-        if (payload.email) {
-          toast({
-            title: t("register.toasts.verificationCodeSent"),
-            description: t("register.toasts.verificationCodeSentDescription"),
-          });
-        }
+        toast({
+          title: t("register.toasts.verificationCodeSent"),
+          description: t("register.toasts.verificationCodeSentDescription"),
+        });
         setLocation("/");
       },
       onError: (err) => {

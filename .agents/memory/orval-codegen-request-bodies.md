@@ -36,3 +36,8 @@ routes that import the generated `<operationId>Body` zod.
 ## format: email / uri breaks zod codegen
 
 Declaring `format: email` or `format: uri` on OpenAPI string fields makes the orval zod codegen emit broken validators in this setup. Keep spec fields as plain strings and validate email/URL shape server-side with a regex (and client-side in the form schema).
+
+## `format: email` breaks codegen (zod 3 vs orval 8)
+Never use `format: email` in openapi.yaml. Orval 8 emits zod-v4 top-level `zod.email()`, which does not exist in zod 3.25 — `typecheck:libs` fails inside the generated file.
+**Why:** hit when making registration email required; codegen produced `zod.email()` and the build broke.
+**How to apply:** in the spec use `minLength`/`maxLength` (or a `pattern`) for email fields and enforce the real format check in the route handler (shared `EMAIL_RE` in auth routes) plus `.email()` in the client-side form schema.

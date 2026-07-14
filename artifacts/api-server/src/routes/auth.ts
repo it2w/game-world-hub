@@ -87,8 +87,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
   const { username, password, displayName } = parsed.data;
-  const email = parsed.data.email?.trim().toLowerCase() || undefined;
-  if (email && !EMAIL_RE.test(email)) {
+  const email = parsed.data.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) {
     res.status(400).json({ error: "Invalid email address" });
     return;
   }
@@ -98,12 +98,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Username already taken" });
     return;
   }
-  if (email) {
-    const [emailTaken] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-    if (emailTaken) {
-      res.status(409).json({ error: "Email already in use" });
-      return;
-    }
+  const [emailTaken] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  if (emailTaken) {
+    res.status(409).json({ error: "Email already in use" });
+    return;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -112,21 +110,19 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     passwordHash,
     displayName,
     status: "online",
-    ...(email ? { email } : {}),
+    email,
   }).returning();
 
-  if (email) {
-    // Best-effort: registration must not fail if the email cannot be sent.
-    try {
-      const code = await issueCode(user.id, "email_verify");
-      await sendEmail({
-        to: email,
-        subject: "Game World Hub — verify your email",
-        text: `Your verification code is: ${code}\nIt expires in 10 minutes.`,
-      });
-    } catch (err) {
-      logger.error({ err }, "Failed to send verification email after register");
-    }
+  // Best-effort: registration must not fail if the email cannot be sent.
+  try {
+    const code = await issueCode(user.id, "email_verify");
+    await sendEmail({
+      to: email,
+      subject: "Game World Hub — verify your email",
+      text: `Your verification code is: ${code}\nIt expires in 10 minutes.`,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to send verification email after register");
   }
 
   const token = signToken({ userId: user.id, username: user.username });

@@ -27,6 +27,7 @@ export const registerBodyPasswordMin = 6;
 
 export const registerBodyDisplayNameMax = 50;
 
+export const registerBodyEmailMin = 3;
 export const registerBodyEmailMax = 255;
 
 
@@ -35,7 +36,7 @@ export const RegisterBody = zod.object({
   "username": zod.string().min(registerBodyUsernameMin).max(registerBodyUsernameMax),
   "password": zod.string().min(registerBodyPasswordMin),
   "displayName": zod.string().min(1).max(registerBodyDisplayNameMax),
-  "email": zod.string().max(registerBodyEmailMax).optional()
+  "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax)
 })
 
 export const RegisterResponse = zod.object({

@@ -138,43 +138,52 @@ html[lang='ar'] {
   }
 }
 
-/* ── Animated logo (hex-split mark) ──────────────────────────────── */
-@keyframes gwh-logo-rotate {
-  to { transform: rotate(360deg); }
+/* ── Animated logo (arcade spirit — pixel invader) ───────────────── */
+@keyframes gwh-logo-assemble {
+  0% { opacity: 0; transform: translateY(-2.5px) scale(0.1); }
+  70% { opacity: 1; transform: translateY(0.3px) scale(1.12); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes gwh-logo-breath {
-  0%, 100% { opacity: 0.1; }
-  50% { opacity: 0.5; }
+@keyframes gwh-logo-shimmer {
+  0%, 90%, 100% { fill: currentColor; }
+  94% { fill: #f2fff5; }
 }
-@keyframes gwh-logo-core-glow {
-  0%, 100% { opacity: 0.9; filter: drop-shadow(0 0 1px hsl(180, 100%, 50%)); }
-  50% { opacity: 1; filter: drop-shadow(0 0 5px hsl(180, 100%, 50%)); }
+@keyframes gwh-logo-blink {
+  0%, 86%, 94%, 100% { transform: scaleY(1); }
+  89%, 91% { transform: scaleY(0.12); }
 }
-@keyframes gwh-logo-tether-shimmer {
-  0%, 100% { opacity: 0.25; }
-  50% { opacity: 0.7; }
+@keyframes gwh-logo-bob {
+  0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 1px hsl(135 100% 50% / 0.5)); }
+  50% { transform: translateY(-0.4px); filter: drop-shadow(0 0 2.5px hsl(135 100% 50% / 0.75)); }
 }
-.gwh-logo-spin-hex {
+.gwh-logo-arcade { transition: transform 0.12s steps(2, end); }
+.gwh-logo-arcade:hover { transform: scale(1.08); }
+.gwh-logo-body {
   transform-box: view-box;
-  transform-origin: 45px 50px;
-  animation: gwh-logo-rotate 10s linear infinite;
+  animation: gwh-logo-bob 3.4s ease-in-out 1.8s infinite;
 }
-.gwh-logo-spin-inner {
+.gwh-logo-px {
+  fill: currentColor;
   transform-box: view-box;
-  transform-origin: 45px 50px;
-  animation: gwh-logo-rotate 15s linear infinite reverse;
+  animation:
+    gwh-logo-assemble 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    gwh-logo-shimmer 7s linear infinite;
+  animation-delay: var(--d, 0s), calc(var(--d, 0s) * 3 + 2.4s);
 }
-.gwh-logo-orbit {
+.gwh-logo-eye {
+  fill: #ffffff;
   transform-box: view-box;
-  transform-origin: 115px 50px;
-  animation: gwh-logo-rotate 10s linear infinite;
+  animation:
+    gwh-logo-assemble 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    gwh-logo-blink 4.2s ease-in-out infinite;
+  animation-delay: var(--d, 0s), calc(var(--d, 0s) + 2.2s);
 }
-.gwh-logo-breath { animation: gwh-logo-breath 4s ease-in-out infinite; }
-.gwh-logo-core { animation: gwh-logo-core-glow 3s ease-in-out infinite; }
-.gwh-logo-tether { animation: gwh-logo-tether-shimmer 4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .gwh-logo-spin-hex, .gwh-logo-spin-inner, .gwh-logo-orbit,
-  .gwh-logo-breath, .gwh-logo-core, .gwh-logo-tether {
+  .gwh-logo-body, .gwh-logo-px, .gwh-logo-eye {
     animation: none;
+  }
+  .gwh-logo-arcade, .gwh-logo-arcade:hover {
+    transform: none;
+    transition: none;
   }
 }

@@ -30,3 +30,9 @@ id = "yAZ7e3vcgj5awPZHJOOX_"
 uri = "file://screenshots/logo-c-pixelforge.jpg"
 type = "image"
 title = "المفهوم C — روح الأركيد (Pixel Forge)"
+
+[[outputs]]
+id = "cyLV_6IQtImJk2KYgtAM3"
+uri = "file://screenshots/logo-arcade-login.jpg"
+type = "image"
+title = "الشعار الجديد أثناء التجمّع — صفحة الدخول الفعلية"

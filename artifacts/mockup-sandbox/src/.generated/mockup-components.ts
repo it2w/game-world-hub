@@ -3,6 +3,7 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/gwh-logos/GlitchMark.tsx": () => import("../components/mockups/gwh-logos/GlitchMark.tsx"),
   "./components/mockups/gwh-logos/HexCore.tsx": () => import("../components/mockups/gwh-logos/HexCore.tsx"),
+  "./components/mockups/gwh-logos/HexForge.tsx": () => import("../components/mockups/gwh-logos/HexForge.tsx"),
   "./components/mockups/gwh-logos/PadPulse.tsx": () => import("../components/mockups/gwh-logos/PadPulse.tsx"),
   "./components/mockups/gwh-logos/PixelForge.tsx": () => import("../components/mockups/gwh-logos/PixelForge.tsx")
 };

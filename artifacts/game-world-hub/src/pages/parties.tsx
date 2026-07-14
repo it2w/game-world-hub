@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useListParties, useCreateParty, getListPartiesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,21 +10,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import { Users, Gamepad2, Monitor, Plus, Lock, Globe } from "lucide-react";
 
-const createPartySchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  game: z.string().optional(),
-  platform: z.string().optional(),
-  description: z.string().max(500).optional(),
-  maxSize: z.coerce.number().min(2).max(100),
-  isPublic: z.boolean().default(true)
-});
-
-type CreatePartyForm = z.infer<typeof createPartySchema>;
+type CreatePartyForm = {
+  name: string;
+  game?: string;
+  platform?: string;
+  description?: string;
+  maxSize: number;
+  isPublic: boolean;
+};
 
 export default function Parties() {
+  const { t } = useTranslation("parties");
   const [, setLocation] = useLocation();
+
+  const createPartySchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("validation.nameRequired")).max(100),
+        game: z.string().optional(),
+        platform: z.string().optional(),
+        description: z.string().max(500).optional(),
+        maxSize: z.coerce.number().min(2).max(100),
+        isPublic: z.boolean().default(true)
+      }),
+    [t],
+  );
+
   const { data: parties, isLoading } = useListParties({
     query: { refetchInterval: 10000, queryKey: getListPartiesQueryKey() }
   });
@@ -57,20 +71,20 @@ export default function Parties() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-end justify-between border-b border-border pb-4">
         <div>
-          <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase">PARTIES</h1>
-          <p className="text-muted-foreground font-mono text-sm mt-1">ACTIVE SQUADS</p>
+          <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase">{t("header.title")}</h1>
+          <p className="text-muted-foreground font-mono text-sm mt-1">{t("header.subtitle")}</p>
         </div>
         
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="font-mono rounded-none">
-              <Plus className="w-4 h-4 mr-2" /> FORM SQUAD
+              <Plus className="w-4 h-4 me-2" /> {t("header.formSquad")}
             </Button>
           </DialogTrigger>
           <DialogContent className="border-border bg-card rounded-none sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
-                Initialize Party
+                {t("dialog.title")}
               </DialogTitle>
             </DialogHeader>
             
@@ -81,7 +95,7 @@ export default function Parties() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Squad Name</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase">{t("form.squadName")}</FormLabel>
                       <FormControl>
                         <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" />
                       </FormControl>
@@ -96,9 +110,9 @@ export default function Parties() {
                     name="game"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Target Game</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.targetGame")}</FormLabel>
                         <FormControl>
-                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="Optional" />
+                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.targetGamePlaceholder")} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -108,9 +122,9 @@ export default function Parties() {
                     name="platform"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Platform</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.platform")}</FormLabel>
                         <FormControl>
-                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="Any" />
+                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.platformPlaceholder")} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -123,7 +137,7 @@ export default function Parties() {
                     name="maxSize"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Max Operators</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.maxOperators")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" />
                         </FormControl>
@@ -135,7 +149,7 @@ export default function Parties() {
                     name="isPublic"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Visibility</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.visibility")}</FormLabel>
                         <Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}>
                           <FormControl>
                             <SelectTrigger className="font-mono bg-background border-border rounded-none">
@@ -143,8 +157,8 @@ export default function Parties() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-card border-border rounded-none font-mono">
-                            <SelectItem value="true">Public</SelectItem>
-                            <SelectItem value="false">Invite Only</SelectItem>
+                            <SelectItem value="true">{t("form.public")}</SelectItem>
+                            <SelectItem value="false">{t("form.inviteOnly")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -157,9 +171,9 @@ export default function Parties() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Mission Briefing</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase">{t("form.missionBriefing")}</FormLabel>
                       <FormControl>
-                        <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="Optional context" />
+                        <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.missionBriefingPlaceholder")} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -167,7 +181,7 @@ export default function Parties() {
 
                 <div className="pt-4 flex justify-end">
                   <Button type="submit" className="font-mono rounded-none tracking-widest w-full" disabled={createParty.isPending}>
-                    EXECUTE
+                    {t("dialog.execute")}
                   </Button>
                 </div>
               </form>
@@ -178,17 +192,17 @@ export default function Parties() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {isLoading ? (
-          <div className="col-span-full py-12 text-center font-mono text-sm text-muted-foreground">SCANNING...</div>
+          <div className="col-span-full py-12 text-center font-mono text-sm text-muted-foreground">{t("list.scanning")}</div>
         ) : parties?.length === 0 ? (
           <div className="col-span-full py-12 text-center border border-dashed border-border font-mono text-sm text-muted-foreground">
-            NO ACTIVE PARTIES FOUND
+            {t("list.empty")}
           </div>
         ) : (
           parties?.map(party => (
             <Link key={party.id} href={`/party/${party.id}`} className="group bg-card border border-border flex flex-col hover:border-primary/50 transition-colors">
               <div className="p-4 border-b border-border bg-muted/20">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg truncate pr-4 group-hover:text-primary transition-colors">{party.name}</h3>
+                  <h3 className="font-bold text-lg truncate pe-4 group-hover:text-primary transition-colors">{party.name}</h3>
                   {party.isPublic ? <Globe className="w-4 h-4 text-muted-foreground shrink-0" /> : <Lock className="w-4 h-4 text-muted-foreground shrink-0" />}
                 </div>
                 <div className="flex gap-4 text-xs font-mono text-muted-foreground">
@@ -196,7 +210,7 @@ export default function Parties() {
                     <Users className="w-3 h-3" /> {party.members.length}/{party.maxSize}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Monitor className="w-3 h-3" /> {party.platform || 'Any'}
+                    <Monitor className="w-3 h-3" /> {party.platform || t("list.platformAny")}
                   </span>
                 </div>
               </div>
@@ -206,10 +220,10 @@ export default function Parties() {
                     <Gamepad2 className="w-4 h-4" /> {party.game}
                   </div>
                 ) : (
-                  <div className="text-muted-foreground font-mono text-xs italic">No specific game</div>
+                  <div className="text-muted-foreground font-mono text-xs italic">{t("list.noSpecificGame")}</div>
                 )}
                 
-                <div className="flex -space-x-2 mt-auto">
+                <div className="flex -space-x-2 rtl:space-x-reverse mt-auto">
                   {party.members.slice(0, 5).map(m => (
                     <div key={m.id} className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center font-mono text-xs overflow-hidden z-10" title={m.displayName}>
                       {m.avatarUrl ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" /> : m.displayName.charAt(0)}

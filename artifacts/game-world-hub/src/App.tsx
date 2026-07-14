@@ -6,7 +6,10 @@ import { AuthProvider } from '@/hooks/use-auth';
 import { VoiceProvider } from '@/voice/voice-context';
 import { Shell } from '@/components/layout/shell';
 import '@/lib/api';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { DirectionProvider } from '@radix-ui/react-direction';
+import { useTranslation } from 'react-i18next';
+import { isRtl } from '@/i18n';
 
 import Dashboard from '@/pages/dashboard';
 import Login from '@/pages/login';
@@ -83,20 +86,39 @@ function Router() {
   );
 }
 
+/**
+ * Applies the active language to <html> (lang + dir) so CSS and the whole
+ * layout follow it, and feeds the direction to Radix components.
+ */
+function LocaleShell({ children }: { children: ReactNode }) {
+  const { i18n } = useTranslation();
+  const lang = isRtl(i18n.resolvedLanguage) ? 'ar' : 'en';
+  const dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = dir;
+  }, [lang, dir]);
+
+  return <DirectionProvider dir={dir}>{children}</DirectionProvider>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AuthProvider>
-            <VoiceProvider>
-              <ElectronNavigationBridge />
-              <Router />
-            </VoiceProvider>
-          </AuthProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <LocaleShell>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <AuthProvider>
+              <VoiceProvider>
+                <ElectronNavigationBridge />
+                <Router />
+              </VoiceProvider>
+            </AuthProvider>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </LocaleShell>
     </QueryClientProvider>
   );
 }

@@ -1,0 +1,64 @@
+{
+  "loading": "DOWNLOADING PROFILE DATA...",
+  "notFound": "PROFILE NOT FOUND",
+  "activeProcess": "Active Process:",
+  "none": "NONE",
+  "init": "INIT: {{date}}",
+  "friend": {
+    "unblock": "UNBLOCK",
+    "add": "ADD FRIEND",
+    "requestSent": "REQUEST SENT",
+    "acceptRequest": "ACCEPT REQUEST",
+    "friends": "FRIENDS",
+    "remove": "REMOVE",
+    "blockUser": "Block user"
+  },
+  "linkedSystems": {
+    "title": "LINKED_SYSTEMS",
+    "empty": "NO EXTERNAL LINKS DETECTED",
+    "linked": "Linked"
+  },
+  "library": {
+    "title": "GAME_LIBRARY",
+    "launchTitle": "Launch {{name}}",
+    "empty": "LIBRARY EMPTY"
+  },
+  "visualLog": {
+    "title": "VISUAL_LOG",
+    "uploading": "UPLOADING...",
+    "addImage": "ADD IMAGE",
+    "empty": "NO IMAGES LOGGED",
+    "deleteImage": "Delete image"
+  },
+  "commsWall": {
+    "title": "COMMS_WALL",
+    "offline": "// OFFLINE",
+    "disabled": "THIS USER HAS DISABLED THEIR WALL",
+    "placeholderOwn": "Write on your wall...",
+    "placeholderOther": "Write on {{name}}'s wall...",
+    "post": "POST",
+    "empty": "NO ENTRIES YET",
+    "deleteComment": "Delete comment"
+  },
+  "toasts": {
+    "imageAdded": "Image added to visual log",
+    "imageAddFailed": "Couldn't add image",
+    "uploadFailed": "Upload failed",
+    "postFailed": "Couldn't post",
+    "postNotAllowed": "Posting is not allowed here",
+    "noLaunchTitle": "No launch link",
+    "noLaunchDesc": "{{name}} has no launch link — add one from the Library to launch it.",
+    "launchingTitle": "Launching {{name}}…",
+    "launchingDesc": "If nothing opens, make sure the game's client is installed.",
+    "requestSent": "Friend request sent",
+    "requestSentFailed": "Couldn't send request",
+    "requestAccepted": "Friend request accepted",
+    "requestAcceptFailed": "Couldn't accept request",
+    "friendRemoved": "Friend removed",
+    "friendRemoveFailed": "Couldn't remove friend",
+    "userBlocked": "User blocked",
+    "userBlockFailed": "Couldn't block user",
+    "userUnblocked": "User unblocked",
+    "userUnblockFailed": "Couldn't unblock user"
+  }
+}

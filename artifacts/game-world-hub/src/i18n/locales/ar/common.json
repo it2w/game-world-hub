@@ -1,0 +1,59 @@
+{
+  "language": {
+    "title": "اللغة",
+    "description": "لغة الواجهة. عند اختيار العربية ينقلب التصميم كاملاً من اليمين إلى اليسار.",
+    "arabic": "العربية",
+    "english": "English"
+  },
+  "shell": {
+    "initializing": "جارٍ تشغيل الأنظمة الأساسية..."
+  },
+  "topBar": {
+    "systemOnline": "النظام متصل",
+    "notifications": "الإشعارات",
+    "markAllRead": "تعليم الكل كمقروء",
+    "noAlerts": "لا توجد تنبيهات جديدة"
+  },
+  "sidebar": {
+    "header": "GWH_OS",
+    "groupComms": "التواصل",
+    "groupData": "البيانات",
+    "dashboard": "الرئيسية",
+    "friends": "الأصدقاء",
+    "chat": "الدردشة",
+    "parties": "البارتيات",
+    "lfg": "البحث عن فريق",
+    "ranks": "الرتب",
+    "library": "مكتبة الألعاب",
+    "settings": "الإعدادات",
+    "signOut": "تسجيل الخروج"
+  },
+  "voice": {
+    "voice": "الصوت",
+    "call": "مكالمة",
+    "collapse": "طيّ",
+    "expand": "توسيع",
+    "rejoin": "إعادة الانضمام",
+    "you": "أنت",
+    "waitingForOthers": "بانتظار الآخرين…",
+    "voiceLabel": "الصوت",
+    "screenLabel": "الشاشة",
+    "unmute": "إلغاء الكتم",
+    "mute": "كتم المايك",
+    "stopSharing": "إيقاف المشاركة",
+    "shareScreen": "مشاركة الشاشة",
+    "leave": "مغادرة",
+    "close": "إغلاق",
+    "reconnecting": "جارٍ إعادة الاتصال…",
+    "unreachable": "تعذّر الوصول إلى {{name}} — قد تكون شبكته تحجب المكالمة.",
+    "openScreen": "فتح شاشة {{label}}",
+    "youSuffix": " (أنت)"
+  },
+  "call": {
+    "incoming": "مكالمة واردة",
+    "decline": "رفض",
+    "accept": "قبول",
+    "calling": "جارٍ الاتصال بـ <0>{{name}}</0>…",
+    "cancel": "إلغاء"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "header": {
+    "title": "NETWORK",
+    "roster": "ROSTER",
+    "requests": "REQUESTS",
+    "search": "SEARCH"
+  },
+  "roster": {
+    "empty": "ROSTER EMPTY"
+  },
+  "requests": {
+    "empty": "NO PENDING REQUESTS",
+    "accept": "ACCEPT",
+    "reject": "REJECT"
+  },
+  "search": {
+    "placeholder": "SEARCH BY USERNAME (MIN 3 CHARS)...",
+    "searching": "SEARCHING...",
+    "noMatches": "NO MATCHES FOUND",
+    "add": "ADD"
+  },
+  "actions": {
+    "leaveChannelFirst": "Leave your current channel first",
+    "startVoiceCall": "Start voice call"
+  },
+  "confirm": {
+    "removeFriend": "Are you sure you want to remove this friend?"
+  },
+  "toasts": {
+    "requestSent": "Request sent"
+  }
+}

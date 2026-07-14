@@ -1,0 +1,59 @@
+{
+  "language": {
+    "title": "Language",
+    "description": "Interface language. Arabic switches the whole layout to right-to-left.",
+    "arabic": "العربية",
+    "english": "English"
+  },
+  "shell": {
+    "initializing": "Initializing Core Systems..."
+  },
+  "topBar": {
+    "systemOnline": "SYSTEM_ONLINE",
+    "notifications": "Notifications",
+    "markAllRead": "Mark all read",
+    "noAlerts": "No new alerts"
+  },
+  "sidebar": {
+    "header": "GWH_OS",
+    "groupComms": "Comms",
+    "groupData": "Data",
+    "dashboard": "Dashboard",
+    "friends": "Friends",
+    "chat": "Chat",
+    "parties": "Parties",
+    "lfg": "LFG",
+    "ranks": "Ranks",
+    "library": "Library",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "voice": {
+    "voice": "VOICE",
+    "call": "CALL",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "rejoin": "Rejoin",
+    "you": "You",
+    "waitingForOthers": "Waiting for others…",
+    "voiceLabel": "Voice",
+    "screenLabel": "Screen",
+    "unmute": "Unmute",
+    "mute": "Mute",
+    "stopSharing": "Stop sharing",
+    "shareScreen": "Share screen",
+    "leave": "Leave",
+    "close": "Close",
+    "reconnecting": "Reconnecting…",
+    "unreachable": "Couldn't reach {{name}} — their network may be blocking the call.",
+    "openScreen": "Open {{label}}'s screen",
+    "youSuffix": " (you)"
+  },
+  "call": {
+    "incoming": "Incoming Call",
+    "decline": "DECLINE",
+    "accept": "ACCEPT",
+    "calling": "Calling <0>{{name}}</0>…",
+    "cancel": "CANCEL"
+  }
+}

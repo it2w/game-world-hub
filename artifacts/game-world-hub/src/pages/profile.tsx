@@ -1,6 +1,7 @@
 import { Link, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
@@ -12,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
 
 export default function Profile() {
+  const { t } = useTranslation("profile");
   const [, params] = useRoute("/profile/:userId");
   const userId = params?.userId ? parseInt(params.userId) : 0;
   const { toast } = useToast();
@@ -66,11 +68,11 @@ export default function Profile() {
     try {
       const objectPath = await upload(file);
       addPhoto.mutate({ data: { objectPath } }, {
-        onSuccess: () => { toast({ title: "Image added to visual log" }); refreshPhotos(); },
-        onError: (err) => toast({ title: "Couldn't add image", description: (err.data as { error?: string })?.error, variant: "destructive" }),
+        onSuccess: () => { toast({ title: t("toasts.imageAdded") }); refreshPhotos(); },
+        onError: (err) => toast({ title: t("toasts.imageAddFailed"), description: (err.data as { error?: string })?.error, variant: "destructive" }),
       });
     } catch (err) {
-      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+      toast({ title: t("toasts.uploadFailed"), description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     }
   };
 
@@ -80,18 +82,18 @@ export default function Profile() {
     if (!body) return;
     createComment.mutate({ userId, data: { body } }, {
       onSuccess: () => { setCommentText(""); refreshWall(); },
-      onError: (err) => toast({ title: "Couldn't post", description: (err.data as { error?: string })?.error || "Posting is not allowed here", variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.postFailed"), description: (err.data as { error?: string })?.error || t("toasts.postNotAllowed"), variant: "destructive" }),
     });
   };
 
   const handleLaunch = (launchUri: string | null | undefined, name: string) => {
     if (!launchUri) {
-      toast({ title: "No launch link", description: `${name} has no launch link — add one from the Library to launch it.` });
+      toast({ title: t("toasts.noLaunchTitle"), description: t("toasts.noLaunchDesc", { name }) });
       return;
     }
     // Protocol deep-link: opens the platform client if installed on the device.
     window.location.href = launchUri;
-    toast({ title: `Launching ${name}…`, description: "If nothing opens, make sure the game's client is installed." });
+    toast({ title: t("toasts.launchingTitle", { name }), description: t("toasts.launchingDesc") });
     // Reflect the launch as our active presence ("ACTIVE PROCESS").
     updateStatus.mutate(
       { data: { currentGame: name } },
@@ -117,44 +119,44 @@ export default function Profile() {
 
   const handleAdd = () => {
     sendRequest.mutate({ data: { toUserId: userId } }, {
-      onSuccess: () => { toast({ title: "Friend request sent" }); refreshRelationship(); },
-      onError: () => toast({ title: "Couldn't send request", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.requestSent") }); refreshRelationship(); },
+      onError: () => toast({ title: t("toasts.requestSentFailed"), variant: "destructive" }),
     });
   };
 
   const handleAccept = () => {
     if (!friendStatus?.requestId) return;
     acceptRequest.mutate({ requestId: friendStatus.requestId }, {
-      onSuccess: () => { toast({ title: "Friend request accepted" }); refreshRelationship(); },
-      onError: () => toast({ title: "Couldn't accept request", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.requestAccepted") }); refreshRelationship(); },
+      onError: () => toast({ title: t("toasts.requestAcceptFailed"), variant: "destructive" }),
     });
   };
 
   const handleRemove = () => {
     removeFriend.mutate({ friendId: userId }, {
-      onSuccess: () => { toast({ title: "Friend removed" }); refreshRelationship(); },
-      onError: () => toast({ title: "Couldn't remove friend", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.friendRemoved") }); refreshRelationship(); },
+      onError: () => toast({ title: t("toasts.friendRemoveFailed"), variant: "destructive" }),
     });
   };
 
   const handleBlock = () => {
     blockUser.mutate({ userId }, {
-      onSuccess: () => { toast({ title: "User blocked" }); refreshRelationship(); },
-      onError: () => toast({ title: "Couldn't block user", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.userBlocked") }); refreshRelationship(); },
+      onError: () => toast({ title: t("toasts.userBlockFailed"), variant: "destructive" }),
     });
   };
 
   const handleUnblock = () => {
     unblockUser.mutate({ userId }, {
-      onSuccess: () => { toast({ title: "User unblocked" }); refreshRelationship(); },
-      onError: () => toast({ title: "Couldn't unblock user", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.userUnblocked") }); refreshRelationship(); },
+      onError: () => toast({ title: t("toasts.userUnblockFailed"), variant: "destructive" }),
     });
   };
 
   const friendBusy = sendRequest.isPending || acceptRequest.isPending || removeFriend.isPending || blockUser.isPending || unblockUser.isPending;
 
-  if (isLoading) return <div className="p-12 text-center font-mono text-muted-foreground animate-pulse">DOWNLOADING PROFILE DATA...</div>;
-  if (!user) return <div className="p-12 text-center font-mono text-destructive">PROFILE NOT FOUND</div>;
+  if (isLoading) return <div className="p-12 text-center font-mono text-muted-foreground animate-pulse">{t("loading")}</div>;
+  if (!user) return <div className="p-12 text-center font-mono text-destructive">{t("notFound")}</div>;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -166,7 +168,7 @@ export default function Profile() {
           </div>
         )}
         <div className="p-8 relative flex flex-col md:flex-row gap-8 items-center md:items-start">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 end-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         
         <div className="relative z-10 shrink-0">
           <div className="w-32 h-32 border-2 border-border bg-muted flex items-center justify-center relative">
@@ -175,13 +177,13 @@ export default function Profile() {
             ) : (
               <span className="font-mono text-5xl text-muted-foreground">{user.displayName.charAt(0)}</span>
             )}
-            <div className="absolute -bottom-2 -right-2 p-1 bg-card">
+            <div className="absolute -bottom-2 -end-2 p-1 bg-card">
               <StatusBadge status={user.status} className="w-5 h-5 border-[3px]" />
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex-1 text-center md:text-left space-y-4">
+        <div className="relative z-10 flex-1 text-center md:text-start space-y-4">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
               <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
@@ -192,34 +194,34 @@ export default function Profile() {
               <div className="shrink-0 flex items-center gap-2">
                 {friendStatus.state === "blocked" ? (
                   <Button onClick={handleUnblock} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2">
-                    <ShieldOff className="w-4 h-4" /> UNBLOCK
+                    <ShieldOff className="w-4 h-4" /> {t("friend.unblock")}
                   </Button>
                 ) : (
                   <>
                     {friendStatus.state === "none" && (
                       <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                        <UserPlus className="w-4 h-4" /> ADD FRIEND
+                        <UserPlus className="w-4 h-4" /> {t("friend.add")}
                       </Button>
                     )}
                     {friendStatus.state === "request_sent" && (
                       <Button variant="outline" disabled className="font-mono rounded-none gap-2">
-                        <Clock className="w-4 h-4" /> REQUEST SENT
+                        <Clock className="w-4 h-4" /> {t("friend.requestSent")}
                       </Button>
                     )}
                     {friendStatus.state === "request_received" && (
                       <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                        <Check className="w-4 h-4" /> ACCEPT REQUEST
+                        <Check className="w-4 h-4" /> {t("friend.acceptRequest")}
                       </Button>
                     )}
                     {friendStatus.state === "friends" && (
                       <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 group">
                         <UserCheck className="w-4 h-4 group-hover:hidden" />
                         <UserX className="w-4 h-4 hidden group-hover:block text-destructive" />
-                        <span className="group-hover:hidden">FRIENDS</span>
-                        <span className="hidden group-hover:inline text-destructive">REMOVE</span>
+                        <span className="group-hover:hidden">{t("friend.friends")}</span>
+                        <span className="hidden group-hover:inline text-destructive">{t("friend.remove")}</span>
                       </Button>
                     )}
-                    <Button onClick={handleBlock} disabled={friendBusy} variant="ghost" size="icon" title="Block user" className="text-muted-foreground hover:text-destructive rounded-none">
+                    <Button onClick={handleBlock} disabled={friendBusy} variant="ghost" size="icon" title={t("friend.blockUser")} className="text-muted-foreground hover:text-destructive rounded-none">
                       <Ban className="w-4 h-4" />
                     </Button>
                   </>
@@ -229,7 +231,7 @@ export default function Profile() {
           </div>
           
           {user.bio && (
-            <p className="max-w-2xl text-muted-foreground border-l-2 border-border pl-4 italic">
+            <p className="max-w-2xl text-muted-foreground border-s-2 border-border ps-4 italic">
               "{user.bio}"
             </p>
           )}
@@ -237,16 +239,16 @@ export default function Profile() {
           <div className="flex flex-wrap gap-4 justify-center md:justify-start pt-2">
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5">
               <Gamepad2 className="w-4 h-4 text-primary" />
-              <span className="text-muted-foreground uppercase tracking-widest">Active Process:</span>
+              <span className="text-muted-foreground uppercase tracking-widest">{t("activeProcess")}</span>
               {user.currentGame ? (
                 <span className="text-primary flex items-center gap-1"><Radio className="w-3 h-3 animate-pulse" />{user.currentGame}</span>
               ) : (
-                <span className="text-muted-foreground">NONE</span>
+                <span className="text-muted-foreground">{t("none")}</span>
               )}
             </div>
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5 text-muted-foreground">
               <Calendar className="w-4 h-4" /> 
-              INIT: {format(new Date(user.createdAt), "yyyy.MM.dd")}
+              {t("init", { date: format(new Date(user.createdAt), "yyyy.MM.dd") })}
             </div>
           </div>
 
@@ -280,12 +282,12 @@ export default function Profile() {
         {/* Linked Platforms */}
         <div className="bg-card border border-border p-6">
           <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-            <LinkIcon className="w-4 h-4" /> LINKED_SYSTEMS
+            <LinkIcon className="w-4 h-4" /> {t("linkedSystems.title")}
           </h2>
           
           <div className="space-y-3">
             {!platforms || platforms.length === 0 ? (
-              <div className="text-sm font-mono text-muted-foreground italic">NO EXTERNAL LINKS DETECTED</div>
+              <div className="text-sm font-mono text-muted-foreground italic">{t("linkedSystems.empty")}</div>
             ) : (
               platforms.map(p => (
                 <a key={p.id} href={p.profileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 border border-border hover:border-primary/50 bg-background transition-colors group">
@@ -293,7 +295,7 @@ export default function Profile() {
                     <Monitor className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     <span className="font-bold text-sm capitalize">{p.platform}</span>
                   </div>
-                  <span className="font-mono text-xs text-muted-foreground">{p.username || 'Linked'}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{p.username || t("linkedSystems.linked")}</span>
                 </a>
               ))
             )}
@@ -303,7 +305,7 @@ export default function Profile() {
         {/* Library Preview */}
         <div className="bg-card border border-border p-6">
           <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-            <Library className="w-4 h-4" /> GAME_LIBRARY {library && library.length > 0 ? `(${library.length})` : ""}
+            <Library className="w-4 h-4" /> {t("library.title")} {library && library.length > 0 ? `(${library.length})` : ""}
           </h2>
 
           <div className="grid grid-cols-3 gap-2">
@@ -312,8 +314,8 @@ export default function Profile() {
                 key={g.id}
                 type="button"
                 onClick={() => handleLaunch(g.launchUri, g.name)}
-                title={g.launchUri ? `Launch ${g.name}` : g.name}
-                className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-left"
+                title={g.launchUri ? t("library.launchTitle", { name: g.name }) : g.name}
+                className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-start"
               >
                 {g.coverUrl ? (
                   <img src={g.coverUrl} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" loading="lazy" />
@@ -330,7 +332,7 @@ export default function Profile() {
               </button>
             ))}
             {(!library || library.length === 0) && (
-              <div className="col-span-full text-sm font-mono text-muted-foreground italic">LIBRARY EMPTY</div>
+              <div className="col-span-full text-sm font-mono text-muted-foreground italic">{t("library.empty")}</div>
             )}
           </div>
         </div>
@@ -340,7 +342,7 @@ export default function Profile() {
       <div className="bg-card border border-border p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
-            <ImagePlus className="w-4 h-4" /> VISUAL_LOG {photos ? `(${photos.length}/12)` : ""}
+            <ImagePlus className="w-4 h-4" /> {t("visualLog.title")} {photos ? `(${photos.length}/12)` : ""}
           </h2>
           {isOwner && (photos?.length ?? 0) < 12 && (
             <>
@@ -352,14 +354,14 @@ export default function Profile() {
                 disabled={isUploading || addPhoto.isPending}
                 data-testid="button-add-photo"
               >
-                <Upload className="w-3.5 h-3.5" /> {isUploading ? "UPLOADING..." : "ADD IMAGE"}
+                <Upload className="w-3.5 h-3.5" /> {isUploading ? t("visualLog.uploading") : t("visualLog.addImage")}
               </Button>
               <input ref={photoFileRef} type="file" accept="image/*" className="hidden" onChange={onPhotoFile} data-testid="input-photo-file" />
             </>
           )}
         </div>
         {!photos || photos.length === 0 ? (
-          <div className="text-sm font-mono text-muted-foreground italic">NO IMAGES LOGGED</div>
+          <div className="text-sm font-mono text-muted-foreground italic">{t("visualLog.empty")}</div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {photos.map((p) => (
@@ -369,8 +371,8 @@ export default function Profile() {
                   <button
                     type="button"
                     onClick={() => deletePhoto.mutate({ photoId: p.id }, { onSuccess: refreshPhotos })}
-                    className="absolute top-1 right-1 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                    title="Delete image"
+                    className="absolute top-1 end-1 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                    title={t("visualLog.deleteImage")}
                     data-testid={`button-delete-photo-${p.id}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -385,13 +387,13 @@ export default function Profile() {
       {/* Comms Wall (profile comments) */}
       <div className="bg-card border border-border p-6">
         <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-          <MessageSquareText className="w-4 h-4" /> COMMS_WALL
-          {wall && !wall.enabled && <span className="text-muted-foreground text-xs">// OFFLINE</span>}
+          <MessageSquareText className="w-4 h-4" /> {t("commsWall.title")}
+          {wall && !wall.enabled && <span className="text-muted-foreground text-xs">{t("commsWall.offline")}</span>}
         </h2>
 
         {wall && !wall.enabled && !isOwner ? (
           <div className="text-sm font-mono text-muted-foreground italic" data-testid="text-wall-disabled">
-            THIS USER HAS DISABLED THEIR WALL
+            {t("commsWall.disabled")}
           </div>
         ) : (
           <div className="space-y-6">
@@ -402,7 +404,7 @@ export default function Profile() {
                   onChange={(e) => setCommentText(e.target.value)}
                   maxLength={500}
                   rows={2}
-                  placeholder={isOwner ? "Write on your wall..." : `Write on ${user.displayName}'s wall...`}
+                  placeholder={isOwner ? t("commsWall.placeholderOwn") : t("commsWall.placeholderOther", { name: user.displayName })}
                   className="font-mono rounded-none border-border bg-background resize-none"
                   data-testid="input-comment"
                 />
@@ -415,14 +417,14 @@ export default function Profile() {
                     disabled={createComment.isPending || commentText.trim().length === 0}
                     data-testid="button-post-comment"
                   >
-                    <Send className="w-3.5 h-3.5" /> POST
+                    <Send className="w-3.5 h-3.5" /> {t("commsWall.post")}
                   </Button>
                 </div>
               </form>
             )}
 
             {!wall || wall.comments.length === 0 ? (
-              <div className="text-sm font-mono text-muted-foreground italic">NO ENTRIES YET</div>
+              <div className="text-sm font-mono text-muted-foreground italic">{t("commsWall.empty")}</div>
             ) : (
               <div className="space-y-3">
                 {wall.comments.map((c) => (
@@ -452,7 +454,7 @@ export default function Profile() {
                         type="button"
                         onClick={() => deleteComment.mutate({ userId, commentId: c.id }, { onSuccess: refreshWall })}
                         className="shrink-0 self-start p-1.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
-                        title="Delete comment"
+                        title={t("commsWall.deleteComment")}
                         data-testid={`button-delete-comment-${c.id}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

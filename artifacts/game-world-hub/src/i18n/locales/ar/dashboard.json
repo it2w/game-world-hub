@@ -1,0 +1,35 @@
+{
+  "header": {
+    "title": "نظرة عامة",
+    "status": "الحالة: {{status}}",
+    "browseParties": "تصفّح البارتيات",
+    "createParty": "إنشاء بارتي"
+  },
+  "invites": {
+    "title_zero": "الدعوات المعلّقة ({{count}})",
+    "title_one": "الدعوات المعلّقة ({{count}})",
+    "title_two": "الدعوات المعلّقة ({{count}})",
+    "title_few": "الدعوات المعلّقة ({{count}})",
+    "title_many": "الدعوات المعلّقة ({{count}})",
+    "title_other": "الدعوات المعلّقة ({{count}})",
+    "invitedBy": "دعاك @{{username}}",
+    "accept": "قبول",
+    "decline": "رفض"
+  },
+  "network": {
+    "title": "الشبكة المتصلة",
+    "active": "{{count}} نشط",
+    "empty": "لا يوجد لاعبون متصلون"
+  },
+  "activity": {
+    "title": "سجل النشاط",
+    "empty": "لا يوجد نشاط حديث",
+    "created": "أنشأ بارتي",
+    "joined": "انضم إلى بارتي",
+    "left": "غادر البارتي",
+    "invited": "دعا إلى"
+  },
+  "toasts": {
+    "inviteAccepted": "تم قبول الدعوة"
+  }
+}

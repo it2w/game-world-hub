@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,20 +12,30 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatedLogo } from "@/components/animated-logo";
 
-const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters").max(30),
-  displayName: z.string().min(1, "Display name is required").max(50),
-  email: z.string().email("Enter a valid email").max(255).optional().or(z.literal("")),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-type RegisterForm = z.infer<typeof registerSchema>;
+type RegisterForm = {
+  username: string;
+  displayName: string;
+  email?: string;
+  password: string;
+};
 
 export default function Register() {
+  const { t } = useTranslation("auth");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { login } = useAuth();
   const registerMutation = useRegister();
+
+  const registerSchema = useMemo(
+    () =>
+      z.object({
+        username: z.string().min(3, t("register.validation.usernameMin")).max(30),
+        displayName: z.string().min(1, t("register.validation.displayNameRequired")).max(50),
+        email: z.string().email(t("register.validation.emailInvalid")).max(255).optional().or(z.literal("")),
+        password: z.string().min(6, t("register.validation.passwordMin")),
+      }),
+    [t],
+  );
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -45,16 +57,16 @@ export default function Register() {
         }
         if (payload.email) {
           toast({
-            title: "Verification Code Sent",
-            description: "Check your email, then verify it from Settings.",
+            title: t("register.toasts.verificationCodeSent"),
+            description: t("register.toasts.verificationCodeSentDescription"),
           });
         }
         setLocation("/");
       },
       onError: (err) => {
         toast({
-          title: "Registration Failed",
-          description: (err.data as { error?: string })?.error || "Could not create account",
+          title: t("register.toasts.registrationFailed"),
+          description: (err.data as { error?: string })?.error || t("register.toasts.couldNotCreateAccount"),
           variant: "destructive",
         });
       }
@@ -70,8 +82,8 @@ export default function Register() {
           <div className="w-14 h-14 bg-primary/10 border border-primary flex items-center justify-center mb-4 text-primary p-2">
             <AnimatedLogo className="w-full h-full" />
           </div>
-          <h1 className="text-2xl font-bold font-mono tracking-widest uppercase">NEW_RECORD</h1>
-          <p className="text-muted-foreground text-sm font-mono mt-2">Establish system identity</p>
+          <h1 className="text-2xl font-bold font-mono tracking-widest uppercase">{t("register.heading")}</h1>
+          <p className="text-muted-foreground text-sm font-mono mt-2">{t("register.subheading")}</p>
         </div>
 
         <Form {...form}>
@@ -81,7 +93,7 @@ export default function Register() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-mono text-xs uppercase tracking-wider">Username</FormLabel>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">{t("register.form.username")}</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-username" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
@@ -94,7 +106,7 @@ export default function Register() {
               name="displayName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-mono text-xs uppercase tracking-wider">Display Name</FormLabel>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">{t("register.form.displayName")}</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-display-name" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
@@ -107,9 +119,9 @@ export default function Register() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-mono text-xs uppercase tracking-wider">Email (Optional — for account recovery)</FormLabel>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">{t("register.form.email")}</FormLabel>
                   <FormControl>
-                    <Input type="email" {...field} data-testid="input-email" placeholder="you@domain.com" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
+                    <Input type="email" {...field} data-testid="input-email" placeholder={t("register.form.emailPlaceholder")} className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
                   <FormMessage className="font-mono text-xs" />
                 </FormItem>
@@ -120,7 +132,7 @@ export default function Register() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-mono text-xs uppercase tracking-wider">Password</FormLabel>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">{t("register.form.password")}</FormLabel>
                   <FormControl>
                     <Input type="password" {...field} data-testid="input-password" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
@@ -129,13 +141,13 @@ export default function Register() {
               )}
             />
             <Button type="submit" data-testid="button-submit" className="w-full rounded-none font-mono uppercase tracking-widest" disabled={registerMutation.isPending}>
-              {registerMutation.isPending ? "Creating..." : "Establish Identity"}
+              {registerMutation.isPending ? t("register.buttons.creating") : t("register.buttons.establishIdentity")}
             </Button>
           </form>
         </Form>
 
         <div className="mt-8 text-center text-xs font-mono text-muted-foreground">
-          ALREADY REGISTERED? <Link href="/login" className="text-primary hover:underline">RETURN TO LOGIN</Link>
+          {t("register.alreadyRegistered")} <Link href="/login" className="text-primary hover:underline">{t("register.returnToLogin")}</Link>
         </div>
       </div>
     </div>

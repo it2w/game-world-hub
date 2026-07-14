@@ -1,0 +1,59 @@
+{
+  "header": {
+    "title": "LFG",
+    "subtitle": "SIGNAL FOR SQUAD // OPEN CALLS",
+    "postSignal": "POST SIGNAL"
+  },
+  "dialog": {
+    "title": "Broadcast Signal",
+    "broadcast": "BROADCAST",
+    "broadcasting": "BROADCASTING..."
+  },
+  "form": {
+    "game": "Game",
+    "gamePlaceholder": "e.g. Valorant",
+    "platform": "Platform",
+    "platformPlaceholder": "Any",
+    "rank": "Rank / Tier",
+    "rankPlaceholder": "Optional",
+    "slots": "Slots",
+    "mic": "Mic",
+    "micOptional": "Optional",
+    "micRequired": "Required",
+    "expires": "Expires",
+    "expires1h": "1h",
+    "expires6h": "6h",
+    "expires12h": "12h",
+    "expires24h": "24h",
+    "expires48h": "48h",
+    "briefing": "Briefing",
+    "briefingPlaceholder": "What are you playing, what do you need?"
+  },
+  "validation": {
+    "gameRequired": "Game is required",
+    "briefingRequired": "Briefing is required"
+  },
+  "filter": {
+    "placeholder": "FILTER BY GAME, PLATFORM, PLAYER..."
+  },
+  "list": {
+    "scanning": "SCANNING FREQUENCIES...",
+    "empty": "NO OPEN SIGNALS // BE THE FIRST TO POST"
+  },
+  "time": {
+    "expired": "EXPIRED",
+    "leftHm": "{{h}}h {{m}}m LEFT",
+    "leftM": "{{m}}m LEFT"
+  },
+  "card": {
+    "platformAny": "Any",
+    "needs": "Needs {{count}}",
+    "micReq": "Mic req",
+    "noMic": "No mic",
+    "replies_one": "{{count}} reply",
+    "replies_other": "{{count}} replies",
+    "close": "CLOSE",
+    "signalSent": "SIGNAL SENT",
+    "respond": "RESPOND"
+  }
+}

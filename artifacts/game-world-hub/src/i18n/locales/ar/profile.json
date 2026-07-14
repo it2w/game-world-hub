@@ -1,0 +1,64 @@
+{
+  "loading": "جارٍ تحميل بيانات الملف الشخصي...",
+  "notFound": "الملف الشخصي غير موجود",
+  "activeProcess": "اللعبة الحالية:",
+  "none": "لا شيء",
+  "init": "تاريخ الإنشاء: {{date}}",
+  "friend": {
+    "unblock": "إلغاء الحظر",
+    "add": "إضافة صديق",
+    "requestSent": "تم إرسال الطلب",
+    "acceptRequest": "قبول الطلب",
+    "friends": "أصدقاء",
+    "remove": "إزالة",
+    "blockUser": "حظر المستخدم"
+  },
+  "linkedSystems": {
+    "title": "الأنظمة المرتبطة",
+    "empty": "لا توجد روابط خارجية",
+    "linked": "مرتبط"
+  },
+  "library": {
+    "title": "مكتبة الألعاب",
+    "launchTitle": "تشغيل {{name}}",
+    "empty": "المكتبة فارغة"
+  },
+  "visualLog": {
+    "title": "السجل المرئي",
+    "uploading": "جارٍ الرفع...",
+    "addImage": "إضافة صورة",
+    "empty": "لا توجد صور",
+    "deleteImage": "حذف الصورة"
+  },
+  "commsWall": {
+    "title": "حائط التواصل",
+    "offline": "// مغلق",
+    "disabled": "قام هذا المستخدم بتعطيل حائطه",
+    "placeholderOwn": "اكتب على حائطك...",
+    "placeholderOther": "اكتب على حائط {{name}}...",
+    "post": "نشر",
+    "empty": "لا توجد مشاركات بعد",
+    "deleteComment": "حذف التعليق"
+  },
+  "toasts": {
+    "imageAdded": "تمت إضافة الصورة إلى السجل المرئي",
+    "imageAddFailed": "تعذّر إضافة الصورة",
+    "uploadFailed": "فشل الرفع",
+    "postFailed": "تعذّر النشر",
+    "postNotAllowed": "النشر غير مسموح به هنا",
+    "noLaunchTitle": "لا يوجد رابط تشغيل",
+    "noLaunchDesc": "لا يحتوي {{name}} على رابط تشغيل — أضِف واحدًا من مكتبة الألعاب لتشغيله.",
+    "launchingTitle": "جارٍ تشغيل {{name}}…",
+    "launchingDesc": "إن لم يُفتح شيء، فتأكد من تثبيت عميل اللعبة.",
+    "requestSent": "تم إرسال طلب الصداقة",
+    "requestSentFailed": "تعذّر إرسال الطلب",
+    "requestAccepted": "تم قبول طلب الصداقة",
+    "requestAcceptFailed": "تعذّر قبول الطلب",
+    "friendRemoved": "تمت إزالة الصديق",
+    "friendRemoveFailed": "تعذّر إزالة الصديق",
+    "userBlocked": "تم حظر المستخدم",
+    "userBlockFailed": "تعذّر حظر المستخدم",
+    "userUnblocked": "تم إلغاء حظر المستخدم",
+    "userUnblockFailed": "تعذّر إلغاء حظر المستخدم"
+  }
+}

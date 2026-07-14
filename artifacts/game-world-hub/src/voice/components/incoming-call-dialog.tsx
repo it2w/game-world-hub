@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
 import { Button } from "@/components/ui/button";
 import { Phone, PhoneOff, PhoneOutgoing } from "lucide-react";
@@ -8,6 +9,7 @@ import { Phone, PhoneOff, PhoneOutgoing } from "lucide-react";
  * so they surface on any page.
  */
 export function CallOverlays() {
+  const { t } = useTranslation("common");
   const { incomingCall, outgoingCall, acceptCall, declineCall, cancelCall } = useVoice();
 
   if (incomingCall) {
@@ -32,7 +34,7 @@ export function CallOverlays() {
             <div>
               <div className="font-bold text-lg">{incomingCall.from.displayName}</div>
               <div className="text-xs text-muted-foreground font-mono uppercase tracking-widest mt-1 animate-pulse">
-                Incoming Call
+                {t("call.incoming")}
               </div>
             </div>
             <div className="flex gap-3 w-full mt-2">
@@ -41,10 +43,10 @@ export function CallOverlays() {
                 className="flex-1 rounded-none font-mono text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                 onClick={declineCall}
               >
-                <PhoneOff className="w-4 h-4 mr-2" /> DECLINE
+                <PhoneOff className="w-4 h-4 me-2" /> {t("call.decline")}
               </Button>
               <Button className="flex-1 rounded-none font-mono" onClick={() => void acceptCall()}>
-                <Phone className="w-4 h-4 mr-2" /> ACCEPT
+                <Phone className="w-4 h-4 me-2" /> {t("call.accept")}
               </Button>
             </div>
           </div>
@@ -58,7 +60,12 @@ export function CallOverlays() {
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] bg-card border border-border shadow-xl px-5 py-3 flex items-center gap-4">
         <PhoneOutgoing className="w-4 h-4 text-primary animate-pulse" />
         <div className="font-mono text-sm">
-          Calling <span className="font-bold">{outgoingCall.to.displayName}</span>…
+          <Trans
+            i18nKey="call.calling"
+            ns="common"
+            values={{ name: outgoingCall.to.displayName }}
+            components={[<span className="font-bold" />]}
+          />
         </div>
         <Button
           size="sm"
@@ -66,7 +73,7 @@ export function CallOverlays() {
           className="rounded-none font-mono text-xs h-7 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
           onClick={cancelCall}
         >
-          CANCEL
+          {t("call.cancel")}
         </Button>
       </div>
     );

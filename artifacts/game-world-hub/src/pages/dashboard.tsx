@@ -7,8 +7,11 @@ import { useAcceptPartyInvite, useDeclinePartyInvite } from "@workspace/api-clie
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 export default function Dashboard() {
+  const { t } = useTranslation("dashboard");
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   
   const { data: friendsSummary, isLoading: loadingFriends } = useGetOnlineFriendsSummary({
@@ -31,7 +34,7 @@ export default function Dashboard() {
   const handleAcceptInvite = (inviteId: number) => {
     acceptInvite.mutate({ inviteId }, {
       onSuccess: () => {
-        toast({ title: "Invite accepted" });
+        toast({ title: t("toasts.inviteAccepted") });
         queryClient.invalidateQueries({ queryKey: getListPartyInvitesQueryKey() });
       }
     });
@@ -49,15 +52,15 @@ export default function Dashboard() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-end justify-between border-b border-border pb-4">
         <div>
-          <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase">OVERVIEW</h1>
-          <p className="text-muted-foreground font-mono text-sm mt-1">STATUS: {me?.status}</p>
+          <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase">{t("header.title")}</h1>
+          <p className="text-muted-foreground font-mono text-sm mt-1">{t("header.status", { status: me?.status })}</p>
         </div>
         <div className="flex gap-4">
           <Button asChild variant="outline" className="font-mono rounded-none border-border">
-            <Link href="/parties">BROWSE PARTIES</Link>
+            <Link href="/parties">{t("header.browseParties")}</Link>
           </Button>
           <Button asChild className="font-mono rounded-none">
-            <Link href="/parties">CREATE PARTY</Link>
+            <Link href="/parties">{t("header.createParty")}</Link>
           </Button>
         </div>
       </div>
@@ -65,19 +68,19 @@ export default function Dashboard() {
       {invites && invites.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 p-4">
           <h3 className="font-mono text-sm uppercase text-primary font-bold mb-3 flex items-center gap-2">
-            <Activity className="w-4 h-4" /> PENDING INVITES ({invites.length})
+            <Activity className="w-4 h-4" /> {t("invites.title", { count: invites.length })}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {invites.map(invite => (
               <div key={invite.id} className="bg-card border border-border p-3 flex flex-col gap-3">
                 <div>
                   <div className="font-bold">{invite.party.name}</div>
-                  <div className="text-xs text-muted-foreground font-mono">Invited by @{invite.invitedBy.username}</div>
+                  <div className="text-xs text-muted-foreground font-mono">{t("invites.invitedBy", { username: invite.invitedBy.username })}</div>
                   {invite.party.game && <div className="text-xs text-primary font-mono mt-1">[{invite.party.game}]</div>}
                 </div>
                 <div className="flex gap-2 mt-auto">
-                  <Button size="sm" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleAcceptInvite(invite.id)} disabled={acceptInvite.isPending}>ACCEPT</Button>
-                  <Button size="sm" variant="outline" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleDeclineInvite(invite.id)} disabled={declineInvite.isPending}>DECLINE</Button>
+                  <Button size="sm" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleAcceptInvite(invite.id)} disabled={acceptInvite.isPending}>{t("invites.accept")}</Button>
+                  <Button size="sm" variant="outline" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleDeclineInvite(invite.id)} disabled={declineInvite.isPending}>{t("invites.decline")}</Button>
                 </div>
               </div>
             ))}
@@ -90,9 +93,9 @@ export default function Dashboard() {
           <div className="border border-border bg-card">
             <div className="p-3 border-b border-border bg-muted/30 flex justify-between items-center">
               <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" /> ONLINE_NETWORK
+                <Users className="w-4 h-4 text-primary" /> {t("network.title")}
               </h2>
-              <span className="font-mono text-xs text-primary">{friendsSummary?.onlineCount || 0} ACTIVE</span>
+              <span className="font-mono text-xs text-primary">{t("network.active", { count: friendsSummary?.onlineCount || 0 })}</span>
             </div>
             <div className="p-4">
               {loadingFriends ? (
@@ -101,7 +104,7 @@ export default function Dashboard() {
                 </div>
               ) : friendsSummary?.friends.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground font-mono text-sm">
-                  NO AGENTS ONLINE
+                  {t("network.empty")}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -116,9 +119,9 @@ export default function Dashboard() {
                               {entry.friend.displayName.charAt(0)}
                             </div>
                           )}
-                          <StatusBadge status={entry.friend.status} className="absolute -bottom-1 -right-1" />
+                          <StatusBadge status={entry.friend.status} className="absolute -bottom-1 -end-1" />
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity rtl:-scale-x-100" />
                       </div>
                       <div>
                         <div className="font-bold text-sm truncate">{entry.friend.displayName}</div>
@@ -144,7 +147,7 @@ export default function Dashboard() {
           <div className="border border-border bg-card">
             <div className="p-3 border-b border-border bg-muted/30">
               <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" /> ACTIVITY_FEED
+                <Activity className="w-4 h-4 text-primary" /> {t("activity.title")}
               </h2>
             </div>
             <div className="p-0">
@@ -153,7 +156,7 @@ export default function Dashboard() {
                   {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-none bg-muted" />)}
                 </div>
               ) : partyActivity?.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground font-mono text-xs">NO RECENT ACTIVITY</div>
+                <div className="p-4 text-center text-muted-foreground font-mono text-xs">{t("activity.empty")}</div>
               ) : (
                 <div className="flex flex-col divide-y divide-border">
                   {partyActivity?.slice(0, 10).map(activity => (
@@ -165,16 +168,16 @@ export default function Dashboard() {
                         <div className="leading-tight">
                           <span className="font-bold text-foreground">{activity.actor.displayName}</span>
                           <span className="text-muted-foreground mx-1">
-                            {activity.action === 'created' ? 'established party' :
-                             activity.action === 'joined' ? 'joined party' :
-                             activity.action === 'left' ? 'left party' : 'invited to'}
+                            {activity.action === 'created' ? t("activity.created") :
+                             activity.action === 'joined' ? t("activity.joined") :
+                             activity.action === 'left' ? t("activity.left") : t("activity.invited")}
                           </span>
                           <Link href={`/party/${activity.party.id}`} className="text-primary hover:underline font-mono">
                             {activity.party.name}
                           </Link>
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono mt-1">
-                          {new Date(activity.createdAt).toLocaleTimeString()}
+                          {new Date(activity.createdAt).toLocaleTimeString(i18n.language)}
                         </div>
                       </div>
                     </div>

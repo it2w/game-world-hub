@@ -1,4 +1,6 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./sidebar";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,6 +33,7 @@ function useActivityHeartbeat(enabled: boolean) {
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation("common");
   const { isAuthenticated, isLoading } = useAuth();
   useActivityHeartbeat(isAuthenticated);
 
@@ -38,7 +41,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 font-mono text-primary text-sm uppercase tracking-widest">
         <AnimatedLogo className="w-12 h-12" />
-        Initializing Core Systems...
+        {t("shell.initializing")}
       </div>
     );
   }
@@ -65,6 +68,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function TopBar() {
+  const { t } = useTranslation("common");
   const { data: notifications } = useListNotifications({
     query: { refetchInterval: 10000, queryKey: getListNotificationsQueryKey() }
   });
@@ -85,7 +89,7 @@ function TopBar() {
     <header className="h-14 border-b border-border flex items-center justify-between px-6 shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
       <div className="font-mono text-xs text-muted-foreground flex items-center gap-2">
         <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-        SYSTEM_ONLINE
+        {t("topBar.systemOnline")}
       </div>
       
       <div className="flex items-center gap-4">
@@ -94,22 +98,22 @@ function TopBar() {
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+                <span className="absolute top-1 end-1 w-2 h-2 bg-primary rounded-full" />
               )}
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 p-0 border-border bg-card">
             <div className="flex items-center justify-between border-b border-border p-3">
-              <span className="font-mono text-xs uppercase font-bold">Notifications</span>
+              <span className="font-mono text-xs uppercase font-bold">{t("topBar.notifications")}</span>
               {unreadCount > 0 && (
                 <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-primary font-mono hover:text-primary/80 hover:bg-transparent" onClick={handleMarkAllRead}>
-                  Mark all read
+                  {t("topBar.markAllRead")}
                 </Button>
               )}
             </div>
             <div className="max-h-[300px] overflow-auto">
               {!notifications || notifications.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground font-mono">No new alerts</div>
+                <div className="p-4 text-center text-sm text-muted-foreground font-mono">{t("topBar.noAlerts")}</div>
               ) : (
                 <div className="flex flex-col">
                   {notifications.map(n => (
@@ -117,7 +121,7 @@ function TopBar() {
                       <div className="flex-1 flex flex-col gap-1">
                         <span className="text-sm font-bold">{n.title}</span>
                         {n.body && <span className="text-xs text-muted-foreground">{n.body}</span>}
-                        <span className="text-[10px] text-muted-foreground font-mono mt-1">{new Date(n.createdAt).toLocaleTimeString()}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono mt-1">{new Date(n.createdAt).toLocaleTimeString(i18n.language)}</span>
                       </div>
                       {!n.isRead && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
                     </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useGetMe,
   useGetLibrary,
@@ -47,18 +48,6 @@ function isValidLaunchUri(uri: string): boolean {
   return ALLOWED_LAUNCH_SCHEMES.some((s) => lower.startsWith(s));
 }
 
-const LAUNCH_HINTS: Record<string, string> = {
-  epic: "com.epicgames.launcher://apps/<AppName>?action=launch",
-  battlenet: "battlenet://WoW  (or D3, Pro, S2, ...)",
-  xbox: "leave blank if unknown",
-  playstation: "leave blank",
-  nintendo: "leave blank",
-  riot: "riot://",
-  ea: "origin://launchgame/<id>",
-  gog: "goggalaxy://openGameView/<id>",
-  other: "steam:// , battlenet:// , ...",
-};
-
 function platformLabel(p: string) {
   return PLATFORM_META[p]?.label ?? p;
 }
@@ -67,8 +56,21 @@ function platformColor(p: string) {
 }
 
 export default function LibraryPage() {
+  const { t } = useTranslation("library");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const LAUNCH_HINTS: Record<string, string> = {
+    epic: t("launchHints.epic"),
+    battlenet: t("launchHints.battlenet"),
+    xbox: t("launchHints.xbox"),
+    playstation: t("launchHints.playstation"),
+    nintendo: t("launchHints.nintendo"),
+    riot: t("launchHints.riot"),
+    ea: t("launchHints.ea"),
+    gog: t("launchHints.gog"),
+    other: t("launchHints.other"),
+  };
 
   const { data: me } = useGetMe();
   const myId = me?.id ?? 0;
@@ -108,13 +110,13 @@ export default function LibraryPage() {
       { data: { input: steamInput.trim() } },
       {
         onSuccess: (res) => {
-          toast({ title: "Steam linked", description: `Imported ${res.imported} game${res.imported === 1 ? "" : "s"}.` });
+          toast({ title: t("toasts.steamLinked"), description: t("toasts.steamImported", { count: res.imported }) });
           setSteamInput("");
           refresh();
         },
         onError: (e: any) => {
-          const msg = e?.response?.data?.error || e?.data?.error || "Couldn't link Steam. Check the profile URL and that it's public.";
-          toast({ title: "Steam link failed", description: msg, variant: "destructive" });
+          const msg = e?.response?.data?.error || e?.data?.error || t("toasts.steamLinkFailedDefault");
+          toast({ title: t("toasts.steamLinkFailed"), description: msg, variant: "destructive" });
         },
       }
     );
@@ -123,10 +125,10 @@ export default function LibraryPage() {
   const handleSyncSteam = () => {
     syncSteam.mutate(undefined as any, {
       onSuccess: (res) => {
-        toast({ title: "Steam synced", description: `${res.imported} games in your library.` });
+        toast({ title: t("toasts.steamSynced"), description: t("toasts.steamSyncedDescription", { count: res.imported }) });
         refresh();
       },
-      onError: () => toast({ title: "Sync failed", variant: "destructive" }),
+      onError: () => toast({ title: t("toasts.syncFailed"), variant: "destructive" }),
     });
   };
 
@@ -136,11 +138,11 @@ export default function LibraryPage() {
       { data: { platform: manualPlatform, handle: manualHandle.trim() } },
       {
         onSuccess: () => {
-          toast({ title: `${platformLabel(manualPlatform)} linked` });
+          toast({ title: t("toasts.accountLinked", { platform: platformLabel(manualPlatform) }) });
           setManualHandle("");
           refresh();
         },
-        onError: () => toast({ title: "Couldn't link account", variant: "destructive" }),
+        onError: () => toast({ title: t("toasts.accountLinkFailed"), variant: "destructive" }),
       }
     );
   };
@@ -150,10 +152,10 @@ export default function LibraryPage() {
       { accountId },
       {
         onSuccess: () => {
-          toast({ title: `${label} unlinked` });
+          toast({ title: t("toasts.accountUnlinked", { label }) });
           refresh();
         },
-        onError: () => toast({ title: "Couldn't unlink", variant: "destructive" }),
+        onError: () => toast({ title: t("toasts.unlinkFailed"), variant: "destructive" }),
       }
     );
   };
@@ -162,8 +164,8 @@ export default function LibraryPage() {
     if (!gForm.name.trim()) return;
     // Client-side guard so invalid launch links get immediate, visible feedback.
     if (gForm.launchUri.trim() && !isValidLaunchUri(gForm.launchUri)) {
-      setGError("Launch link must be a supported game protocol (e.g. steam://, battlenet://).");
-      toast({ title: "Invalid launch link", description: "Use a game protocol like steam:// or battlenet://.", variant: "destructive" });
+      setGError(t("toasts.invalidLaunchError"));
+      toast({ title: t("toasts.invalidLaunchTitle"), description: t("toasts.invalidLaunchDescription"), variant: "destructive" });
       return;
     }
     setGError("");
@@ -171,14 +173,14 @@ export default function LibraryPage() {
       { data: { platform: gForm.platform, name: gForm.name.trim(), coverUrl: gForm.coverUrl.trim() || undefined, launchUri: gForm.launchUri.trim() || undefined } },
       {
         onSuccess: () => {
-          toast({ title: "Game added" });
+          toast({ title: t("toasts.gameAdded") });
           setAddOpen(false);
           setGForm({ platform: gForm.platform, name: "", coverUrl: "", launchUri: "" });
           refresh();
         },
         onError: (e: any) => {
-          const msg = e?.response?.data?.error || e?.data?.error || "Couldn't add the game.";
-          toast({ title: "Add failed", description: msg, variant: "destructive" });
+          const msg = e?.response?.data?.error || e?.data?.error || t("toasts.addFailedDefault");
+          toast({ title: t("toasts.addFailed"), description: msg, variant: "destructive" });
         },
       }
     );
@@ -186,19 +188,19 @@ export default function LibraryPage() {
 
   const handleRemoveGame = (gameId: number) => {
     removeGame.mutate({ gameId }, {
-      onSuccess: () => { toast({ title: "Removed from library" }); refresh(); },
-      onError: () => toast({ title: "Couldn't remove", variant: "destructive" }),
+      onSuccess: () => { toast({ title: t("toasts.gameRemoved") }); refresh(); },
+      onError: () => toast({ title: t("toasts.removeFailed"), variant: "destructive" }),
     });
   };
 
   const handleLaunch = (launchUri: string | null | undefined, name: string) => {
     if (!launchUri) {
-      toast({ title: "No launch link", description: `${name} has no launch link. Add one to launch it from your device.` });
+      toast({ title: t("toasts.noLaunchLinkTitle"), description: t("toasts.noLaunchLinkDescription", { name }) });
       return;
     }
     // Protocol deep-link: opens the platform client if installed on the user's device.
     window.location.href = launchUri;
-    toast({ title: `Launching ${name}…`, description: "If nothing opens, make sure the game's client is installed." });
+    toast({ title: t("toasts.launching", { name }), description: t("toasts.launchingDescription") });
     // A web page can't detect the native process, so mark the game as our active
     // presence ("ACTIVE PROCESS") when we trigger the launch.
     updateStatus.mutate(
@@ -217,19 +219,19 @@ export default function LibraryPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-            <LibraryIcon className="w-7 h-7 text-primary" /> GAME LIBRARY
+            <LibraryIcon className="w-7 h-7 text-primary" /> {t("header.title")}
           </h1>
-          <p className="text-sm text-muted-foreground font-mono mt-1">Link your accounts, import your games, and launch them from your device.</p>
+          <p className="text-sm text-muted-foreground font-mono mt-1">{t("header.subtitle")}</p>
         </div>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
-            <Button className="font-mono rounded-none gap-2"><Plus className="w-4 h-4" /> ADD GAME</Button>
+            <Button className="font-mono rounded-none gap-2"><Plus className="w-4 h-4" /> {t("header.addGame")}</Button>
           </DialogTrigger>
           <DialogContent className="rounded-none border-border bg-card">
-            <DialogHeader><DialogTitle className="font-mono uppercase">Add a game manually</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="font-mono uppercase">{t("addDialog.title")}</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-mono uppercase text-muted-foreground">Platform</label>
+                <label className="text-xs font-mono uppercase text-muted-foreground">{t("addDialog.platform")}</label>
                 <select
                   value={gForm.platform}
                   onChange={(e) => setGForm({ ...gForm, platform: e.target.value })}
@@ -239,22 +241,22 @@ export default function LibraryPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-mono uppercase text-muted-foreground">Game name</label>
-                <Input value={gForm.name} onChange={(e) => setGForm({ ...gForm, name: e.target.value })} className="font-mono rounded-none" placeholder="e.g. Fortnite" />
+                <label className="text-xs font-mono uppercase text-muted-foreground">{t("addDialog.gameName")}</label>
+                <Input value={gForm.name} onChange={(e) => setGForm({ ...gForm, name: e.target.value })} className="font-mono rounded-none" placeholder={t("addDialog.gameNamePlaceholder")} />
               </div>
               <div>
-                <label className="text-xs font-mono uppercase text-muted-foreground">Cover image URL (optional)</label>
-                <Input value={gForm.coverUrl} onChange={(e) => setGForm({ ...gForm, coverUrl: e.target.value })} className="font-mono rounded-none" placeholder="https://..." />
+                <label className="text-xs font-mono uppercase text-muted-foreground">{t("addDialog.coverUrl")}</label>
+                <Input value={gForm.coverUrl} onChange={(e) => setGForm({ ...gForm, coverUrl: e.target.value })} className="font-mono rounded-none" placeholder={t("addDialog.coverUrlPlaceholder")} />
               </div>
               <div>
-                <label className="text-xs font-mono uppercase text-muted-foreground">Launch link (optional)</label>
-                <Input value={gForm.launchUri} onChange={(e) => setGForm({ ...gForm, launchUri: e.target.value })} className="font-mono rounded-none" placeholder={LAUNCH_HINTS[gForm.platform] || "steam:// ..."} />
-                <p className="text-[10px] text-muted-foreground font-mono mt-1">A protocol link that opens the game on your device (e.g. battlenet://WoW). Only game protocols are allowed.</p>
+                <label className="text-xs font-mono uppercase text-muted-foreground">{t("addDialog.launchLink")}</label>
+                <Input value={gForm.launchUri} onChange={(e) => setGForm({ ...gForm, launchUri: e.target.value })} className="font-mono rounded-none" placeholder={LAUNCH_HINTS[gForm.platform] || t("addDialog.launchLinkFallbackPlaceholder")} />
+                <p className="text-[10px] text-muted-foreground font-mono mt-1">{t("addDialog.launchLinkHint")}</p>
               </div>
               {gError && <p className="text-xs font-mono text-destructive">{gError}</p>}
             </div>
             <DialogFooter>
-              <Button onClick={handleAddGame} disabled={addGame.isPending || !gForm.name.trim()} className="font-mono rounded-none">ADD TO LIBRARY</Button>
+              <Button onClick={handleAddGame} disabled={addGame.isPending || !gForm.name.trim()} className="font-mono rounded-none">{t("addDialog.submit")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -265,13 +267,13 @@ export default function LibraryPage() {
         {/* Steam */}
         <div className="bg-card border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-sm uppercase tracking-widest" style={{ color: platformColor("steam") }}>Steam — Auto Import</h2>
+            <h2 className="font-mono text-sm uppercase tracking-widest" style={{ color: platformColor("steam") }}>{t("steam.title")}</h2>
             {steamAccount && (
               <div className="flex gap-1">
-                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-none" title="Re-sync" onClick={handleSyncSteam} disabled={syncSteam.isPending}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-none" title={t("steam.resync")} onClick={handleSyncSteam} disabled={syncSteam.isPending}>
                   <RefreshCw className={`w-4 h-4 ${syncSteam.isPending ? "animate-spin" : ""}`} />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-none text-destructive" title="Unlink" onClick={() => handleUnlink(steamAccount.id, "Steam")} disabled={unlinkAccount.isPending}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-none text-destructive" title={t("steam.unlink")} onClick={() => handleUnlink(steamAccount.id, "Steam")} disabled={unlinkAccount.isPending}>
                   <Unlink className="w-4 h-4" />
                 </Button>
               </div>
@@ -279,18 +281,18 @@ export default function LibraryPage() {
           </div>
           {steamAccount ? (
             <p className="text-xs font-mono text-muted-foreground">
-              Linked ✓{" "}
+              {t("steam.linked")}{" "}
               {steamAccount.profileUrl && (
-                <a href={steamAccount.profileUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">view profile</a>
+                <a href={steamAccount.profileUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{t("steam.viewProfile")}</a>
               )}
             </p>
           ) : (
             <>
-              <p className="text-xs font-mono text-muted-foreground">Paste your Steam profile URL or ID. Your game details must be public.</p>
+              <p className="text-xs font-mono text-muted-foreground">{t("steam.prompt")}</p>
               <div className="flex gap-2">
-                <Input value={steamInput} onChange={(e) => setSteamInput(e.target.value)} placeholder="steamcommunity.com/id/yourname" className="font-mono rounded-none text-sm" />
+                <Input value={steamInput} onChange={(e) => setSteamInput(e.target.value)} placeholder={t("steam.inputPlaceholder")} className="font-mono rounded-none text-sm" />
                 <Button onClick={handleLinkSteam} disabled={linkSteam.isPending || !steamInput.trim()} className="font-mono rounded-none gap-2 shrink-0">
-                  <Link2 className="w-4 h-4" /> {linkSteam.isPending ? "..." : "IMPORT"}
+                  <Link2 className="w-4 h-4" /> {linkSteam.isPending ? t("steam.importing") : t("steam.import")}
                 </Button>
               </div>
             </>
@@ -299,12 +301,12 @@ export default function LibraryPage() {
 
         {/* Other platforms */}
         <div className="bg-card border border-border p-4 space-y-3">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary">Other Accounts</h2>
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary">{t("other.title")}</h2>
           <div className="flex gap-2">
             <select value={manualPlatform} onChange={(e) => setManualPlatform(e.target.value)} className="h-9 bg-background border border-border font-mono text-sm px-2 rounded-none">
               {MANUAL_PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}
             </select>
-            <Input value={manualHandle} onChange={(e) => setManualHandle(e.target.value)} placeholder="your handle" className="font-mono rounded-none text-sm" />
+            <Input value={manualHandle} onChange={(e) => setManualHandle(e.target.value)} placeholder={t("other.handlePlaceholder")} className="font-mono rounded-none text-sm" />
             <Button onClick={handleLinkManual} disabled={linkAccount.isPending || !manualHandle.trim()} className="font-mono rounded-none shrink-0"><Link2 className="w-4 h-4" /></Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -315,7 +317,7 @@ export default function LibraryPage() {
               </span>
             ))}
             {(!accounts || accounts.filter((a) => a.platform !== "steam").length === 0) && (
-              <span className="text-xs font-mono text-muted-foreground">No other accounts linked. Add games manually below.</span>
+              <span className="text-xs font-mono text-muted-foreground">{t("other.empty")}</span>
             )}
           </div>
         </div>
@@ -324,12 +326,12 @@ export default function LibraryPage() {
       {/* Games grid */}
       <div>
         <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 border-b border-border pb-2">
-          My Games {games ? `(${games.length})` : ""}
+          {t("games.title")} {games ? t("games.count", { n: games.length }) : ""}
         </h2>
         {!games || games.length === 0 ? (
           <div className="text-center py-16 border border-dashed border-border">
             <Gamepad2 className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-            <p className="font-mono text-sm text-muted-foreground">No games yet. Link Steam to import automatically, or add a game manually.</p>
+            <p className="font-mono text-sm text-muted-foreground">{t("games.empty")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -341,22 +343,22 @@ export default function LibraryPage() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center"><Gamepad2 className="w-8 h-8 text-muted-foreground" /></div>
                   )}
-                  <span className="absolute top-1 left-1 text-[9px] font-mono px-1.5 py-0.5 bg-background/80 border border-border" style={{ color: platformColor(g.platform) }}>
+                  <span className="absolute top-1 start-1 text-[9px] font-mono px-1.5 py-0.5 bg-background/80 border border-border" style={{ color: platformColor(g.platform) }}>
                     {platformLabel(g.platform)}
                   </span>
                   <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                     <Button size="sm" className="font-mono rounded-none gap-1 h-8" onClick={() => handleLaunch(g.launchUri, g.name)}>
-                      <Play className="w-3.5 h-3.5" /> LAUNCH
+                      <Play className="w-3.5 h-3.5" /> {t("games.launch")}
                     </Button>
                     <Button size="sm" variant="ghost" className="font-mono rounded-none gap-1 h-7 text-destructive hover:text-destructive" onClick={() => handleRemoveGame(g.id)}>
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
+                      <Trash2 className="w-3.5 h-3.5" /> {t("games.remove")}
                     </Button>
                   </div>
                 </div>
                 <div className="p-2">
                   <p className="text-xs font-mono truncate" title={g.name}>{g.name}</p>
                   {typeof g.playtimeMinutes === "number" && g.playtimeMinutes > 0 && (
-                    <p className="text-[10px] text-muted-foreground font-mono">{Math.round(g.playtimeMinutes / 60)}h played</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">{t("games.playtime", { count: Math.round(g.playtimeMinutes / 60) })}</p>
                   )}
                 </div>
               </div>

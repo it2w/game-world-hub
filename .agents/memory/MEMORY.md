@@ -14,3 +14,4 @@
 - [otplib v13 API](otplib-v13.md) — no `authenticator` export; use functional generateSecret/generateURI/verify with epochTolerance.
 - [Dev email mailbox](dev-email-mailbox.md) — dev emails append JSONL to /tmp/gwh-dev-emails.jsonl; prod sends via Resend connector (send-only key; EMAIL_FROM after domain verify).
 - [Drizzle push fallback](drizzle-push-fallback.md) — drizzle-kit push hangs on interactive prompts; apply additive DDL via raw SQL kept in sync with schema.ts.
+- [Arabic i18n & RTL](i18n-arabic-rtl.md) — per-ns JSON bundles, gwh_lang key; new UI must use logical (ms/me/start/end) classes; server labels translate client-side via stable ids; user content stays as-is.

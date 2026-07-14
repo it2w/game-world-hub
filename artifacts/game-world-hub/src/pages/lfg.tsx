@@ -19,31 +19,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X } from "lucide-react";
 
-const createLfgSchema = z.object({
-  game: z.string().min(1, "Game is required").max(100),
-  platform: z.string().optional(),
-  rank: z.string().optional(),
-  neededPlayers: z.coerce.number().min(1).max(20),
-  micRequired: z.boolean().default(false),
-  expiresInHours: z.coerce.number().min(1).max(48),
-  description: z.string().min(1, "Briefing is required").max(500),
-});
-
-type CreateLfgForm = z.infer<typeof createLfgSchema>;
-
-function timeLeft(expiresAt: string | null | undefined): string | null {
-  if (!expiresAt) return null;
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return "EXPIRED";
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.floor((ms % 3_600_000) / 60_000);
-  return h > 0 ? `${h}h ${m}m LEFT` : `${m}m LEFT`;
-}
+type CreateLfgForm = {
+  game: string;
+  platform?: string;
+  rank?: string;
+  neededPlayers: number;
+  micRequired: boolean;
+  expiresInHours: number;
+  description: string;
+};
 
 export default function Lfg() {
+  const { t } = useTranslation("lfg");
   const queryClient = useQueryClient();
+
+  const createLfgSchema = useMemo(
+    () =>
+      z.object({
+        game: z.string().min(1, t("validation.gameRequired")).max(100),
+        platform: z.string().optional(),
+        rank: z.string().optional(),
+        neededPlayers: z.coerce.number().min(1).max(20),
+        micRequired: z.boolean().default(false),
+        expiresInHours: z.coerce.number().min(1).max(48),
+        description: z.string().min(1, t("validation.briefingRequired")).max(500),
+      }),
+    [t],
+  );
+
+  const timeLeft = (expiresAt: string | null | undefined): string | null => {
+    if (!expiresAt) return null;
+    const ms = new Date(expiresAt).getTime() - Date.now();
+    if (ms <= 0) return t("time.expired");
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    return h > 0 ? t("time.leftHm", { h, m }) : t("time.leftM", { m });
+  };
+
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: posts, isLoading } = useListLfgPosts(undefined, {
     query: { refetchInterval: 8000, queryKey: getListLfgPostsQueryKey() },
@@ -103,21 +118,21 @@ export default function Lfg() {
       <div className="flex items-end justify-between border-b border-border pb-4">
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-            <Radar className="w-7 h-7 text-primary" /> LFG
+            <Radar className="w-7 h-7 text-primary" /> {t("header.title")}
           </h1>
-          <p className="text-muted-foreground font-mono text-sm mt-1">SIGNAL FOR SQUAD // OPEN CALLS</p>
+          <p className="text-muted-foreground font-mono text-sm mt-1">{t("header.subtitle")}</p>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="font-mono rounded-none">
-              <Plus className="w-4 h-4 mr-2" /> POST SIGNAL
+              <Plus className="w-4 h-4 me-2" /> {t("header.postSignal")}
             </Button>
           </DialogTrigger>
           <DialogContent className="border-border bg-card rounded-none sm:max-w-[520px]">
             <DialogHeader>
               <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
-                Broadcast Signal
+                {t("dialog.title")}
               </DialogTitle>
             </DialogHeader>
 
@@ -128,9 +143,9 @@ export default function Lfg() {
                   name="game"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Game</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase">{t("form.game")}</FormLabel>
                       <FormControl>
-                        <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="e.g. Valorant" />
+                        <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.gamePlaceholder")} />
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
@@ -143,9 +158,9 @@ export default function Lfg() {
                     name="platform"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Platform</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.platform")}</FormLabel>
                         <FormControl>
-                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="Any" />
+                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.platformPlaceholder")} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -155,9 +170,9 @@ export default function Lfg() {
                     name="rank"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Rank / Tier</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.rank")}</FormLabel>
                         <FormControl>
-                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="Optional" />
+                          <Input {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder={t("form.rankPlaceholder")} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -170,7 +185,7 @@ export default function Lfg() {
                     name="neededPlayers"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Slots</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.slots")}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" />
                         </FormControl>
@@ -182,7 +197,7 @@ export default function Lfg() {
                     name="micRequired"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Mic</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.mic")}</FormLabel>
                         <Select onValueChange={(v) => field.onChange(v === "true")} value={field.value ? "true" : "false"}>
                           <FormControl>
                             <SelectTrigger className="font-mono bg-background border-border rounded-none">
@@ -190,8 +205,8 @@ export default function Lfg() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-card border-border rounded-none font-mono">
-                            <SelectItem value="false">Optional</SelectItem>
-                            <SelectItem value="true">Required</SelectItem>
+                            <SelectItem value="false">{t("form.micOptional")}</SelectItem>
+                            <SelectItem value="true">{t("form.micRequired")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -202,7 +217,7 @@ export default function Lfg() {
                     name="expiresInHours"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Expires</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase">{t("form.expires")}</FormLabel>
                         <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
                           <FormControl>
                             <SelectTrigger className="font-mono bg-background border-border rounded-none">
@@ -210,11 +225,11 @@ export default function Lfg() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="bg-card border-border rounded-none font-mono">
-                            <SelectItem value="1">1h</SelectItem>
-                            <SelectItem value="6">6h</SelectItem>
-                            <SelectItem value="12">12h</SelectItem>
-                            <SelectItem value="24">24h</SelectItem>
-                            <SelectItem value="48">48h</SelectItem>
+                            <SelectItem value="1">{t("form.expires1h")}</SelectItem>
+                            <SelectItem value="6">{t("form.expires6h")}</SelectItem>
+                            <SelectItem value="12">{t("form.expires12h")}</SelectItem>
+                            <SelectItem value="24">{t("form.expires24h")}</SelectItem>
+                            <SelectItem value="48">{t("form.expires48h")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -227,9 +242,9 @@ export default function Lfg() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Briefing</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase">{t("form.briefing")}</FormLabel>
                       <FormControl>
-                        <Textarea {...field} rows={3} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary resize-none" placeholder="What are you playing, what do you need?" />
+                        <Textarea {...field} rows={3} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary resize-none" placeholder={t("form.briefingPlaceholder")} />
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
@@ -238,7 +253,7 @@ export default function Lfg() {
 
                 <div className="pt-2 flex justify-end">
                   <Button type="submit" className="font-mono rounded-none tracking-widest w-full" disabled={createLfg.isPending}>
-                    {createLfg.isPending ? "BROADCASTING..." : "BROADCAST"}
+                    {createLfg.isPending ? t("dialog.broadcasting") : t("dialog.broadcast")}
                   </Button>
                 </div>
               </form>
@@ -248,21 +263,21 @@ export default function Lfg() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="FILTER BY GAME, PLATFORM, PLAYER..."
-          className="font-mono bg-background border-border rounded-none pl-10 focus-visible:ring-primary uppercase text-xs tracking-wider"
+          placeholder={t("filter.placeholder")}
+          className="font-mono bg-background border-border rounded-none ps-10 focus-visible:ring-primary uppercase text-xs tracking-wider"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isLoading ? (
-          <div className="col-span-full py-12 text-center font-mono text-sm text-muted-foreground">SCANNING FREQUENCIES...</div>
+          <div className="col-span-full py-12 text-center font-mono text-sm text-muted-foreground">{t("list.scanning")}</div>
         ) : filtered.length === 0 ? (
           <div className="col-span-full py-12 text-center border border-dashed border-border font-mono text-sm text-muted-foreground">
-            NO OPEN SIGNALS // BE THE FIRST TO POST
+            {t("list.empty")}
           </div>
         ) : (
           filtered.map((post) => {
@@ -297,7 +312,7 @@ export default function Lfg() {
                 <div className="p-4 flex-1 flex flex-col gap-3">
                   <div className="flex flex-wrap gap-2 text-xs font-mono">
                     <span className="flex items-center gap-1 border border-border px-2 py-0.5 text-muted-foreground">
-                      <Monitor className="w-3 h-3" /> {post.platform || "Any"}
+                      <Monitor className="w-3 h-3" /> {post.platform || t("card.platformAny")}
                     </span>
                     {post.rank && (
                       <span className="flex items-center gap-1 border border-border px-2 py-0.5 text-muted-foreground">
@@ -305,10 +320,10 @@ export default function Lfg() {
                       </span>
                     )}
                     <span className="flex items-center gap-1 border border-border px-2 py-0.5 text-muted-foreground">
-                      <Users className="w-3 h-3" /> Needs {post.neededPlayers}
+                      <Users className="w-3 h-3" /> {t("card.needs", { count: post.neededPlayers })}
                     </span>
                     <span className={`flex items-center gap-1 border px-2 py-0.5 ${post.micRequired ? "border-primary/60 text-primary" : "border-border text-muted-foreground"}`}>
-                      {post.micRequired ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />} {post.micRequired ? "Mic req" : "No mic"}
+                      {post.micRequired ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />} {post.micRequired ? t("card.micReq") : t("card.noMic")}
                     </span>
                   </div>
 
@@ -316,7 +331,7 @@ export default function Lfg() {
 
                   <div className="flex items-center justify-between mt-auto pt-2">
                     <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
+                      <div className="flex -space-x-2 rtl:space-x-reverse">
                         {post.responders.slice(0, 4).map((r) => (
                           <div key={r.id} className="w-7 h-7 rounded-full border-2 border-card bg-muted flex items-center justify-center font-mono text-[10px] overflow-hidden" title={r.displayName}>
                             {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" /> : r.displayName.charAt(0)}
@@ -324,7 +339,7 @@ export default function Lfg() {
                         ))}
                       </div>
                       <span className="text-xs font-mono text-muted-foreground">
-                        {post.responseCount} {post.responseCount === 1 ? "reply" : "replies"}
+                        {t("card.replies", { count: post.responseCount })}
                       </span>
                     </div>
 
@@ -337,7 +352,7 @@ export default function Lfg() {
                           disabled={close.isPending}
                           onClick={() => close.mutate({ postId: post.id }, { onSuccess: invalidate })}
                         >
-                          <X className="w-3 h-3 mr-1" /> CLOSE
+                          <X className="w-3 h-3 me-1" /> {t("card.close")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -351,7 +366,7 @@ export default function Lfg() {
                       </div>
                     ) : post.viewerHasResponded ? (
                       <Button variant="outline" size="sm" className="font-mono rounded-none text-xs text-primary border-primary/60" disabled>
-                        <Check className="w-3 h-3 mr-1" /> SIGNAL SENT
+                        <Check className="w-3 h-3 me-1" /> {t("card.signalSent")}
                       </Button>
                     ) : (
                       <Button
@@ -360,7 +375,7 @@ export default function Lfg() {
                         disabled={respond.isPending}
                         onClick={() => respond.mutate({ postId: post.id, data: {} }, { onSuccess: invalidate })}
                       >
-                        RESPOND
+                        {t("card.respond")}
                       </Button>
                     )}
                   </div>

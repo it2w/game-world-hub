@@ -1,0 +1,31 @@
+{
+  "header": {
+    "title": "OVERVIEW",
+    "status": "STATUS: {{status}}",
+    "browseParties": "BROWSE PARTIES",
+    "createParty": "CREATE PARTY"
+  },
+  "invites": {
+    "title_one": "PENDING INVITES ({{count}})",
+    "title_other": "PENDING INVITES ({{count}})",
+    "invitedBy": "Invited by @{{username}}",
+    "accept": "ACCEPT",
+    "decline": "DECLINE"
+  },
+  "network": {
+    "title": "ONLINE_NETWORK",
+    "active": "{{count}} ACTIVE",
+    "empty": "NO AGENTS ONLINE"
+  },
+  "activity": {
+    "title": "ACTIVITY_FEED",
+    "empty": "NO RECENT ACTIVITY",
+    "created": "established party",
+    "joined": "joined party",
+    "left": "left party",
+    "invited": "invited to"
+  },
+  "toasts": {
+    "inviteAccepted": "Invite accepted"
+  }
+}

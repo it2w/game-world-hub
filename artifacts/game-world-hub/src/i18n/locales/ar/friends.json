@@ -1,0 +1,32 @@
+{
+  "header": {
+    "title": "الشبكة",
+    "roster": "القائمة",
+    "requests": "الطلبات",
+    "search": "بحث"
+  },
+  "roster": {
+    "empty": "القائمة فارغة"
+  },
+  "requests": {
+    "empty": "لا توجد طلبات معلّقة",
+    "accept": "قبول",
+    "reject": "رفض"
+  },
+  "search": {
+    "placeholder": "ابحث باسم المستخدم (٣ أحرف على الأقل)...",
+    "searching": "جارٍ البحث...",
+    "noMatches": "لا توجد نتائج مطابقة",
+    "add": "إضافة"
+  },
+  "actions": {
+    "leaveChannelFirst": "غادر قناتك الحالية أولاً",
+    "startVoiceCall": "بدء مكالمة صوتية"
+  },
+  "confirm": {
+    "removeFriend": "هل أنت متأكد من رغبتك في إزالة هذا الصديق؟"
+  },
+  "toasts": {
+    "requestSent": "تم إرسال الطلب"
+  }
+}

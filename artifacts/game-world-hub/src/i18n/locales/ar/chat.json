@@ -1,0 +1,19 @@
+{
+  "sidebar": {
+    "title": "قنوات الاتصال",
+    "you": "أنت",
+    "noMessages": "لا توجد رسائل بعد"
+  },
+  "conversation": {
+    "directMessage": "رسالة مباشرة",
+    "groupChat": "دردشة جماعية",
+    "loading": "جارٍ التحميل...",
+    "partyComms": "اتصال البارتي"
+  },
+  "input": {
+    "placeholder": "أرسل رسالتك..."
+  },
+  "empty": {
+    "selectChannel": "اختر قناة لبدء الاتصال"
+  }
+}

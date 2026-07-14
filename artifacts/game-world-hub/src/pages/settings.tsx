@@ -9,14 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
 import { QRCodeSVG } from "qrcode.react";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { displayImageUrl } from "@/lib/image-url";
 
-const imageRefSchema = z
+const makeImageRefSchema = (msg: string) => z
   .string()
   .max(500)
   .refine(
@@ -26,14 +27,14 @@ const imageRefSchema = z
       v.startsWith("https://") ||
       v.startsWith("/objects/") ||
       v.startsWith("/api/storage/objects/"),
-    "Enter a URL or upload an image",
+    msg,
   );
 
 const profileSchema = z.object({
   displayName: z.string().min(1).max(50),
   bio: z.string().max(500).optional(),
-  avatarUrl: imageRefSchema.optional(),
-  bannerUrl: imageRefSchema.optional(),
+  avatarUrl: makeImageRefSchema("").optional(),
+  bannerUrl: makeImageRefSchema("").optional(),
 });
 
 const statusSchema = z.object({
@@ -49,10 +50,11 @@ const platformSchema = z.object({
 
 const contentSchema = z.object({
   platform: z.enum(["twitch", "youtube", "tiktok", "kick"]),
-  handle: z.string().min(1, "Required").max(100)
+  handle: z.string().min(1).max(100)
 });
 
 export default function Settings() {
+  const { t } = useTranslation("settings");
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: platforms } = useGetUserPlatforms(me?.id || 0, { query: { enabled: !!me?.id, queryKey: getGetUserPlatformsQueryKey(me?.id || 0) } });
   
@@ -95,20 +97,20 @@ export default function Settings() {
     if (!email) return;
     setMyEmail.mutate({ data: { email } }, {
       onSuccess: () => {
-        toast({ title: "Verification code sent", description: "Enter the emailed code below." });
+        toast({ title: t("toasts.verificationCodeSent"), description: t("toasts.verificationCodeSentDesc") });
         setEmailInput("");
         setEmailCode("");
         refreshMe();
       },
-      onError: (err) => toast({ title: "Couldn't set email", description: errText(err, "Try another address"), variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.couldntSetEmail"), description: errText(err, t("toasts.couldntSetEmailDesc")), variant: "destructive" }),
     });
   };
 
   const handleResendCode = () => {
     if (!me?.email) return;
     setMyEmail.mutate({ data: { email: me.email } }, {
-      onSuccess: () => toast({ title: "Code re-sent", description: "Check your email." }),
-      onError: (err) => toast({ title: "Couldn't resend code", description: errText(err, "Try again shortly"), variant: "destructive" }),
+      onSuccess: () => toast({ title: t("toasts.codeResent"), description: t("toasts.codeResentDesc") }),
+      onError: (err) => toast({ title: t("toasts.couldntResendCode"), description: errText(err, t("toasts.couldntResendCodeDesc")), variant: "destructive" }),
     });
   };
 
@@ -116,11 +118,11 @@ export default function Settings() {
     e.preventDefault();
     verifyMyEmail.mutate({ data: { code: emailCode.trim() } }, {
       onSuccess: () => {
-        toast({ title: "Email verified" });
+        toast({ title: t("toasts.emailVerified") });
         setEmailCode("");
         refreshMe();
       },
-      onError: (err) => toast({ title: "Verification failed", description: errText(err, "Invalid or expired code"), variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.verificationFailed"), description: errText(err, t("toasts.verificationFailedDesc")), variant: "destructive" }),
     });
   };
 
@@ -130,9 +132,9 @@ export default function Settings() {
         setTwofaPanel(method);
         setTwofaCode("");
         setTotpInfo({ secret: resp.secret, otpauthUrl: resp.otpauthUrl });
-        if (method === "email") toast({ title: "Setup code sent", description: "Check your email." });
+        if (method === "email") toast({ title: t("toasts.setupCodeSent"), description: t("toasts.setupCodeSentDesc") });
       },
-      onError: (err) => toast({ title: "Setup failed", description: errText(err, "Try again"), variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.setupFailed"), description: errText(err, t("toasts.setupFailedDesc")), variant: "destructive" }),
     });
   };
 
@@ -141,13 +143,13 @@ export default function Settings() {
     if (!twofaPanel) return;
     enableTwoFactor.mutate({ data: { method: twofaPanel, code: twofaCode.trim() } }, {
       onSuccess: () => {
-        toast({ title: "Two-factor authentication enabled" });
+        toast({ title: t("toasts.twoFactorEnabled") });
         setTwofaPanel(null);
         setTotpInfo({});
         setTwofaCode("");
         refreshMe();
       },
-      onError: (err) => toast({ title: "Couldn't enable 2FA", description: errText(err, "Invalid code"), variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.couldntEnable2fa"), description: errText(err, t("toasts.couldntEnable2faDesc")), variant: "destructive" }),
     });
   };
 
@@ -155,11 +157,11 @@ export default function Settings() {
     e.preventDefault();
     disableTwoFactor.mutate({ data: { password: disablePassword } }, {
       onSuccess: () => {
-        toast({ title: "Two-factor authentication disabled" });
+        toast({ title: t("toasts.twoFactorDisabled") });
         setDisablePassword("");
         refreshMe();
       },
-      onError: (err) => toast({ title: "Couldn't disable 2FA", description: errText(err, "Wrong password"), variant: "destructive" }),
+      onError: (err) => toast({ title: t("toasts.couldntDisable2fa"), description: errText(err, t("toasts.couldntDisable2faDesc")), variant: "destructive" }),
     });
   };
 
@@ -173,15 +175,15 @@ export default function Settings() {
         { userId: me.id, data: { [field]: path } },
         {
           onSuccess: () => {
-            toast({ title: field === "avatarUrl" ? "Avatar updated" : "Banner updated" });
+            toast({ title: field === "avatarUrl" ? t("toasts.avatarUpdated") : t("toasts.bannerUpdated") });
             refreshMe();
             queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
           },
-          onError: (err) => toast({ title: "Couldn't save image", description: errText(err, "Try again"), variant: "destructive" }),
+          onError: (err) => toast({ title: t("toasts.couldntSaveImage"), description: errText(err, t("toasts.couldntSaveImageDesc")), variant: "destructive" }),
         },
       );
     } catch (err) {
-      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+      toast({ title: t("toasts.uploadFailed"), description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     }
   };
 
@@ -192,7 +194,7 @@ export default function Settings() {
       { userId: me.id, data: { allowProfileComments: !wallEnabled } },
       {
         onSuccess: () => {
-          toast({ title: !wallEnabled ? "Profile wall enabled" : "Profile wall disabled" });
+          toast({ title: !wallEnabled ? t("toasts.profileWallEnabled") : t("toasts.profileWallDisabled") });
           refreshMe();
           queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
         },
@@ -216,16 +218,31 @@ export default function Settings() {
     try {
       const result = await window.electronAPI!.setLoginItem(!openAtLogin);
       setOpenAtLogin(result.openAtLogin);
-      toast({ title: result.openAtLogin ? 'Will launch on startup' : 'Startup launch disabled' });
+      toast({ title: result.openAtLogin ? t("toasts.willLaunchOnStartup") : t("toasts.startupLaunchDisabled") });
     } catch {
-      toast({ title: 'Failed to update startup setting', variant: 'destructive' });
+      toast({ title: t("toasts.failedToUpdateStartup"), variant: 'destructive' });
     } finally {
       setStartupLoading(false);
     }
   };
 
+  const profileResolverSchema = useMemo(() => {
+    const imageRefSchema = makeImageRefSchema(t("validation.imageRef"));
+    return z.object({
+      displayName: z.string().min(1).max(50),
+      bio: z.string().max(500).optional(),
+      avatarUrl: imageRefSchema.optional(),
+      bannerUrl: imageRefSchema.optional(),
+    });
+  }, [t]);
+
+  const contentResolverSchema = useMemo(() => z.object({
+    platform: z.enum(["twitch", "youtube", "tiktok", "kick"]),
+    handle: z.string().min(1, t("validation.required")).max(100)
+  }), [t]);
+
   const profileForm = useForm<z.infer<typeof profileSchema>>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(profileResolverSchema),
     defaultValues: { displayName: "", bio: "", avatarUrl: "", bannerUrl: "" }
   });
 
@@ -240,7 +257,7 @@ export default function Settings() {
   });
 
   const contentForm = useForm<z.infer<typeof contentSchema>>({
-    resolver: zodResolver(contentSchema),
+    resolver: zodResolver(contentResolverSchema),
     defaultValues: { platform: "twitch", handle: "" }
   });
 
@@ -265,7 +282,7 @@ export default function Settings() {
       { userId: me.id, data },
       {
         onSuccess: () => {
-          toast({ title: "Profile configuration saved" });
+          toast({ title: t("toasts.profileSaved") });
           queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
         }
       }
@@ -279,7 +296,7 @@ export default function Settings() {
         onSuccess: () => {
           // Going offline clears the active game server-side, so refresh /me
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-          toast({ title: "Status updated globally" });
+          toast({ title: t("toasts.statusUpdated") });
         }
       }
     );
@@ -313,10 +330,10 @@ export default function Settings() {
       {
         onSuccess: () => {
           contentForm.reset({ platform: data.platform, handle: "" });
-          toast({ title: `${contentMeta(data.platform)?.label ?? data.platform} channel linked` });
+          toast({ title: t("toasts.channelLinked", { platform: contentMeta(data.platform)?.label ?? data.platform }) });
           queryClient.invalidateQueries({ queryKey: getGetUserContentLinksQueryKey(me.id) });
         },
-        onError: () => toast({ title: "Failed to link channel", variant: "destructive" }),
+        onError: () => toast({ title: t("toasts.failedToLinkChannel"), variant: "destructive" }),
       }
     );
   };
@@ -327,10 +344,10 @@ export default function Settings() {
       { userId: me.id, linkId },
       {
         onSuccess: () => {
-          toast({ title: "Channel unlinked" });
+          toast({ title: t("toasts.channelUnlinked") });
           queryClient.invalidateQueries({ queryKey: getGetUserContentLinksQueryKey(me.id) });
         },
-        onError: () => toast({ title: "Failed to unlink channel", variant: "destructive" }),
+        onError: () => toast({ title: t("toasts.failedToUnlinkChannel"), variant: "destructive" }),
       }
     );
   };
@@ -339,28 +356,31 @@ export default function Settings() {
     <div className="p-6 max-w-4xl mx-auto space-y-8">
       <div className="border-b border-border pb-4">
         <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-          <Settings2 className="w-8 h-8 text-primary" /> SYSTEM_CONFIG
+          <Settings2 className="w-8 h-8 text-primary" /> {t("header.title")}
         </h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-8">
+          {/* Language */}
+          <LanguageCard />
+
           {/* Identity Config */}
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-              <User className="w-4 h-4" /> IDENTITY_PARAMS
+              <User className="w-4 h-4" /> {t("identity.title")}
             </h2>
             <Form {...profileForm}>
               <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
                 <FormField control={profileForm.control} name="displayName" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">DISPLAY NAME</FormLabel>
+                    <FormLabel className="font-mono text-xs">{t("identity.displayName")}</FormLabel>
                     <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" /></FormControl>
                   </FormItem>
                 )} />
                 <FormField control={profileForm.control} name="avatarUrl" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">AVATAR</FormLabel>
+                    <FormLabel className="font-mono text-xs">{t("identity.avatar")}</FormLabel>
                     <div className="flex items-center gap-2">
                       <div className="w-10 h-10 border border-border bg-background shrink-0 overflow-hidden flex items-center justify-center">
                         {field.value ? (
@@ -369,8 +389,8 @@ export default function Settings() {
                           <span className="font-mono text-xs text-muted-foreground">--</span>
                         )}
                       </div>
-                      <FormControl><Input {...field} placeholder="URL or upload →" className="font-mono rounded-none border-border bg-background" /></FormControl>
-                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => avatarFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-avatar" title="Upload image">
+                      <FormControl><Input {...field} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => avatarFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-avatar" title={t("identity.uploadImage")}>
                         <Upload className="w-4 h-4" />
                       </Button>
                     </div>
@@ -379,10 +399,10 @@ export default function Settings() {
                 )} />
                 <FormField control={profileForm.control} name="bannerUrl" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">PROFILE BANNER</FormLabel>
+                    <FormLabel className="font-mono text-xs">{t("identity.banner")}</FormLabel>
                     <div className="flex items-center gap-2">
-                      <FormControl><Input {...field} placeholder="URL or upload →" className="font-mono rounded-none border-border bg-background" /></FormControl>
-                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => bannerFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-banner" title="Upload image">
+                      <FormControl><Input {...field} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => bannerFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-banner" title={t("identity.uploadImage")}>
                         <Upload className="w-4 h-4" />
                       </Button>
                     </div>
@@ -398,11 +418,11 @@ export default function Settings() {
                 <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "bannerUrl"); }} data-testid="input-banner-file" />
                 <FormField control={profileForm.control} name="bio" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">BIOGRAPHY DATA</FormLabel>
+                    <FormLabel className="font-mono text-xs">{t("identity.biography")}</FormLabel>
                     <FormControl><Textarea {...field} className="font-mono rounded-none border-border bg-background resize-none" rows={3} /></FormControl>
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending}>WRITE CONFIG</Button>
+                <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending}>{t("identity.writeConfig")}</Button>
               </form>
             </Form>
           </div>
@@ -410,13 +430,13 @@ export default function Settings() {
           {/* Profile Wall */}
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" /> COMMS_WALL
+              <MessageSquare className="w-4 h-4" /> {t("wall.title")}
             </h2>
             <div className="flex items-center justify-between p-3 border border-border bg-background">
               <div>
-                <div className="font-mono text-sm">VISITOR COMMENTS</div>
+                <div className="font-mono text-sm">{t("wall.visitorComments")}</div>
                 <div className="font-mono text-xs text-muted-foreground mt-0.5">
-                  Allow others to post on your profile wall
+                  {t("wall.description")}
                 </div>
               </div>
               <Button
@@ -427,7 +447,7 @@ export default function Settings() {
                 disabled={updateProfile.isPending || !me}
                 data-testid="button-toggle-wall"
               >
-                {wallEnabled ? "ENABLED" : "DISABLED"}
+                {wallEnabled ? t("wall.enabled") : t("wall.disabled")}
               </Button>
             </div>
           </div>
@@ -435,13 +455,13 @@ export default function Settings() {
           {/* Status Override */}
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-              <Gamepad2 className="w-4 h-4" /> STATE_OVERRIDE
+              <Gamepad2 className="w-4 h-4" /> {t("status.title")}
             </h2>
             <Form {...statusForm}>
               <form onSubmit={statusForm.handleSubmit(onStatusSubmit)} className="space-y-4">
                 <FormField control={statusForm.control} name="status" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">PRESENCE</FormLabel>
+                    <FormLabel className="font-mono text-xs">{t("status.presence")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="font-mono rounded-none border-border bg-background">
@@ -449,21 +469,21 @@ export default function Settings() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="font-mono rounded-none border-border bg-card">
-                        <SelectItem value="online">ONLINE</SelectItem>
-                        <SelectItem value="away">AWAY</SelectItem>
-                        <SelectItem value="busy">DO NOT DISTURB</SelectItem>
-                        <SelectItem value="offline">OFFLINE (STEALTH)</SelectItem>
+                        <SelectItem value="online">{t("status.online")}</SelectItem>
+                        <SelectItem value="away">{t("status.away")}</SelectItem>
+                        <SelectItem value="busy">{t("status.busy")}</SelectItem>
+                        <SelectItem value="offline">{t("status.offline")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
                 )} />
                 <FormField control={statusForm.control} name="currentGame" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">ACTIVE PROCESS (GAME)</FormLabel>
-                    <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" placeholder="None" /></FormControl>
+                    <FormLabel className="font-mono text-xs">{t("status.activeProcess")}</FormLabel>
+                    <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" placeholder={t("status.activeProcessPlaceholder")} /></FormControl>
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={updateStatus.isPending}>BROADCAST STATE</Button>
+                <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={updateStatus.isPending}>{t("status.broadcast")}</Button>
               </form>
             </Form>
           </div>
@@ -474,22 +494,22 @@ export default function Settings() {
           {/* Account Security */}
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" /> ACCOUNT_SECURITY
+              <ShieldCheck className="w-4 h-4" /> {t("security.title")}
             </h2>
 
             {/* Email */}
             <div className="space-y-3 mb-6">
               <div className="font-mono text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5" /> EMAIL LINK
+                <Mail className="w-3.5 h-3.5" /> {t("security.emailLink")}
               </div>
               {me?.email && (
                 <div className="p-3 border border-border bg-background space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-sm truncate" data-testid="text-current-email">{me.email}</span>
                     {me.emailVerified ? (
-                      <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase shrink-0" data-testid="badge-email-verified">Verified</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase shrink-0" data-testid="badge-email-verified">{t("security.verified")}</span>
                     ) : (
-                      <span className="font-mono text-[10px] px-2 py-0.5 border border-yellow-500 text-yellow-500 uppercase shrink-0" data-testid="badge-email-unverified">Unverified</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 border border-yellow-500 text-yellow-500 uppercase shrink-0" data-testid="badge-email-unverified">{t("security.unverified")}</span>
                     )}
                   </div>
                   {!me.emailVerified && (
@@ -498,12 +518,12 @@ export default function Settings() {
                         value={emailCode}
                         onChange={(e) => setEmailCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
                         inputMode="numeric"
-                        placeholder="000000"
+                        placeholder={t("security.codePlaceholder")}
                         data-testid="input-email-code"
                         className="font-mono rounded-none border-border bg-card text-center"
                       />
-                      <Button type="submit" size="sm" className="font-mono rounded-none h-9" disabled={verifyMyEmail.isPending || emailCode.length !== 6} data-testid="button-verify-email">VERIFY</Button>
-                      <Button type="button" size="sm" variant="outline" className="font-mono rounded-none h-9" onClick={handleResendCode} disabled={setMyEmail.isPending} data-testid="button-resend-code">RESEND</Button>
+                      <Button type="submit" size="sm" className="font-mono rounded-none h-9" disabled={verifyMyEmail.isPending || emailCode.length !== 6} data-testid="button-verify-email">{t("security.verify")}</Button>
+                      <Button type="button" size="sm" variant="outline" className="font-mono rounded-none h-9" onClick={handleResendCode} disabled={setMyEmail.isPending} data-testid="button-resend-code">{t("security.resend")}</Button>
                     </form>
                   )}
                 </div>
@@ -513,63 +533,63 @@ export default function Settings() {
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
                   type="email"
-                  placeholder={me?.email ? "new@address.com" : "you@address.com"}
+                  placeholder={me?.email ? t("security.newAddressPlaceholder") : t("security.addressPlaceholder")}
                   disabled={me?.twoFactorMethod === "email"}
                   data-testid="input-set-email"
                   className="font-mono rounded-none border-border bg-background"
                 />
                 <Button type="submit" variant="outline" className="font-mono rounded-none" disabled={setMyEmail.isPending || emailInput.trim().length === 0 || me?.twoFactorMethod === "email"} data-testid="button-set-email">
-                  {me?.email ? "UPDATE" : "SET"}
+                  {me?.email ? t("security.update") : t("security.set")}
                 </Button>
               </form>
               {me?.twoFactorMethod === "email" && (
-                <p className="font-mono text-[11px] text-muted-foreground">Disable email 2FA before changing your address.</p>
+                <p className="font-mono text-[11px] text-muted-foreground">{t("security.emailTwofaNote")}</p>
               )}
             </div>
 
             {/* Two-factor auth */}
             <div className="border-t border-border pt-5 space-y-3">
               <div className="font-mono text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <KeyRound className="w-3.5 h-3.5" /> TWO-FACTOR AUTH
+                <KeyRound className="w-3.5 h-3.5" /> {t("security.twoFactorAuth")}
               </div>
 
               {me?.twoFactorMethod && me.twoFactorMethod !== "none" ? (
                 <div className="p-3 border border-primary/40 bg-background space-y-3">
                   <div className="font-mono text-sm flex items-center justify-between">
-                    <span className="uppercase">{me.twoFactorMethod === "totp" ? "Authenticator App" : "Email Codes"}</span>
-                    <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase" data-testid="badge-2fa-active">Active</span>
+                    <span className="uppercase">{me.twoFactorMethod === "totp" ? t("security.authenticatorApp") : t("security.emailCodes")}</span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase" data-testid="badge-2fa-active">{t("security.active")}</span>
                   </div>
                   <form onSubmit={handleDisable2fa} className="flex gap-2">
                     <Input
                       type="password"
                       value={disablePassword}
                       onChange={(e) => setDisablePassword(e.target.value)}
-                      placeholder="Confirm password"
+                      placeholder={t("security.confirmPassword")}
                       data-testid="input-disable-password"
                       className="font-mono rounded-none border-border bg-card"
                     />
                     <Button type="submit" variant="outline" className="font-mono rounded-none text-destructive border-destructive/50 hover:bg-destructive/10" disabled={disableTwoFactor.isPending || disablePassword.length === 0} data-testid="button-disable-2fa">
-                      DISABLE
+                      {t("security.disable")}
                     </Button>
                   </form>
                 </div>
               ) : twofaPanel === null ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Button variant="outline" className="font-mono rounded-none text-xs" onClick={() => handleSetup2fa("totp")} disabled={setupTwoFactor.isPending} data-testid="button-setup-totp">
-                    AUTH APP (TOTP)
+                    {t("security.authAppTotp")}
                   </Button>
                   <Button variant="outline" className="font-mono rounded-none text-xs" onClick={() => handleSetup2fa("email")} disabled={setupTwoFactor.isPending || !me?.emailVerified} data-testid="button-setup-email-2fa">
-                    EMAIL CODES
+                    {t("security.emailCodesButton")}
                   </Button>
                   {!me?.emailVerified && (
-                    <p className="font-mono text-[11px] text-muted-foreground sm:col-span-2">Email codes require a verified email address.</p>
+                    <p className="font-mono text-[11px] text-muted-foreground sm:col-span-2">{t("security.emailCodesRequireVerified")}</p>
                   )}
                 </div>
               ) : (
                 <div className="p-3 border border-border bg-background space-y-4">
                   {twofaPanel === "totp" ? (
                     <>
-                      <p className="font-mono text-xs text-muted-foreground">Scan with Google Authenticator (or similar), then enter the 6-digit code.</p>
+                      <p className="font-mono text-xs text-muted-foreground">{t("security.totpInstructions")}</p>
                       {totpInfo.otpauthUrl && (
                         <div className="flex justify-center">
                           <div className="bg-white p-3" data-testid="qr-totp">
@@ -578,23 +598,23 @@ export default function Settings() {
                         </div>
                       )}
                       {totpInfo.secret && (
-                        <p className="font-mono text-[11px] text-muted-foreground break-all text-center">KEY: {totpInfo.secret}</p>
+                        <p className="font-mono text-[11px] text-muted-foreground break-all text-center">{t("security.key", { secret: totpInfo.secret })}</p>
                       )}
                     </>
                   ) : (
-                    <p className="font-mono text-xs text-muted-foreground">A setup code was sent to your email.</p>
+                    <p className="font-mono text-xs text-muted-foreground">{t("security.setupCodeSentToEmail")}</p>
                   )}
                   <form onSubmit={handleEnable2fa} className="flex gap-2">
                     <Input
                       value={twofaCode}
                       onChange={(e) => setTwofaCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
                       inputMode="numeric"
-                      placeholder="000000"
+                      placeholder={t("security.codePlaceholder")}
                       data-testid="input-2fa-setup-code"
                       className="font-mono rounded-none border-border bg-card text-center"
                     />
                     <Button type="submit" className="font-mono rounded-none" disabled={enableTwoFactor.isPending || twofaCode.length !== 6} data-testid="button-enable-2fa">
-                      ACTIVATE
+                      {t("security.activate")}
                     </Button>
                   </form>
                   <button
@@ -603,7 +623,7 @@ export default function Settings() {
                     onClick={() => { setTwofaPanel(null); setTotpInfo({}); }}
                     data-testid="button-cancel-2fa-setup"
                   >
-                    Cancel setup
+                    {t("security.cancelSetup")}
                   </button>
                 </div>
               )}
@@ -614,13 +634,13 @@ export default function Settings() {
           {isElectron && (
             <div className="bg-card border border-border p-6">
               <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-                <Monitor className="w-4 h-4" /> DESKTOP_OPTIONS
+                <Monitor className="w-4 h-4" /> {t("desktop.title")}
               </h2>
               <div className="flex items-center justify-between p-3 border border-border bg-background">
                 <div>
-                  <div className="font-mono text-sm">LAUNCH ON STARTUP</div>
+                  <div className="font-mono text-sm">{t("desktop.launchOnStartup")}</div>
                   <div className="font-mono text-xs text-muted-foreground mt-0.5">
-                    Start Game World Hub automatically when Windows boots
+                    {t("desktop.description")}
                   </div>
                 </div>
                 <Button
@@ -630,7 +650,7 @@ export default function Settings() {
                   onClick={handleToggleStartup}
                   disabled={startupLoading}
                 >
-                  {openAtLogin ? 'ENABLED' : 'DISABLED'}
+                  {openAtLogin ? t("desktop.enabled") : t("desktop.disabled")}
                 </Button>
               </div>
             </div>
@@ -638,7 +658,7 @@ export default function Settings() {
 
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-              <LinkIcon className="w-4 h-4" /> NETWORK_LINKS
+              <LinkIcon className="w-4 h-4" /> {t("networkLinks.title")}
             </h2>
             
             <div className="space-y-4 mb-8">
@@ -646,7 +666,7 @@ export default function Settings() {
                 <div key={p.id} className="p-3 border border-border bg-background flex items-center justify-between">
                   <div>
                     <div className="font-bold text-sm uppercase">{p.platform}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{p.username || 'Linked Account'}</div>
+                    <div className="font-mono text-xs text-muted-foreground">{p.username || t("networkLinks.linkedAccount")}</div>
                   </div>
                   <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8" onClick={() => handleUnlink(p.id)} disabled={unlinkPlatform.isPending}>
                     <Trash2 className="w-4 h-4" />
@@ -656,7 +676,7 @@ export default function Settings() {
             </div>
 
             <div className="border-t border-border pt-6">
-              <h3 className="font-mono text-xs mb-4">ESTABLISH NEW LINK</h3>
+              <h3 className="font-mono text-xs mb-4">{t("networkLinks.establishNewLink")}</h3>
               <Form {...platformForm}>
                 <form onSubmit={platformForm.handleSubmit(onPlatformSubmit)} className="space-y-4">
                   <FormField control={platformForm.control} name="platform" render={({ field }) => (
@@ -668,27 +688,27 @@ export default function Settings() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="font-mono rounded-none border-border bg-card">
-                          <SelectItem value="steam">Steam</SelectItem>
-                          <SelectItem value="xbox">Xbox Live</SelectItem>
-                          <SelectItem value="playstation">PSN</SelectItem>
-                          <SelectItem value="epic">Epic Games</SelectItem>
-                          <SelectItem value="battlenet">Battle.net</SelectItem>
-                          <SelectItem value="nintendo">Nintendo</SelectItem>
+                          <SelectItem value="steam">{t("networkLinks.steam")}</SelectItem>
+                          <SelectItem value="xbox">{t("networkLinks.xbox")}</SelectItem>
+                          <SelectItem value="playstation">{t("networkLinks.playstation")}</SelectItem>
+                          <SelectItem value="epic">{t("networkLinks.epic")}</SelectItem>
+                          <SelectItem value="battlenet">{t("networkLinks.battlenet")}</SelectItem>
+                          <SelectItem value="nintendo">{t("networkLinks.nintendo")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormItem>
                   )} />
                   <FormField control={platformForm.control} name="username" render={({ field }) => (
                     <FormItem>
-                      <FormControl><Input {...field} placeholder="Network ID (Username)" className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <FormControl><Input {...field} placeholder={t("networkLinks.usernamePlaceholder")} className="font-mono rounded-none border-border bg-background" /></FormControl>
                     </FormItem>
                   )} />
                   <FormField control={platformForm.control} name="profileUrl" render={({ field }) => (
                     <FormItem>
-                      <FormControl><Input {...field} placeholder="https://..." className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <FormControl><Input {...field} placeholder={t("networkLinks.profileUrlPlaceholder")} className="font-mono rounded-none border-border bg-background" /></FormControl>
                     </FormItem>
                   )} />
-                  <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkPlatform.isPending}>EXECUTE LINK</Button>
+                  <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkPlatform.isPending}>{t("networkLinks.executeLink")}</Button>
                 </form>
               </Form>
             </div>
@@ -697,18 +717,18 @@ export default function Settings() {
           {/* Content Channels */}
           <div className="bg-card border border-border p-6">
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-              <Radio className="w-4 h-4" /> CONTENT_CHANNELS
+              <Radio className="w-4 h-4" /> {t("content.title")}
             </h2>
 
             <div className="space-y-3 mb-8">
               {!contentLinks || contentLinks.length === 0 ? (
-                <div className="text-sm font-mono text-muted-foreground italic">NO CHANNELS BROADCASTING</div>
+                <div className="text-sm font-mono text-muted-foreground italic">{t("content.noChannels")}</div>
               ) : (
                 contentLinks.map(c => {
                   const meta = contentMeta(c.platform);
                   const Icon = meta?.icon ?? Radio;
                   return (
-                    <div key={c.id} className="p-3 border border-border bg-background flex items-center justify-between" style={{ borderLeft: `3px solid ${meta?.color ?? "var(--border)"}` }}>
+                    <div key={c.id} className="p-3 border border-border bg-background flex items-center justify-between" style={{ borderInlineStart: `3px solid ${meta?.color ?? "var(--border)"}` }}>
                       <div className="flex items-center gap-3 min-w-0">
                         <Icon className="w-4 h-4 shrink-0" style={{ color: meta?.color }} />
                         <div className="min-w-0">
@@ -726,7 +746,7 @@ export default function Settings() {
             </div>
 
             <div className="border-t border-border pt-6">
-              <h3 className="font-mono text-xs mb-4">GO LIVE // LINK A CHANNEL</h3>
+              <h3 className="font-mono text-xs mb-4">{t("content.goLive")}</h3>
               <Form {...contentForm}>
                 <form onSubmit={contentForm.handleSubmit(onContentSubmit)} className="space-y-4">
                   <FormField control={contentForm.control} name="platform" render={({ field }) => (
@@ -751,12 +771,44 @@ export default function Settings() {
                       <FormMessage className="text-xs" />
                     </FormItem>
                   )} />
-                  <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkContent.isPending}>LINK CHANNEL</Button>
+                  <Button type="submit" className="w-full font-mono rounded-none" variant="outline" disabled={linkContent.isPending}>{t("content.linkChannel")}</Button>
                 </form>
               </Form>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LanguageCard() {
+  const { t, i18n } = useTranslation("common");
+  const current = i18n.resolvedLanguage?.startsWith("ar") ? "ar" : "en";
+
+  return (
+    <div className="bg-card border border-border p-6">
+      <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+        <Globe className="w-4 h-4" /> {t("language.title")}
+      </h2>
+      <p className="font-mono text-xs text-muted-foreground mb-4">{t("language.description")}</p>
+      <div className="flex gap-2">
+        <Button
+          variant={current === "ar" ? "default" : "outline"}
+          className="flex-1 font-mono rounded-none"
+          onClick={() => { void i18n.changeLanguage("ar"); }}
+          data-testid="button-lang-ar"
+        >
+          {t("language.arabic")}
+        </Button>
+        <Button
+          variant={current === "en" ? "default" : "outline"}
+          className="flex-1 font-mono rounded-none"
+          onClick={() => { void i18n.changeLanguage("en"); }}
+          data-testid="button-lang-en"
+        >
+          {t("language.english")}
+        </Button>
       </div>
     </div>
   );

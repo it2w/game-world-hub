@@ -1,0 +1,82 @@
+{
+  "header": {
+    "title": "GAME LIBRARY",
+    "subtitle": "Link your accounts, import your games, and launch them from your device.",
+    "addGame": "ADD GAME"
+  },
+  "addDialog": {
+    "title": "Add a game manually",
+    "platform": "Platform",
+    "gameName": "Game name",
+    "gameNamePlaceholder": "e.g. Fortnite",
+    "coverUrl": "Cover image URL (optional)",
+    "coverUrlPlaceholder": "https://...",
+    "launchLink": "Launch link (optional)",
+    "launchLinkFallbackPlaceholder": "steam:// ...",
+    "launchLinkHint": "A protocol link that opens the game on your device (e.g. battlenet://WoW). Only game protocols are allowed.",
+    "submit": "ADD TO LIBRARY"
+  },
+  "launchHints": {
+    "epic": "com.epicgames.launcher://apps/<AppName>?action=launch",
+    "battlenet": "battlenet://WoW  (or D3, Pro, S2, ...)",
+    "xbox": "leave blank if unknown",
+    "playstation": "leave blank",
+    "nintendo": "leave blank",
+    "riot": "riot://",
+    "ea": "origin://launchgame/<id>",
+    "gog": "goggalaxy://openGameView/<id>",
+    "other": "steam:// , battlenet:// , ..."
+  },
+  "steam": {
+    "title": "Steam — Auto Import",
+    "resync": "Re-sync",
+    "unlink": "Unlink",
+    "linked": "Linked ✓",
+    "viewProfile": "view profile",
+    "prompt": "Paste your Steam profile URL or ID. Your game details must be public.",
+    "inputPlaceholder": "steamcommunity.com/id/yourname",
+    "importing": "...",
+    "import": "IMPORT"
+  },
+  "other": {
+    "title": "Other Accounts",
+    "handlePlaceholder": "your handle",
+    "empty": "No other accounts linked. Add games manually below."
+  },
+  "games": {
+    "title": "My Games",
+    "count": "({{n}})",
+    "empty": "No games yet. Link Steam to import automatically, or add a game manually.",
+    "launch": "LAUNCH",
+    "remove": "Remove",
+    "playtime_one": "{{count}}h played",
+    "playtime_other": "{{count}}h played"
+  },
+  "toasts": {
+    "steamLinked": "Steam linked",
+    "steamImported_one": "Imported {{count}} game.",
+    "steamImported_other": "Imported {{count}} games.",
+    "steamLinkFailed": "Steam link failed",
+    "steamLinkFailedDefault": "Couldn't link Steam. Check the profile URL and that it's public.",
+    "steamSynced": "Steam synced",
+    "steamSyncedDescription_one": "{{count}} game in your library.",
+    "steamSyncedDescription_other": "{{count}} games in your library.",
+    "syncFailed": "Sync failed",
+    "accountLinked": "{{platform}} linked",
+    "accountLinkFailed": "Couldn't link account",
+    "accountUnlinked": "{{label}} unlinked",
+    "unlinkFailed": "Couldn't unlink",
+    "invalidLaunchError": "Launch link must be a supported game protocol (e.g. steam://, battlenet://).",
+    "invalidLaunchTitle": "Invalid launch link",
+    "invalidLaunchDescription": "Use a game protocol like steam:// or battlenet://.",
+    "gameAdded": "Game added",
+    "addFailed": "Add failed",
+    "addFailedDefault": "Couldn't add the game.",
+    "gameRemoved": "Removed from library",
+    "removeFailed": "Couldn't remove",
+    "noLaunchLinkTitle": "No launch link",
+    "noLaunchLinkDescription": "{{name}} has no launch link. Add one to launch it from your device.",
+    "launching": "Launching {{name}}…",
+    "launchingDescription": "If nothing opens, make sure the game's client is installed."
+  }
+}

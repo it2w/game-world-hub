@@ -109,6 +109,13 @@
   color-scheme: dark;
 }
 
+/* Arabic locale: Arabic-capable fonts while keeping the terminal aesthetic.
+   Mono keeps latin glyphs monospaced; Arabic glyphs fall back to Plex Arabic. */
+html[lang='ar'] {
+  --app-font-sans: 'IBM Plex Sans Arabic', 'Inter', sans-serif;
+  --app-font-mono: 'Spline Sans Mono', 'IBM Plex Sans Arabic', Menlo, monospace;
+}
+
 @layer base {
   * {
     @apply border-border;

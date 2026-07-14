@@ -1,0 +1,75 @@
+{
+  "computing": "COMPUTING RANK...",
+  "title": "RANKS",
+  "progression": "PROGRESSION // {{unlocked}}/{{total}} ACHIEVEMENTS UNLOCKED",
+  "lvl": "LVL",
+  "rank": "Rank",
+  "totalXp": "{{xp}} XP",
+  "level": "Level {{level}}",
+  "xpProgress": "{{into}} / {{forNext}} XP",
+  "xpToNext": "{{xp}} XP TO LEVEL {{level}}",
+  "achievements": "Achievements",
+  "stats": {
+    "friends": "Allies",
+    "partiesCreated": "Parties Led",
+    "partiesJoined": "Parties Joined",
+    "messagesSent": "Messages",
+    "lfgPosts": "Signals Posted",
+    "lfgResponses": "Signals Answered",
+    "games": "Games",
+    "platforms": "Platforms"
+  },
+  "rankTitles": {
+    "ROOKIE": "ROOKIE",
+    "OPERATIVE": "OPERATIVE",
+    "VETERAN": "VETERAN",
+    "ELITE": "ELITE",
+    "LEGEND": "LEGEND"
+  },
+  "defs": {
+    "first_contact": {
+      "name": "First Contact",
+      "description": "Add your first ally"
+    },
+    "social_butterfly": {
+      "name": "Network Node",
+      "description": "Reach 10 allies"
+    },
+    "squad_leader": {
+      "name": "Squad Leader",
+      "description": "Create 3 parties"
+    },
+    "team_player": {
+      "name": "Team Player",
+      "description": "Join 5 parties"
+    },
+    "chatterbox": {
+      "name": "Comms Expert",
+      "description": "Send 50 messages"
+    },
+    "signal_caller": {
+      "name": "Signal Caller",
+      "description": "Post 3 LFG signals"
+    },
+    "wingman": {
+      "name": "Wingman",
+      "description": "Answer 5 LFG signals"
+    },
+    "collector": {
+      "name": "Collector",
+      "description": "Add 5 games to your library"
+    },
+    "cross_platform": {
+      "name": "Cross-Platform",
+      "description": "Link 2 platforms"
+    },
+    "veteran": {
+      "name": "Veteran",
+      "description": "Reach level 5"
+    },
+    "legend": {
+      "name": "Legend",
+      "description": "Reach level 10"
+    }
+  }
+}

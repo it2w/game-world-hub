@@ -1,0 +1,75 @@
+{
+  "computing": "جارٍ حساب الرتبة...",
+  "title": "الرتب",
+  "progression": "التقدّم // {{unlocked}}/{{total}} إنجاز مفتوح",
+  "lvl": "مستوى",
+  "rank": "الرتبة",
+  "totalXp": "{{xp}} نقطة خبرة",
+  "level": "المستوى {{level}}",
+  "xpProgress": "{{into}} / {{forNext}} نقطة خبرة",
+  "xpToNext": "{{xp}} نقطة خبرة للوصول إلى المستوى {{level}}",
+  "achievements": "الإنجازات",
+  "stats": {
+    "friends": "الحلفاء",
+    "partiesCreated": "بارتيات قدتها",
+    "partiesJoined": "بارتيات انضممت إليها",
+    "messagesSent": "الرسائل",
+    "lfgPosts": "إشارات منشورة",
+    "lfgResponses": "إشارات مُجاب عليها",
+    "games": "الألعاب",
+    "platforms": "المنصات"
+  },
+  "rankTitles": {
+    "ROOKIE": "مبتدئ",
+    "OPERATIVE": "عميل",
+    "VETERAN": "مخضرم",
+    "ELITE": "نخبة",
+    "LEGEND": "أسطورة"
+  },
+  "defs": {
+    "first_contact": {
+      "name": "أول اتصال",
+      "description": "أضف أول حليف لك"
+    },
+    "social_butterfly": {
+      "name": "عقدة الشبكة",
+      "description": "اجمع 10 حلفاء"
+    },
+    "squad_leader": {
+      "name": "قائد الفريق",
+      "description": "أنشئ 3 بارتيات"
+    },
+    "team_player": {
+      "name": "روح الفريق",
+      "description": "انضم إلى 5 بارتيات"
+    },
+    "chatterbox": {
+      "name": "خبير الاتصالات",
+      "description": "أرسل 50 رسالة"
+    },
+    "signal_caller": {
+      "name": "مطلق الإشارات",
+      "description": "انشر 3 إشارات بحث عن فريق"
+    },
+    "wingman": {
+      "name": "الساعد الأيمن",
+      "description": "رد على 5 إشارات بحث عن فريق"
+    },
+    "collector": {
+      "name": "جامع الألعاب",
+      "description": "أضف 5 ألعاب إلى مكتبتك"
+    },
+    "cross_platform": {
+      "name": "متعدد المنصات",
+      "description": "اربط منصتين"
+    },
+    "veteran": {
+      "name": "مخضرم",
+      "description": "ابلغ المستوى 5"
+    },
+    "legend": {
+      "name": "أسطورة",
+      "description": "ابلغ المستوى 10"
+    }
+  }
+}

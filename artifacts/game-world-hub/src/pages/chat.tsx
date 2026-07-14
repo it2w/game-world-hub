@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { 
   useListConversations, 
@@ -16,6 +17,7 @@ import { Send, Users, Shield } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Chat({ params }: { params: { conversationId?: string } }) {
+  const { t } = useTranslation("chat");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
@@ -62,17 +64,17 @@ export default function Chat({ params }: { params: { conversationId?: string } }
     if (conv.name) return conv.name;
     if (conv.type === 'direct' && me) {
       const other = conv.participants.find((p: any) => p.id !== me.id);
-      return other ? other.displayName : "Direct Message";
+      return other ? other.displayName : t("conversation.directMessage");
     }
-    return "Group Chat";
+    return t("conversation.groupChat");
   };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Sidebar */}
-      <div className="w-80 border-r border-border bg-card flex flex-col shrink-0">
+      <div className="w-80 border-e border-border bg-card flex flex-col shrink-0">
         <div className="p-4 border-b border-border">
-          <h2 className="font-mono text-sm uppercase font-bold tracking-widest text-muted-foreground">Comms_Channels</h2>
+          <h2 className="font-mono text-sm uppercase font-bold tracking-widest text-muted-foreground">{t("sidebar.title")}</h2>
         </div>
         <div className="flex-1 overflow-auto divide-y divide-border">
           {conversations?.map(conv => {
@@ -82,7 +84,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
               <button
                 key={conv.id}
                 onClick={() => setLocation(`/chat/${conv.id}`)}
-                className={`w-full p-4 text-left flex gap-3 transition-colors ${isActive ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-muted/50 border-l-2 border-l-transparent'}`}
+                className={`w-full p-4 text-start flex gap-3 transition-colors ${isActive ? 'bg-primary/10 border-s-2 border-s-primary' : 'hover:bg-muted/50 border-s-2 border-s-transparent'}`}
               >
                 <div className={`w-10 h-10 shrink-0 flex items-center justify-center border ${conv.type === 'party' ? 'border-primary text-primary bg-primary/5' : 'border-border bg-muted'} font-mono`}>
                   {conv.type === 'party' ? <Shield className="w-5 h-5" /> : name.charAt(0)}
@@ -91,7 +93,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   <div className="flex justify-between items-baseline mb-1">
                     <span className="font-bold text-sm truncate">{name}</span>
                     {conv.lastMessage && (
-                      <span className="text-[10px] text-muted-foreground font-mono shrink-0 ml-2">
+                      <span className="text-[10px] text-muted-foreground font-mono shrink-0 ms-2">
                         {format(new Date(conv.lastMessage.createdAt), "HH:mm")}
                       </span>
                     )}
@@ -99,10 +101,10 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   <div className="text-xs text-muted-foreground truncate font-mono">
                     {conv.lastMessage ? (
                       <>
-                        <span className="text-foreground">{conv.lastMessage.sender.id === me?.id ? "You" : conv.lastMessage.sender.displayName}: </span>
+                        <span className="text-foreground">{conv.lastMessage.sender.id === me?.id ? t("sidebar.you") : conv.lastMessage.sender.displayName}: </span>
                         {conv.lastMessage.content}
                       </>
-                    ) : "No messages yet"}
+                    ) : t("sidebar.noMessages")}
                   </div>
                 </div>
                 {conv.unreadCount ? (
@@ -122,10 +124,10 @@ export default function Chat({ params }: { params: { conversationId?: string } }
           <>
             <div className="h-16 border-b border-border bg-card/50 px-6 flex items-center justify-between shrink-0 backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className="font-bold">{activeConversation ? getConversationName(activeConversation) : 'Loading...'}</div>
+                <div className="font-bold">{activeConversation ? getConversationName(activeConversation) : t("conversation.loading")}</div>
                 {activeConversation?.type === 'party' && (
                   <div className="px-2 py-0.5 border border-primary/30 bg-primary/10 text-primary text-[10px] font-mono uppercase">
-                    Party Comms
+                    {t("conversation.partyComms")}
                   </div>
                 )}
               </div>
@@ -143,7 +145,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 return (
                   <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     {showHeader && (
-                      <div className="text-xs font-mono text-muted-foreground mb-1 ml-1 mr-1 flex items-center gap-2">
+                      <div className="text-xs font-mono text-muted-foreground mb-1 ms-1 me-1 flex items-center gap-2">
                         <span>{msg.sender.displayName}</span>
                         <span className="text-[10px] opacity-50">{format(new Date(msg.createdAt), "HH:mm")}</span>
                       </div>
@@ -165,7 +167,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
               <form onSubmit={handleSend} className="flex gap-2">
                 <Input
                   ref={inputRef}
-                  placeholder="TRANSMIT MESSAGE..."
+                  placeholder={t("input.placeholder")}
                   className="flex-1 font-mono rounded-none bg-background border-border h-12 focus-visible:ring-primary"
                   disabled={sendMessage.isPending}
                 />
@@ -180,7 +182,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             <div className="w-16 h-16 border-2 border-dashed border-border flex items-center justify-center mb-4">
               <Send className="w-8 h-8 opacity-50" />
             </div>
-            <div className="font-mono text-sm tracking-widest uppercase">Select a channel to begin transmission</div>
+            <div className="font-mono text-sm tracking-widest uppercase">{t("empty.selectChannel")}</div>
           </div>
         )}
       </div>

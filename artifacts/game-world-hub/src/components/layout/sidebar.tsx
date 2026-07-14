@@ -13,12 +13,16 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
 
 export function AppSidebar() {
+  const { t, i18n } = useTranslation("common");
+  const rtl = isRtl(i18n.language);
   const [location] = useLocation();
   const { logout } = useAuth();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
@@ -32,22 +36,22 @@ export function AppSidebar() {
   const isActive = (path: string) => location === path || location.startsWith(`${path}/`);
 
   return (
-    <Sidebar className="border-r border-border bg-sidebar h-screen">
+    <Sidebar side={rtl ? "right" : "left"} className="border-e border-border bg-sidebar h-screen">
       <SidebarHeader className="border-b border-border p-4 flex items-center gap-2 font-mono text-primary uppercase font-bold tracking-wider">
         <AnimatedLogo className="w-5 h-5 text-primary" />
-        <span>GWH_OS</span>
+        <span>{t("sidebar.header")}</span>
       </SidebarHeader>
       
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Comms</SidebarGroupLabel>
+          <SidebarGroupLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{t("sidebar.groupComms")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/"}>
                   <Link href="/">
                     <Gamepad2 className="w-4 h-4" />
-                    <span>Dashboard</span>
+                    <span>{t("sidebar.dashboard")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -55,7 +59,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/friends")}>
                   <Link href="/friends">
                     <Users className="w-4 h-4" />
-                    <span>Friends</span>
+                    <span>{t("sidebar.friends")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -63,7 +67,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/chat")}>
                   <Link href="/chat">
                     <MessageSquare className="w-4 h-4" />
-                    <span>Chat</span>
+                    <span>{t("sidebar.chat")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -71,7 +75,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/parties")}>
                   <Link href="/parties">
                     <Activity className="w-4 h-4" />
-                    <span>Parties</span>
+                    <span>{t("sidebar.parties")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -79,7 +83,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/lfg")}>
                   <Link href="/lfg">
                     <Radar className="w-4 h-4" />
-                    <span>LFG</span>
+                    <span>{t("sidebar.lfg")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -87,7 +91,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/ranks")}>
                   <Link href="/ranks">
                     <Trophy className="w-4 h-4" />
-                    <span>Ranks</span>
+                    <span>{t("sidebar.ranks")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -96,14 +100,14 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Data</SidebarGroupLabel>
+          <SidebarGroupLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{t("sidebar.groupData")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/games")}>
                   <Link href="/games">
                     <Library className="w-4 h-4" />
-                    <span>Library</span>
+                    <span>{t("sidebar.library")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -111,7 +115,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/settings")}>
                   <Link href="/settings">
                     <Settings className="w-4 h-4" />
-                    <span>Settings</span>
+                    <span>{t("sidebar.settings")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -132,7 +136,7 @@ export function AppSidebar() {
                     {user.displayName.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-sidebar ${
+                <div className={`absolute -bottom-1 -end-1 w-3 h-3 rounded-full border-2 border-sidebar ${
                   user.status === 'online' ? 'bg-green-500' :
                   user.status === 'away' ? 'bg-yellow-500' :
                   user.status === 'busy' ? 'bg-red-500' : 'bg-gray-500'
@@ -143,7 +147,7 @@ export function AppSidebar() {
                 <span className="text-xs text-muted-foreground font-mono leading-none mt-1">@{user.username}</span>
               </div>
             </Link>
-            <Button variant="ghost" size="icon" onClick={logout} className="text-muted-foreground hover:text-destructive">
+            <Button variant="ghost" size="icon" onClick={logout} className="text-muted-foreground hover:text-destructive" title={t("sidebar.signOut")} aria-label={t("sidebar.signOut")}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>

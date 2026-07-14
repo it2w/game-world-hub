@@ -1,0 +1,63 @@
+{
+  "header": {
+    "title": "البحث عن فريق",
+    "subtitle": "أطلق إشارة لفريقك // نداءات مفتوحة",
+    "postSignal": "أطلق إشارة"
+  },
+  "dialog": {
+    "title": "بث إشارة",
+    "broadcast": "بث",
+    "broadcasting": "جارٍ البث..."
+  },
+  "form": {
+    "game": "اللعبة",
+    "gamePlaceholder": "مثال: Valorant",
+    "platform": "المنصة",
+    "platformPlaceholder": "أي منصة",
+    "rank": "الرتبة / المستوى",
+    "rankPlaceholder": "اختياري",
+    "slots": "الأماكن",
+    "mic": "المايك",
+    "micOptional": "اختياري",
+    "micRequired": "مطلوب",
+    "expires": "تنتهي بعد",
+    "expires1h": "ساعة",
+    "expires6h": "6 ساعات",
+    "expires12h": "12 ساعة",
+    "expires24h": "24 ساعة",
+    "expires48h": "48 ساعة",
+    "briefing": "الوصف",
+    "briefingPlaceholder": "ماذا تلعب، وما الذي تحتاجه؟"
+  },
+  "validation": {
+    "gameRequired": "اسم اللعبة مطلوب",
+    "briefingRequired": "الوصف مطلوب"
+  },
+  "filter": {
+    "placeholder": "التصفية حسب اللعبة أو المنصة أو اللاعب..."
+  },
+  "list": {
+    "scanning": "جارٍ مسح الترددات...",
+    "empty": "لا توجد إشارات مفتوحة // كن أول من يطلق نداءً"
+  },
+  "time": {
+    "expired": "انتهت",
+    "leftHm": "متبقٍ {{h}}س {{m}}د",
+    "leftM": "متبقٍ {{m}}د"
+  },
+  "card": {
+    "platformAny": "أي منصة",
+    "needs": "يحتاج {{count}}",
+    "micReq": "المايك مطلوب",
+    "noMic": "بدون مايك",
+    "replies_zero": "لا ردود",
+    "replies_one": "رد واحد",
+    "replies_two": "ردّان",
+    "replies_few": "{{count}} ردود",
+    "replies_many": "{{count}} ردًّا",
+    "replies_other": "{{count}} رد",
+    "close": "إغلاق",
+    "signalSent": "تم إرسال الإشارة",
+    "respond": "استجابة"
+  }
+}

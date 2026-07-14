@@ -1,0 +1,67 @@
+{
+  "header": {
+    "title": "PARTIES",
+    "subtitle": "ACTIVE SQUADS",
+    "formSquad": "FORM SQUAD"
+  },
+  "dialog": {
+    "title": "Initialize Party",
+    "execute": "EXECUTE"
+  },
+  "form": {
+    "squadName": "Squad Name",
+    "targetGame": "Target Game",
+    "targetGamePlaceholder": "Optional",
+    "platform": "Platform",
+    "platformPlaceholder": "Any",
+    "maxOperators": "Max Operators",
+    "visibility": "Visibility",
+    "public": "Public",
+    "inviteOnly": "Invite Only",
+    "missionBriefing": "Mission Briefing",
+    "missionBriefingPlaceholder": "Optional context"
+  },
+  "validation": {
+    "nameRequired": "Name is required"
+  },
+  "list": {
+    "scanning": "SCANNING...",
+    "empty": "NO ACTIVE PARTIES FOUND",
+    "platformAny": "Any",
+    "noSpecificGame": "No specific game"
+  },
+  "detail": {
+    "establishing": "ESTABLISHING CONNECTION...",
+    "notFound": "PARTY NOT FOUND OR SIGNAL LOST",
+    "privateLabel": "Private",
+    "operators": "{{current}}/{{max}} OPERATORS",
+    "anyGame": "ANY_GAME",
+    "anySys": "ANY_SYS",
+    "leaveVoice": "LEAVE VOICE",
+    "joinVoice": "JOIN VOICE",
+    "openComms": "OPEN COMMS",
+    "inviteRoster": "INVITE ROSTER",
+    "transmitInvites": "Transmit Invites",
+    "searchOperators": "SEARCH OPERATORS...",
+    "scanningOperators": "SCANNING...",
+    "noOperatorsFound": "NO OPERATORS FOUND",
+    "noFriendsYet": "NO FRIENDS YET — SEARCH BY USERNAME ABOVE",
+    "inSquad": "IN SQUAD",
+    "send": "SEND",
+    "disband": "DISBAND",
+    "extract": "EXTRACT",
+    "squadFull": "SQUAD FULL",
+    "joinSquad": "JOIN SQUAD",
+    "activeRoster": "Active Roster",
+    "squadLeader": "Squad Leader",
+    "awaitingOperator": "AWAITING_OPERATOR"
+  },
+  "confirm": {
+    "disband": "Disband this squad? This action cannot be reversed."
+  },
+  "toasts": {
+    "inviteSent": "Invite sent",
+    "inviteSentDesc": "{{name}} was invited to the squad.",
+    "inviteFailed": "Couldn't send invite"
+  }
+}

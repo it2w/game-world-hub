@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
 import { VideoTile } from "./video-tile";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import {
  * page navigation because it lives in the Shell.
  */
 export function VoicePanel() {
+  const { t } = useTranslation("common");
   const {
     activeRoom,
     peers,
@@ -69,19 +71,19 @@ export function VoicePanel() {
 
   return (
     <>
-      <div className="fixed bottom-4 left-4 z-[80] w-[300px] bg-card border border-border shadow-2xl font-mono">
+      <div className="fixed bottom-4 start-4 z-[80] w-[300px] bg-card border border-border shadow-2xl font-mono">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
             <span className="text-xs uppercase tracking-widest truncate">
-              {activeRoom.kind === "party" ? "VOICE" : "CALL"} · {activeRoom.title}
+              {activeRoom.kind === "party" ? t("voice.voice") : t("voice.call")} · {activeRoom.title}
             </span>
           </div>
           <button
             onClick={() => setExpanded((e) => !e)}
             className="text-muted-foreground hover:text-foreground shrink-0"
-            aria-label={expanded ? "Collapse" : "Expand"}
+            aria-label={expanded ? t("voice.collapse") : t("voice.expand")}
           >
             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
           </button>
@@ -101,7 +103,7 @@ export function VoicePanel() {
                 className="w-full rounded-none h-7 text-[11px] uppercase tracking-widest"
                 onClick={() => void rejoin()}
               >
-                Rejoin
+                {t("voice.rejoin")}
               </Button>
             )}
           </div>
@@ -112,7 +114,7 @@ export function VoicePanel() {
             {/* Participants */}
             <div className="max-h-[220px] overflow-auto p-2 space-y-1">
               <ParticipantRow
-                name="You"
+                name={t("voice.you")}
                 avatarUrl={null}
                 speaking={speaking && !muted}
                 muted={muted}
@@ -133,7 +135,7 @@ export function VoicePanel() {
               ))}
               {peers.length === 0 && (
                 <div className="text-[10px] text-muted-foreground uppercase tracking-widest py-3 text-center">
-                  <Users className="w-3 h-3 inline mr-1" /> Waiting for others…
+                  <Users className="w-3 h-3 inline me-1" /> {t("voice.waitingForOthers")}
                 </div>
               )}
             </div>
@@ -144,7 +146,7 @@ export function VoicePanel() {
                 {sharing && localScreenStream && (
                   <ScreenThumb
                     stream={localScreenStream}
-                    label="You"
+                    label={t("voice.you")}
                     self
                     onOpen={() => setTheater(localScreenStream)}
                   />
@@ -162,7 +164,7 @@ export function VoicePanel() {
 
             {/* Quality controls */}
             <div className="border-t border-border p-2 space-y-2">
-              <QualityRow icon={<Volume2 className="w-3 h-3" />} label="Voice">
+              <QualityRow icon={<Volume2 className="w-3 h-3" />} label={t("voice.voiceLabel")}>
                 <Select value={voiceQuality} onValueChange={(v) => setVoiceQuality(v as VoiceQuality)}>
                   <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
                     <SelectValue />
@@ -176,7 +178,7 @@ export function VoicePanel() {
                   </SelectContent>
                 </Select>
               </QualityRow>
-              <QualityRow icon={<Monitor className="w-3 h-3" />} label="Screen">
+              <QualityRow icon={<Monitor className="w-3 h-3" />} label={t("voice.screenLabel")}>
                 <Select value={screenQuality} onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}>
                   <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
                     <SelectValue />
@@ -201,7 +203,7 @@ export function VoicePanel() {
             variant={muted ? "destructive" : "outline"}
             className="flex-1 rounded-none h-8 px-0"
             onClick={toggleMute}
-            title={muted ? "Unmute" : "Mute"}
+            title={muted ? t("voice.unmute") : t("voice.mute")}
           >
             {muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </Button>
@@ -210,7 +212,7 @@ export function VoicePanel() {
             variant={sharing ? "default" : "outline"}
             className="flex-1 rounded-none h-8 px-0"
             onClick={() => (sharing ? stopScreenShare() : void startScreenShare())}
-            title={sharing ? "Stop sharing" : "Share screen"}
+            title={sharing ? t("voice.stopSharing") : t("voice.shareScreen")}
           >
             {sharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
           </Button>
@@ -219,7 +221,7 @@ export function VoicePanel() {
             variant="destructive"
             className="flex-1 rounded-none h-8 px-0"
             onClick={leaveVoice}
-            title="Leave"
+            title={t("voice.leave")}
           >
             <PhoneOff className="w-4 h-4" />
           </Button>
@@ -233,9 +235,9 @@ export function VoicePanel() {
           onClick={() => setTheater(null)}
         >
           <button
-            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            className="absolute top-4 end-4 text-muted-foreground hover:text-foreground"
             onClick={() => setTheater(null)}
-            aria-label="Close"
+            aria-label={t("voice.close")}
           >
             <X className="w-6 h-6" />
           </button>
@@ -276,6 +278,7 @@ function ParticipantRow({
   connectionState: RTCPeerConnectionState;
   self?: boolean;
 }) {
+  const { t } = useTranslation("common");
   // Track whether this peer ever reached `connected`. This is what distinguishes
   // a mid-call drop (which the voice layer heals with an ICE restart → show
   // "Reconnecting…") from a peer that simply hasn't connected yet on initial
@@ -356,7 +359,7 @@ function ParticipantRow({
         ) : reconnecting ? (
           <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500 shrink-0">
             <Loader2 className="w-3 h-3 animate-spin" />
-            Reconnecting…
+            {t("voice.reconnecting")}
           </span>
         ) : (
           <>
@@ -376,7 +379,7 @@ function ParticipantRow({
       </div>
       {unreachable && (
         <p className="px-1.5 pb-1.5 text-[10px] leading-tight text-destructive">
-          Couldn't reach {name} — their network may be blocking the call.
+          {t("voice.unreachable", { name })}
         </p>
       )}
     </div>
@@ -394,16 +397,17 @@ function ScreenThumb({
   self?: boolean;
   onOpen: () => void;
 }) {
+  const { t } = useTranslation("common");
   return (
     <button
       className="relative group border border-border overflow-hidden aspect-video bg-black"
       onClick={onOpen}
-      title={`Open ${label}'s screen`}
+      title={t("voice.openScreen", { label })}
     >
       <VideoTile stream={stream} className="w-full h-full object-contain" />
-      <span className="absolute bottom-0 left-0 right-0 bg-background/80 text-[9px] px-1 py-0.5 truncate text-left">
+      <span className="absolute bottom-0 start-0 end-0 bg-background/80 text-[9px] px-1 py-0.5 truncate text-start">
         {label}
-        {self ? " (you)" : ""}
+        {self ? t("voice.youSuffix") : ""}
       </span>
       <span className="absolute inset-0 flex items-center justify-center bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity">
         <Maximize2 className="w-4 h-4" />

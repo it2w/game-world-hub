@@ -1,0 +1,67 @@
+{
+  "header": {
+    "title": "البارتيات",
+    "subtitle": "الفرق النشطة",
+    "formSquad": "أنشئ فريقًا"
+  },
+  "dialog": {
+    "title": "تهيئة البارتي",
+    "execute": "تنفيذ"
+  },
+  "form": {
+    "squadName": "اسم الفريق",
+    "targetGame": "اللعبة المستهدفة",
+    "targetGamePlaceholder": "اختياري",
+    "platform": "المنصة",
+    "platformPlaceholder": "أي منصة",
+    "maxOperators": "أقصى عدد للاعبين",
+    "visibility": "الظهور",
+    "public": "عام",
+    "inviteOnly": "بالدعوة فقط",
+    "missionBriefing": "وصف المهمة",
+    "missionBriefingPlaceholder": "سياق اختياري"
+  },
+  "validation": {
+    "nameRequired": "الاسم مطلوب"
+  },
+  "list": {
+    "scanning": "جارٍ المسح...",
+    "empty": "لا توجد بارتيات نشطة",
+    "platformAny": "أي منصة",
+    "noSpecificGame": "لا توجد لعبة محددة"
+  },
+  "detail": {
+    "establishing": "جارٍ إنشاء الاتصال...",
+    "notFound": "البارتي غير موجود أو فُقدت الإشارة",
+    "privateLabel": "خاص",
+    "operators": "{{current}}/{{max}} لاعبين",
+    "anyGame": "أي لعبة",
+    "anySys": "أي نظام",
+    "leaveVoice": "مغادرة الصوت",
+    "joinVoice": "انضمام للصوت",
+    "openComms": "فتح المحادثة",
+    "inviteRoster": "دعوة اللاعبين",
+    "transmitInvites": "إرسال الدعوات",
+    "searchOperators": "ابحث عن لاعبين...",
+    "scanningOperators": "جارٍ المسح...",
+    "noOperatorsFound": "لا يوجد لاعبون",
+    "noFriendsYet": "لا أصدقاء بعد — ابحث باسم المستخدم أعلاه",
+    "inSquad": "في الفريق",
+    "send": "إرسال",
+    "disband": "حل الفريق",
+    "extract": "مغادرة",
+    "squadFull": "الفريق ممتلئ",
+    "joinSquad": "انضمام للفريق",
+    "activeRoster": "اللاعبون النشطون",
+    "squadLeader": "قائد الفريق",
+    "awaitingOperator": "في انتظار لاعب"
+  },
+  "confirm": {
+    "disband": "هل تريد حل هذا الفريق؟ لا يمكن التراجع عن هذا الإجراء."
+  },
+  "toasts": {
+    "inviteSent": "تم إرسال الدعوة",
+    "inviteSentDesc": "تمت دعوة {{name}} إلى الفريق.",
+    "inviteFailed": "تعذّر إرسال الدعوة"
+  }
+}

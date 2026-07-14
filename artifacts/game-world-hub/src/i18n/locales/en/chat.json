@@ -1,0 +1,19 @@
+{
+  "sidebar": {
+    "title": "Comms_Channels",
+    "you": "You",
+    "noMessages": "No messages yet"
+  },
+  "conversation": {
+    "directMessage": "Direct Message",
+    "groupChat": "Group Chat",
+    "loading": "Loading...",
+    "partyComms": "Party Comms"
+  },
+  "input": {
+    "placeholder": "TRANSMIT MESSAGE..."
+  },
+  "empty": {
+    "selectChannel": "Select a channel to begin transmission"
+  }
+}

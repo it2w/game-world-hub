@@ -5,3 +5,4 @@
 - [User-supplied external links](user-link-fields.md) — never store/render a client `url`; store a validated handle + platform and derive the URL server-side (stored-link injection).
 - [Friend relationship status](friend-relationship-status.md) — profile Add/Remove/Accept buttons need `GET /friends/:friendId/status`; outgoing pending requests aren't in any list endpoint.
 - [User blocking](user-blocking.md) — blocking must be enforced at every interaction (friends + DMs, both directions) and hidden from the blocked user; reuse hasBlocked/isBlockedBetween helpers.
+- [Frontend voice testing](frontend-voice-testing.md) — web artifact uses vitest+jsdom; test the voice provider by mocking the whole webrtc/audio/ws stack, not browser primitives.

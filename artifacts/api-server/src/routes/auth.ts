@@ -166,6 +166,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
         });
       } catch (err) {
         logger.error({ err }, "Failed to send 2FA login code");
+        res.status(500).json({ error: "Could not send your login code email — please try again shortly" });
+        return;
       }
     }
     res.json({
@@ -336,6 +338,8 @@ router.post("/auth/me/email", requireAuth, async (req, res): Promise<void> => {
       });
     } catch (err) {
       logger.error({ err }, "Failed to send verification email");
+      res.status(500).json({ error: "Your email was saved, but the verification code could not be sent — try resending it shortly" });
+      return;
     }
   }
   res.json(safeUser(user));

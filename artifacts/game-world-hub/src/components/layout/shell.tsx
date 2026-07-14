@@ -40,7 +40,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 font-mono text-primary text-sm uppercase tracking-widest">
-        <AnimatedLogo className="w-12 h-12" />
+        <AnimatedLogo className="h-12 w-auto" />
         {t("shell.initializing")}
       </div>
     );

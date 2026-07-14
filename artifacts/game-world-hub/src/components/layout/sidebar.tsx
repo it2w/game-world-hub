@@ -38,7 +38,7 @@ export function AppSidebar() {
   return (
     <Sidebar side={rtl ? "right" : "left"} className="border-e border-border bg-sidebar h-screen">
       <SidebarHeader className="border-b border-border p-4 flex items-center gap-2 font-mono text-primary uppercase font-bold tracking-wider">
-        <AnimatedLogo className="w-5 h-5 text-primary" />
+        <AnimatedLogo className="h-5 w-auto text-primary" />
         <span>{t("sidebar.header")}</span>
       </SidebarHeader>
       

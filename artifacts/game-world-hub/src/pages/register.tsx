@@ -80,7 +80,7 @@ export default function Register() {
       
       <div className="w-full max-w-md bg-card border border-border p-8 relative z-10">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 bg-primary/10 border border-primary flex items-center justify-center mb-4 text-primary p-2">
+          <div className="w-20 h-14 bg-primary/10 border border-primary flex items-center justify-center mb-4 text-primary p-2">
             <AnimatedLogo className="w-full h-full" />
           </div>
           <h1 className="text-2xl font-bold font-mono tracking-widest uppercase">{t("register.heading")}</h1>

@@ -1,56 +1,104 @@
 /**
- * Animated Game World Hub logo — "terminal boot glyph".
- * Corner brackets frame a command prompt whose cursor blinks while a
- * scanline sweeps the frame. Pure SVG + CSS (keyframes in index.css),
- * inherits `currentColor` so it always matches the terminal green theme.
+ * Animated Game World Hub logo — "hex-split mark".
+ * A segmented hexagonal ring spins in place while a small hex core rests
+ * permanently beside it, linked by a dashed tether (no undock motion).
+ * Pure SVG + CSS (keyframes in index.css), inherits `currentColor` so it
+ * always matches the terminal green theme; cyan accents are fixed.
  */
+const ACCENT = "hsl(180, 100%, 50%)";
+
 export function AnimatedLogo({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 48 48"
+      viewBox="0 0 145 100"
       fill="none"
       className={className}
       aria-hidden="true"
       data-testid="animated-logo"
     >
-      {/* Corner brackets (terminal frame) */}
-      <path d="M4 14V4h10" stroke="currentColor" strokeWidth="3" className="gwh-logo-corner" />
-      <path
-        d="M34 4h10v10"
+      {/* Faint outer boundary */}
+      <polygon
+        points="45,10 79.64,30 79.64,70 45,90 10.36,70 10.36,30"
         stroke="currentColor"
-        strokeWidth="3"
-        className="gwh-logo-corner"
-        style={{ animationDelay: "0.3s" }}
-      />
-      <path
-        d="M44 34v10H34"
-        stroke="currentColor"
-        strokeWidth="3"
-        className="gwh-logo-corner"
-        style={{ animationDelay: "0.6s" }}
-      />
-      <path
-        d="M14 44H4V34"
-        stroke="currentColor"
-        strokeWidth="3"
-        className="gwh-logo-corner"
-        style={{ animationDelay: "0.9s" }}
+        strokeWidth="0.5"
+        strokeOpacity="0.2"
+        className="gwh-logo-breath"
       />
 
-      {/* Scanline sweeping the frame */}
-      <rect x="8" y="8" width="32" height="1.5" fill="currentColor" className="gwh-logo-scan" />
+      {/* Main segmented ring */}
+      <g className="gwh-logo-spin-hex">
+        <polygon
+          points="45,20 70.98,35 70.98,65 45,80 19.02,65 19.02,35"
+          stroke="currentColor"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pathLength="300"
+          strokeDasharray="60 40"
+        />
+        <circle cx="70.98" cy="35" r="2.5" fill={ACCENT} />
+        <circle cx="45" cy="80" r="2.5" fill={ACCENT} />
+        <circle cx="19.02" cy="35" r="2.5" fill={ACCENT} />
+      </g>
 
-      {/* Prompt chevron */}
-      <path
-        d="M15 17l9 7-9 7"
-        stroke="currentColor"
-        strokeWidth="3.5"
-        strokeLinecap="square"
-        className="gwh-logo-chevron"
+      {/* Inner track */}
+      <g className="gwh-logo-spin-inner">
+        <polygon
+          points="45,28 64.05,39 64.05,61 45,72 25.95,61 25.95,39"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeOpacity="0.5"
+          pathLength="100"
+          strokeDasharray="2 4"
+        />
+        <polygon
+          points="45,28 64.05,39 64.05,61 45,72 25.95,61 25.95,39"
+          stroke={ACCENT}
+          strokeWidth="2"
+          pathLength="100"
+          strokeDasharray="10 90"
+          strokeLinecap="round"
+        />
+      </g>
+
+      {/* Tether linking ring and core */}
+      <line
+        x1="75"
+        y1="50"
+        x2="100"
+        y2="50"
+        stroke={ACCENT}
+        strokeWidth="1.5"
+        strokeDasharray="2 4"
+        opacity="0.4"
+        className="gwh-logo-tether"
       />
 
-      {/* Blinking cursor block */}
-      <rect x="27" y="27.5" width="9" height="4" fill="currentColor" className="gwh-logo-cursor" />
+      {/* Detached core, resting beside the ring */}
+      <g transform="translate(115 50)">
+        <g className="gwh-logo-core">
+          <polygon
+            points="0,-12 10.39,-6 10.39,6 0,12 -10.39,6 -10.39,-6"
+            fill="currentColor"
+          />
+          <circle
+            r="4.5"
+            fill="currentColor"
+            strokeWidth="2"
+            style={{ stroke: "hsl(var(--background))" }}
+          />
+          <circle r="2.5" style={{ fill: "hsl(var(--background))" }} />
+        </g>
+      </g>
+      <circle
+        cx="115"
+        cy="50"
+        r="18"
+        stroke={ACCENT}
+        strokeWidth="0.5"
+        strokeDasharray="2 6"
+        className="gwh-logo-orbit"
+      />
     </svg>
   );
 }

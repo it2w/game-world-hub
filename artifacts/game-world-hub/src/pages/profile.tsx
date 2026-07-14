@@ -1,12 +1,15 @@
-import { useRoute } from "wouter";
+import { Link, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useState, useRef } from "react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload } from "lucide-react";
 import { format } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
+import { useImageUpload } from "@/hooks/use-image-upload";
 
 export default function Profile() {
   const [, params] = useRoute("/profile/:userId");
@@ -36,6 +39,50 @@ export default function Profile() {
 
   const { data: me } = useGetMe();
   const updateStatus = useUpdateMyStatus();
+  const isOwner = !!me && me.id === userId;
+
+  // ── Visual log (photo gallery) + comms wall ────────────────────
+  const { data: photos } = useListProfilePhotos(userId, {
+    query: { enabled: !!userId, queryKey: getListProfilePhotosQueryKey(userId) },
+  });
+  const { data: wall } = useListProfileComments(userId, {
+    query: { enabled: !!userId, queryKey: getListProfileCommentsQueryKey(userId) },
+  });
+  const addPhoto = useAddProfilePhoto();
+  const deletePhoto = useDeleteProfilePhoto();
+  const createComment = useCreateProfileComment();
+  const deleteComment = useDeleteProfileComment();
+  const { upload, isUploading } = useImageUpload();
+  const [commentText, setCommentText] = useState("");
+  const photoFileRef = useRef<HTMLInputElement>(null);
+
+  const refreshPhotos = () => queryClient.invalidateQueries({ queryKey: getListProfilePhotosQueryKey(userId) });
+  const refreshWall = () => queryClient.invalidateQueries({ queryKey: getListProfileCommentsQueryKey(userId) });
+
+  const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const objectPath = await upload(file);
+      addPhoto.mutate({ data: { objectPath } }, {
+        onSuccess: () => { toast({ title: "Image added to visual log" }); refreshPhotos(); },
+        onError: (err) => toast({ title: "Couldn't add image", description: (err.data as { error?: string })?.error, variant: "destructive" }),
+      });
+    } catch (err) {
+      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    }
+  };
+
+  const submitComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = commentText.trim();
+    if (!body) return;
+    createComment.mutate({ userId, data: { body } }, {
+      onSuccess: () => { setCommentText(""); refreshWall(); },
+      onError: (err) => toast({ title: "Couldn't post", description: (err.data as { error?: string })?.error || "Posting is not allowed here", variant: "destructive" }),
+    });
+  };
 
   const handleLaunch = (launchUri: string | null | undefined, name: string) => {
     if (!launchUri) {
@@ -111,7 +158,14 @@ export default function Profile() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="bg-card border border-border p-8 relative overflow-hidden flex flex-col md:flex-row gap-8 items-center md:items-start">
+      <div className="bg-card border border-border relative overflow-hidden">
+        {user.bannerUrl && (
+          <div className="h-44 relative border-b border-border">
+            <img src={user.bannerUrl} alt="" className="w-full h-full object-cover" data-testid="img-profile-banner" />
+            <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
+          </div>
+        )}
+        <div className="p-8 relative flex flex-col md:flex-row gap-8 items-center md:items-start">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         
         <div className="relative z-10 shrink-0">
@@ -219,6 +273,7 @@ export default function Profile() {
             </div>
           )}
         </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -279,6 +334,136 @@ export default function Profile() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Visual Log (photo gallery) */}
+      <div className="bg-card border border-border p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+            <ImagePlus className="w-4 h-4" /> VISUAL_LOG {photos ? `(${photos.length}/12)` : ""}
+          </h2>
+          {isOwner && (photos?.length ?? 0) < 12 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono rounded-none text-xs gap-2"
+                onClick={() => photoFileRef.current?.click()}
+                disabled={isUploading || addPhoto.isPending}
+                data-testid="button-add-photo"
+              >
+                <Upload className="w-3.5 h-3.5" /> {isUploading ? "UPLOADING..." : "ADD IMAGE"}
+              </Button>
+              <input ref={photoFileRef} type="file" accept="image/*" className="hidden" onChange={onPhotoFile} data-testid="input-photo-file" />
+            </>
+          )}
+        </div>
+        {!photos || photos.length === 0 ? (
+          <div className="text-sm font-mono text-muted-foreground italic">NO IMAGES LOGGED</div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {photos.map((p) => (
+              <div key={p.id} className="aspect-square bg-background border border-border relative group overflow-hidden" data-testid={`photo-${p.id}`}>
+                <img src={p.objectPath} alt={p.caption ?? ""} title={p.caption ?? undefined} className="w-full h-full object-cover" loading="lazy" />
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => deletePhoto.mutate({ photoId: p.id }, { onSuccess: refreshPhotos })}
+                    className="absolute top-1 right-1 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                    title="Delete image"
+                    data-testid={`button-delete-photo-${p.id}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Comms Wall (profile comments) */}
+      <div className="bg-card border border-border p-6">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+          <MessageSquareText className="w-4 h-4" /> COMMS_WALL
+          {wall && !wall.enabled && <span className="text-muted-foreground text-xs">// OFFLINE</span>}
+        </h2>
+
+        {wall && !wall.enabled && !isOwner ? (
+          <div className="text-sm font-mono text-muted-foreground italic" data-testid="text-wall-disabled">
+            THIS USER HAS DISABLED THEIR WALL
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {(wall?.enabled || isOwner) && (
+              <form onSubmit={submitComment} className="space-y-2">
+                <Textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder={isOwner ? "Write on your wall..." : `Write on ${user.displayName}'s wall...`}
+                  className="font-mono rounded-none border-border bg-background resize-none"
+                  data-testid="input-comment"
+                />
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] text-muted-foreground">{commentText.length}/500</span>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="font-mono rounded-none text-xs gap-2"
+                    disabled={createComment.isPending || commentText.trim().length === 0}
+                    data-testid="button-post-comment"
+                  >
+                    <Send className="w-3.5 h-3.5" /> POST
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {!wall || wall.comments.length === 0 ? (
+              <div className="text-sm font-mono text-muted-foreground italic">NO ENTRIES YET</div>
+            ) : (
+              <div className="space-y-3">
+                {wall.comments.map((c) => (
+                  <div key={c.id} className="p-3 border border-border bg-background flex gap-3 group" data-testid={`comment-${c.id}`}>
+                    <Link href={`/profile/${c.author.id}`} className="shrink-0">
+                      <div className="w-9 h-9 border border-border bg-muted overflow-hidden flex items-center justify-center">
+                        {c.author.avatarUrl ? (
+                          <img src={c.author.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="font-mono text-sm text-muted-foreground">{c.author.displayName.charAt(0)}</span>
+                        )}
+                      </div>
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/profile/${c.author.id}`} className="font-bold text-sm hover:text-primary truncate">
+                          {c.author.displayName}
+                        </Link>
+                        <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                          {format(new Date(c.createdAt), "yyyy.MM.dd HH:mm")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words mt-1">{c.body}</p>
+                    </div>
+                    {(isOwner || me?.id === c.author.id) && (
+                      <button
+                        type="button"
+                        onClick={() => deleteComment.mutate({ userId, commentId: c.id }, { onSuccess: refreshWall })}
+                        className="shrink-0 self-start p-1.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                        title="Delete comment"
+                        data-testid={`button-delete-comment-${c.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

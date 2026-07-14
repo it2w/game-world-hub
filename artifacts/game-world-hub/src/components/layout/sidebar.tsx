@@ -16,6 +16,7 @@ import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Acti
 import { useAuth } from "@/hooks/use-auth";
 import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { AnimatedLogo } from "@/components/animated-logo";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -33,7 +34,7 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-border bg-sidebar h-screen">
       <SidebarHeader className="border-b border-border p-4 flex items-center gap-2 font-mono text-primary uppercase font-bold tracking-wider">
-        <Activity className="w-5 h-5 text-primary" />
+        <AnimatedLogo className="w-5 h-5 text-primary" />
         <span>GWH_OS</span>
       </SidebarHeader>
       

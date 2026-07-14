@@ -32,3 +32,7 @@ Using a `$ref` to a named schema makes the TS type take the schema's name (e.g.
 **How to apply:** any new POST/PATCH/PUT body → add a `components.schemas.<Name>Input`
 and `$ref` it. Then `pnpm --filter @workspace/api-spec codegen` before typechecking
 routes that import the generated `<operationId>Body` zod.
+
+## format: email / uri breaks zod codegen
+
+Declaring `format: email` or `format: uri` on OpenAPI string fields makes the orval zod codegen emit broken validators in this setup. Keep spec fields as plain strings and validate email/URL shape server-side with a regex (and client-side in the form schema).

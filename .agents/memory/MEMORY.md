@@ -9,3 +9,8 @@
 - [Orval request bodies](orval-codegen-request-bodies.md) — define POST/PATCH bodies as named `$ref` schemas, not inline, or the zod+types codegen collide on `<op>Body`.
 - [Game library integrations](game-library-integrations.md) — only Steam has a public owned-games API; Epic/BattleNet/Xbox are manual; launch via allowlisted protocol deep links.
 - [Active-game presence](presence-current-game.md) — currentGame auto-clears via heartbeat+server sweep; offline must never coexist with a game; sweep must handle NULL last_active_at.
+- [2FA challenge tokens](twofa-challenge-tokens.md) — verifyToken must reject purpose-tagged JWTs (session shape check) or challenges become session tokens; jti single-use + attempt cap.
+- [Public image URL mapping](public-image-url-mapping.md) — every user-bearing serializer wraps images in toPublicImageUrl; serve route only serves public-ACL objects (unattached → 403).
+- [otplib v13 API](otplib-v13.md) — no `authenticator` export; use functional generateSecret/generateURI/verify with epochTolerance.
+- [Dev email mailbox](dev-email-mailbox.md) — dev emails append JSONL to /tmp/gwh-dev-emails.jsonl; prod sends via Resend connector (send-only key; EMAIL_FROM after domain verify).
+- [Drizzle push fallback](drizzle-push-fallback.md) — drizzle-kit push hangs on interactive prompts; apply additive DDL via raw SQL kept in sync with schema.ts.

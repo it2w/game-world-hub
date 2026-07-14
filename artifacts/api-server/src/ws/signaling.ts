@@ -4,6 +4,7 @@ import { URL } from "node:url";
 import { and, eq } from "drizzle-orm";
 import { db, usersTable, partyMembersTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
+import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
 /**
@@ -442,7 +443,7 @@ export function attachSignaling(server: Server): void {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
       if (user) {
         displayName = user.displayName;
-        avatarUrl = user.avatarUrl ?? null;
+        avatarUrl = toPublicImageUrl(user.avatarUrl ?? null);
       }
     } catch (err) {
       logger.error({ err }, "voice: failed to load user for connection");

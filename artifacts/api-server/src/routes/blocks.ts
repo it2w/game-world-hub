@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { db, blocksTable, usersTable, friendshipsTable, friendRequestsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { toPublicImageUrl } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
@@ -10,7 +11,7 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
-    avatarUrl: u.avatarUrl ?? null,
+    avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
     bio: u.bio ?? null,
     status: u.status,
     currentGame: u.currentGame ?? null,

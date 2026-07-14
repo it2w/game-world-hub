@@ -15,4 +15,6 @@ export interface ProfileUpdate {
   /** @maxLength 500 */
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
+  allowProfileComments?: boolean;
 }

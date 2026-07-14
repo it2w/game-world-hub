@@ -14,6 +14,7 @@ import gamesRouter from "./games";
 import platformsRouter from "./platforms";
 import notificationsRouter from "./notifications";
 import iceRouter from "./ice";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(gamesRouter);
 router.use(platformsRouter);
 router.use(notificationsRouter);
 router.use(iceRouter);
+router.use(storageRouter);
 
 export default router;

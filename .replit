@@ -57,6 +57,10 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
+EMAIL_FROM = "Game World Hub <info@gmes.app>"
 
 [nix]
 channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-6a89c14e-81ab-4905-a936-b45fe63aeede"

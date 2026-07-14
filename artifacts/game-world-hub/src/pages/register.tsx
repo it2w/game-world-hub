@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { useRegister } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { Activity } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { AnimatedLogo } from "@/components/animated-logo";
 
 const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(30),
   displayName: z.string().min(1, "Display name is required").max(50),
+  email: z.string().email("Enter a valid email").max(255).optional().or(z.literal("")),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -29,14 +30,25 @@ export default function Register() {
     defaultValues: {
       username: "",
       displayName: "",
+      email: "",
       password: "",
     },
   });
 
   const onSubmit = (data: RegisterForm) => {
-    registerMutation.mutate({ data }, {
+    const email = data.email?.trim();
+    const payload = { ...data, email: email ? email : undefined };
+    registerMutation.mutate({ data: payload }, {
       onSuccess: (resp) => {
-        login(resp.token);
+        if (resp.token) {
+          login(resp.token);
+        }
+        if (payload.email) {
+          toast({
+            title: "Verification Code Sent",
+            description: "Check your email, then verify it from Settings.",
+          });
+        }
         setLocation("/");
       },
       onError: (err) => {
@@ -55,8 +67,8 @@ export default function Register() {
       
       <div className="w-full max-w-md bg-card border border-border p-8 relative z-10">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary/10 border border-primary flex items-center justify-center mb-4 text-primary">
-            <Activity className="w-6 h-6" />
+          <div className="w-14 h-14 bg-primary/10 border border-primary flex items-center justify-center mb-4 text-primary p-2">
+            <AnimatedLogo className="w-full h-full" />
           </div>
           <h1 className="text-2xl font-bold font-mono tracking-widest uppercase">NEW_RECORD</h1>
           <p className="text-muted-foreground text-sm font-mono mt-2">Establish system identity</p>
@@ -85,6 +97,19 @@ export default function Register() {
                   <FormLabel className="font-mono text-xs uppercase tracking-wider">Display Name</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-display-name" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
+                  </FormControl>
+                  <FormMessage className="font-mono text-xs" />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">Email (Optional — for account recovery)</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} data-testid="input-email" placeholder="you@domain.com" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
                   <FormMessage className="font-mono text-xs" />
                 </FormItem>

@@ -27,12 +27,15 @@ export const registerBodyPasswordMin = 6;
 
 export const registerBodyDisplayNameMax = 50;
 
+export const registerBodyEmailMax = 255;
+
 
 
 export const RegisterBody = zod.object({
   "username": zod.string().min(registerBodyUsernameMin).max(registerBodyUsernameMax),
   "password": zod.string().min(registerBodyPasswordMin),
-  "displayName": zod.string().min(1).max(registerBodyDisplayNameMax)
+  "displayName": zod.string().min(1).max(registerBodyDisplayNameMax),
+  "email": zod.string().max(registerBodyEmailMax).optional()
 })
 
 export const RegisterResponse = zod.object({
@@ -41,12 +44,20 @@ export const RegisterResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
-}),
-  "token": zod.string()
+}).optional(),
+  "token": zod.string().optional(),
+  "requiresTwoFactor": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['email', 'totp']).optional(),
+  "challengeToken": zod.string().optional()
 })
 
 
@@ -64,12 +75,20 @@ export const LoginResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
-}),
-  "token": zod.string()
+}).optional(),
+  "token": zod.string().optional(),
+  "requiresTwoFactor": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['email', 'totp']).optional(),
+  "challengeToken": zod.string().optional()
 })
 
 
@@ -89,7 +108,12 @@ export const GetMeResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -109,7 +133,12 @@ export const UpdateMyStatusResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -124,6 +153,204 @@ export const MeHeartbeatResponse = zod.void()
 
 
 /**
+ * @summary Complete a two-factor login challenge
+ */
+export const verifyTwoFactorLoginBodyCodeMin = 6;
+export const verifyTwoFactorLoginBodyCodeMax = 6;
+
+
+
+export const VerifyTwoFactorLoginBody = zod.object({
+  "challengeToken": zod.string(),
+  "code": zod.string().min(verifyTwoFactorLoginBodyCodeMin).max(verifyTwoFactorLoginBodyCodeMax)
+})
+
+export const VerifyTwoFactorLoginResponse = zod.object({
+  "user": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}).optional(),
+  "token": zod.string().optional(),
+  "requiresTwoFactor": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['email', 'totp']).optional(),
+  "challengeToken": zod.string().optional()
+})
+
+
+/**
+ * @summary Request a password reset code by email
+ */
+
+
+
+export const RequestPasswordResetBody = zod.object({
+  "identifier": zod.string().min(1).describe('Username or email address')
+})
+
+export const RequestPasswordResetResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Set a new password using an emailed reset code
+ */
+
+export const confirmPasswordResetBodyCodeMin = 6;
+export const confirmPasswordResetBodyCodeMax = 6;
+
+export const confirmPasswordResetBodyNewPasswordMin = 6;
+
+
+
+export const ConfirmPasswordResetBody = zod.object({
+  "identifier": zod.string().min(1),
+  "code": zod.string().min(confirmPasswordResetBodyCodeMin).max(confirmPasswordResetBodyCodeMax),
+  "newPassword": zod.string().min(confirmPasswordResetBodyNewPasswordMin)
+})
+
+export const ConfirmPasswordResetResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Set or change the recovery email (sends a verification code)
+ */
+export const setMyEmailBodyEmailMax = 255;
+
+
+
+export const SetMyEmailBody = zod.object({
+  "email": zod.string().max(setMyEmailBodyEmailMax)
+})
+
+export const SetMyEmailResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Verify the recovery email with the emailed code
+ */
+export const verifyMyEmailBodyCodeMin = 6;
+export const verifyMyEmailBodyCodeMax = 6;
+
+
+
+export const VerifyMyEmailBody = zod.object({
+  "code": zod.string().min(verifyMyEmailBodyCodeMin).max(verifyMyEmailBodyCodeMax)
+})
+
+export const VerifyMyEmailResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Begin enabling two-factor auth (returns TOTP secret or emails a code)
+ */
+export const SetupTwoFactorBody = zod.object({
+  "method": zod.enum(['email', 'totp'])
+})
+
+export const SetupTwoFactorResponse = zod.object({
+  "method": zod.enum(['email', 'totp']),
+  "secret": zod.string().optional().describe('TOTP secret (base32) — only for method totp'),
+  "otpauthUrl": zod.string().optional().describe('otpauth:\/\/ URL to render as QR — only for method totp')
+})
+
+
+/**
+ * @summary Confirm and enable two-factor auth with a code
+ */
+export const enableTwoFactorBodyCodeMin = 6;
+export const enableTwoFactorBodyCodeMax = 6;
+
+
+
+export const EnableTwoFactorBody = zod.object({
+  "method": zod.enum(['email', 'totp']),
+  "code": zod.string().min(enableTwoFactorBodyCodeMin).max(enableTwoFactorBodyCodeMax)
+})
+
+export const EnableTwoFactorResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Disable two-factor auth (requires current password)
+ */
+export const DisableTwoFactorBody = zod.object({
+  "password": zod.string()
+})
+
+export const DisableTwoFactorResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get a user profile
  */
 export const GetUserParams = zod.object({
@@ -135,7 +362,9 @@ export const GetUserResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -177,7 +406,9 @@ export const updateProfileBodyBioMax = 500;
 export const UpdateProfileBody = zod.object({
   "displayName": zod.string().min(1).max(updateProfileBodyDisplayNameMax).optional(),
   "bio": zod.string().max(updateProfileBodyBioMax).optional(),
-  "avatarUrl": zod.string().optional()
+  "avatarUrl": zod.string().optional(),
+  "bannerUrl": zod.string().optional(),
+  "allowProfileComments": zod.boolean().optional()
 })
 
 export const UpdateProfileResponse = zod.object({
@@ -185,7 +416,9 @@ export const UpdateProfileResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -223,12 +456,182 @@ export const SearchUsersResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
+
+
+/**
+ * @summary List comments on a user's profile wall
+ */
+export const ListProfileCommentsParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const ListProfileCommentsResponse = zod.object({
+  "enabled": zod.boolean(),
+  "comments": zod.array(zod.object({
+  "id": zod.number(),
+  "profileUserId": zod.number(),
+  "authorId": zod.number(),
+  "body": zod.string(),
+  "createdAt": zod.string(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish()
+})
+}))
+})
+
+
+/**
+ * @summary Write a comment on a user's profile wall
+ */
+export const CreateProfileCommentParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const createProfileCommentBodyBodyMax = 500;
+
+
+
+export const CreateProfileCommentBody = zod.object({
+  "body": zod.string().min(1).max(createProfileCommentBodyBodyMax)
+})
+
+export const CreateProfileCommentResponse = zod.object({
+  "id": zod.number(),
+  "profileUserId": zod.number(),
+  "authorId": zod.number(),
+  "body": zod.string(),
+  "createdAt": zod.string(),
+  "author": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish()
+})
+})
+
+
+/**
+ * @summary Delete a profile comment (wall owner or comment author)
+ */
+export const DeleteProfileCommentParams = zod.object({
+  "userId": zod.coerce.number(),
+  "commentId": zod.coerce.number()
+})
+
+export const DeleteProfileCommentResponse = zod.void()
+
+
+/**
+ * @summary List a user's profile photos
+ */
+export const ListProfilePhotosParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const ListProfilePhotosResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "objectPath": zod.string(),
+  "caption": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListProfilePhotosResponse = zod.array(ListProfilePhotosResponseItem)
+
+
+/**
+ * @summary Add a photo to my profile
+ */
+
+export const addProfilePhotoBodyCaptionMax = 200;
+
+
+
+export const AddProfilePhotoBody = zod.object({
+  "objectPath": zod.string().min(1),
+  "caption": zod.string().max(addProfilePhotoBodyCaptionMax).optional()
+})
+
+export const AddProfilePhotoResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "objectPath": zod.string(),
+  "caption": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove one of my profile photos
+ */
+export const DeleteProfilePhotoParams = zod.object({
+  "photoId": zod.coerce.number()
+})
+
+export const DeleteProfilePhotoResponse = zod.void()
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+})
+
+
+
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+}).optional()
+})
+
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const GetPublicObjectParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+export const GetPublicObjectResponse = zod.unknown()
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
 
 
 /**
@@ -241,7 +644,12 @@ export const ListFriendsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -261,7 +669,12 @@ export const ListFriendRequestsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -271,7 +684,12 @@ export const ListFriendRequestsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -296,7 +714,12 @@ export const SendFriendRequestResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -306,7 +729,12 @@ export const SendFriendRequestResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -377,7 +805,12 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -399,7 +832,12 @@ export const ListConversationsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -412,7 +850,12 @@ export const ListConversationsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -441,7 +884,12 @@ export const GetMessagesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -474,7 +922,12 @@ export const SendMessageResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -500,7 +953,12 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -513,7 +971,12 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -540,7 +1003,12 @@ export const ListPartiesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -550,7 +1018,12 @@ export const ListPartiesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -595,7 +1068,12 @@ export const CreatePartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -605,7 +1083,12 @@ export const CreatePartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -635,7 +1118,12 @@ export const GetPartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -645,7 +1133,12 @@ export const GetPartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -693,7 +1186,12 @@ export const UpdatePartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -703,7 +1201,12 @@ export const UpdatePartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -761,7 +1264,12 @@ export const JoinPartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -771,7 +1279,12 @@ export const JoinPartyResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -811,7 +1324,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -821,7 +1339,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -836,7 +1359,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -863,7 +1391,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -873,7 +1406,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -888,7 +1426,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -916,7 +1459,12 @@ export const AcceptPartyInviteResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -926,7 +1474,12 @@ export const AcceptPartyInviteResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1183,7 +1736,12 @@ export const ListBlockedUsersResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1392,7 +1950,12 @@ export const ListLfgPostsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1410,7 +1973,12 @@ export const ListLfgPostsResponseItem = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1452,7 +2020,12 @@ export const CreateLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1470,7 +2043,12 @@ export const CreateLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1503,7 +2081,12 @@ export const RespondToLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1521,7 +2104,12 @@ export const RespondToLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1546,7 +2134,12 @@ export const CloseLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()
@@ -1564,7 +2157,12 @@ export const CloseLfgPostResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string()

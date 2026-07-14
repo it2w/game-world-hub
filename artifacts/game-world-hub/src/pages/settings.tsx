@@ -1,4 +1,4 @@
-import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
+import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,14 +9,31 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
+import { QRCodeSVG } from "qrcode.react";
+import { useImageUpload } from "@/hooks/use-image-upload";
+import { displayImageUrl } from "@/lib/image-url";
+
+const imageRefSchema = z
+  .string()
+  .max(500)
+  .refine(
+    (v) =>
+      v === "" ||
+      v.startsWith("http://") ||
+      v.startsWith("https://") ||
+      v.startsWith("/objects/") ||
+      v.startsWith("/api/storage/objects/"),
+    "Enter a URL or upload an image",
+  );
 
 const profileSchema = z.object({
   displayName: z.string().min(1).max(50),
   bio: z.string().max(500).optional(),
-  avatarUrl: z.string().url().optional().or(z.literal(""))
+  avatarUrl: imageRefSchema.optional(),
+  bannerUrl: imageRefSchema.optional(),
 });
 
 const statusSchema = z.object({
@@ -51,6 +68,138 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ── Account security (email + 2FA) ─────────────────────────────
+  const setMyEmail = useSetMyEmail();
+  const verifyMyEmail = useVerifyMyEmail();
+  const setupTwoFactor = useSetupTwoFactor();
+  const enableTwoFactor = useEnableTwoFactor();
+  const disableTwoFactor = useDisableTwoFactor();
+  const { upload, isUploading } = useImageUpload();
+
+  const [emailInput, setEmailInput] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [twofaPanel, setTwofaPanel] = useState<"totp" | "email" | null>(null);
+  const [totpInfo, setTotpInfo] = useState<{ secret?: string; otpauthUrl?: string }>({});
+  const [twofaCode, setTwofaCode] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
+
+  const refreshMe = () => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+  const errText = (err: unknown, fallback: string) =>
+    (err as { data?: { error?: string } })?.data?.error || fallback;
+
+  const handleSetEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = emailInput.trim();
+    if (!email) return;
+    setMyEmail.mutate({ data: { email } }, {
+      onSuccess: () => {
+        toast({ title: "Verification code sent", description: "Enter the emailed code below." });
+        setEmailInput("");
+        setEmailCode("");
+        refreshMe();
+      },
+      onError: (err) => toast({ title: "Couldn't set email", description: errText(err, "Try another address"), variant: "destructive" }),
+    });
+  };
+
+  const handleResendCode = () => {
+    if (!me?.email) return;
+    setMyEmail.mutate({ data: { email: me.email } }, {
+      onSuccess: () => toast({ title: "Code re-sent", description: "Check your email." }),
+      onError: (err) => toast({ title: "Couldn't resend code", description: errText(err, "Try again shortly"), variant: "destructive" }),
+    });
+  };
+
+  const handleVerifyEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    verifyMyEmail.mutate({ data: { code: emailCode.trim() } }, {
+      onSuccess: () => {
+        toast({ title: "Email verified" });
+        setEmailCode("");
+        refreshMe();
+      },
+      onError: (err) => toast({ title: "Verification failed", description: errText(err, "Invalid or expired code"), variant: "destructive" }),
+    });
+  };
+
+  const handleSetup2fa = (method: "totp" | "email") => {
+    setupTwoFactor.mutate({ data: { method } }, {
+      onSuccess: (resp) => {
+        setTwofaPanel(method);
+        setTwofaCode("");
+        setTotpInfo({ secret: resp.secret, otpauthUrl: resp.otpauthUrl });
+        if (method === "email") toast({ title: "Setup code sent", description: "Check your email." });
+      },
+      onError: (err) => toast({ title: "Setup failed", description: errText(err, "Try again"), variant: "destructive" }),
+    });
+  };
+
+  const handleEnable2fa = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twofaPanel) return;
+    enableTwoFactor.mutate({ data: { method: twofaPanel, code: twofaCode.trim() } }, {
+      onSuccess: () => {
+        toast({ title: "Two-factor authentication enabled" });
+        setTwofaPanel(null);
+        setTotpInfo({});
+        setTwofaCode("");
+        refreshMe();
+      },
+      onError: (err) => toast({ title: "Couldn't enable 2FA", description: errText(err, "Invalid code"), variant: "destructive" }),
+    });
+  };
+
+  const handleDisable2fa = (e: React.FormEvent) => {
+    e.preventDefault();
+    disableTwoFactor.mutate({ data: { password: disablePassword } }, {
+      onSuccess: () => {
+        toast({ title: "Two-factor authentication disabled" });
+        setDisablePassword("");
+        refreshMe();
+      },
+      onError: (err) => toast({ title: "Couldn't disable 2FA", description: errText(err, "Wrong password"), variant: "destructive" }),
+    });
+  };
+
+  const handleImageUpload = async (file: File, field: "avatarUrl" | "bannerUrl") => {
+    try {
+      const path = await upload(file);
+      if (!me) return;
+      // Save immediately; the form re-syncs from the refreshed profile, and the
+      // image only becomes publicly servable once it is saved (ACL is set then).
+      updateProfile.mutate(
+        { userId: me.id, data: { [field]: path } },
+        {
+          onSuccess: () => {
+            toast({ title: field === "avatarUrl" ? "Avatar updated" : "Banner updated" });
+            refreshMe();
+            queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
+          },
+          onError: (err) => toast({ title: "Couldn't save image", description: errText(err, "Try again"), variant: "destructive" }),
+        },
+      );
+    } catch (err) {
+      toast({ title: "Upload failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    }
+  };
+
+  const wallEnabled = me?.allowProfileComments !== false;
+  const handleToggleWall = () => {
+    if (!me) return;
+    updateProfile.mutate(
+      { userId: me.id, data: { allowProfileComments: !wallEnabled } },
+      {
+        onSuccess: () => {
+          toast({ title: !wallEnabled ? "Profile wall enabled" : "Profile wall disabled" });
+          refreshMe();
+          queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
+        },
+      },
+    );
+  };
+
   // Desktop-only: launch at startup state
   const isElectron = !!window.electronAPI;
   const [openAtLogin, setOpenAtLogin] = useState(false);
@@ -77,7 +226,7 @@ export default function Settings() {
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { displayName: "", bio: "", avatarUrl: "" }
+    defaultValues: { displayName: "", bio: "", avatarUrl: "", bannerUrl: "" }
   });
 
   const statusForm = useForm<z.infer<typeof statusSchema>>({
@@ -100,7 +249,8 @@ export default function Settings() {
       profileForm.reset({
         displayName: me.displayName,
         bio: me.bio || "",
-        avatarUrl: me.avatarUrl || ""
+        avatarUrl: me.avatarUrl || "",
+        bannerUrl: me.bannerUrl || ""
       });
       statusForm.reset({
         status: me.status,
@@ -210,10 +360,42 @@ export default function Settings() {
                 )} />
                 <FormField control={profileForm.control} name="avatarUrl" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs">AVATAR URL</FormLabel>
-                    <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                    <FormLabel className="font-mono text-xs">AVATAR</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 border border-border bg-background shrink-0 overflow-hidden flex items-center justify-center">
+                        {field.value ? (
+                          <img src={displayImageUrl(field.value)} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="font-mono text-xs text-muted-foreground">--</span>
+                        )}
+                      </div>
+                      <FormControl><Input {...field} placeholder="URL or upload →" className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => avatarFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-avatar" title="Upload image">
+                        <Upload className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <FormMessage className="font-mono text-xs" />
                   </FormItem>
                 )} />
+                <FormField control={profileForm.control} name="bannerUrl" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-mono text-xs">PROFILE BANNER</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormControl><Input {...field} placeholder="URL or upload →" className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => bannerFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-banner" title="Upload image">
+                        <Upload className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {field.value ? (
+                      <div className="h-16 border border-border bg-background overflow-hidden">
+                        <img src={displayImageUrl(field.value)} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ) : null}
+                    <FormMessage className="font-mono text-xs" />
+                  </FormItem>
+                )} />
+                <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "avatarUrl"); }} data-testid="input-avatar-file" />
+                <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "bannerUrl"); }} data-testid="input-banner-file" />
                 <FormField control={profileForm.control} name="bio" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs">BIOGRAPHY DATA</FormLabel>
@@ -223,6 +405,31 @@ export default function Settings() {
                 <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending}>WRITE CONFIG</Button>
               </form>
             </Form>
+          </div>
+
+          {/* Profile Wall */}
+          <div className="bg-card border border-border p-6">
+            <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" /> COMMS_WALL
+            </h2>
+            <div className="flex items-center justify-between p-3 border border-border bg-background">
+              <div>
+                <div className="font-mono text-sm">VISITOR COMMENTS</div>
+                <div className="font-mono text-xs text-muted-foreground mt-0.5">
+                  Allow others to post on your profile wall
+                </div>
+              </div>
+              <Button
+                variant={wallEnabled ? "default" : "outline"}
+                size="sm"
+                className="font-mono rounded-none text-xs h-8 min-w-[80px]"
+                onClick={handleToggleWall}
+                disabled={updateProfile.isPending || !me}
+                data-testid="button-toggle-wall"
+              >
+                {wallEnabled ? "ENABLED" : "DISABLED"}
+              </Button>
+            </div>
           </div>
 
           {/* Status Override */}
@@ -264,6 +471,145 @@ export default function Settings() {
 
         {/* Platform Integration + Desktop */}
         <div className="space-y-8">
+          {/* Account Security */}
+          <div className="bg-card border border-border p-6">
+            <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" /> ACCOUNT_SECURITY
+            </h2>
+
+            {/* Email */}
+            <div className="space-y-3 mb-6">
+              <div className="font-mono text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5" /> EMAIL LINK
+              </div>
+              {me?.email && (
+                <div className="p-3 border border-border bg-background space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-sm truncate" data-testid="text-current-email">{me.email}</span>
+                    {me.emailVerified ? (
+                      <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase shrink-0" data-testid="badge-email-verified">Verified</span>
+                    ) : (
+                      <span className="font-mono text-[10px] px-2 py-0.5 border border-yellow-500 text-yellow-500 uppercase shrink-0" data-testid="badge-email-unverified">Unverified</span>
+                    )}
+                  </div>
+                  {!me.emailVerified && (
+                    <form onSubmit={handleVerifyEmail} className="flex gap-2">
+                      <Input
+                        value={emailCode}
+                        onChange={(e) => setEmailCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                        inputMode="numeric"
+                        placeholder="000000"
+                        data-testid="input-email-code"
+                        className="font-mono rounded-none border-border bg-card text-center"
+                      />
+                      <Button type="submit" size="sm" className="font-mono rounded-none h-9" disabled={verifyMyEmail.isPending || emailCode.length !== 6} data-testid="button-verify-email">VERIFY</Button>
+                      <Button type="button" size="sm" variant="outline" className="font-mono rounded-none h-9" onClick={handleResendCode} disabled={setMyEmail.isPending} data-testid="button-resend-code">RESEND</Button>
+                    </form>
+                  )}
+                </div>
+              )}
+              <form onSubmit={handleSetEmail} className="flex gap-2">
+                <Input
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  type="email"
+                  placeholder={me?.email ? "new@address.com" : "you@address.com"}
+                  disabled={me?.twoFactorMethod === "email"}
+                  data-testid="input-set-email"
+                  className="font-mono rounded-none border-border bg-background"
+                />
+                <Button type="submit" variant="outline" className="font-mono rounded-none" disabled={setMyEmail.isPending || emailInput.trim().length === 0 || me?.twoFactorMethod === "email"} data-testid="button-set-email">
+                  {me?.email ? "UPDATE" : "SET"}
+                </Button>
+              </form>
+              {me?.twoFactorMethod === "email" && (
+                <p className="font-mono text-[11px] text-muted-foreground">Disable email 2FA before changing your address.</p>
+              )}
+            </div>
+
+            {/* Two-factor auth */}
+            <div className="border-t border-border pt-5 space-y-3">
+              <div className="font-mono text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <KeyRound className="w-3.5 h-3.5" /> TWO-FACTOR AUTH
+              </div>
+
+              {me?.twoFactorMethod && me.twoFactorMethod !== "none" ? (
+                <div className="p-3 border border-primary/40 bg-background space-y-3">
+                  <div className="font-mono text-sm flex items-center justify-between">
+                    <span className="uppercase">{me.twoFactorMethod === "totp" ? "Authenticator App" : "Email Codes"}</span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 border border-primary text-primary uppercase" data-testid="badge-2fa-active">Active</span>
+                  </div>
+                  <form onSubmit={handleDisable2fa} className="flex gap-2">
+                    <Input
+                      type="password"
+                      value={disablePassword}
+                      onChange={(e) => setDisablePassword(e.target.value)}
+                      placeholder="Confirm password"
+                      data-testid="input-disable-password"
+                      className="font-mono rounded-none border-border bg-card"
+                    />
+                    <Button type="submit" variant="outline" className="font-mono rounded-none text-destructive border-destructive/50 hover:bg-destructive/10" disabled={disableTwoFactor.isPending || disablePassword.length === 0} data-testid="button-disable-2fa">
+                      DISABLE
+                    </Button>
+                  </form>
+                </div>
+              ) : twofaPanel === null ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button variant="outline" className="font-mono rounded-none text-xs" onClick={() => handleSetup2fa("totp")} disabled={setupTwoFactor.isPending} data-testid="button-setup-totp">
+                    AUTH APP (TOTP)
+                  </Button>
+                  <Button variant="outline" className="font-mono rounded-none text-xs" onClick={() => handleSetup2fa("email")} disabled={setupTwoFactor.isPending || !me?.emailVerified} data-testid="button-setup-email-2fa">
+                    EMAIL CODES
+                  </Button>
+                  {!me?.emailVerified && (
+                    <p className="font-mono text-[11px] text-muted-foreground sm:col-span-2">Email codes require a verified email address.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 border border-border bg-background space-y-4">
+                  {twofaPanel === "totp" ? (
+                    <>
+                      <p className="font-mono text-xs text-muted-foreground">Scan with Google Authenticator (or similar), then enter the 6-digit code.</p>
+                      {totpInfo.otpauthUrl && (
+                        <div className="flex justify-center">
+                          <div className="bg-white p-3" data-testid="qr-totp">
+                            <QRCodeSVG value={totpInfo.otpauthUrl} size={148} />
+                          </div>
+                        </div>
+                      )}
+                      {totpInfo.secret && (
+                        <p className="font-mono text-[11px] text-muted-foreground break-all text-center">KEY: {totpInfo.secret}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="font-mono text-xs text-muted-foreground">A setup code was sent to your email.</p>
+                  )}
+                  <form onSubmit={handleEnable2fa} className="flex gap-2">
+                    <Input
+                      value={twofaCode}
+                      onChange={(e) => setTwofaCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                      inputMode="numeric"
+                      placeholder="000000"
+                      data-testid="input-2fa-setup-code"
+                      className="font-mono rounded-none border-border bg-card text-center"
+                    />
+                    <Button type="submit" className="font-mono rounded-none" disabled={enableTwoFactor.isPending || twofaCode.length !== 6} data-testid="button-enable-2fa">
+                      ACTIVATE
+                    </Button>
+                  </form>
+                  <button
+                    type="button"
+                    className="font-mono text-[11px] text-muted-foreground hover:text-primary uppercase tracking-wider"
+                    onClick={() => { setTwofaPanel(null); setTotpInfo({}); }}
+                    data-testid="button-cancel-2fa-setup"
+                  >
+                    Cancel setup
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Desktop-only: launch at startup */}
           {isElectron && (
             <div className="bg-card border border-border p-6">

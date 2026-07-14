@@ -25,6 +25,15 @@ export const LfgPostStatus = {
   closed: 'closed',
 } as const;
 
+export type UserTwoFactorMethod = typeof UserTwoFactorMethod[keyof typeof UserTwoFactorMethod];
+
+
+export const UserTwoFactorMethod = {
+  none: 'none',
+  email: 'email',
+  totp: 'totp',
+} as const;
+
 export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
 
 
@@ -42,7 +51,14 @@ export interface User {
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
+  bannerUrl?: string | null;
+  /** @nullable */
   bio?: string | null;
+  /** @nullable */
+  email?: string | null;
+  emailVerified?: boolean;
+  twoFactorMethod?: UserTwoFactorMethod;
+  allowProfileComments?: boolean;
   status: UserStatus;
   /** @nullable */
   currentGame?: string | null;
@@ -146,6 +162,8 @@ export interface RegisterInput {
      * @maxLength 50
      */
   displayName: string;
+  /** @maxLength 255 */
+  email?: string;
 }
 
 export interface LoginInput {
@@ -153,9 +171,20 @@ export interface LoginInput {
   password: string;
 }
 
+export type AuthResponseTwoFactorMethod = typeof AuthResponseTwoFactorMethod[keyof typeof AuthResponseTwoFactorMethod];
+
+
+export const AuthResponseTwoFactorMethod = {
+  email: 'email',
+  totp: 'totp',
+} as const;
+
 export interface AuthResponse {
-  user: User;
-  token: string;
+  user?: User;
+  token?: string;
+  requiresTwoFactor?: boolean;
+  twoFactorMethod?: AuthResponseTwoFactorMethod;
+  challengeToken?: string;
 }
 
 export type StatusUpdateStatus = typeof StatusUpdateStatus[keyof typeof StatusUpdateStatus];
@@ -229,7 +258,10 @@ export interface UserProfile {
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
+  bannerUrl?: string | null;
+  /** @nullable */
   bio?: string | null;
+  allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */
   currentGame?: string | null;
@@ -247,6 +279,160 @@ export interface ProfileUpdate {
   /** @maxLength 500 */
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
+  allowProfileComments?: boolean;
+}
+
+export interface SetEmailInput {
+  /** @maxLength 255 */
+  email: string;
+}
+
+export interface VerifyEmailInput {
+  /**
+     * @minLength 6
+     * @maxLength 6
+     */
+  code: string;
+}
+
+export interface PasswordResetRequestInput {
+  /**
+     * Username or email address
+     * @minLength 1
+     */
+  identifier: string;
+}
+
+export interface PasswordResetConfirmInput {
+  /** @minLength 1 */
+  identifier: string;
+  /**
+     * @minLength 6
+     * @maxLength 6
+     */
+  code: string;
+  /** @minLength 6 */
+  newPassword: string;
+}
+
+export interface TwoFactorLoginInput {
+  challengeToken: string;
+  /**
+     * @minLength 6
+     * @maxLength 6
+     */
+  code: string;
+}
+
+export type TwoFactorSetupInputMethod = typeof TwoFactorSetupInputMethod[keyof typeof TwoFactorSetupInputMethod];
+
+
+export const TwoFactorSetupInputMethod = {
+  email: 'email',
+  totp: 'totp',
+} as const;
+
+export interface TwoFactorSetupInput {
+  method: TwoFactorSetupInputMethod;
+}
+
+export type TwoFactorSetupResponseMethod = typeof TwoFactorSetupResponseMethod[keyof typeof TwoFactorSetupResponseMethod];
+
+
+export const TwoFactorSetupResponseMethod = {
+  email: 'email',
+  totp: 'totp',
+} as const;
+
+export interface TwoFactorSetupResponse {
+  method: TwoFactorSetupResponseMethod;
+  /** TOTP secret (base32) — only for method totp */
+  secret?: string;
+  /** otpauth:// URL to render as QR — only for method totp */
+  otpauthUrl?: string;
+}
+
+export type TwoFactorEnableInputMethod = typeof TwoFactorEnableInputMethod[keyof typeof TwoFactorEnableInputMethod];
+
+
+export const TwoFactorEnableInputMethod = {
+  email: 'email',
+  totp: 'totp',
+} as const;
+
+export interface TwoFactorEnableInput {
+  method: TwoFactorEnableInputMethod;
+  /**
+     * @minLength 6
+     * @maxLength 6
+     */
+  code: string;
+}
+
+export interface TwoFactorDisableInput {
+  password: string;
+}
+
+export interface ProfileCommentAuthor {
+  id: number;
+  username: string;
+  displayName: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
+export interface ProfileComment {
+  id: number;
+  profileUserId: number;
+  authorId: number;
+  body: string;
+  createdAt: string;
+  author: ProfileCommentAuthor;
+}
+
+export interface ProfileCommentsResponse {
+  enabled: boolean;
+  comments: ProfileComment[];
+}
+
+export interface ProfileCommentInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  body: string;
+}
+
+export interface ProfilePhoto {
+  id: number;
+  userId: number;
+  objectPath: string;
+  /** @nullable */
+  caption?: string | null;
+  createdAt: string;
+}
+
+export interface ProfilePhotoInput {
+  /** @minLength 1 */
+  objectPath: string;
+  /** @maxLength 200 */
+  caption?: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
 }
 
 export interface FriendEntry {

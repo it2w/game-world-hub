@@ -1,6 +1,6 @@
-# [Project name]
+# Game World Hub
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Social gaming platform: presence, friends, parties, voice rooms, LFG, DMs, and rich player profiles — terminal/hacker green-on-black aesthetic.
 
 ## Run & Operate
 
@@ -22,15 +22,24 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/game-world-hub` — React + Vite web app, served at `/` (deep links are root-relative)
+- `artifacts/api-server` — Express API under `/api`, WS signaling at `/api/ws`
+- `@workspace/db` — Drizzle schema (source of truth for tables)
+- `@workspace/api-zod` + generated hooks — API contract, regenerated from the OpenAPI spec (never hand-edit)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- JWT auth: `verifyToken` enforces the exact session shape and rejects any `purpose`-tagged token (2FA challenge tokens are purpose-tagged, jti-tracked, single-use, attempt-capped)
+- Images: DB stores `/objects/...` paths; every serializer maps them to `/api/storage/objects/...` via `toPublicImageUrl`; the serve route only serves public-ACL objects
+- Uploads: presigned-URL flow, auth-only, `image/*` ≤ 8 MB enforced server-side
+- Emails (verification, reset, 2FA codes): production sends via the Resend connector; dev appends JSONL to `/tmp/gwh-dev-emails.jsonl` (set `EMAIL_DELIVERY=resend` to send real mail from dev). Sender defaults to Resend's sandbox address, which only reaches the Resend account owner — verify a domain in Resend and set `EMAIL_FROM` to email real users
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Accounts: username/password + optional email (verify via 6-digit code), password reset, 2FA via authenticator app (TOTP) or email code
+- Profiles: avatar + banner, photo gallery (max 12), wall comments (owner can toggle/delete; blocking enforced both directions)
+- Social: friends, blocking, DMs, parties with voice/screen share, LFG posts, game library (Steam sync)
+- Presence: online status + current game, auto-cleared by heartbeat/sweep
 
 ## User preferences
 

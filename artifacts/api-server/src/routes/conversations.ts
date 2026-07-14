@@ -12,6 +12,7 @@ import {
 import { SendMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import { isBlockedBetween } from "./blocks";
+import { toPublicImageUrl } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
@@ -20,7 +21,7 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
-    avatarUrl: u.avatarUrl ?? null,
+    avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
     bio: u.bio ?? null,
     status: u.status,
     currentGame: u.currentGame ?? null,

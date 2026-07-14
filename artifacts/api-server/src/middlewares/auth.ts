@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
@@ -25,7 +26,48 @@ export function signToken(payload: AuthPayload): string {
 }
 
 export function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, JWT_SECRET) as AuthPayload;
+  const payload = jwt.verify(token, JWT_SECRET) as Partial<AuthPayload> & { purpose?: unknown };
+  // Session tokens only: reject special-purpose tokens (e.g. 2FA login
+  // challenges) and anything without the exact session shape. Without this
+  // check a 2FA challenge token could be used as a full session token.
+  if (
+    payload.purpose !== undefined ||
+    typeof payload.userId !== "number" ||
+    typeof payload.username !== "string"
+  ) {
+    throw new Error("Not a session token");
+  }
+  return { userId: payload.userId, username: payload.username };
+}
+
+// ── Two-factor login challenge tokens ────────────────────────────────────────
+// Short-lived tokens issued after a correct password when 2FA is enabled.
+// They are NOT session tokens: requireAuth rejects them (different shape/purpose).
+
+export interface TwoFactorChallengePayload {
+  userId: number;
+  purpose: "2fa";
+  jti: string;
+}
+
+export function signChallengeToken(userId: number): string {
+  return jwt.sign(
+    { userId, purpose: "2fa", jti: randomUUID() } satisfies TwoFactorChallengePayload,
+    JWT_SECRET,
+    { expiresIn: "5m" },
+  );
+}
+
+export function verifyChallengeToken(token: string): TwoFactorChallengePayload {
+  const payload = jwt.verify(token, JWT_SECRET) as Partial<TwoFactorChallengePayload>;
+  if (
+    payload?.purpose !== "2fa" ||
+    typeof payload?.userId !== "number" ||
+    typeof payload?.jti !== "string"
+  ) {
+    throw new Error("Invalid challenge token");
+  }
+  return { userId: payload.userId, purpose: "2fa", jti: payload.jti };
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

@@ -4,7 +4,8 @@ import { AppSidebar } from "./sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { VoicePanel } from "@/voice/components/voice-panel";
 import { CallOverlays } from "@/voice/components/incoming-call-dialog";
-import { Loader2, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
+import { AnimatedLogo } from "@/components/animated-logo";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey, useGetMe, getGetMeQueryKey, meHeartbeat } from "@workspace/api-client-react";
@@ -35,8 +36,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center font-mono text-primary text-sm uppercase tracking-widest">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" /> Initializing Core Systems...
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 font-mono text-primary text-sm uppercase tracking-widest">
+        <AnimatedLogo className="w-12 h-12" />
+        Initializing Core Systems...
       </div>
     );
   }

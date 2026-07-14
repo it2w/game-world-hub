@@ -34,6 +34,8 @@ tags:
     description: Blocking unwanted users
   - name: library
     description: Linked gaming accounts and game libraries (Steam import, manual add)
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 
 paths:
   /healthz:
@@ -168,6 +170,200 @@ paths:
         "204":
           description: Heartbeat recorded
 
+  /auth/login/2fa:
+    post:
+      operationId: verifyTwoFactorLogin
+      tags: [auth]
+      summary: Complete a two-factor login challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorLoginInput"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid or expired challenge/code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/password-reset/request:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request a password reset code by email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequestInput"
+      responses:
+        "200":
+          description: Always ok (no account enumeration)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/password-reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      tags: [auth]
+      summary: Set a new password using an emailed reset code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirmInput"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/email:
+    post:
+      operationId: setMyEmail
+      tags: [auth]
+      summary: Set or change the recovery email (sends a verification code)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetEmailInput"
+      responses:
+        "200":
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/email/verify:
+    post:
+      operationId: verifyMyEmail
+      tags: [auth]
+      summary: Verify the recovery email with the emailed code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailInput"
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/2fa/setup:
+    post:
+      operationId: setupTwoFactor
+      tags: [auth]
+      summary: Begin enabling two-factor auth (returns TOTP secret or emails a code)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorSetupInput"
+      responses:
+        "200":
+          description: Setup info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorSetupResponse"
+        "400":
+          description: Precondition failed (e.g. email not verified)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/2fa/enable:
+    post:
+      operationId: enableTwoFactor
+      tags: [auth]
+      summary: Confirm and enable two-factor auth with a code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorEnableInput"
+      responses:
+        "200":
+          description: Two-factor enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me/2fa/disable:
+    post:
+      operationId: disableTwoFactor
+      tags: [auth]
+      summary: Disable two-factor auth (requires current password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorDisableInput"
+      responses:
+        "200":
+          description: Two-factor disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Wrong password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ── Users ─────────────────────────────────────────────────────────────────
   /users/{userId}:
     get:
@@ -239,6 +435,225 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/User"
+
+  /users/{userId}/comments:
+    get:
+      operationId: listProfileComments
+      tags: [users]
+      summary: List comments on a user's profile wall
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wall state and comments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileCommentsResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createProfileComment
+      tags: [users]
+      summary: Write a comment on a user's profile wall
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileCommentInput"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileComment"
+        "403":
+          description: Wall disabled or blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/comments/{commentId}:
+    delete:
+      operationId: deleteProfileComment
+      tags: [users]
+      summary: Delete a profile comment (wall owner or comment author)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/photos:
+    get:
+      operationId: listProfilePhotos
+      tags: [users]
+      summary: List a user's profile photos
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Photos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProfilePhoto"
+
+  /users/me/photos:
+    post:
+      operationId: addProfilePhoto
+      tags: [users]
+      summary: Add a photo to my profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfilePhotoInput"
+      responses:
+        "201":
+          description: Photo added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfilePhoto"
+        "400":
+          description: Limit reached or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/me/photos/{photoId}:
+    delete:
+      operationId: deleteProfilePhoto
+      tags: [users]
+      summary: Remove one of my profile photos
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Storage ─────────────────────────────────────────────────────────────
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ── Friends ───────────────────────────────────────────────────────────────
   /friends:
@@ -1513,6 +1928,9 @@ components:
           type: string
           minLength: 1
           maxLength: 50
+        email:
+          type: string
+          maxLength: 255
 
     LoginInput:
       type: object
@@ -1525,11 +1943,17 @@ components:
 
     AuthResponse:
       type: object
-      required: [user, token]
       properties:
         user:
           $ref: "#/components/schemas/User"
         token:
+          type: string
+        requiresTwoFactor:
+          type: boolean
+        twoFactorMethod:
+          type: string
+          enum: [email, totp]
+        challengeToken:
           type: string
 
     StatusUpdate:
@@ -1554,8 +1978,19 @@ components:
           type: string
         avatarUrl:
           type: ["string", "null"]
+        bannerUrl:
+          type: ["string", "null"]
         bio:
           type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        emailVerified:
+          type: boolean
+        twoFactorMethod:
+          type: string
+          enum: [none, email, totp]
+        allowProfileComments:
+          type: boolean
         status:
           type: string
           enum: [online, away, busy, offline]
@@ -1566,7 +2001,7 @@ components:
 
     UserProfile:
       type: object
-      required: [id, username, displayName, status, createdAt, games, platforms]
+      required: [id, username, displayName, status, createdAt, games, platforms, allowProfileComments]
       properties:
         id:
           type: integer
@@ -1576,8 +2011,12 @@ components:
           type: string
         avatarUrl:
           type: ["string", "null"]
+        bannerUrl:
+          type: ["string", "null"]
         bio:
           type: ["string", "null"]
+        allowProfileComments:
+          type: boolean
         status:
           type: string
           enum: [online, away, busy, offline]
@@ -1606,6 +2045,204 @@ components:
           maxLength: 500
         avatarUrl:
           type: string
+        bannerUrl:
+          type: string
+        allowProfileComments:
+          type: boolean
+
+    SetEmailInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          maxLength: 255
+
+    VerifyEmailInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+
+    PasswordResetRequestInput:
+      type: object
+      required: [identifier]
+      properties:
+        identifier:
+          type: string
+          description: Username or email address
+          minLength: 1
+
+    PasswordResetConfirmInput:
+      type: object
+      required: [identifier, code, newPassword]
+      properties:
+        identifier:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+        newPassword:
+          type: string
+          minLength: 6
+
+    TwoFactorLoginInput:
+      type: object
+      required: [challengeToken, code]
+      properties:
+        challengeToken:
+          type: string
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+
+    TwoFactorSetupInput:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [email, totp]
+
+    TwoFactorSetupResponse:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [email, totp]
+        secret:
+          type: string
+          description: TOTP secret (base32) — only for method totp
+        otpauthUrl:
+          type: string
+          description: otpauth:// URL to render as QR — only for method totp
+
+    TwoFactorEnableInput:
+      type: object
+      required: [method, code]
+      properties:
+        method:
+          type: string
+          enum: [email, totp]
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+
+    TwoFactorDisableInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    ProfileCommentAuthor:
+      type: object
+      required: [id, username, displayName]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+
+    ProfileComment:
+      type: object
+      required: [id, profileUserId, authorId, body, createdAt, author]
+      properties:
+        id:
+          type: integer
+        profileUserId:
+          type: integer
+        authorId:
+          type: integer
+        body:
+          type: string
+        createdAt:
+          type: string
+        author:
+          $ref: "#/components/schemas/ProfileCommentAuthor"
+
+    ProfileCommentsResponse:
+      type: object
+      required: [enabled, comments]
+      properties:
+        enabled:
+          type: boolean
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileComment"
+
+    ProfileCommentInput:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    ProfilePhoto:
+      type: object
+      required: [id, userId, objectPath, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        objectPath:
+          type: string
+        caption:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ProfilePhotoInput:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+          maxLength: 200
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
 
     # ── Friends ──────────────────────────────────────────────────────────────
     FriendEntry:

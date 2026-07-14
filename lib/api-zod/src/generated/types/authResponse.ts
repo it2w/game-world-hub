@@ -5,9 +5,13 @@
  * Game World Hub API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthResponseTwoFactorMethod } from './authResponseTwoFactorMethod';
 import type { User } from './user';
 
 export interface AuthResponse {
-  user: User;
-  token: string;
+  user?: User;
+  token?: string;
+  requiresTwoFactor?: boolean;
+  twoFactorMethod?: AuthResponseTwoFactorMethod;
+  challengeToken?: string;
 }

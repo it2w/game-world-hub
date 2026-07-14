@@ -16,7 +16,10 @@ export interface UserProfile {
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
+  bannerUrl?: string | null;
+  /** @nullable */
   bio?: string | null;
+  allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */
   currentGame?: string | null;

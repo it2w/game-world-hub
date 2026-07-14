@@ -54,19 +54,35 @@ import type {
   PartyInvite,
   PartyInviteInput,
   PartyUpdate,
+  PasswordResetConfirmInput,
+  PasswordResetRequestInput,
   PlatformLink,
   PlatformLinkInput,
   PlayerProgress,
+  ProfileComment,
+  ProfileCommentInput,
+  ProfileCommentsResponse,
+  ProfilePhoto,
+  ProfilePhotoInput,
   ProfileUpdate,
   RegisterInput,
   SearchUsersParams,
+  SetEmailInput,
   StatusUpdate,
   SuccessResponse,
   SyncSteam200,
+  TwoFactorDisableInput,
+  TwoFactorEnableInput,
+  TwoFactorLoginInput,
+  TwoFactorSetupInput,
+  TwoFactorSetupResponse,
+  UploadUrlRequest,
+  UploadUrlResponse,
   User,
   UserGame,
   UserGameInput,
-  UserProfile
+  UserProfile,
+  VerifyEmailInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -607,6 +623,574 @@ export const useMeHeartbeat = <TError = ErrorType<unknown>,
       return useMutation(getMeHeartbeatMutationOptions(options));
     }
 
+export const getVerifyTwoFactorLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login/2fa`
+}
+
+/**
+ * @summary Complete a two-factor login challenge
+ */
+export const verifyTwoFactorLogin = async (twoFactorLoginInput: TwoFactorLoginInput, options?: RequestInit): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getVerifyTwoFactorLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(twoFactorLoginInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyTwoFactorLoginMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyTwoFactorLogin>>, TError,{data: BodyType<TwoFactorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyTwoFactorLogin>>, TError,{data: BodyType<TwoFactorLoginInput>}, TContext> => {
+
+const mutationKey = ['verifyTwoFactorLogin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyTwoFactorLogin>>, {data: BodyType<TwoFactorLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyTwoFactorLogin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyTwoFactorLoginMutationResult = NonNullable<Awaited<ReturnType<typeof verifyTwoFactorLogin>>>
+    export type VerifyTwoFactorLoginMutationBody = BodyType<TwoFactorLoginInput>
+    export type VerifyTwoFactorLoginMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Complete a two-factor login challenge
+ */
+export const useVerifyTwoFactorLogin = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyTwoFactorLogin>>, TError,{data: BodyType<TwoFactorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyTwoFactorLogin>>,
+        TError,
+        {data: BodyType<TwoFactorLoginInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyTwoFactorLoginMutationOptions(options));
+    }
+
+export const getRequestPasswordResetUrl = () => {
+
+
+
+
+  return `/api/auth/password-reset/request`
+}
+
+/**
+ * @summary Request a password reset code by email
+ */
+export const requestPasswordReset = async (passwordResetRequestInput: PasswordResetRequestInput, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getRequestPasswordResetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(passwordResetRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRequestPasswordResetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordReset>>, TError,{data: BodyType<PasswordResetRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestPasswordReset>>, TError,{data: BodyType<PasswordResetRequestInput>}, TContext> => {
+
+const mutationKey = ['requestPasswordReset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestPasswordReset>>, {data: BodyType<PasswordResetRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestPasswordReset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestPasswordResetMutationResult = NonNullable<Awaited<ReturnType<typeof requestPasswordReset>>>
+    export type RequestPasswordResetMutationBody = BodyType<PasswordResetRequestInput>
+    export type RequestPasswordResetMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Request a password reset code by email
+ */
+export const useRequestPasswordReset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordReset>>, TError,{data: BodyType<PasswordResetRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestPasswordReset>>,
+        TError,
+        {data: BodyType<PasswordResetRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestPasswordResetMutationOptions(options));
+    }
+
+export const getConfirmPasswordResetUrl = () => {
+
+
+
+
+  return `/api/auth/password-reset/confirm`
+}
+
+/**
+ * @summary Set a new password using an emailed reset code
+ */
+export const confirmPasswordReset = async (passwordResetConfirmInput: PasswordResetConfirmInput, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getConfirmPasswordResetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(passwordResetConfirmInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmPasswordResetMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordReset>>, TError,{data: BodyType<PasswordResetConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordReset>>, TError,{data: BodyType<PasswordResetConfirmInput>}, TContext> => {
+
+const mutationKey = ['confirmPasswordReset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmPasswordReset>>, {data: BodyType<PasswordResetConfirmInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmPasswordReset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmPasswordResetMutationResult = NonNullable<Awaited<ReturnType<typeof confirmPasswordReset>>>
+    export type ConfirmPasswordResetMutationBody = BodyType<PasswordResetConfirmInput>
+    export type ConfirmPasswordResetMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Set a new password using an emailed reset code
+ */
+export const useConfirmPasswordReset = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordReset>>, TError,{data: BodyType<PasswordResetConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmPasswordReset>>,
+        TError,
+        {data: BodyType<PasswordResetConfirmInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmPasswordResetMutationOptions(options));
+    }
+
+export const getSetMyEmailUrl = () => {
+
+
+
+
+  return `/api/auth/me/email`
+}
+
+/**
+ * @summary Set or change the recovery email (sends a verification code)
+ */
+export const setMyEmail = async (setEmailInput: SetEmailInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getSetMyEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setEmailInput)
+  }
+);}
+
+
+
+
+
+export const getSetMyEmailMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyEmail>>, TError,{data: BodyType<SetEmailInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyEmail>>, TError,{data: BodyType<SetEmailInput>}, TContext> => {
+
+const mutationKey = ['setMyEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyEmail>>, {data: BodyType<SetEmailInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyEmailMutationResult = NonNullable<Awaited<ReturnType<typeof setMyEmail>>>
+    export type SetMyEmailMutationBody = BodyType<SetEmailInput>
+    export type SetMyEmailMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Set or change the recovery email (sends a verification code)
+ */
+export const useSetMyEmail = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyEmail>>, TError,{data: BodyType<SetEmailInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setMyEmail>>,
+        TError,
+        {data: BodyType<SetEmailInput>},
+        TContext
+      > => {
+      return useMutation(getSetMyEmailMutationOptions(options));
+    }
+
+export const getVerifyMyEmailUrl = () => {
+
+
+
+
+  return `/api/auth/me/email/verify`
+}
+
+/**
+ * @summary Verify the recovery email with the emailed code
+ */
+export const verifyMyEmail = async (verifyEmailInput: VerifyEmailInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getVerifyMyEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifyEmailInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyMyEmailMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMyEmail>>, TError,{data: BodyType<VerifyEmailInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyMyEmail>>, TError,{data: BodyType<VerifyEmailInput>}, TContext> => {
+
+const mutationKey = ['verifyMyEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyMyEmail>>, {data: BodyType<VerifyEmailInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyMyEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyMyEmailMutationResult = NonNullable<Awaited<ReturnType<typeof verifyMyEmail>>>
+    export type VerifyMyEmailMutationBody = BodyType<VerifyEmailInput>
+    export type VerifyMyEmailMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Verify the recovery email with the emailed code
+ */
+export const useVerifyMyEmail = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyMyEmail>>, TError,{data: BodyType<VerifyEmailInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyMyEmail>>,
+        TError,
+        {data: BodyType<VerifyEmailInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyMyEmailMutationOptions(options));
+    }
+
+export const getSetupTwoFactorUrl = () => {
+
+
+
+
+  return `/api/auth/me/2fa/setup`
+}
+
+/**
+ * @summary Begin enabling two-factor auth (returns TOTP secret or emails a code)
+ */
+export const setupTwoFactor = async (twoFactorSetupInput: TwoFactorSetupInput, options?: RequestInit): Promise<TwoFactorSetupResponse> => {
+
+  return customFetch<TwoFactorSetupResponse>(getSetupTwoFactorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(twoFactorSetupInput)
+  }
+);}
+
+
+
+
+
+export const getSetupTwoFactorMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupTwoFactor>>, TError,{data: BodyType<TwoFactorSetupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setupTwoFactor>>, TError,{data: BodyType<TwoFactorSetupInput>}, TContext> => {
+
+const mutationKey = ['setupTwoFactor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupTwoFactor>>, {data: BodyType<TwoFactorSetupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setupTwoFactor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetupTwoFactorMutationResult = NonNullable<Awaited<ReturnType<typeof setupTwoFactor>>>
+    export type SetupTwoFactorMutationBody = BodyType<TwoFactorSetupInput>
+    export type SetupTwoFactorMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Begin enabling two-factor auth (returns TOTP secret or emails a code)
+ */
+export const useSetupTwoFactor = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupTwoFactor>>, TError,{data: BodyType<TwoFactorSetupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setupTwoFactor>>,
+        TError,
+        {data: BodyType<TwoFactorSetupInput>},
+        TContext
+      > => {
+      return useMutation(getSetupTwoFactorMutationOptions(options));
+    }
+
+export const getEnableTwoFactorUrl = () => {
+
+
+
+
+  return `/api/auth/me/2fa/enable`
+}
+
+/**
+ * @summary Confirm and enable two-factor auth with a code
+ */
+export const enableTwoFactor = async (twoFactorEnableInput: TwoFactorEnableInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getEnableTwoFactorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(twoFactorEnableInput)
+  }
+);}
+
+
+
+
+
+export const getEnableTwoFactorMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enableTwoFactor>>, TError,{data: BodyType<TwoFactorEnableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof enableTwoFactor>>, TError,{data: BodyType<TwoFactorEnableInput>}, TContext> => {
+
+const mutationKey = ['enableTwoFactor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof enableTwoFactor>>, {data: BodyType<TwoFactorEnableInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  enableTwoFactor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EnableTwoFactorMutationResult = NonNullable<Awaited<ReturnType<typeof enableTwoFactor>>>
+    export type EnableTwoFactorMutationBody = BodyType<TwoFactorEnableInput>
+    export type EnableTwoFactorMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Confirm and enable two-factor auth with a code
+ */
+export const useEnableTwoFactor = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enableTwoFactor>>, TError,{data: BodyType<TwoFactorEnableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof enableTwoFactor>>,
+        TError,
+        {data: BodyType<TwoFactorEnableInput>},
+        TContext
+      > => {
+      return useMutation(getEnableTwoFactorMutationOptions(options));
+    }
+
+export const getDisableTwoFactorUrl = () => {
+
+
+
+
+  return `/api/auth/me/2fa/disable`
+}
+
+/**
+ * @summary Disable two-factor auth (requires current password)
+ */
+export const disableTwoFactor = async (twoFactorDisableInput: TwoFactorDisableInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getDisableTwoFactorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(twoFactorDisableInput)
+  }
+);}
+
+
+
+
+
+export const getDisableTwoFactorMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableTwoFactor>>, TError,{data: BodyType<TwoFactorDisableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disableTwoFactor>>, TError,{data: BodyType<TwoFactorDisableInput>}, TContext> => {
+
+const mutationKey = ['disableTwoFactor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableTwoFactor>>, {data: BodyType<TwoFactorDisableInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  disableTwoFactor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisableTwoFactorMutationResult = NonNullable<Awaited<ReturnType<typeof disableTwoFactor>>>
+    export type DisableTwoFactorMutationBody = BodyType<TwoFactorDisableInput>
+    export type DisableTwoFactorMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Disable two-factor auth (requires current password)
+ */
+export const useDisableTwoFactor = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableTwoFactor>>, TError,{data: BodyType<TwoFactorDisableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disableTwoFactor>>,
+        TError,
+        {data: BodyType<TwoFactorDisableInput>},
+        TContext
+      > => {
+      return useMutation(getDisableTwoFactorMutationOptions(options));
+    }
+
 export const getGetUserUrl = (userId: number,) => {
 
 
@@ -828,6 +1412,672 @@ export function useSearchUsers<TData = Awaited<ReturnType<typeof searchUsers>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListProfileCommentsUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/comments`
+}
+
+/**
+ * @summary List comments on a user's profile wall
+ */
+export const listProfileComments = async (userId: number, options?: RequestInit): Promise<ProfileCommentsResponse> => {
+
+  return customFetch<ProfileCommentsResponse>(getListProfileCommentsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProfileCommentsQueryKey = (userId: number,) => {
+    return [
+    `/api/users/${userId}/comments`
+    ] as const;
+    }
+
+
+export const getListProfileCommentsQueryOptions = <TData = Awaited<ReturnType<typeof listProfileComments>>, TError = ErrorType<ErrorResponse>>(userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProfileComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProfileCommentsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProfileComments>>> = ({ signal }) => listProfileComments(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProfileComments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProfileCommentsQueryResult = NonNullable<Awaited<ReturnType<typeof listProfileComments>>>
+export type ListProfileCommentsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List comments on a user's profile wall
+ */
+
+export function useListProfileComments<TData = Awaited<ReturnType<typeof listProfileComments>>, TError = ErrorType<ErrorResponse>>(
+ userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProfileComments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProfileCommentsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateProfileCommentUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/comments`
+}
+
+/**
+ * @summary Write a comment on a user's profile wall
+ */
+export const createProfileComment = async (userId: number,
+    profileCommentInput: ProfileCommentInput, options?: RequestInit): Promise<ProfileComment> => {
+
+  return customFetch<ProfileComment>(getCreateProfileCommentUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(profileCommentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateProfileCommentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileComment>>, TError,{userId: number;data: BodyType<ProfileCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProfileComment>>, TError,{userId: number;data: BodyType<ProfileCommentInput>}, TContext> => {
+
+const mutationKey = ['createProfileComment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProfileComment>>, {userId: number;data: BodyType<ProfileCommentInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  createProfileComment(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateProfileCommentMutationResult = NonNullable<Awaited<ReturnType<typeof createProfileComment>>>
+    export type CreateProfileCommentMutationBody = BodyType<ProfileCommentInput>
+    export type CreateProfileCommentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Write a comment on a user's profile wall
+ */
+export const useCreateProfileComment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileComment>>, TError,{userId: number;data: BodyType<ProfileCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createProfileComment>>,
+        TError,
+        {userId: number;data: BodyType<ProfileCommentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateProfileCommentMutationOptions(options));
+    }
+
+export const getDeleteProfileCommentUrl = (userId: number,
+    commentId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/comments/${commentId}`
+}
+
+/**
+ * @summary Delete a profile comment (wall owner or comment author)
+ */
+export const deleteProfileComment = async (userId: number,
+    commentId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteProfileCommentUrl(userId,commentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteProfileCommentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileComment>>, TError,{userId: number;commentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProfileComment>>, TError,{userId: number;commentId: number}, TContext> => {
+
+const mutationKey = ['deleteProfileComment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfileComment>>, {userId: number;commentId: number}> = (props) => {
+          const {userId,commentId} = props ?? {};
+
+          return  deleteProfileComment(userId,commentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProfileCommentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfileComment>>>
+
+    export type DeleteProfileCommentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete a profile comment (wall owner or comment author)
+ */
+export const useDeleteProfileComment = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileComment>>, TError,{userId: number;commentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProfileComment>>,
+        TError,
+        {userId: number;commentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteProfileCommentMutationOptions(options));
+    }
+
+export const getListProfilePhotosUrl = (userId: number,) => {
+
+
+
+
+  return `/api/users/${userId}/photos`
+}
+
+/**
+ * @summary List a user's profile photos
+ */
+export const listProfilePhotos = async (userId: number, options?: RequestInit): Promise<ProfilePhoto[]> => {
+
+  return customFetch<ProfilePhoto[]>(getListProfilePhotosUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProfilePhotosQueryKey = (userId: number,) => {
+    return [
+    `/api/users/${userId}/photos`
+    ] as const;
+    }
+
+
+export const getListProfilePhotosQueryOptions = <TData = Awaited<ReturnType<typeof listProfilePhotos>>, TError = ErrorType<unknown>>(userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProfilePhotos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProfilePhotosQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProfilePhotos>>> = ({ signal }) => listProfilePhotos(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProfilePhotos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProfilePhotosQueryResult = NonNullable<Awaited<ReturnType<typeof listProfilePhotos>>>
+export type ListProfilePhotosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a user's profile photos
+ */
+
+export function useListProfilePhotos<TData = Awaited<ReturnType<typeof listProfilePhotos>>, TError = ErrorType<unknown>>(
+ userId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProfilePhotos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProfilePhotosQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddProfilePhotoUrl = () => {
+
+
+
+
+  return `/api/users/me/photos`
+}
+
+/**
+ * @summary Add a photo to my profile
+ */
+export const addProfilePhoto = async (profilePhotoInput: ProfilePhotoInput, options?: RequestInit): Promise<ProfilePhoto> => {
+
+  return customFetch<ProfilePhoto>(getAddProfilePhotoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(profilePhotoInput)
+  }
+);}
+
+
+
+
+
+export const getAddProfilePhotoMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addProfilePhoto>>, TError,{data: BodyType<ProfilePhotoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addProfilePhoto>>, TError,{data: BodyType<ProfilePhotoInput>}, TContext> => {
+
+const mutationKey = ['addProfilePhoto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addProfilePhoto>>, {data: BodyType<ProfilePhotoInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addProfilePhoto(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddProfilePhotoMutationResult = NonNullable<Awaited<ReturnType<typeof addProfilePhoto>>>
+    export type AddProfilePhotoMutationBody = BodyType<ProfilePhotoInput>
+    export type AddProfilePhotoMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Add a photo to my profile
+ */
+export const useAddProfilePhoto = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addProfilePhoto>>, TError,{data: BodyType<ProfilePhotoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addProfilePhoto>>,
+        TError,
+        {data: BodyType<ProfilePhotoInput>},
+        TContext
+      > => {
+      return useMutation(getAddProfilePhotoMutationOptions(options));
+    }
+
+export const getDeleteProfilePhotoUrl = (photoId: number,) => {
+
+
+
+
+  return `/api/users/me/photos/${photoId}`
+}
+
+/**
+ * @summary Remove one of my profile photos
+ */
+export const deleteProfilePhoto = async (photoId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteProfilePhotoUrl(photoId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteProfilePhotoMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePhoto>>, TError,{photoId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePhoto>>, TError,{photoId: number}, TContext> => {
+
+const mutationKey = ['deleteProfilePhoto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfilePhoto>>, {photoId: number}> = (props) => {
+          const {photoId} = props ?? {};
+
+          return  deleteProfilePhoto(photoId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProfilePhotoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePhoto>>>
+
+    export type DeleteProfilePhotoMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove one of my profile photos
+ */
+export const useDeleteProfilePhoto = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePhoto>>, TError,{photoId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProfilePhoto>>,
+        TError,
+        {photoId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteProfilePhotoMutationOptions(options));
+    }
+
+export const getRequestUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: RequestInit): Promise<UploadUrlResponse> => {
+
+  return customFetch<UploadUrlResponse>(getRequestUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(uploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestUploadUrlMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+
+const mutationKey = ['requestUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
+    export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestUploadUrlMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Request a presigned URL for file upload
+ */
+export const useRequestUploadUrl = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestUploadUrl>>,
+        TError,
+        {data: BodyType<UploadUrlRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getGetPublicObjectUrl = (filePath: string,) => {
+
+
+
+
+  return `/api/storage/public-objects/${filePath}`
+}
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+export const getPublicObject = async (filePath: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicObjectUrl(filePath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicObjectQueryKey = (filePath: string,) => {
+    return [
+    `/api/storage/public-objects/${filePath}`
+    ] as const;
+    }
+
+
+export const getGetPublicObjectQueryOptions = <TData = Awaited<ReturnType<typeof getPublicObject>>, TError = ErrorType<ErrorResponse>>(filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicObjectQueryKey(filePath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicObject>>> = ({ signal }) => getPublicObject(filePath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: filePath !== null && filePath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicObject>>>
+export type GetPublicObjectQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+ */
+
+export function useGetPublicObject<TData = Awaited<ReturnType<typeof getPublicObject>>, TError = ErrorType<ErrorResponse>>(
+ filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicObjectQueryOptions(filePath,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStorageObjectUrl = (objectPath: string,) => {
+
+
+
+
+  return `/api/storage/objects/${objectPath}`
+}
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+export const getStorageObject = async (objectPath: string, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+    return [
+    `/api/storage/objects/${objectPath}`
+    ] as const;
+    }
+
+
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<ErrorResponse>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: objectPath !== null && objectPath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageObject>>>
+export type GetStorageObjectQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Serve an object entity from PRIVATE_OBJECT_DIR
+ */
+
+export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<ErrorResponse>>(
+ objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

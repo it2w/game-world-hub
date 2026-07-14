@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UserStatus } from './userStatus';
+import type { UserTwoFactorMethod } from './userTwoFactorMethod';
 
 export interface User {
   id: number;
@@ -14,7 +15,14 @@ export interface User {
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
+  bannerUrl?: string | null;
+  /** @nullable */
   bio?: string | null;
+  /** @nullable */
+  email?: string | null;
+  emailVerified?: boolean;
+  twoFactorMethod?: UserTwoFactorMethod;
+  allowProfileComments?: boolean;
   status: UserStatus;
   /** @nullable */
   currentGame?: string | null;

@@ -54,6 +54,11 @@ export interface User {
   bannerUrl?: string | null;
   /** @nullable */
   bio?: string | null;
+  /**
+     * User's self-reported competitive rank (e.g. Gold, Platinum III)
+     * @nullable
+     */
+  rank?: string | null;
   /** @nullable */
   email?: string | null;
   emailVerified?: boolean;
@@ -105,7 +110,7 @@ export interface LfgPostInput {
   neededPlayers?: number;
   micRequired?: boolean;
   /**
-     * @minimum 1
+     * @minimum 0.25
      * @maximum 48
      */
   expiresInHours?: number;
@@ -264,6 +269,11 @@ export interface UserProfile {
   bannerUrl?: string | null;
   /** @nullable */
   bio?: string | null;
+  /**
+     * User's self-reported competitive rank
+     * @nullable
+     */
+  rank?: string | null;
   allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */
@@ -283,6 +293,11 @@ export interface ProfileUpdate {
   bio?: string;
   avatarUrl?: string;
   bannerUrl?: string;
+  /**
+     * Self-reported competitive rank (e.g. Gold, Platinum III)
+     * @maxLength 50
+     */
+  rank?: string;
   allowProfileComments?: boolean;
 }
 

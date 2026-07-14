@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
-import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X } from "lucide-react";
+import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock } from "lucide-react";
 
 type CreateLfgForm = {
   game: string;
@@ -28,7 +28,8 @@ type CreateLfgForm = {
   rank?: string;
   neededPlayers: number;
   micRequired: boolean;
-  expiresInHours: number;
+  expiresHours: number;
+  expiresMinutes: number;
   description: string;
 };
 
@@ -44,8 +45,12 @@ export default function Lfg() {
         rank: z.string().optional(),
         neededPlayers: z.coerce.number().min(1).max(20),
         micRequired: z.boolean().default(false),
-        expiresInHours: z.coerce.number().min(1).max(48),
+        expiresHours: z.coerce.number().min(0).max(47).default(0),
+        expiresMinutes: z.coerce.number().min(0).max(59).default(30),
         description: z.string().min(1, t("validation.briefingRequired")).max(500),
+      }).refine((d) => d.expiresHours * 60 + d.expiresMinutes >= 15, {
+        message: t("validation.expiresMin"),
+        path: ["expiresMinutes"],
       }),
     [t],
   );
@@ -82,14 +87,16 @@ export default function Lfg() {
       rank: "",
       neededPlayers: 1,
       micRequired: false,
-      expiresInHours: 12,
+      expiresHours: 0,
+      expiresMinutes: 30,
       description: "",
     },
   });
 
   const onSubmit = (data: CreateLfgForm) => {
+    const expiresInHours = data.expiresHours + data.expiresMinutes / 60;
     createLfg.mutate(
-      { data },
+      { data: { ...data, expiresInHours } },
       {
         onSuccess: () => {
           setOpen(false);
@@ -179,7 +186,7 @@ export default function Lfg() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="neededPlayers"
@@ -212,29 +219,37 @@ export default function Lfg() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="expiresInHours"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">{t("form.expires")}</FormLabel>
-                        <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                </div>
+                <div>
+                  <p className="font-mono text-xs uppercase mb-2 text-muted-foreground">{t("form.expires")}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="expiresHours"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-mono text-[10px] uppercase text-muted-foreground">{t("form.expiresHours")}</FormLabel>
                           <FormControl>
-                            <SelectTrigger className="font-mono bg-background border-border rounded-none">
-                              <SelectValue />
-                            </SelectTrigger>
+                            <Input type="number" min={0} max={47} {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="0" />
                           </FormControl>
-                          <SelectContent className="bg-card border-border rounded-none font-mono">
-                            <SelectItem value="1">{t("form.expires1h")}</SelectItem>
-                            <SelectItem value="6">{t("form.expires6h")}</SelectItem>
-                            <SelectItem value="12">{t("form.expires12h")}</SelectItem>
-                            <SelectItem value="24">{t("form.expires24h")}</SelectItem>
-                            <SelectItem value="48">{t("form.expires48h")}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="expiresMinutes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-mono text-[10px] uppercase text-muted-foreground">{t("form.expiresMinutes")}</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} max={59} {...field} className="font-mono bg-background border-border rounded-none focus-visible:ring-primary" placeholder="30" />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <p className="font-mono text-[10px] text-muted-foreground mt-1">{t("form.expiresHint")}</p>
                 </div>
 
                 <FormField
@@ -282,13 +297,14 @@ export default function Lfg() {
         ) : (
           filtered.map((post) => {
             const mine = me?.id === post.author.id;
+            const isClosed = post.status === "closed";
             const remaining = timeLeft(post.expiresAt);
             return (
-              <div key={post.id} className="bg-card border border-border flex flex-col hover:border-primary/50 transition-colors">
-                <div className="p-4 border-b border-border bg-muted/20 flex items-start gap-3">
+              <div key={post.id} className={`border flex flex-col transition-colors ${isClosed ? "bg-muted/30 border-border opacity-70" : "bg-card border-border hover:border-primary/50"}`}>
+                <div className={`p-4 border-b border-border flex items-start gap-3 ${isClosed ? "bg-muted/10" : "bg-muted/20"}`}>
                   <div className="w-10 h-10 rounded-sm bg-muted flex items-center justify-center font-mono text-sm overflow-hidden border border-border shrink-0">
                     {post.author.avatarUrl ? (
-                      <img src={post.author.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      <img src={post.author.avatarUrl} alt="" className={`w-full h-full object-cover ${isClosed ? "grayscale" : ""}`} />
                     ) : (
                       post.author.displayName.charAt(0).toUpperCase()
                     )}
@@ -297,12 +313,17 @@ export default function Lfg() {
                     <div className="flex items-center gap-2 text-primary font-bold">
                       <Gamepad2 className="w-4 h-4 shrink-0" />
                       <span className="truncate">{post.game}</span>
+                      {isClosed && (
+                        <span className="flex items-center gap-1 border border-muted-foreground/40 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                          <Lock className="w-2.5 h-2.5" /> {t("card.closed")}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs font-mono text-muted-foreground truncate">
                       @{post.author.username}
                     </div>
                   </div>
-                  {remaining && (
+                  {remaining && !isClosed && (
                     <span className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground shrink-0">
                       <Clock className="w-3 h-3" /> {remaining}
                     </span>
@@ -345,15 +366,17 @@ export default function Lfg() {
 
                     {mine ? (
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="font-mono rounded-none text-xs"
-                          disabled={close.isPending}
-                          onClick={() => close.mutate({ postId: post.id }, { onSuccess: invalidate })}
-                        >
-                          <X className="w-3 h-3 me-1" /> {t("card.close")}
-                        </Button>
+                        {!isClosed && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="font-mono rounded-none text-xs"
+                            disabled={close.isPending}
+                            onClick={() => close.mutate({ postId: post.id }, { onSuccess: invalidate })}
+                          >
+                            <X className="w-3 h-3 me-1" /> {t("card.close")}
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -372,8 +395,8 @@ export default function Lfg() {
                       <Button
                         size="sm"
                         className="font-mono rounded-none text-xs"
-                        disabled={respond.isPending}
-                        onClick={() => respond.mutate({ postId: post.id, data: {} }, { onSuccess: invalidate })}
+                        disabled={respond.isPending || isClosed}
+                        onClick={() => !isClosed && respond.mutate({ postId: post.id, data: {} }, { onSuccess: invalidate })}
                       >
                         {t("card.respond")}
                       </Button>

@@ -54,7 +54,7 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
   };
 }
 
-// GET /lfg — list open, non-expired posts (optionally filtered)
+// GET /lfg — list open, non-expired posts; also includes the viewer's own closed/expired posts
 router.get("/lfg", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const game = typeof req.query.game === "string" && req.query.game.trim() ? req.query.game.trim() : undefined;
@@ -62,21 +62,42 @@ router.get("/lfg", requireAuth, async (req, res): Promise<void> => {
     typeof req.query.platform === "string" && req.query.platform.trim() ? req.query.platform.trim() : undefined;
 
   const now = new Date();
-  const filters = [
+  // Open posts (not expired) for everyone — plus the viewer's own closed/expired posts
+  const openFilters = [
     eq(lfgPostsTable.status, "open"),
     or(isNull(lfgPostsTable.expiresAt), gt(lfgPostsTable.expiresAt, now)),
   ];
-  if (game) filters.push(eq(lfgPostsTable.game, game));
-  if (platform) filters.push(eq(lfgPostsTable.platform, platform));
+  if (game) openFilters.push(eq(lfgPostsTable.game, game));
+  if (platform) openFilters.push(eq(lfgPostsTable.platform, platform));
 
-  const posts = await db
-    .select()
-    .from(lfgPostsTable)
-    .where(and(...filters))
-    .orderBy(desc(lfgPostsTable.createdAt))
-    .limit(50);
+  const [openPosts, ownClosedPosts] = await Promise.all([
+    db
+      .select()
+      .from(lfgPostsTable)
+      .where(and(...openFilters))
+      .orderBy(desc(lfgPostsTable.createdAt))
+      .limit(50),
+    // Own closed/expired posts (regardless of game/platform filter so they always appear)
+    db
+      .select()
+      .from(lfgPostsTable)
+      .where(and(eq(lfgPostsTable.authorId, myId), eq(lfgPostsTable.status, "closed")))
+      .orderBy(desc(lfgPostsTable.createdAt))
+      .limit(10),
+  ]);
 
-  res.json(await Promise.all(posts.map((p) => buildPost(p, myId))));
+  // Merge, deduplicate (open own posts already appear in openPosts), sort by createdAt desc
+  const seen = new Set<number>();
+  const merged: typeof openPosts = [];
+  for (const p of [...openPosts, ...ownClosedPosts]) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      merged.push(p);
+    }
+  }
+  merged.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  res.json(await Promise.all(merged.map((p) => buildPost(p, myId))));
 });
 
 // POST /lfg — create a post

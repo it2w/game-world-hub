@@ -15,6 +15,7 @@ import {
 import { CreatePartyBody, UpdatePartyBody, InviteToPartyBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
+import { evictUserFromRoom } from "../ws/signaling";
 
 const router: IRouter = Router();
 
@@ -375,6 +376,73 @@ router.post("/parties/:partyId/join", requireAuth, async (req, res): Promise<voi
   await db.insert(partyActivityTable).values({ partyId, actorId: myId, action: "joined" });
 
   res.json(await buildParty(party));
+});
+
+// POST /parties/:partyId/kick/:userId — leader kicks a member
+router.post("/parties/:partyId/kick/:userId", requireAuth, async (req, res): Promise<void> => {
+  const rawParty = Array.isArray(req.params.partyId) ? req.params.partyId[0] : req.params.partyId;
+  const rawUser = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const partyId = parseInt(rawParty, 10);
+  const targetId = parseInt(rawUser, 10);
+  const myId = req.auth!.userId;
+
+  const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+  if (!party || party.leaderId !== myId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (targetId === myId) {
+    res.status(400).json({ error: "Cannot kick yourself" });
+    return;
+  }
+
+  await db.delete(partyMembersTable).where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, targetId)));
+  await db.insert(partyActivityTable).values({ partyId, actorId: targetId, action: "left" });
+
+  // Revoke access to party conversation
+  if (party.conversationId) {
+    await db
+      .delete(conversationParticipantsTable)
+      .where(and(eq(conversationParticipantsTable.conversationId, party.conversationId), eq(conversationParticipantsTable.userId, targetId)));
+  }
+
+  // Immediately evict from live voice session so the kicked user can't
+  // continue relaying signaling frames in the in-memory party room.
+  evictUserFromRoom(targetId, `party:${partyId}`);
+
+  res.json({ success: true });
+});
+
+// POST /parties/:partyId/transfer/:userId — leader transfers leadership
+router.post("/parties/:partyId/transfer/:userId", requireAuth, async (req, res): Promise<void> => {
+  const rawParty = Array.isArray(req.params.partyId) ? req.params.partyId[0] : req.params.partyId;
+  const rawUser = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const partyId = parseInt(rawParty, 10);
+  const targetId = parseInt(rawUser, 10);
+  const myId = req.auth!.userId;
+
+  const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+  if (!party || party.leaderId !== myId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (targetId === myId) {
+    res.status(400).json({ error: "Already the leader" });
+    return;
+  }
+
+  // Target must be a member
+  const [membership] = await db
+    .select()
+    .from(partyMembersTable)
+    .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, targetId)));
+  if (!membership) {
+    res.status(400).json({ error: "Target user is not a party member" });
+    return;
+  }
+
+  const [updated] = await db.update(partiesTable).set({ leaderId: targetId }).where(eq(partiesTable.id, partyId)).returning();
+  res.json(await buildParty(updated));
 });
 
 // POST /parties/:partyId/leave

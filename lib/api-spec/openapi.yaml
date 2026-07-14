@@ -577,6 +577,32 @@ paths:
         "204":
           description: Deleted
 
+  /users/me/avatar:
+    delete:
+      operationId: deleteMyAvatar
+      tags: [users]
+      summary: Remove my profile picture (resets to placeholder)
+      responses:
+        "200":
+          description: Avatar cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/banner:
+    delete:
+      operationId: deleteMyBanner
+      tags: [users]
+      summary: Remove my profile banner
+      responses:
+        "200":
+          description: Banner cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
   # ── Storage ─────────────────────────────────────────────────────────────
   /storage/uploads/request-url:
     post:
@@ -816,6 +842,25 @@ paths:
                 items:
                   $ref: "#/components/schemas/Conversation"
 
+  /conversations/{conversationId}:
+    delete:
+      operationId: hideConversation
+      tags: [messages]
+      summary: Hide a conversation from your list (removes you as a participant)
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /conversations/{conversationId}/messages:
     get:
       operationId: getMessages
@@ -859,6 +904,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+
+  /conversations/{conversationId}/messages/{messageId}:
+    delete:
+      operationId: deleteMessage
+      tags: [messages]
+      summary: Delete your own message (removes for all participants)
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Not your message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /conversations/direct/{userId}:
     get:
@@ -1039,6 +1110,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+
+  /parties/{partyId}/kick/{userId}:
+    post:
+      operationId: kickPartyMember
+      tags: [parties]
+      summary: Kick a member from the party (leader only)
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Kicked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /parties/{partyId}/transfer/{userId}:
+    post:
+      operationId: transferPartyLeadership
+      tags: [parties]
+      summary: Transfer party leadership to another member (leader only)
+      parameters:
+        - name: partyId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leadership transferred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Party"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /parties/activity-feed:
     get:
@@ -1837,8 +1968,8 @@ components:
         micRequired:
           type: boolean
         expiresInHours:
-          type: integer
-          minimum: 1
+          type: number
+          minimum: 0.25
           maximum: 48
 
     LfgRespondInput:
@@ -1983,6 +2114,9 @@ components:
           type: ["string", "null"]
         bio:
           type: ["string", "null"]
+        rank:
+          type: ["string", "null"]
+          description: User's self-reported competitive rank (e.g. Gold, Platinum III)
         email:
           type: ["string", "null"]
         emailVerified:
@@ -2016,6 +2150,9 @@ components:
           type: ["string", "null"]
         bio:
           type: ["string", "null"]
+        rank:
+          type: ["string", "null"]
+          description: User's self-reported competitive rank
         allowProfileComments:
           type: boolean
         status:
@@ -2048,6 +2185,10 @@ components:
           type: string
         bannerUrl:
           type: string
+        rank:
+          type: string
+          maxLength: 50
+          description: Self-reported competitive rank (e.g. Gold, Platinum III)
         allowProfileComments:
           type: boolean
 

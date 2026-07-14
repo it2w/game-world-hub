@@ -4,6 +4,11 @@
   "activeProcess": "اللعبة الحالية:",
   "none": "لا شيء",
   "init": "تاريخ الإنشاء: {{date}}",
+  "deleteAvatar": "إزالة الصورة الشخصية",
+  "deleteBanner": "إزالة الغلاف",
+  "rank": {
+    "label": "الرتبة"
+  },
   "friend": {
     "unblock": "إلغاء الحظر",
     "add": "إضافة صديق",
@@ -59,6 +64,9 @@
     "userBlocked": "تم حظر المستخدم",
     "userBlockFailed": "تعذّر حظر المستخدم",
     "userUnblocked": "تم إلغاء حظر المستخدم",
-    "userUnblockFailed": "تعذّر إلغاء حظر المستخدم"
+    "userUnblockFailed": "تعذّر إلغاء حظر المستخدم",
+    "avatarDeleted": "تمت إزالة الصورة الشخصية",
+    "bannerDeleted": "تمت إزالة الغلاف",
+    "deleteFailed": "تعذّر الحذف"
   }
 }

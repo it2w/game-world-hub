@@ -18,6 +18,11 @@ export interface User {
   bannerUrl?: string | null;
   /** @nullable */
   bio?: string | null;
+  /**
+     * User's self-reported competitive rank (e.g. Gold, Platinum III)
+     * @nullable
+     */
+  rank?: string | null;
   /** @nullable */
   email?: string | null;
   emailVerified?: boolean;

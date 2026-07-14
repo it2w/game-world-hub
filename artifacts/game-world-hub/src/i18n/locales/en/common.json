@@ -47,7 +47,12 @@
     "reconnecting": "Reconnecting…",
     "unreachable": "Couldn't reach {{name}} — their network may be blocking the call.",
     "openScreen": "Open {{label}}'s screen",
-    "youSuffix": " (you)"
+    "youSuffix": " (you)",
+    "kick": "Kick from party",
+    "transferLeadership": "Transfer leadership",
+    "qualityPickerTitle": "SCREEN SHARE QUALITY",
+    "startSharing": "START SHARING",
+    "cancel": "CANCEL"
   },
   "call": {
     "incoming": "Incoming Call",

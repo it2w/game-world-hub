@@ -20,18 +20,17 @@
     "mic": "Mic",
     "micOptional": "Optional",
     "micRequired": "Required",
-    "expires": "Expires",
-    "expires1h": "1h",
-    "expires6h": "6h",
-    "expires12h": "12h",
-    "expires24h": "24h",
-    "expires48h": "48h",
+    "expires": "Expires In",
+    "expiresHours": "Hours",
+    "expiresMinutes": "Minutes",
+    "expiresHint": "Minimum 15 min · Maximum 48 h",
     "briefing": "Briefing",
     "briefingPlaceholder": "What are you playing, what do you need?"
   },
   "validation": {
     "gameRequired": "Game is required",
-    "briefingRequired": "Briefing is required"
+    "briefingRequired": "Briefing is required",
+    "expiresMin": "Duration must be at least 15 minutes"
   },
   "filter": {
     "placeholder": "FILTER BY GAME, PLATFORM, PLAYER..."
@@ -53,6 +52,7 @@
     "replies_one": "{{count}} reply",
     "replies_other": "{{count}} replies",
     "close": "CLOSE",
+    "closed": "CLOSED",
     "signalSent": "SIGNAL SENT",
     "respond": "RESPOND"
   }

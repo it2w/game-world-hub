@@ -21,17 +21,16 @@
     "micOptional": "اختياري",
     "micRequired": "مطلوب",
     "expires": "تنتهي بعد",
-    "expires1h": "ساعة",
-    "expires6h": "6 ساعات",
-    "expires12h": "12 ساعة",
-    "expires24h": "24 ساعة",
-    "expires48h": "48 ساعة",
+    "expiresHours": "ساعات",
+    "expiresMinutes": "دقائق",
+    "expiresHint": "الحد الأدنى 15 دقيقة · الحد الأقصى 48 ساعة",
     "briefing": "الوصف",
     "briefingPlaceholder": "ماذا تلعب، وما الذي تحتاجه؟"
   },
   "validation": {
     "gameRequired": "اسم اللعبة مطلوب",
-    "briefingRequired": "الوصف مطلوب"
+    "briefingRequired": "الوصف مطلوب",
+    "expiresMin": "يجب أن تكون المدة 15 دقيقة على الأقل"
   },
   "filter": {
     "placeholder": "التصفية حسب اللعبة أو المنصة أو اللاعب..."
@@ -57,6 +56,7 @@
     "replies_many": "{{count}} ردًّا",
     "replies_other": "{{count}} رد",
     "close": "إغلاق",
+    "closed": "مغلق",
     "signalSent": "تم إرسال الإشارة",
     "respond": "استجابة"
   }

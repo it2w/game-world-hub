@@ -19,6 +19,11 @@ export interface UserProfile {
   bannerUrl?: string | null;
   /** @nullable */
   bio?: string | null;
+  /**
+     * User's self-reported competitive rank
+     * @nullable
+     */
+  rank?: string | null;
   allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */

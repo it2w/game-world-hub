@@ -2,7 +2,8 @@
   "sidebar": {
     "title": "Comms_Channels",
     "you": "You",
-    "noMessages": "No messages yet"
+    "noMessages": "No messages yet",
+    "hideConversation": "Hide conversation"
   },
   "conversation": {
     "directMessage": "Direct Message",
@@ -15,5 +16,13 @@
   },
   "empty": {
     "selectChannel": "Select a channel to begin transmission"
+  },
+  "msg": {
+    "copy": "Copy message",
+    "delete": "Delete message"
+  },
+  "typing": {
+    "one": "{{name}} is typing…",
+    "multiple": "{{count}} people are typing…"
   }
 }

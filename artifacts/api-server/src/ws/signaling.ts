@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
 import { and, eq } from "drizzle-orm";
-import { db, usersTable, partyMembersTable } from "@workspace/db";
+import { db, usersTable, partyMembersTable, conversationParticipantsTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -378,11 +378,45 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
     case "call-cancel":
       if (typeof msg.callId === "string") handleCallCancel(client, msg.callId);
       break;
+    case "typing":
+      if (typeof msg.conversationId === "number") await handleTyping(client, msg.conversationId);
+      break;
     case "ping":
       send(client.ws, { type: "pong" });
       break;
     default:
       break;
+  }
+}
+
+/** Relay typing indicator to all online participants of a conversation (except sender). */
+async function handleTyping(client: Client, conversationId: number): Promise<void> {
+  let participants: { userId: number }[];
+  try {
+    participants = await db
+      .select({ userId: conversationParticipantsTable.userId })
+      .from(conversationParticipantsTable)
+      .where(eq(conversationParticipantsTable.conversationId, conversationId));
+  } catch (err) {
+    logger.error({ err, conversationId }, "ws: failed to fetch conversation participants for typing");
+    return;
+  }
+  // Verify the sender is actually a participant (authorization)
+  const isMember = participants.some((p) => p.userId === client.userId);
+  if (!isMember) return;
+
+  for (const p of participants) {
+    if (p.userId === client.userId) continue;
+    const targets = clientsByUser.get(p.userId);
+    if (!targets) continue;
+    for (const t of targets) {
+      send(t.ws, {
+        type: "typing",
+        conversationId,
+        userId: client.userId,
+        displayName: client.displayName,
+      });
+    }
   }
 }
 
@@ -393,6 +427,46 @@ function handleClose(client: Client): void {
   cleanupCallsFor(client);
   unregisterClient(client);
   logger.info({ userId: client.userId }, "voice: client disconnected");
+}
+
+// ─── External eviction API ───────────────────────────────────────────────
+
+/**
+ * Force-evict a user from a specific signaling room (e.g. after a party kick).
+ * All of the user's active sessions in that room receive a `force-leave` and
+ * are removed from the in-memory room membership so they cannot relay any
+ * further signaling frames.
+ */
+export function evictUserFromRoom(userId: number, room: string): void {
+  const members = rooms.get(room);
+  if (!members) return;
+  const member = members.get(userId);
+  if (!member) return;
+
+  // Send force-leave to the kicked user so their client tears down the call.
+  send(member.client.ws, { type: "force-leave", room });
+  member.client.rooms.delete(room);
+  members.delete(userId);
+
+  // Tell the remaining peers that this user left.
+  for (const [, m] of members) {
+    send(m.client.ws, { type: "peer-left", room, userId });
+  }
+
+  if (members.size === 0) {
+    rooms.delete(room);
+  }
+
+  // Also clear any other sessions for the same user that might be in the room
+  // (defensive: joinRoom ensures only one session per user per room, but cover it anyway).
+  const sessions = clientsByUser.get(userId);
+  if (sessions) {
+    for (const client of sessions) {
+      if (client.rooms.has(room)) {
+        client.rooms.delete(room);
+      }
+    }
+  }
 }
 
 // ─── Server attachment ───────────────────────────────────────────────────

@@ -47,6 +47,7 @@ export const RegisterResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -78,6 +79,7 @@ export const LoginResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -111,6 +113,7 @@ export const GetMeResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -136,6 +139,7 @@ export const UpdateMyStatusResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -174,6 +178,7 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -244,6 +249,7 @@ export const SetMyEmailResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -273,6 +279,7 @@ export const VerifyMyEmailResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -317,6 +324,7 @@ export const EnableTwoFactorResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -341,6 +349,7 @@ export const DisableTwoFactorResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -365,6 +374,7 @@ export const GetUserResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank'),
   "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
@@ -402,6 +412,8 @@ export const updateProfileBodyDisplayNameMax = 50;
 
 export const updateProfileBodyBioMax = 500;
 
+export const updateProfileBodyRankMax = 50;
+
 
 
 export const UpdateProfileBody = zod.object({
@@ -409,6 +421,7 @@ export const UpdateProfileBody = zod.object({
   "bio": zod.string().max(updateProfileBodyBioMax).optional(),
   "avatarUrl": zod.string().optional(),
   "bannerUrl": zod.string().optional(),
+  "rank": zod.string().max(updateProfileBodyRankMax).optional().describe('Self-reported competitive rank (e.g. Gold, Platinum III)'),
   "allowProfileComments": zod.boolean().optional()
 })
 
@@ -419,6 +432,7 @@ export const UpdateProfileResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank'),
   "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
@@ -459,6 +473,7 @@ export const SearchUsersResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -586,6 +601,48 @@ export const DeleteProfilePhotoResponse = zod.void()
 
 
 /**
+ * @summary Remove my profile picture (resets to placeholder)
+ */
+export const DeleteMyAvatarResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove my profile banner
+ */
+export const DeleteMyBannerResponse = zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Request a presigned URL for file upload
  */
 
@@ -647,6 +704,7 @@ export const ListFriendsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -672,6 +730,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -687,6 +746,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -717,6 +777,7 @@ export const SendFriendRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -732,6 +793,7 @@ export const SendFriendRequestResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -808,6 +870,7 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -835,6 +898,7 @@ export const ListConversationsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -853,6 +917,7 @@ export const ListConversationsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -868,6 +933,18 @@ export const ListConversationsResponseItem = zod.object({
   "createdAt": zod.string()
 })
 export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+
+
+/**
+ * @summary Hide a conversation from your list (removes you as a participant)
+ */
+export const HideConversationParams = zod.object({
+  "conversationId": zod.coerce.number()
+})
+
+export const HideConversationResponse = zod.object({
+  "success": zod.boolean()
+})
 
 
 /**
@@ -887,6 +964,7 @@ export const GetMessagesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -925,6 +1003,7 @@ export const SendMessageResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -936,6 +1015,17 @@ export const SendMessageResponse = zod.object({
   "content": zod.string(),
   "createdAt": zod.string()
 })
+
+
+/**
+ * @summary Delete your own message (removes for all participants)
+ */
+export const DeleteMessageParams = zod.object({
+  "conversationId": zod.coerce.number(),
+  "messageId": zod.coerce.number()
+})
+
+export const DeleteMessageResponse = zod.void()
 
 
 /**
@@ -956,6 +1046,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -974,6 +1065,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1006,6 +1098,7 @@ export const ListPartiesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1021,6 +1114,7 @@ export const ListPartiesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1071,6 +1165,7 @@ export const CreatePartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1086,6 +1181,7 @@ export const CreatePartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1121,6 +1217,7 @@ export const GetPartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1136,6 +1233,7 @@ export const GetPartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1189,6 +1287,7 @@ export const UpdatePartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1204,6 +1303,7 @@ export const UpdatePartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1267,6 +1367,7 @@ export const JoinPartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1282,6 +1383,7 @@ export const JoinPartyResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1310,6 +1412,72 @@ export const LeavePartyResponse = zod.object({
 
 
 /**
+ * @summary Kick a member from the party (leader only)
+ */
+export const KickPartyMemberParams = zod.object({
+  "partyId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const KickPartyMemberResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Transfer party leadership to another member (leader only)
+ */
+export const TransferPartyLeadershipParams = zod.object({
+  "partyId": zod.coerce.number(),
+  "userId": zod.coerce.number()
+})
+
+export const TransferPartyLeadershipResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "game": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "leader": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "members": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "maxSize": zod.number(),
+  "isPublic": zod.boolean(),
+  "conversationId": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get recent party activity from friends
  */
 export const GetPartyActivityFeedResponseItem = zod.object({
@@ -1327,6 +1495,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1342,6 +1511,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1362,6 +1532,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1394,6 +1565,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1409,6 +1581,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1429,6 +1602,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1462,6 +1636,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1477,6 +1652,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1739,6 +1915,7 @@ export const ListBlockedUsersResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1953,6 +2130,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -1976,6 +2154,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2000,6 +2179,7 @@ export const createLfgPostBodyDescriptionMax = 500;
 
 export const createLfgPostBodyNeededPlayersMax = 20;
 
+export const createLfgPostBodyExpiresInHoursMin = 0.25;
 export const createLfgPostBodyExpiresInHoursMax = 48;
 
 
@@ -2011,7 +2191,7 @@ export const CreateLfgPostBody = zod.object({
   "description": zod.string().min(1).max(createLfgPostBodyDescriptionMax),
   "neededPlayers": zod.number().min(1).max(createLfgPostBodyNeededPlayersMax).optional(),
   "micRequired": zod.boolean().optional(),
-  "expiresInHours": zod.number().min(1).max(createLfgPostBodyExpiresInHoursMax).optional()
+  "expiresInHours": zod.number().min(createLfgPostBodyExpiresInHoursMin).max(createLfgPostBodyExpiresInHoursMax).optional()
 })
 
 export const CreateLfgPostResponse = zod.object({
@@ -2023,6 +2203,7 @@ export const CreateLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2046,6 +2227,7 @@ export const CreateLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2084,6 +2266,7 @@ export const RespondToLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2107,6 +2290,7 @@ export const RespondToLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2137,6 +2321,7 @@ export const CloseLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
@@ -2160,6 +2345,7 @@ export const CloseLfgPostResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
   "email": zod.string().nullish(),
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),

@@ -2,15 +2,35 @@ import { Link, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, Trophy, X } from "lucide-react";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
+
+// Rank tier colour palette (self-reported competitive rank)
+const RANK_COLORS: Record<string, string> = {
+  bronze: "#CD7F32",
+  iron: "#A8A8A8",
+  silver: "#C0C0C0",
+  gold: "#FFD700",
+  platinum: "#00C7C7",
+  diamond: "#4FC3F7",
+  master: "#9C27B0",
+  grandmaster: "#F44336",
+};
+
+function getRankColor(rank: string): string {
+  const lower = rank.toLowerCase();
+  for (const key of Object.keys(RANK_COLORS)) {
+    if (lower.includes(key)) return RANK_COLORS[key];
+  }
+  return "#6B7280"; // muted gray fallback
+}
 
 export default function Profile() {
   const { t } = useTranslation("profile");
@@ -41,7 +61,28 @@ export default function Profile() {
 
   const { data: me } = useGetMe();
   const updateStatus = useUpdateMyStatus();
+  const deleteAvatar = useDeleteMyAvatar();
+  const deleteBanner = useDeleteMyBanner();
   const isOwner = !!me && me.id === userId;
+
+  const refreshUser = () => {
+    queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
+    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+  };
+
+  const handleDeleteAvatar = () => {
+    deleteAvatar.mutate(undefined, {
+      onSuccess: () => { toast({ title: t("toasts.avatarDeleted") }); refreshUser(); },
+      onError: () => toast({ title: t("toasts.deleteFailed"), variant: "destructive" }),
+    });
+  };
+
+  const handleDeleteBanner = () => {
+    deleteBanner.mutate(undefined, {
+      onSuccess: () => { toast({ title: t("toasts.bannerDeleted") }); refreshUser(); },
+      onError: () => toast({ title: t("toasts.deleteFailed"), variant: "destructive" }),
+    });
+  };
 
   // ── Visual log (photo gallery) + comms wall ────────────────────
   const { data: photos } = useListProfilePhotos(userId, {
@@ -162,16 +203,27 @@ export default function Profile() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="bg-card border border-border relative overflow-hidden">
         {user.bannerUrl && (
-          <div className="h-44 relative border-b border-border">
+          <div className="h-44 relative border-b border-border group">
             <img src={user.bannerUrl} alt="" className="w-full h-full object-cover" data-testid="img-profile-banner" />
             <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
+            {isOwner && (
+              <button
+                onClick={handleDeleteBanner}
+                disabled={deleteBanner.isPending}
+                className="absolute top-2 end-2 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                title={t("deleteBanner")}
+                data-testid="button-delete-banner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         )}
         <div className="p-8 relative flex flex-col md:flex-row gap-8 items-center md:items-start">
         <div className="absolute top-0 end-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         
         <div className="relative z-10 shrink-0">
-          <div className="w-32 h-32 border-2 border-border bg-muted flex items-center justify-center relative">
+          <div className="w-32 h-32 border-2 border-border bg-muted flex items-center justify-center relative group">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -180,6 +232,17 @@ export default function Profile() {
             <div className="absolute -bottom-2 -end-2 p-1 bg-card">
               <StatusBadge status={user.status} className="w-5 h-5 border-[3px]" />
             </div>
+            {isOwner && user.avatarUrl && (
+              <button
+                onClick={handleDeleteAvatar}
+                disabled={deleteAvatar.isPending}
+                className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-destructive"
+                title={t("deleteAvatar")}
+                data-testid="button-delete-avatar"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -234,6 +297,19 @@ export default function Profile() {
             <p className="max-w-2xl text-muted-foreground border-s-2 border-border ps-4 italic">
               "{user.bio}"
             </p>
+          )}
+
+          {user.rank && (
+            <div className="flex items-center gap-2">
+              <span
+                className="flex items-center gap-2 px-3 py-1.5 border text-xs font-mono uppercase tracking-widest font-bold"
+                style={{ borderColor: getRankColor(user.rank), color: getRankColor(user.rank), background: `${getRankColor(user.rank)}18` }}
+                title={t("rank.label")}
+              >
+                <Trophy className="w-3.5 h-3.5" style={{ color: getRankColor(user.rank) }} />
+                {user.rank}
+              </span>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-4 justify-center md:justify-start pt-2">

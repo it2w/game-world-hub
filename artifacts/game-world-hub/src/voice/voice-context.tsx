@@ -485,6 +485,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           setError(msg.reason === "offline" ? "User is offline" : "Call could not be completed");
           break;
 
+        case "typing":
+          // Relay chat typing events to any listeners (e.g. chat.tsx)
+          window.dispatchEvent(new CustomEvent("gwh:typing", {
+            detail: { conversationId: msg.conversationId, userId: msg.userId, displayName: msg.displayName },
+          }));
+          break;
+
         default:
           break;
       }
@@ -545,6 +552,16 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       ws.close();
     };
   }, [wsSend, broadcastState]);
+
+  // Forward outgoing chat typing events → WS
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail;
+      wsSend(msg);
+    };
+    window.addEventListener("gwh:ws-send", handler);
+    return () => window.removeEventListener("gwh:ws-send", handler);
+  }, [wsSend]);
 
   useEffect(() => {
     if (!isAuthenticated) return;

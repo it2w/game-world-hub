@@ -47,7 +47,12 @@
     "reconnecting": "جارٍ إعادة الاتصال…",
     "unreachable": "تعذّر الوصول إلى {{name}} — قد تكون شبكته تحجب المكالمة.",
     "openScreen": "فتح شاشة {{label}}",
-    "youSuffix": " (أنت)"
+    "youSuffix": " (أنت)",
+    "kick": "طرد من البارتي",
+    "transferLeadership": "تحويل القيادة",
+    "qualityPickerTitle": "جودة مشاركة الشاشة",
+    "startSharing": "بدء المشاركة",
+    "cancel": "إلغاء"
   },
   "call": {
     "incoming": "مكالمة واردة",

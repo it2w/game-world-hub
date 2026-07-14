@@ -196,6 +196,55 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
   );
 });
 
+// DELETE /conversations/:conversationId — hide from your list (removes you as participant)
+router.delete("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const conversationId = parseInt(raw, 10);
+
+  // Verify user is a participant
+  const [membership] = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+  if (!membership) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  await db
+    .delete(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+
+  res.json({ success: true });
+});
+
+// DELETE /conversations/:conversationId/messages/:messageId — sender deletes their own message
+router.delete("/conversations/:conversationId/messages/:messageId", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const rawConv = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const rawMsg = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
+  const conversationId = parseInt(rawConv, 10);
+  const messageId = parseInt(rawMsg, 10);
+
+  // Verify sender owns the message
+  const [msg] = await db
+    .select()
+    .from(messagesTable)
+    .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)));
+  if (!msg) {
+    res.status(404).json({ error: "Message not found" });
+    return;
+  }
+  if (msg.senderId !== myId) {
+    res.status(403).json({ error: "Cannot delete another user's message" });
+    return;
+  }
+
+  await db.delete(messagesTable).where(eq(messagesTable.id, messageId));
+  res.status(204).end();
+});
+
 // POST /conversations/:conversationId/messages
 router.post("/conversations/:conversationId/messages", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;

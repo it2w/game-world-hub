@@ -22,6 +22,8 @@ export const usersTable = pgTable("users", {
   allowProfileComments: boolean("allow_profile_comments").notNull().default(true),
   status: text("status").notNull().default("offline"), // online | away | busy | offline
   currentGame: text("current_game"),
+  // User's self-reported competitive rank (e.g. "Gold", "Platinum III", etc.)
+  rank: text("rank"),
   // Last time the user's open tab reported activity (heartbeat). Used to auto-clear
   // currentGame a few minutes after every tab is closed.
   lastActiveAt: timestamp("last_active_at", { withTimezone: true }),

@@ -1865,6 +1865,148 @@ export const useDeleteProfilePhoto = <TError = ErrorType<unknown>,
       return useMutation(getDeleteProfilePhotoMutationOptions(options));
     }
 
+export const getDeleteMyAvatarUrl = () => {
+
+
+
+
+  return `/api/users/me/avatar`
+}
+
+/**
+ * @summary Remove my profile picture (resets to placeholder)
+ */
+export const deleteMyAvatar = async ( options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getDeleteMyAvatarUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMyAvatarMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyAvatar>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMyAvatar>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteMyAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyAvatar>>, void> = () => {
+
+
+          return  deleteMyAvatar(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMyAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyAvatar>>>
+
+    export type DeleteMyAvatarMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove my profile picture (resets to placeholder)
+ */
+export const useDeleteMyAvatar = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyAvatar>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMyAvatar>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMyAvatarMutationOptions(options));
+    }
+
+export const getDeleteMyBannerUrl = () => {
+
+
+
+
+  return `/api/users/me/banner`
+}
+
+/**
+ * @summary Remove my profile banner
+ */
+export const deleteMyBanner = async ( options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getDeleteMyBannerUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMyBannerMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyBanner>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMyBanner>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteMyBanner'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyBanner>>, void> = () => {
+
+
+          return  deleteMyBanner(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMyBannerMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyBanner>>>
+
+    export type DeleteMyBannerMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove my profile banner
+ */
+export const useDeleteMyBanner = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyBanner>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMyBanner>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMyBannerMutationOptions(options));
+    }
+
 export const getRequestUploadUrlUrl = () => {
 
 
@@ -2759,6 +2901,77 @@ export function useListConversations<TData = Awaited<ReturnType<typeof listConve
 
 
 
+export const getHideConversationUrl = (conversationId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}`
+}
+
+/**
+ * @summary Hide a conversation from your list (removes you as a participant)
+ */
+export const hideConversation = async (conversationId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getHideConversationUrl(conversationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getHideConversationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hideConversation>>, TError,{conversationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof hideConversation>>, TError,{conversationId: number}, TContext> => {
+
+const mutationKey = ['hideConversation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hideConversation>>, {conversationId: number}> = (props) => {
+          const {conversationId} = props ?? {};
+
+          return  hideConversation(conversationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HideConversationMutationResult = NonNullable<Awaited<ReturnType<typeof hideConversation>>>
+
+    export type HideConversationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Hide a conversation from your list (removes you as a participant)
+ */
+export const useHideConversation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hideConversation>>, TError,{conversationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof hideConversation>>,
+        TError,
+        {conversationId: number},
+        TContext
+      > => {
+      return useMutation(getHideConversationMutationOptions(options));
+    }
+
 export const getGetMessagesUrl = (conversationId: number,) => {
 
 
@@ -2906,6 +3119,79 @@ export const useSendMessage = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSendMessageMutationOptions(options));
+    }
+
+export const getDeleteMessageUrl = (conversationId: number,
+    messageId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/messages/${messageId}`
+}
+
+/**
+ * @summary Delete your own message (removes for all participants)
+ */
+export const deleteMessage = async (conversationId: number,
+    messageId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteMessageUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMessageMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessage>>, TError,{conversationId: number;messageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMessage>>, TError,{conversationId: number;messageId: number}, TContext> => {
+
+const mutationKey = ['deleteMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMessage>>, {conversationId: number;messageId: number}> = (props) => {
+          const {conversationId,messageId} = props ?? {};
+
+          return  deleteMessage(conversationId,messageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMessageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMessage>>>
+
+    export type DeleteMessageMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete your own message (removes for all participants)
+ */
+export const useDeleteMessage = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessage>>, TError,{conversationId: number;messageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMessage>>,
+        TError,
+        {conversationId: number;messageId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMessageMutationOptions(options));
     }
 
 export const getGetOrCreateDirectConversationUrl = (userId: number,) => {
@@ -3565,6 +3851,152 @@ export const useLeaveParty = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLeavePartyMutationOptions(options));
+    }
+
+export const getKickPartyMemberUrl = (partyId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/parties/${partyId}/kick/${userId}`
+}
+
+/**
+ * @summary Kick a member from the party (leader only)
+ */
+export const kickPartyMember = async (partyId: number,
+    userId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getKickPartyMemberUrl(partyId,userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getKickPartyMemberMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof kickPartyMember>>, TError,{partyId: number;userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof kickPartyMember>>, TError,{partyId: number;userId: number}, TContext> => {
+
+const mutationKey = ['kickPartyMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof kickPartyMember>>, {partyId: number;userId: number}> = (props) => {
+          const {partyId,userId} = props ?? {};
+
+          return  kickPartyMember(partyId,userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type KickPartyMemberMutationResult = NonNullable<Awaited<ReturnType<typeof kickPartyMember>>>
+
+    export type KickPartyMemberMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Kick a member from the party (leader only)
+ */
+export const useKickPartyMember = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof kickPartyMember>>, TError,{partyId: number;userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof kickPartyMember>>,
+        TError,
+        {partyId: number;userId: number},
+        TContext
+      > => {
+      return useMutation(getKickPartyMemberMutationOptions(options));
+    }
+
+export const getTransferPartyLeadershipUrl = (partyId: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/parties/${partyId}/transfer/${userId}`
+}
+
+/**
+ * @summary Transfer party leadership to another member (leader only)
+ */
+export const transferPartyLeadership = async (partyId: number,
+    userId: number, options?: RequestInit): Promise<Party> => {
+
+  return customFetch<Party>(getTransferPartyLeadershipUrl(partyId,userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTransferPartyLeadershipMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferPartyLeadership>>, TError,{partyId: number;userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transferPartyLeadership>>, TError,{partyId: number;userId: number}, TContext> => {
+
+const mutationKey = ['transferPartyLeadership'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferPartyLeadership>>, {partyId: number;userId: number}> = (props) => {
+          const {partyId,userId} = props ?? {};
+
+          return  transferPartyLeadership(partyId,userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferPartyLeadershipMutationResult = NonNullable<Awaited<ReturnType<typeof transferPartyLeadership>>>
+
+    export type TransferPartyLeadershipMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Transfer party leadership to another member (leader only)
+ */
+export const useTransferPartyLeadership = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferPartyLeadership>>, TError,{partyId: number;userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transferPartyLeadership>>,
+        TError,
+        {partyId: number;userId: number},
+        TContext
+      > => {
+      return useMutation(getTransferPartyLeadershipMutationOptions(options));
     }
 
 export const getGetPartyActivityFeedUrl = () => {

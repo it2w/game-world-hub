@@ -33,6 +33,7 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
     bannerUrl: toPublicImageUrl(u.bannerUrl ?? null),
     bio: u.bio ?? null,
+    rank: u.rank ?? null,
     allowProfileComments: u.allowProfileComments,
     status: u.status,
     currentGame: u.currentGame ?? null,
@@ -387,6 +388,20 @@ router.post("/users/me/photos", requireAuth, async (req, res): Promise<void> => 
     caption: photo.caption ?? null,
     createdAt: photo.createdAt.toISOString(),
   });
+});
+
+// DELETE /users/me/avatar
+router.delete("/users/me/avatar", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const [user] = await db.update(usersTable).set({ avatarUrl: null }).where(eq(usersTable.id, userId)).returning();
+  res.json(safeUser(user));
+});
+
+// DELETE /users/me/banner
+router.delete("/users/me/banner", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const [user] = await db.update(usersTable).set({ bannerUrl: null }).where(eq(usersTable.id, userId)).returning();
+  res.json(safeUser(user));
 });
 
 // DELETE /users/me/photos/:photoId

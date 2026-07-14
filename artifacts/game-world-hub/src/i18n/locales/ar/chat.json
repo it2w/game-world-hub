@@ -2,7 +2,8 @@
   "sidebar": {
     "title": "قنوات الاتصال",
     "you": "أنت",
-    "noMessages": "لا توجد رسائل بعد"
+    "noMessages": "لا توجد رسائل بعد",
+    "hideConversation": "إخفاء المحادثة"
   },
   "conversation": {
     "directMessage": "رسالة مباشرة",
@@ -15,5 +16,13 @@
   },
   "empty": {
     "selectChannel": "اختر قناة لبدء الاتصال"
+  },
+  "msg": {
+    "copy": "نسخ الرسالة",
+    "delete": "حذف الرسالة"
+  },
+  "typing": {
+    "one": "{{name}} يكتب…",
+    "multiple": "{{count}} أشخاص يكتبون…"
   }
 }

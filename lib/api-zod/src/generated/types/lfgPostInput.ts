@@ -26,7 +26,7 @@ export interface LfgPostInput {
   neededPlayers?: number;
   micRequired?: boolean;
   /**
-     * @minimum 1
+     * @minimum 0.25
      * @maximum 48
      */
   expiresInHours?: number;

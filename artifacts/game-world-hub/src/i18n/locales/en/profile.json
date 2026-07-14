@@ -4,6 +4,11 @@
   "activeProcess": "Active Process:",
   "none": "NONE",
   "init": "INIT: {{date}}",
+  "deleteAvatar": "Remove profile picture",
+  "deleteBanner": "Remove banner",
+  "rank": {
+    "label": "Rank"
+  },
   "friend": {
     "unblock": "UNBLOCK",
     "add": "ADD FRIEND",
@@ -59,6 +64,9 @@
     "userBlocked": "User blocked",
     "userBlockFailed": "Couldn't block user",
     "userUnblocked": "User unblocked",
-    "userUnblockFailed": "Couldn't unblock user"
+    "userUnblockFailed": "Couldn't unblock user",
+    "avatarDeleted": "Profile picture removed",
+    "bannerDeleted": "Banner removed",
+    "deleteFailed": "Couldn't delete"
   }
 }

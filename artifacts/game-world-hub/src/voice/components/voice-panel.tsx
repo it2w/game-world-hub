@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
 import { VideoTile } from "./video-tile";
@@ -11,6 +11,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   VOICE_PRESETS,
   SCREEN_PRESETS,
   VOICE_QUALITY_ORDER,
@@ -18,6 +24,14 @@ import {
   type VoiceQuality,
   type ScreenQuality,
 } from "../quality";
+import {
+  useGetParty,
+  useGetMe,
+  useKickPartyMember,
+  useTransferPartyLeadership,
+  getGetPartyQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Mic,
   MicOff,
@@ -32,6 +46,9 @@ import {
   Maximize2,
   X,
   AlertTriangle,
+  UserMinus,
+  Crown,
+  Play,
 } from "lucide-react";
 
 /**
@@ -63,6 +80,46 @@ export function VoicePanel() {
 
   const [expanded, setExpanded] = useState(true);
   const [theater, setTheater] = useState<MediaStream | null>(null);
+  const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
+  const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
+
+  const queryClient = useQueryClient();
+  const { data: me } = useGetMe();
+  const partyId = activeRoom?.kind === "party" ? activeRoom.partyId : null;
+  const { data: party } = useGetParty(partyId!, {
+    query: { enabled: !!partyId, queryKey: getGetPartyQueryKey(partyId!) },
+  });
+  const isLeader = !!me && !!party && party.leader.id === me.id;
+
+  const kickMutation = useKickPartyMember({
+    mutation: {
+      onSuccess: () => {
+        if (partyId) queryClient.invalidateQueries({ queryKey: getGetPartyQueryKey(partyId) });
+      },
+    },
+  });
+  const transferMutation = useTransferPartyLeadership({
+    mutation: {
+      onSuccess: () => {
+        if (partyId) queryClient.invalidateQueries({ queryKey: getGetPartyQueryKey(partyId) });
+      },
+    },
+  });
+
+  const handleShareClick = useCallback(() => {
+    if (sharing) {
+      stopScreenShare();
+    } else {
+      setPendingQuality(screenQuality);
+      setQualityPickerOpen(true);
+    }
+  }, [sharing, stopScreenShare, screenQuality]);
+
+  const handleStartShare = useCallback(() => {
+    setQualityPickerOpen(false);
+    setScreenQuality(pendingQuality);
+    void startScreenShare();
+  }, [pendingQuality, setScreenQuality, startScreenShare]);
 
   if (!activeRoom) return null;
 
@@ -131,6 +188,9 @@ export function VoicePanel() {
                   muted={p.muted}
                   sharing={p.sharing}
                   connectionState={p.connectionState}
+                  isLeader={isLeader && !!partyId}
+                  onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                  onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
                 />
               ))}
               {peers.length === 0 && (
@@ -178,20 +238,22 @@ export function VoicePanel() {
                   </SelectContent>
                 </Select>
               </QualityRow>
-              <QualityRow icon={<Monitor className="w-3 h-3" />} label={t("voice.screenLabel")}>
-                <Select value={screenQuality} onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}>
-                  <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCREEN_QUALITY_ORDER.map((q) => (
-                      <SelectItem key={q} value={q} className="text-[11px] font-mono">
-                        {SCREEN_PRESETS[q].label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </QualityRow>
+              {sharing && (
+                <QualityRow icon={<Monitor className="w-3 h-3" />} label={t("voice.screenLabel")}>
+                  <Select value={screenQuality} onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}>
+                    <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SCREEN_QUALITY_ORDER.map((q) => (
+                        <SelectItem key={q} value={q} className="text-[11px] font-mono">
+                          {SCREEN_PRESETS[q].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </QualityRow>
+              )}
             </div>
           </>
         )}
@@ -211,7 +273,7 @@ export function VoicePanel() {
             size="sm"
             variant={sharing ? "default" : "outline"}
             className="flex-1 rounded-none h-8 px-0"
-            onClick={() => (sharing ? stopScreenShare() : void startScreenShare())}
+            onClick={handleShareClick}
             title={sharing ? t("voice.stopSharing") : t("voice.shareScreen")}
           >
             {sharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
@@ -227,6 +289,58 @@ export function VoicePanel() {
           </Button>
         </div>
       </div>
+
+      {/* Screen share quality picker dialog */}
+      <Dialog open={qualityPickerOpen} onOpenChange={setQualityPickerOpen}>
+        <DialogContent className="border-border bg-card rounded-none sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
+              {t("voice.qualityPickerTitle")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 pt-2">
+            {SCREEN_QUALITY_ORDER.map((q) => {
+              const preset = SCREEN_PRESETS[q];
+              return (
+                <button
+                  key={q}
+                  onClick={() => setPendingQuality(q)}
+                  className={`w-full p-3 border text-start transition-colors font-mono ${
+                    pendingQuality === q
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/50 hover:bg-muted/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm">{q}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                      {preset.frameRate}fps · {Math.round(preset.maxBitrate / 1000)}kbps
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {preset.width}×{preset.height}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-none font-mono"
+              onClick={() => setQualityPickerOpen(false)}
+            >
+              {t("voice.cancel")}
+            </Button>
+            <Button
+              className="flex-1 rounded-none font-mono gap-2"
+              onClick={handleStartShare}
+            >
+              <Play className="w-4 h-4" /> {t("voice.startSharing")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Theater view for a single screen share */}
       {theater && (
@@ -253,11 +367,6 @@ export function VoicePanel() {
  * voice layer auto-heals the path with an ICE restart. We surface a
  * "Reconnecting…" state while that heal is in flight, and only escalate to the
  * terminal "unreachable" warning if it hasn't recovered within this window.
- *
- * `disconnected` is frequently a transient blip that ICE recovers from on its
- * own, so we don't alarm the user the instant it appears. A `failed` peer that
- * never connected in the first place (initial-join failure) has nothing to
- * recover, so it surfaces as unreachable immediately.
  */
 const DISCONNECT_GRACE_MS = 6000;
 
@@ -269,6 +378,9 @@ function ParticipantRow({
   sharing,
   connectionState,
   self,
+  isLeader,
+  onKick,
+  onTransfer,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -277,12 +389,11 @@ function ParticipantRow({
   sharing: boolean;
   connectionState: RTCPeerConnectionState;
   self?: boolean;
+  isLeader?: boolean;
+  onKick?: () => void;
+  onTransfer?: () => void;
 }) {
   const { t } = useTranslation("common");
-  // Track whether this peer ever reached `connected`. This is what distinguishes
-  // a mid-call drop (which the voice layer heals with an ICE restart → show
-  // "Reconnecting…") from a peer that simply hasn't connected yet on initial
-  // join (→ plain "connecting" spinner, no reconnecting indicator).
   const [everConnected, setEverConnected] = useState(false);
   useEffect(() => {
     if (!self && connectionState === "connected") setEverConnected(true);
@@ -291,9 +402,6 @@ function ParticipantRow({
   const dropped =
     !self && (connectionState === "disconnected" || connectionState === "failed");
 
-  // A dropped peer is given a grace window to heal before we treat it as
-  // unreachable. Exception: a `failed` peer that never connected has nothing to
-  // recover (initial-join failure), so it surfaces as unreachable at once.
   const [graceElapsed, setGraceElapsed] = useState(false);
   useEffect(() => {
     if (!dropped) {
@@ -309,10 +417,7 @@ function ParticipantRow({
   }, [dropped, connectionState, everConnected]);
 
   const unreachable = dropped && graceElapsed;
-  // Mid-call self-heal in flight: a previously-connected peer dropped and the
-  // ICE restart hasn't given up yet. Clears automatically on recovery.
   const reconnecting = dropped && everConnected && !graceElapsed;
-  // Initial connection still in progress (never connected, not yet failed).
   const connecting =
     !self &&
     !everConnected &&
@@ -321,11 +426,15 @@ function ParticipantRow({
     connectionState !== "connected" &&
     connectionState !== "failed";
 
+  const [showActions, setShowActions] = useState(false);
+
   return (
     <div
       className={`rounded-none ${
         unreachable ? "bg-destructive/10" : reconnecting ? "bg-amber-500/10" : ""
       }`}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
       <div className="flex items-center gap-2 px-1.5 py-1">
         <div
@@ -354,6 +463,25 @@ function ParticipantRow({
         <span className={`flex-1 text-xs truncate ${unreachable ? "text-muted-foreground" : ""}`}>
           {name}
         </span>
+        {/* Leader action buttons */}
+        {!self && isLeader && showActions && !unreachable && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={onTransfer}
+              className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
+              title={t("voice.transferLeadership")}
+            >
+              <Crown className="w-3 h-3" />
+            </button>
+            <button
+              onClick={onKick}
+              className="p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+              title={t("voice.kick")}
+            >
+              <UserMinus className="w-3 h-3" />
+            </button>
+          </div>
+        )}
         {unreachable ? (
           <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
         ) : reconnecting ? (

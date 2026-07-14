@@ -8,15 +8,19 @@ import {
   useGetMe,
   useListFriends,
   useInviteToParty,
+  useSearchUsers,
   getGetPartyQueryKey,
   getGetMeQueryKey,
-  getListFriendsQueryKey
+  getListFriendsQueryKey,
+  getSearchUsersQueryKey
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/status-badge";
+import { useToast } from "@/hooks/use-toast";
 import { useVoice } from "@/voice/voice-context";
-import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff } from "lucide-react";
+import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 
@@ -24,12 +28,20 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   const partyId = parseInt(params.partyId);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  
+  const { toast } = useToast();
+  const [inviteQuery, setInviteQuery] = useState("");
+
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: party, isLoading } = useGetParty(partyId, {
     query: { enabled: !!partyId, refetchInterval: 5000, queryKey: getGetPartyQueryKey(partyId) }
   });
   const { data: friends } = useListFriends({ query: { queryKey: getListFriendsQueryKey() } });
+
+  const trimmedQuery = inviteQuery.trim();
+  const { data: searchResults, isFetching: isSearching } = useSearchUsers(
+    { q: trimmedQuery },
+    { query: { enabled: trimmedQuery.length > 0, queryKey: getSearchUsersQueryKey({ q: trimmedQuery }) } }
+  );
 
   const joinParty = useJoinParty();
   const leaveParty = useLeaveParty();
@@ -59,11 +71,12 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
     }
   };
 
-  const handleInvite = (userId: number) => {
+  const handleInvite = (userId: number, displayName: string) => {
     inviteToParty.mutate(
       { partyId, data: { userId } },
       {
-        onSuccess: () => alert("Invite transmitted.")
+        onSuccess: () => toast({ title: "Invite sent", description: `${displayName} was invited to the squad.` }),
+        onError: () => toast({ title: "Couldn't send invite", variant: "destructive" }),
       }
     );
   };
@@ -142,26 +155,53 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
                     <UserPlus className="w-4 h-4 mr-2" /> INVITE ROSTER
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-64 p-0 rounded-none border-border bg-card">
+                <PopoverContent align="end" className="w-72 p-0 rounded-none border-border bg-card">
                   <div className="p-2 border-b border-border font-mono text-xs uppercase bg-muted/50">Transmit Invites</div>
+                  <div className="p-2 border-b border-border">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={inviteQuery}
+                        onChange={(e) => setInviteQuery(e.target.value)}
+                        placeholder="SEARCH OPERATORS..."
+                        className="h-8 pl-7 font-mono text-xs rounded-none"
+                      />
+                    </div>
+                  </div>
                   <div className="max-h-[300px] overflow-auto flex flex-col">
-                    {friends?.map(entry => {
-                      const alreadyIn = party.members.some(m => m.id === entry.friend.id);
-                      return (
-                        <div key={entry.id} className="p-2 flex items-center justify-between hover:bg-muted/30">
-                          <span className="text-sm font-mono truncate">{entry.friend.displayName}</span>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            className="h-6 text-[10px] font-mono rounded-none" 
-                            disabled={alreadyIn || inviteToParty.isPending}
-                            onClick={() => handleInvite(entry.friend.id)}
-                          >
-                            {alreadyIn ? 'IN SQUAD' : 'SEND'}
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    {(() => {
+                      const results = trimmedQuery.length > 0
+                        ? (searchResults ?? []).map(u => ({ id: u.id, displayName: u.displayName }))
+                        : (friends ?? []).map(entry => ({ id: entry.friend.id, displayName: entry.friend.displayName }));
+
+                      if (trimmedQuery.length > 0 && isSearching) {
+                        return <div className="p-3 text-xs font-mono text-muted-foreground text-center animate-pulse">SCANNING...</div>;
+                      }
+                      if (results.length === 0) {
+                        return (
+                          <div className="p-3 text-xs font-mono text-muted-foreground text-center">
+                            {trimmedQuery.length > 0 ? "NO OPERATORS FOUND" : "NO FRIENDS YET — SEARCH BY USERNAME ABOVE"}
+                          </div>
+                        );
+                      }
+                      return results.map(person => {
+                        const alreadyIn = party.members.some(m => m.id === person.id);
+                        return (
+                          <div key={person.id} className="p-2 flex items-center justify-between hover:bg-muted/30">
+                            <span className="text-sm font-mono truncate">{person.displayName}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px] font-mono rounded-none"
+                              disabled={alreadyIn || inviteToParty.isPending}
+                              onClick={() => handleInvite(person.id, person.displayName)}
+                            >
+                              {alreadyIn ? 'IN SQUAD' : 'SEND'}
+                            </Button>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </PopoverContent>
               </Popover>

@@ -14,11 +14,19 @@ export interface SteamOwnedGame {
 }
 
 function apiKey(): string {
-  const key = process.env.STEAM_API_KEY;
-  if (!key) {
+  const raw = process.env.STEAM_API_KEY;
+  if (!raw || !raw.trim()) {
     throw new SteamConfigError("Steam integration is not configured");
   }
-  return key;
+  // Steam Web API keys are exactly 32 hex characters. Tolerate accidental
+  // surrounding whitespace or characters from copy-paste by extracting the run.
+  const match = raw.match(/[0-9A-Fa-f]{32}/);
+  if (!match) {
+    throw new SteamConfigError(
+      "STEAM_API_KEY is not a valid Steam Web API key (expected 32 hex characters)",
+    );
+  }
+  return match[0];
 }
 
 /** Parse whatever the user pasted (SteamID64, vanity name, or profile URL). */

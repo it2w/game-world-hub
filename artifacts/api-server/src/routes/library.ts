@@ -176,11 +176,22 @@ async function importSteamLibrary(userId: number, steamId: string): Promise<numb
       .delete(linkedGamesTable)
       .where(and(eq(linkedGamesTable.userId, userId), eq(linkedGamesTable.source, "steam")));
 
-    if (games.length > 0) {
+    // Steam can return several entries sharing the same display name; a single
+    // INSERT ... ON CONFLICT can't touch the same (userId, platform, name) twice,
+    // so collapse duplicates first (keep the one with the most playtime).
+    const byName = new Map<string, (typeof games)[number]>();
+    for (const g of games) {
+      const key = g.name.toLowerCase();
+      const existing = byName.get(key);
+      if (!existing || g.playtimeMinutes > existing.playtimeMinutes) byName.set(key, g);
+    }
+    const uniqueGames = [...byName.values()];
+
+    if (uniqueGames.length > 0) {
       await tx
         .insert(linkedGamesTable)
         .values(
-          games.map((g) => ({
+          uniqueGames.map((g) => ({
             userId,
             platform: "steam",
             name: g.name,

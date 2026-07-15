@@ -35,7 +35,6 @@ const profileSchema = z.object({
   bio: z.string().max(500).optional(),
   avatarUrl: makeImageRefSchema("").optional(),
   bannerUrl: makeImageRefSchema("").optional(),
-  rank: z.string().max(50).optional(),
 });
 
 const statusSchema = z.object({
@@ -234,7 +233,6 @@ export default function Settings() {
       bio: z.string().max(500).optional(),
       avatarUrl: imageRefSchema.optional(),
       bannerUrl: imageRefSchema.optional(),
-      rank: z.string().max(50).optional(),
     });
   }, [t]);
 
@@ -245,7 +243,7 @@ export default function Settings() {
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileResolverSchema),
-    defaultValues: { displayName: "", bio: "", avatarUrl: "", bannerUrl: "", rank: "" }
+    defaultValues: { displayName: "", bio: "", avatarUrl: "", bannerUrl: "" }
   });
 
   const statusForm = useForm<z.infer<typeof statusSchema>>({
@@ -270,7 +268,6 @@ export default function Settings() {
         bio: me.bio || "",
         avatarUrl: me.avatarUrl || "",
         bannerUrl: me.bannerUrl || "",
-        rank: me.rank || ""
       });
       statusForm.reset({
         status: me.status,
@@ -423,17 +420,6 @@ export default function Settings() {
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.biography")}</FormLabel>
                     <FormControl><Textarea {...field} className="font-mono rounded-none border-border bg-background resize-none" rows={3} /></FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={profileForm.control} name="rank" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs flex items-center gap-1.5">
-                      <Trophy className="w-3.5 h-3.5 text-primary" /> {t("identity.rank")}
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder={t("identity.rankPlaceholder")} className="font-mono rounded-none border-border bg-background" maxLength={50} />
-                    </FormControl>
-                    <FormMessage className="font-mono text-xs" />
                   </FormItem>
                 )} />
                 <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending}>{t("identity.writeConfig")}</Button>

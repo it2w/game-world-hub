@@ -2229,10 +2229,6 @@ components:
           type: string
         bannerUrl:
           type: string
-        rank:
-          type: string
-          maxLength: 50
-          description: Self-reported competitive rank (e.g. Gold, Platinum III)
         allowProfileComments:
           type: boolean
 

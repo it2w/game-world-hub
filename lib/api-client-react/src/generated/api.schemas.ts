@@ -319,11 +319,6 @@ export interface ProfileUpdate {
   bio?: string;
   avatarUrl?: string;
   bannerUrl?: string;
-  /**
-     * Self-reported competitive rank (e.g. Gold, Platinum III)
-     * @maxLength 50
-     */
-  rank?: string;
   allowProfileComments?: boolean;
 }
 

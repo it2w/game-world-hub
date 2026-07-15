@@ -7,51 +7,11 @@ import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, Trophy, X, Shield, Award, Star, Gem, Crown, Flame, Medal } from "lucide-react";
-import { TierBadge, TierPip, type TierName } from "@/components/tier-badge";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X } from "lucide-react";
+import { TierBadge, DivisionBadge, TierPip, type TierName } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
-
-// Rank tier colour palette (self-reported competitive rank)
-const RANK_COLORS: Record<string, string> = {
-  iron: "#A8A8A8",
-  bronze: "#CD7F32",
-  silver: "#C0C0C0",
-  gold: "#FFD700",
-  platinum: "#00C7C7",
-  diamond: "#4FC3F7",
-  master: "#9C27B0",
-  grandmaster: "#F44336",
-};
-
-// Distinctive icon per rank tier
-const RANK_ICONS: Record<string, React.ElementType> = {
-  iron: Shield,
-  bronze: Medal,
-  silver: Award,
-  gold: Star,
-  platinum: Gem,
-  diamond: Gem,
-  master: Crown,
-  grandmaster: Flame,
-};
-
-function getRankColor(rank: string): string {
-  const lower = rank.toLowerCase();
-  for (const key of Object.keys(RANK_COLORS)) {
-    if (lower.includes(key)) return RANK_COLORS[key];
-  }
-  return "#6B7280"; // muted gray fallback
-}
-
-function getRankIcon(rank: string): React.ElementType {
-  const lower = rank.toLowerCase();
-  for (const key of Object.keys(RANK_ICONS)) {
-    if (lower.includes(key)) return RANK_ICONS[key];
-  }
-  return Trophy; // fallback
-}
 
 export default function Profile() {
   const { t } = useTranslation("profile");
@@ -326,9 +286,9 @@ export default function Profile() {
             </p>
           )}
 
-          {/* Auto-computed platform tier — prominently displayed */}
+          {/* Auto-computed platform badges */}
           {"tier" in user && user.tier && (
-            <div className="flex flex-col items-center md:items-start gap-3 py-2">
+            <div className="flex items-end gap-5 py-2 flex-wrap justify-center md:justify-start">
               <TierBadge
                 tier={user.tier as TierName}
                 level={user.tierLevel ?? 1}
@@ -337,25 +297,11 @@ export default function Profile() {
                 size="md"
                 showXpBar
               />
-              {/* Self-reported game rank (secondary) */}
-              {user.rank && (
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const RankIcon = getRankIcon(user.rank!);
-                    const color = getRankColor(user.rank!);
-                    return (
-                      <span
-                        className="flex items-center gap-2 px-3 py-1 border text-[10px] font-mono uppercase tracking-widest opacity-75"
-                        style={{ borderColor: color, color, background: `${color}12` }}
-                        title={t("rank.label")}
-                      >
-                        <RankIcon className="w-3 h-3" style={{ color }} />
-                        {user.rank}
-                      </span>
-                    );
-                  })()}
-                </div>
-              )}
+              <DivisionBadge
+                tier={user.tier as TierName}
+                level={user.tierLevel ?? 1}
+                size="md"
+              />
             </div>
           )}
 

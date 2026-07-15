@@ -417,8 +417,6 @@ export const updateProfileBodyDisplayNameMax = 50;
 
 export const updateProfileBodyBioMax = 500;
 
-export const updateProfileBodyRankMax = 50;
-
 
 
 export const UpdateProfileBody = zod.object({
@@ -426,7 +424,6 @@ export const UpdateProfileBody = zod.object({
   "bio": zod.string().max(updateProfileBodyBioMax).optional(),
   "avatarUrl": zod.string().optional(),
   "bannerUrl": zod.string().optional(),
-  "rank": zod.string().max(updateProfileBodyRankMax).optional().describe('Self-reported competitive rank (e.g. Gold, Platinum III)'),
   "allowProfileComments": zod.boolean().optional()
 })
 

@@ -723,3 +723,106 @@ describe("POST /party-invites/:inviteId/accept — re-join after kick", () => {
     assert.ok(savedMsg, "message should exist in the database");
   });
 });
+
+// ─── Idempotent-accept tests ───────────────────────────────────────────────────
+
+describe("POST /party-invites/:inviteId/accept — idempotency", () => {
+  // Use outsiderId as the invitee so state is fully controlled within this block.
+  let idempInviteId = 0;
+
+  before(async () => {
+    // Ensure outsider is not already a member or participant before we start.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+
+    const [inv] = await db
+      .insert(partyInvitesTable)
+      .values({
+        partyId,
+        invitedUserId: outsiderId,
+        invitedByUserId: leaderId,
+        status: "pending",
+      })
+      .returning({ id: partyInvitesTable.id });
+    idempInviteId = inv.id;
+  });
+
+  after(async () => {
+    // Clean up outsider membership added by these tests.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+  });
+
+  test("first accept returns 200 and adds member + participant", async () => {
+    const res = await request(
+      "POST",
+      `/party-invites/${idempInviteId}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(res.status, 200, "first accept should return 200");
+
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    assert.equal(memberRows.length, 1, "exactly one party_members row after first accept");
+
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    assert.equal(participantRows.length, 1, "exactly one conversation_participants row after first accept");
+  });
+
+  test("second accept of the same invite returns 200 and does not duplicate rows", async () => {
+    // Invite is already accepted from the previous test — call accept again.
+    const res = await request(
+      "POST",
+      `/party-invites/${idempInviteId}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(res.status, 200, "second accept should still return 200 (idempotent)");
+
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    assert.equal(memberRows.length, 1, "still exactly one party_members row after second accept");
+
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    assert.equal(participantRows.length, 1, "still exactly one conversation_participants row after second accept");
+  });
+});

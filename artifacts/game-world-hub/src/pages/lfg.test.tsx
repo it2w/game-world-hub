@@ -72,8 +72,11 @@ vi.mock("@workspace/api-client-react", () => ({
   useRespondToLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
   useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: false }),
   useDeleteLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
+  useListParties: () => ({ data: [] }),
+  useInviteToParty: () => ({ mutate: vi.fn(), isPending: false }),
   getListLfgPostsQueryKey: () => ["lfg-posts"],
   getGetMeQueryKey: () => ["me"],
+  getListPartiesQueryKey: () => ["parties"],
 }));
 
 vi.mock("@tanstack/react-query", () => ({

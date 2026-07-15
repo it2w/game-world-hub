@@ -1140,6 +1140,151 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
   });
 });
 
+// ─── Create-party-and-invite (LFG close dialog) tests ─────────────────────────
+
+describe("POST /parties then POST /parties/:partyId/invite — LFG close-dialog create & invite flow", () => {
+  // Simulate the sequence initiated when an author with no party clicks
+  // "CREATE & INVITE" in the close-signal dialog.
+  //
+  // Covered assertions:
+  //   1. POST /parties returns 201 with the new party; author is a member.
+  //   2. GET /parties lists the new party for the author.
+  //   3. POST /parties/:id/invite returns success and creates a party_invites row.
+  //   4. A notification is delivered to the invitee.
+
+  let newPartyId = 0;
+
+  after(async () => {
+    if (newPartyId) {
+      // Find the conversation id before deleting anything.
+      const [createdParty] = await db
+        .select()
+        .from(partiesTable)
+        .where(eq(partiesTable.id, newPartyId));
+      const convIdToDelete = createdParty?.conversationId ?? null;
+
+      // Delete invite rows + their notifications first.
+      const inviteRows = await db
+        .select()
+        .from(partyInvitesTable)
+        .where(eq(partyInvitesTable.partyId, newPartyId));
+      if (inviteRows.length) {
+        await db
+          .delete(notificationsTable)
+          .where(inArray(notificationsTable.relatedId, inviteRows.map((r) => r.id)));
+        await db.delete(partyInvitesTable).where(eq(partyInvitesTable.partyId, newPartyId));
+      }
+      await db.delete(partyMembersTable).where(eq(partyMembersTable.partyId, newPartyId));
+      await db.delete(partyActivityTable).where(eq(partyActivityTable.partyId, newPartyId));
+
+      // Delete the party row before the conversation (FK: parties → conversations).
+      await db.delete(partiesTable).where(eq(partiesTable.id, newPartyId));
+
+      if (convIdToDelete) {
+        await db
+          .delete(conversationParticipantsTable)
+          .where(eq(conversationParticipantsTable.conversationId, convIdToDelete));
+        await db
+          .delete(conversationsTable)
+          .where(eq(conversationsTable.id, convIdToDelete));
+      }
+    }
+  });
+
+  test("POST /parties returns 201 and the author appears as a member", async () => {
+    const res = await request(
+      "POST",
+      "/parties",
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { name: `LFG Close Party ${SUFFIX}`, maxSize: 4 }
+    );
+    assert.equal(res.status, 201, "create party should return 201");
+
+    const body = res.body as { id: number; name: string; members: { id: number }[] };
+    assert.ok(body.id, "response must include a party id");
+    assert.equal(body.name, `LFG Close Party ${SUFFIX}`, "party name must match");
+
+    const isMember = body.members.some((m) => m.id === leaderId);
+    assert.ok(isMember, "author must be a member of the newly created party");
+
+    newPartyId = body.id;
+    createdPartyIds.push(newPartyId);
+  });
+
+  test("GET /parties lists the new party for the author", async () => {
+    assert.ok(newPartyId > 0, "newPartyId must be set by the previous test");
+
+    const res = await request(
+      "GET",
+      "/parties",
+      leaderId,
+      `ptest_leader_${SUFFIX}`
+    );
+    assert.equal(res.status, 200, "GET /parties should return 200");
+
+    const list = res.body as { id: number }[];
+    const found = list.some((p) => p.id === newPartyId);
+    assert.ok(found, "newly created party must appear in GET /parties for the author");
+  });
+
+  test("POST /parties/:partyId/invite returns success and creates a party_invites row", async () => {
+    assert.ok(newPartyId > 0, "newPartyId must be set by an earlier test");
+
+    const res = await request(
+      "POST",
+      `/parties/${newPartyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(res.status, 200, "invite should return 200");
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    // Confirm the invite row exists in the DB.
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, newPartyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(inviteRows.length, 1, "exactly one pending invite row must be created");
+  });
+
+  test("a notification is delivered to the invited responder", async () => {
+    assert.ok(newPartyId > 0, "newPartyId must be set by an earlier test");
+
+    // Find the invite row to tie the notification check to the correct relatedId.
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, newPartyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(inviteRows.length, 1, "invite row must exist before checking notification");
+
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.relatedId, inviteRows[0].id)
+        )
+      );
+    assert.equal(notifRows.length, 1, "exactly one notification must be delivered to the invitee");
+    assert.equal(notifRows[0].type, "party_invite", "notification type must be party_invite");
+  });
+});
+
 // ─── Re-invite after decline / accept tests ────────────────────────────────────
 
 describe("POST /parties/:partyId/invite — re-invite after declined or accepted invite", () => {

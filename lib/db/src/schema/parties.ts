@@ -1,4 +1,5 @@
-import { pgTable, serial, integer, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { usersTable } from "./users";
 import { conversationsTable } from "./conversations";
 
@@ -29,7 +30,13 @@ export const partyInvitesTable = pgTable("party_invites", {
   invitedByUserId: integer("invited_by_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   status: text("status").notNull().default("pending"), // pending | accepted | declined
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  // Partial unique index: at most one pending invite per (party, user) pair.
+  // Prevents duplicate invites even under concurrent requests.
+  pendingInviteUq: uniqueIndex("party_invites_pending_uq")
+    .on(t.partyId, t.invitedUserId)
+    .where(sql`${t.status} = 'pending'`),
+}));
 
 export const partyActivityTable = pgTable("party_activity", {
   id: serial("id").primaryKey(),

@@ -329,10 +329,23 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  const [inv] = await db
-    .insert(partyInvitesTable)
-    .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })
-    .returning();
+  let inv: typeof partyInvitesTable.$inferSelect;
+  try {
+    const [inserted] = await db
+      .insert(partyInvitesTable)
+      .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })
+      .returning();
+    inv = inserted;
+  } catch (err: unknown) {
+    // Unique-constraint violation (code 23505) means a concurrent request raced us
+    // and inserted a pending invite first. Treat as idempotent success.
+    const pgErr = err as { code?: string };
+    if (pgErr?.code === "23505") {
+      res.json({ success: true });
+      return;
+    }
+    throw err;
+  }
 
   const [invitedBy] = await db.select().from(usersTable).where(eq(usersTable.id, myId));
   await db.insert(notificationsTable).values({

@@ -422,6 +422,80 @@ describe("POST /parties/:partyId/leave", () => {
   });
 });
 
+// ─── Conversation-participant gap repair ───────────────────────────────────────
+
+describe("POST /parties/:partyId/join — member in party_members but missing from conversation_participants", () => {
+  // Set up: member is in party_members but NOT in conversation_participants
+  before(async () => {
+    // Ensure member is in party_members
+    const existing = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    if (!existing.length) {
+      await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    }
+    // Remove from conversation_participants to simulate the gap
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+  });
+
+  test("join restores conversation_participants when member row already exists", async () => {
+    // Confirm the gap: member IS in party_members
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    assert.equal(memberRows.length, 1, "member should already be in party_members");
+
+    // Confirm the gap: member is NOT in conversation_participants
+    const beforeParticipants = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(beforeParticipants.length, 0, "member should not be in conversation_participants before join");
+
+    // No invite is inserted — existing members must be restored without needing a new invite,
+    // even for private parties. The membership itself is the authorization proof.
+
+    // Call join — this hits the idempotent path since member already exists in party_members
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/join`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(res.status, 200, "join should succeed even when already a member and no pending invite exists");
+
+    // Confirm conversation access is now restored
+    const afterParticipants = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(
+      afterParticipants.length,
+      1,
+      "join should restore member to conversation_participants when the row was missing"
+    );
+  });
+});
+
 // ─── Re-join tests ────────────────────────────────────────────────────────────
 
 describe("POST /parties/:partyId/join — re-join after leave", () => {

@@ -343,7 +343,29 @@ router.post("/parties/:partyId/join", requireAuth, async (req, res): Promise<voi
     return;
   }
 
-  // Private parties require a pending invite
+  // Check existing membership FIRST — a current member never needs a new invite, even for private parties.
+  // This also handles the repair case: if a member is in party_members but missing from
+  // conversation_participants (e.g. partial failure), we restore their chat access here.
+  const [existing] = await db
+    .select()
+    .from(partyMembersTable)
+    .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, myId)));
+  if (existing) {
+    // Restore conversation access if the participant row is somehow missing
+    if (party.conversationId) {
+      const [existingParticipant] = await db
+        .select()
+        .from(conversationParticipantsTable)
+        .where(and(eq(conversationParticipantsTable.conversationId, party.conversationId), eq(conversationParticipantsTable.userId, myId)));
+      if (!existingParticipant) {
+        await db.insert(conversationParticipantsTable).values({ conversationId: party.conversationId, userId: myId });
+      }
+    }
+    res.json(await buildParty(party));
+    return;
+  }
+
+  // Private parties require a pending invite (only reached for non-members)
   if (!party.isPublic) {
     const [invite] = await db
       .select()
@@ -355,16 +377,6 @@ router.post("/parties/:partyId/join", requireAuth, async (req, res): Promise<voi
     }
     // Accept the invite automatically on join
     await db.update(partyInvitesTable).set({ status: "accepted" }).where(eq(partyInvitesTable.id, invite.id));
-  }
-
-  // Prevent duplicate membership
-  const [existing] = await db
-    .select()
-    .from(partyMembersTable)
-    .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, myId)));
-  if (existing) {
-    res.json(await buildParty(party));
-    return;
   }
 
   await db.insert(partyMembersTable).values({ partyId, userId: myId });

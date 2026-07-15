@@ -303,6 +303,105 @@ describe("POST /lfg/:postId/respond — stale-post guard", () => {
   });
 });
 
+describe("POST /lfg/:postId/respond — empty / missing body", () => {
+  // Dedicated posts + responders so state is isolated from other blocks
+  let emptyBodyPostId = 0;
+  let noBodyPostId = 0;
+  let emptyResponderId = 0;
+  let noBodyResponderId = 0;
+
+  before(async () => {
+    const [emptyResponder, noBodyResponder] = await db
+      .insert(usersTable)
+      .values([makeUser("emptybody"), makeUser("nobody")])
+      .returning({ id: usersTable.id });
+    emptyResponderId = emptyResponder.id;
+    noBodyResponderId = noBodyResponder.id;
+    createdUserIds.push(emptyResponderId, noBodyResponderId);
+
+    const posts = await db
+      .insert(lfgPostsTable)
+      .values([
+        {
+          authorId,
+          game: "EmptyBodyGame",
+          description: "Post for empty-body respond test",
+          neededPlayers: 1,
+          micRequired: false,
+          status: "open" as const,
+        },
+        {
+          authorId,
+          game: "NoBodyGame",
+          description: "Post for no-body respond test",
+          neededPlayers: 1,
+          micRequired: false,
+          status: "open" as const,
+        },
+      ])
+      .returning({ id: lfgPostsTable.id });
+    emptyBodyPostId = posts[0].id;
+    noBodyPostId = posts[1].id;
+    createdPostIds.push(emptyBodyPostId, noBodyPostId);
+  });
+
+  test("returns 200 with an empty JSON object body and increments responseCount", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${emptyBodyPostId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(emptyResponderId, `lfgtest_emptybody_${SUFFIX}`),
+      },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 200, "respond with {} body must return 200");
+
+    const post = (await res.json()) as {
+      responseCount: number;
+      viewerHasResponded: boolean;
+    };
+    assert.equal(post.responseCount, 1, "responseCount must increment to 1");
+    assert.equal(post.viewerHasResponded, true, "viewerHasResponded must be true");
+
+    // DB row exists with a null message
+    const rows = await db
+      .select()
+      .from(lfgResponsesTable)
+      .where(
+        and(
+          eq(lfgResponsesTable.postId, emptyBodyPostId),
+          eq(lfgResponsesTable.userId, emptyResponderId),
+        ),
+      );
+    assert.equal(rows.length, 1, "exactly one response row must exist");
+    assert.equal(rows[0].message, null, "message must be stored as null");
+  });
+
+  test("returns 200 with no body and no Content-Type header", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${noBodyPostId}/respond`, {
+      method: "POST",
+      headers: authHeader(noBodyResponderId, `lfgtest_nobody_${SUFFIX}`),
+      // No body, no Content-Type — express.json() leaves req.body undefined/{}
+    });
+    assert.equal(res.status, 200, "respond with no body must return 200");
+
+    const post = (await res.json()) as { responseCount: number };
+    assert.equal(post.responseCount, 1, "responseCount must increment to 1");
+
+    const rows = await db
+      .select()
+      .from(lfgResponsesTable)
+      .where(
+        and(
+          eq(lfgResponsesTable.postId, noBodyPostId),
+          eq(lfgResponsesTable.userId, noBodyResponderId),
+        ),
+      );
+    assert.equal(rows.length, 1, "exactly one response row must exist");
+    assert.equal(rows[0].message, null, "message must be stored as null");
+  });
+});
+
 describe("POST /lfg/:postId/respond — notification to post author", () => {
   // Use a dedicated post so notification state is isolated from other describe blocks
   let notifPostId = 0;

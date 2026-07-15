@@ -1139,3 +1139,252 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
     assert.equal(notifRows.length, 1, "still exactly one notification after second invite");
   });
 });
+
+// ─── Re-invite after decline / accept tests ────────────────────────────────────
+
+describe("POST /parties/:partyId/invite — re-invite after declined or accepted invite", () => {
+  // Use outsiderId so membership state is fully controlled.
+  // Track all invite ids for cleanup.
+  const createdInviteIds: number[] = [];
+
+  before(async () => {
+    // Ensure outsider has no membership, conversation access, or pending invites going in.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    await db
+      .delete(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId)
+        )
+      );
+  });
+
+  after(async () => {
+    // Clean up all invites and their notifications created during this block.
+    if (createdInviteIds.length) {
+      await db
+        .delete(notificationsTable)
+        .where(inArray(notificationsTable.relatedId, createdInviteIds));
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, createdInviteIds));
+    }
+    // Also remove any party membership outsider may have gained.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+  });
+
+  test("re-inviting after a declined invite creates a new row and new notification", async () => {
+    // Step 1: send the first invite via the HTTP endpoint.
+    const firstRes = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(firstRes.status, 200, "first invite should succeed");
+
+    // Grab the row that was created.
+    const [firstInvite] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(firstInvite, "first invite row must exist");
+    createdInviteIds.push(firstInvite.id);
+
+    // Step 2: decline the first invite.
+    const declineRes = await request(
+      "POST",
+      `/party-invites/${firstInvite.id}/decline`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(declineRes.status, 200, "decline should succeed");
+
+    // Confirm no pending invite remains.
+    const pendingAfterDecline = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(pendingAfterDecline.length, 0, "no pending invite should remain after decline");
+
+    // Step 3: send the invite again — should create a fresh row and notification.
+    const secondRes = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(secondRes.status, 200, "re-invite after decline should succeed");
+    assert.deepEqual((secondRes.body as { success: boolean }).success, true);
+
+    // There should now be exactly one new pending invite row.
+    const pendingAfterReInvite = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(pendingAfterReInvite.length, 1, "exactly one new pending invite row after re-invite");
+
+    const newInvite = pendingAfterReInvite[0];
+    assert.notEqual(newInvite.id, firstInvite.id, "re-invite must create a distinct row, not reuse the old one");
+    createdInviteIds.push(newInvite.id);
+
+    // There should be exactly one notification for the new invite.
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.relatedId, newInvite.id)
+        )
+      );
+    assert.equal(notifRows.length, 1, "a new notification must be created for the re-invite");
+
+    // Step 4: decline the new invite so the next test starts clean.
+    await db
+      .update(partyInvitesTable)
+      .set({ status: "declined" })
+      .where(eq(partyInvitesTable.id, newInvite.id));
+  });
+
+  test("re-inviting after an accepted invite creates a new row and new notification", async () => {
+    // Precondition: outsider must not be a party member (they've never joined in this block).
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+
+    // Step 1: send the first invite via the HTTP endpoint.
+    const firstRes = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(firstRes.status, 200, "first invite should succeed");
+
+    const [firstInvite] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(firstInvite, "first invite row must exist");
+    createdInviteIds.push(firstInvite.id);
+
+    // Step 2: accept the invite so status becomes 'accepted'.
+    const acceptRes = await request(
+      "POST",
+      `/party-invites/${firstInvite.id}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(acceptRes.status, 200, "accept should succeed");
+
+    // Confirm no pending invite remains.
+    const pendingAfterAccept = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(pendingAfterAccept.length, 0, "no pending invite should remain after accept");
+
+    // Step 3: send the invite again — should create a fresh row and notification.
+    const secondRes = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(secondRes.status, 200, "re-invite after accept should succeed");
+    assert.deepEqual((secondRes.body as { success: boolean }).success, true);
+
+    // There should now be exactly one new pending invite row.
+    const pendingAfterReInvite = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(pendingAfterReInvite.length, 1, "exactly one new pending invite row after re-invite");
+
+    const newInvite = pendingAfterReInvite[0];
+    assert.notEqual(newInvite.id, firstInvite.id, "re-invite must create a distinct row, not reuse the accepted one");
+    createdInviteIds.push(newInvite.id);
+
+    // There should be exactly one notification for the new invite.
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.relatedId, newInvite.id)
+        )
+      );
+    assert.equal(notifRows.length, 1, "a new notification must be created for the re-invite after accept");
+  });
+});

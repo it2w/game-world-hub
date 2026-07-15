@@ -239,6 +239,12 @@ describe("signaling authorization", () => {
     const targetJoined = await target.waitFor((m) => m.type === "joined" || m.type === "error");
     assert.equal(targetJoined.type, "joined", "target should join the call room");
 
+    // Cancel the pending call explicitly so cleanupCallsFor on disconnect does
+    // not spray a stale `call-cancelled` at whichever sessions of memberB are
+    // registered at teardown time — which can include the next test's fresh
+    // connections if they happen to open before the close events fire.
+    caller.send({ type: "call-cancel", callId: ringing.callId });
+
     caller.close();
     target.close();
     evil.close();

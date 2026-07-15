@@ -20,11 +20,21 @@
     "platforms": "Platforms"
   },
   "rankTitles": {
-    "ROOKIE": "ROOKIE",
+    "INITIATE": "INITIATE",
+    "SCOUT": "SCOUT",
     "OPERATIVE": "OPERATIVE",
+    "HUNTER": "HUNTER",
+    "WARRIOR": "WARRIOR",
     "VETERAN": "VETERAN",
     "ELITE": "ELITE",
-    "LEGEND": "LEGEND"
+    "CHAMPION": "CHAMPION",
+    "LEGEND": "LEGEND",
+    "MYTHIC": "MYTHIC",
+    "CELESTIAL": "CELESTIAL",
+    "TITAN": "TITAN",
+    "IMMORTAL": "IMMORTAL",
+    "GODLIKE": "GODLIKE",
+    "TRANSCENDENT": "TRANSCENDENT"
   },
   "defs": {
     "first_contact": {

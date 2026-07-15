@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/status-badge";
+import { TierPip } from "@/components/tier-badge";
 import { useVoice } from "@/voice/voice-context";
 import { Search, UserPlus, Check, X, UserMinus, Play, Phone } from "lucide-react";
 import { Link } from "wouter";
@@ -142,9 +143,12 @@ export default function Friends() {
                     <StatusBadge status={entry.friend.status} className="absolute -bottom-1 -end-1" />
                   </Link>
                   <div className="flex-1 min-w-0">
-                    <Link href={`/profile/${entry.friend.id}`} className="font-bold text-sm truncate block hover:underline">
-                      {entry.friend.displayName}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/profile/${entry.friend.id}`} className="font-bold text-sm truncate block hover:underline">
+                        {entry.friend.displayName}
+                      </Link>
+                      {entry.friend.tier && <TierPip tier={entry.friend.tier} />}
+                    </div>
                     {entry.friend.currentGame ? (
                       <div className="text-xs text-primary font-mono truncate flex items-center gap-1 mt-0.5">
                         <Play className="w-3 h-3 fill-primary shrink-0" /> {entry.friend.currentGame}

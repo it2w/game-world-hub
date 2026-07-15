@@ -1,22 +1,27 @@
-import { Shield, Eye, Crosshair, Target, Swords, Flame, Zap, Crown, Gem, Sparkles } from "lucide-react";
+import { Shield, Eye, Crosshair, Target, Swords, Flame, Zap, Crown, Gem, Sparkles, Moon, Mountain, Infinity, Sun, Atom } from "lucide-react";
 
 // ─── Tier defs (mirrors server-side TIER_DEFS) — used for division calc ────
 const TIER_FRONTEND_DEFS: { id: TierName; minLevel: number }[] = [
-  { id: "INITIATE",  minLevel: 1  },
-  { id: "SCOUT",     minLevel: 2  },
-  { id: "OPERATIVE", minLevel: 4  },
-  { id: "HUNTER",    minLevel: 7  },
-  { id: "WARRIOR",   minLevel: 11 },
-  { id: "VETERAN",   minLevel: 16 },
-  { id: "ELITE",     minLevel: 22 },
-  { id: "CHAMPION",  minLevel: 29 },
-  { id: "LEGEND",    minLevel: 37 },
-  { id: "MYTHIC",    minLevel: 46 },
+  { id: "INITIATE",     minLevel: 1  },
+  { id: "SCOUT",        minLevel: 2  },
+  { id: "OPERATIVE",    minLevel: 4  },
+  { id: "HUNTER",       minLevel: 7  },
+  { id: "WARRIOR",      minLevel: 11 },
+  { id: "VETERAN",      minLevel: 16 },
+  { id: "ELITE",        minLevel: 22 },
+  { id: "CHAMPION",     minLevel: 29 },
+  { id: "LEGEND",       minLevel: 37 },
+  { id: "MYTHIC",       minLevel: 46 },
+  { id: "CELESTIAL",    minLevel: 56 },
+  { id: "TITAN",        minLevel: 67 },
+  { id: "IMMORTAL",     minLevel: 79 },
+  { id: "GODLIKE",      minLevel: 92 },
+  { id: "TRANSCENDENT", minLevel: 106 },
 ];
 
 /** Returns "I" (top), "II" (mid), or "III" (entry) based on position within the tier's level span. */
 export function getDivision(tier: TierName, level: number): "I" | "II" | "III" {
-  if (tier === "MYTHIC") return "I";
+  if (tier === "TRANSCENDENT") return "I";
   const idx = TIER_FRONTEND_DEFS.findIndex((t) => t.id === tier);
   const current = TIER_FRONTEND_DEFS[idx];
   const next = TIER_FRONTEND_DEFS[idx + 1];
@@ -31,7 +36,8 @@ export function getDivision(tier: TierName, level: number): "I" | "II" | "III" {
 // ─── Tier definitions (mirror of server-side TIER_DEFS) ────────────────────
 export type TierName =
   | "INITIATE" | "SCOUT" | "OPERATIVE" | "HUNTER" | "WARRIOR"
-  | "VETERAN"  | "ELITE" | "CHAMPION"  | "LEGEND" | "MYTHIC";
+  | "VETERAN"  | "ELITE" | "CHAMPION"  | "LEGEND" | "MYTHIC"
+  | "CELESTIAL" | "TITAN" | "IMMORTAL" | "GODLIKE" | "TRANSCENDENT";
 
 interface TierConfig {
   label: string;
@@ -49,16 +55,21 @@ interface TierConfig {
 }
 
 export const TIER_CONFIG: Record<TierName, TierConfig> = {
-  INITIATE:  { label: "INITIATE",  labelAr: "مبتدئ",   color1: "#64748B", color2: "#334155", border: "#94A3B8", textColor: "#94A3B8", icon: Shield,    iconSizeCls: "w-7 h-7", glowColor: "transparent",  animClass: "",                   glowLevel: 0 },
-  SCOUT:     { label: "SCOUT",     labelAr: "كشاف",    color1: "#22C55E", color2: "#15803D", border: "#4ADE80", textColor: "#4ADE80", icon: Eye,       iconSizeCls: "w-7 h-7", glowColor: "#22C55E",       animClass: "tier-anim-pulse",    glowLevel: 1 },
-  OPERATIVE: { label: "OPERATIVE", labelAr: "عميل",    color1: "#06B6D4", color2: "#0E7490", border: "#22D3EE", textColor: "#22D3EE", icon: Crosshair, iconSizeCls: "w-7 h-7", glowColor: "#06B6D4",       animClass: "tier-anim-glow",     glowLevel: 2 },
-  HUNTER:    { label: "HUNTER",    labelAr: "صياد",    color1: "#3B82F6", color2: "#1D4ED8", border: "#60A5FA", textColor: "#60A5FA", icon: Target,    iconSizeCls: "w-7 h-7", glowColor: "#3B82F6",       animClass: "tier-anim-glow",     glowLevel: 2 },
-  WARRIOR:   { label: "WARRIOR",   labelAr: "محارب",   color1: "#F97316", color2: "#C2410C", border: "#FB923C", textColor: "#FB923C", icon: Swords,    iconSizeCls: "w-8 h-8", glowColor: "#F97316",       animClass: "tier-anim-pulse",    glowLevel: 2 },
-  VETERAN:   { label: "VETERAN",   labelAr: "مخضرم",   color1: "#EF4444", color2: "#B91C1C", border: "#F87171", textColor: "#F87171", icon: Flame,     iconSizeCls: "w-8 h-8", glowColor: "#EF4444",       animClass: "tier-anim-flicker",  glowLevel: 3 },
-  ELITE:     { label: "ELITE",     labelAr: "نخبة",    color1: "#A855F7", color2: "#7E22CE", border: "#C084FC", textColor: "#C084FC", icon: Zap,       iconSizeCls: "w-8 h-8", glowColor: "#A855F7",       animClass: "tier-anim-spark",    glowLevel: 3 },
-  CHAMPION:  { label: "CHAMPION",  labelAr: "بطل",     color1: "#EAB308", color2: "#A16207", border: "#FDE047", textColor: "#FDE047", icon: Crown,     iconSizeCls: "w-8 h-8", glowColor: "#EAB308",       animClass: "tier-anim-shine",    glowLevel: 3 },
-  LEGEND:    { label: "LEGEND",    labelAr: "أسطورة",  color1: "#EC4899", color2: "#7C3AED", border: "#F0ABFC", textColor: "#F0ABFC", icon: Gem,       iconSizeCls: "w-9 h-9", glowColor: "#EC4899",       animClass: "tier-anim-rainbow",  glowLevel: 4 },
-  MYTHIC:    { label: "MYTHIC",    labelAr: "أسطوري",  color1: "#F97316", color2: "#7C3AED", border: "#FCD34D", textColor: "#FCD34D", icon: Sparkles,  iconSizeCls: "w-9 h-9", glowColor: "#F97316",       animClass: "tier-anim-cosmic",   glowLevel: 4 },
+  INITIATE:     { label: "INITIATE",     labelAr: "مبتدئ",     color1: "#64748B", color2: "#334155", border: "#94A3B8", textColor: "#94A3B8", icon: Shield,    iconSizeCls: "w-7 h-7", glowColor: "transparent",  animClass: "",                   glowLevel: 0 },
+  SCOUT:        { label: "SCOUT",        labelAr: "كشاف",      color1: "#22C55E", color2: "#15803D", border: "#4ADE80", textColor: "#4ADE80", icon: Eye,       iconSizeCls: "w-7 h-7", glowColor: "#22C55E",       animClass: "tier-anim-pulse",    glowLevel: 1 },
+  OPERATIVE:    { label: "OPERATIVE",    labelAr: "عميل",      color1: "#06B6D4", color2: "#0E7490", border: "#22D3EE", textColor: "#22D3EE", icon: Crosshair, iconSizeCls: "w-7 h-7", glowColor: "#06B6D4",       animClass: "tier-anim-glow",     glowLevel: 2 },
+  HUNTER:       { label: "HUNTER",       labelAr: "صياد",      color1: "#3B82F6", color2: "#1D4ED8", border: "#60A5FA", textColor: "#60A5FA", icon: Target,    iconSizeCls: "w-7 h-7", glowColor: "#3B82F6",       animClass: "tier-anim-glow",     glowLevel: 2 },
+  WARRIOR:      { label: "WARRIOR",      labelAr: "محارب",     color1: "#F97316", color2: "#C2410C", border: "#FB923C", textColor: "#FB923C", icon: Swords,    iconSizeCls: "w-8 h-8", glowColor: "#F97316",       animClass: "tier-anim-pulse",    glowLevel: 2 },
+  VETERAN:      { label: "VETERAN",      labelAr: "مخضرم",     color1: "#EF4444", color2: "#B91C1C", border: "#F87171", textColor: "#F87171", icon: Flame,     iconSizeCls: "w-8 h-8", glowColor: "#EF4444",       animClass: "tier-anim-flicker",  glowLevel: 3 },
+  ELITE:        { label: "ELITE",        labelAr: "نخبة",      color1: "#A855F7", color2: "#7E22CE", border: "#C084FC", textColor: "#C084FC", icon: Zap,       iconSizeCls: "w-8 h-8", glowColor: "#A855F7",       animClass: "tier-anim-spark",    glowLevel: 3 },
+  CHAMPION:     { label: "CHAMPION",     labelAr: "بطل",       color1: "#EAB308", color2: "#A16207", border: "#FDE047", textColor: "#FDE047", icon: Crown,     iconSizeCls: "w-8 h-8", glowColor: "#EAB308",       animClass: "tier-anim-shine",    glowLevel: 3 },
+  LEGEND:       { label: "LEGEND",       labelAr: "أسطورة",    color1: "#EC4899", color2: "#7C3AED", border: "#F0ABFC", textColor: "#F0ABFC", icon: Gem,       iconSizeCls: "w-9 h-9", glowColor: "#EC4899",       animClass: "tier-anim-rainbow",  glowLevel: 4 },
+  MYTHIC:       { label: "MYTHIC",       labelAr: "أسطوري",    color1: "#F97316", color2: "#7C3AED", border: "#FCD34D", textColor: "#FCD34D", icon: Sparkles,  iconSizeCls: "w-9 h-9", glowColor: "#F97316",       animClass: "tier-anim-cosmic",   glowLevel: 4 },
+  CELESTIAL:    { label: "CELESTIAL",    labelAr: "سماوي",     color1: "#0EA5E9", color2: "#0369A1", border: "#38BDF8", textColor: "#38BDF8", icon: Moon,      iconSizeCls: "w-9 h-9", glowColor: "#0EA5E9",       animClass: "tier-anim-cosmic",   glowLevel: 4 },
+  TITAN:        { label: "TITAN",        labelAr: "جبار",      color1: "#78716C", color2: "#451A03", border: "#A8A29E", textColor: "#A8A29E", icon: Mountain,  iconSizeCls: "w-9 h-9", glowColor: "#78716C",       animClass: "tier-anim-pulse",    glowLevel: 3 },
+  IMMORTAL:     { label: "IMMORTAL",     labelAr: "خالد",      color1: "#DC2626", color2: "#991B1B", border: "#F87171", textColor: "#F87171", icon: Infinity, iconSizeCls: "w-9 h-9", glowColor: "#DC2626",       animClass: "tier-anim-flicker",  glowLevel: 4 },
+  GODLIKE:      { label: "GODLIKE",      labelAr: "إلهي",      color1: "#F59E0B", color2: "#B45309", border: "#FCD34D", textColor: "#FCD34D", icon: Sun,       iconSizeCls: "w-10 h-10", glowColor: "#F59E0B",      animClass: "tier-anim-shine",    glowLevel: 4 },
+  TRANSCENDENT: { label: "TRANSCENDENT", labelAr: "متعالٍ",    color1: "#C026D3", color2: "#581C87", border: "#E879F9", textColor: "#E879F9", icon: Atom,      iconSizeCls: "w-10 h-10", glowColor: "#C026D3",      animClass: "tier-anim-nova",     glowLevel: 4 },
 };
 
 // Classic heraldic shield SVG path (viewBox 0 0 80 92)

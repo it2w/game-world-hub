@@ -44,6 +44,31 @@ export const UserStatus = {
   offline: 'offline',
 } as const;
 
+/**
+ * Auto-computed platform tier when available
+ * @nullable
+ */
+export type UserTier = typeof UserTier[keyof typeof UserTier] | null;
+
+
+export const UserTier = {
+  INITIATE: 'INITIATE',
+  SCOUT: 'SCOUT',
+  OPERATIVE: 'OPERATIVE',
+  HUNTER: 'HUNTER',
+  WARRIOR: 'WARRIOR',
+  VETERAN: 'VETERAN',
+  ELITE: 'ELITE',
+  CHAMPION: 'CHAMPION',
+  LEGEND: 'LEGEND',
+  MYTHIC: 'MYTHIC',
+  CELESTIAL: 'CELESTIAL',
+  TITAN: 'TITAN',
+  IMMORTAL: 'IMMORTAL',
+  GODLIKE: 'GODLIKE',
+  TRANSCENDENT: 'TRANSCENDENT',
+} as const;
+
 export interface User {
   id: number;
   username: string;
@@ -68,6 +93,19 @@ export interface User {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /**
+     * Auto-computed platform tier when available
+     * @nullable
+     */
+  tier?: UserTier;
+  /** @nullable */
+  tierLevel?: number | null;
+  /** @nullable */
+  totalXp?: number | null;
+  /** @nullable */
+  xpIntoLevel?: number | null;
+  /** @nullable */
+  xpForNext?: number | null;
 }
 
 export interface LfgPost {
@@ -160,7 +198,10 @@ export interface RegisterInput {
      * @maxLength 30
      */
   username: string;
-  /** @minLength 6 */
+  /**
+     * Must be at least 16 characters and include uppercase, lowercase, number, and symbol.
+     * @minLength 16
+     */
   password: string;
   /**
      * @minLength 1
@@ -228,6 +269,11 @@ export const UserProfileTier = {
   CHAMPION: 'CHAMPION',
   LEGEND: 'LEGEND',
   MYTHIC: 'MYTHIC',
+  CELESTIAL: 'CELESTIAL',
+  TITAN: 'TITAN',
+  IMMORTAL: 'IMMORTAL',
+  GODLIKE: 'GODLIKE',
+  TRANSCENDENT: 'TRANSCENDENT',
 } as const;
 
 export type UserProfileStatus = typeof UserProfileStatus[keyof typeof UserProfileStatus];

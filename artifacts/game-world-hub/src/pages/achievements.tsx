@@ -20,6 +20,7 @@ import {
   Check,
   type LucideIcon,
 } from "lucide-react";
+import { TierBadge, DivisionBadge, type TierName } from "@/components/tier-badge";
 
 const ICONS: Record<string, LucideIcon> = {
   UserPlus,
@@ -77,15 +78,26 @@ export default function Achievements() {
 
       {/* Rank + XP */}
       <div className="bg-card border border-border">
-        <div className="flex flex-col sm:flex-row">
-          <div className="flex items-center gap-5 p-6 border-b sm:border-b-0 sm:border-e border-border">
-            <div className="w-20 h-20 border-2 border-primary bg-primary/10 flex flex-col items-center justify-center shrink-0">
-              <span className="text-[10px] font-mono uppercase text-primary/70 leading-none">{t("lvl")}</span>
-              <span className="text-3xl font-bold font-mono text-primary leading-none">{data.level}</span>
-            </div>
-            <div>
+        <div className="flex flex-col lg:flex-row">
+          <div className="flex items-center gap-6 p-6 border-b lg:border-b-0 lg:border-e border-border">
+            <TierBadge
+              tier={data.rank as TierName}
+              level={data.level}
+              xpIntoLevel={data.xpIntoLevel}
+              xpForNext={data.xpForNext}
+              size="md"
+              showXpBar={false}
+            />
+            <DivisionBadge
+              tier={data.rank as TierName}
+              level={data.level}
+              size="md"
+            />
+            <div className="hidden sm:block">
               <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{t("rank")}</div>
-              <div className="text-2xl font-bold font-mono uppercase tracking-wider text-foreground">{t(`rankTitles.${data.rank}`, { defaultValue: data.rank })}</div>
+              <div className="text-2xl font-bold font-mono uppercase tracking-wider text-foreground">
+                {t(`rankTitles.${data.rank}`, { defaultValue: data.rank })}
+              </div>
               <div className="mt-1 flex items-center gap-1 text-xs font-mono text-primary">
                 <Zap className="w-3 h-3" /> {t("totalXp", { xp: data.totalXp.toLocaleString("en-US") })}
               </div>

@@ -12,7 +12,10 @@ export interface RegisterInput {
      * @maxLength 30
      */
   username: string;
-  /** @minLength 6 */
+  /**
+     * Must be at least 16 characters and include uppercase, lowercase, number, and symbol.
+     * @minLength 16
+     */
   password: string;
   /**
      * @minLength 1

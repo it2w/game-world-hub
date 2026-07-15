@@ -10,10 +10,14 @@ import {
 import { CreateLfgPostBody, RespondToLfgPostBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
+import { getUserProgress } from "../lib/xp";
 
 const router: IRouter = Router();
 
-function safeUser(u: typeof usersTable.$inferSelect) {
+function safeUser(
+  u: typeof usersTable.$inferSelect,
+  progress?: Awaited<ReturnType<typeof getUserProgress>>,
+) {
   return {
     id: u.id,
     username: u.username,
@@ -23,11 +27,17 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
+    tier: progress?.tier ?? null,
+    tierLevel: progress?.level ?? null,
+    totalXp: progress?.totalXp ?? null,
+    xpIntoLevel: progress?.xpIntoLevel ?? null,
+    xpForNext: progress?.xpForNext ?? null,
   };
 }
 
 async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: number) {
   const [author] = await db.select().from(usersTable).where(eq(usersTable.id, post.authorId));
+  const authorProgress = await getUserProgress(author.id);
 
   const responseRows = await db
     .select({ user: usersTable, response: lfgResponsesTable })
@@ -36,9 +46,16 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
     .where(eq(lfgResponsesTable.postId, post.id))
     .orderBy(desc(lfgResponsesTable.createdAt));
 
+  const responderProgress = new Map<number, Awaited<ReturnType<typeof getUserProgress>>>();
+  await Promise.all(
+    responseRows.map(async (r) => {
+      responderProgress.set(r.user.id, await getUserProgress(r.user.id));
+    }),
+  );
+
   return {
     id: post.id,
-    author: safeUser(author),
+    author: safeUser(author, authorProgress),
     game: post.game,
     platform: post.platform ?? null,
     rank: post.rank ?? null,
@@ -47,7 +64,7 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
     micRequired: post.micRequired,
     status: post.status,
     responseCount: responseRows.length,
-    responders: responseRows.map((r) => safeUser(r.user)),
+    responders: responseRows.map((r) => safeUser(r.user, responderProgress.get(r.user.id))),
     viewerHasResponded: responseRows.some((r) => r.response.userId === viewerId),
     expiresAt: post.expiresAt ? post.expiresAt.toISOString() : null,
     createdAt: post.createdAt.toISOString(),

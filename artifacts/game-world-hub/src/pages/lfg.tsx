@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock, UserPlus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TierPip } from "@/components/tier-badge";
 
 type CreateLfgForm = {
   game: string;
@@ -391,8 +392,9 @@ export default function Lfg() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs font-mono text-muted-foreground truncate">
+                    <div className="text-xs font-mono text-muted-foreground truncate flex items-center gap-2">
                       @{post.author.username}
+                      {post.author.tier && <TierPip tier={post.author.tier} />}
                     </div>
                   </div>
                   {remaining && !isClosed && (

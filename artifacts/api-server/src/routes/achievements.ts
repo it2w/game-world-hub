@@ -12,7 +12,7 @@ import {
   platformLinksTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { computeXp, computeLevel, getTier } from "../lib/xp";
+import { getUserProgress } from "../lib/xp";
 
 const router: IRouter = Router();
 
@@ -26,16 +26,8 @@ async function countWhere(table: any, column: any, userId: number): Promise<numb
 router.get("/achievements", requireAuth, async (req, res) => {
   const myId = req.auth!.userId;
 
-  const [
-    friends,
-    partiesCreated,
-    partiesJoined,
-    messagesSent,
-    lfgPosts,
-    lfgResponses,
-    games,
-    platforms,
-  ] = await Promise.all([
+  const [progress, friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games, platforms] = await Promise.all([
+    getUserProgress(myId),
     countWhere(friendshipsTable, friendshipsTable.userId, myId),
     countWhere(partiesTable, partiesTable.leaderId, myId),
     countWhere(partyMembersTable, partyMembersTable.userId, myId),
@@ -45,6 +37,7 @@ router.get("/achievements", requireAuth, async (req, res) => {
     countWhere(userGamesTable, userGamesTable.userId, myId),
     countWhere(platformLinksTable, platformLinksTable.userId, myId),
   ]);
+  const { level, totalXp, xpIntoLevel, xpForNext, tier } = progress;
 
   const stats = {
     friends,
@@ -56,9 +49,6 @@ router.get("/achievements", requireAuth, async (req, res) => {
     games,
     platforms,
   };
-
-  const totalXp = computeXp({ friends, partiesCreated, partiesJoined, messagesSent: messagesSent, lfgPosts, lfgResponses, games, platforms });
-  const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
 
   const defs: Array<{
     id: string;
@@ -89,7 +79,7 @@ router.get("/achievements", requireAuth, async (req, res) => {
 
   res.json({
     level,
-    rank: getTier(level),
+    rank: tier,
     totalXp,
     xpIntoLevel,
     xpForNext,

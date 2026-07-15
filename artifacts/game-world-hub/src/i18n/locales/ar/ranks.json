@@ -20,11 +20,21 @@
     "platforms": "المنصات"
   },
   "rankTitles": {
-    "ROOKIE": "مبتدئ",
+    "INITIATE": "مبتدئ",
+    "SCOUT": "كشاف",
     "OPERATIVE": "عميل",
+    "HUNTER": "صياد",
+    "WARRIOR": "محارب",
     "VETERAN": "مخضرم",
     "ELITE": "نخبة",
-    "LEGEND": "أسطورة"
+    "CHAMPION": "بطل",
+    "LEGEND": "أسطورة",
+    "MYTHIC": "أسطوري",
+    "CELESTIAL": "سماوي",
+    "TITAN": "جبار",
+    "IMMORTAL": "خالد",
+    "GODLIKE": "إلهي",
+    "TRANSCENDENT": "متعالٍ"
   },
   "defs": {
     "first_contact": {

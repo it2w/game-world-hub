@@ -16,7 +16,7 @@ import {
   lfgPostsTable,
   lfgResponsesTable,
 } from "@workspace/db";
-import { computeXp, computeLevel, getTier } from "../lib/xp";
+import { getUserProgress } from "../lib/xp";
 import {
   UpdateProfileBody,
   CreateProfileCommentBody,
@@ -32,7 +32,10 @@ const objectStorageService = new ObjectStorageService();
 
 const MAX_PROFILE_PHOTOS = 12;
 
-function safeUser(u: typeof usersTable.$inferSelect) {
+function safeUser(
+  u: typeof usersTable.$inferSelect,
+  progress?: Awaited<ReturnType<typeof getUserProgress>>,
+) {
   return {
     id: u.id,
     username: u.username,
@@ -45,6 +48,11 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
+    tier: progress?.tier ?? null,
+    tierLevel: progress?.level ?? null,
+    totalXp: progress?.totalXp ?? null,
+    xpIntoLevel: progress?.xpIntoLevel ?? null,
+    xpForNext: progress?.xpForNext ?? null,
   };
 }
 
@@ -102,7 +110,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const users = await db.select().from(usersTable)
     .where(ilike(usersTable.username, `%${q}%`))
     .limit(20);
-  res.json(users.filter(u => u.id !== req.auth!.userId).map(safeUser));
+  res.json(users.filter(u => u.id !== req.auth!.userId).map(u => safeUser(u)));
 });
 
 // GET /users/:userId
@@ -126,33 +134,11 @@ router.get("/users/:userId", requireAuth, async (req, res): Promise<void> => {
 
   const platforms = await db.select().from(platformLinksTable).where(eq(platformLinksTable.userId, userId));
 
-  // Auto-tier: compute XP from user activity (parallel DB counts, read-only).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cw = async (table: any, col: any) => {
-    const [r] = await db.select({ c: count() }).from(table).where(eq(col, userId));
-    return Number(r?.c ?? 0);
-  };
-  const [friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, gameCount, platformCount] = await Promise.all([
-    cw(friendshipsTable, friendshipsTable.userId),
-    cw(partiesTable, partiesTable.leaderId),
-    cw(partyMembersTable, partyMembersTable.userId),
-    cw(messagesTable, messagesTable.senderId),
-    cw(lfgPostsTable, lfgPostsTable.authorId),
-    cw(lfgResponsesTable, lfgResponsesTable.userId),
-    cw(userGamesTable, userGamesTable.userId),
-    cw(platformLinksTable, platformLinksTable.userId),
-  ]);
-  const totalXp = computeXp({ friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games: gameCount, platforms: platformCount });
-  const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
-  const tier = getTier(level);
+  const progress = await getUserProgress(userId);
 
   res.json({
-    ...safeUser(user),
-    tier,
-    tierLevel: level,
-    totalXp,
-    xpIntoLevel,
-    xpForNext,
+    ...safeUser(user, progress),
+    ...progress,
     games: games.map(g => ({
       id: g.id,
       game: {

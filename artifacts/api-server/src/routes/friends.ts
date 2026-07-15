@@ -5,10 +5,14 @@ import { SendFriendRequestBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import { hasBlocked, isBlockedBetween } from "./blocks";
 import { toPublicImageUrl } from "../lib/objectStorage";
+import { getUserProgress } from "../lib/xp";
 
 const router: IRouter = Router();
 
-function safeUser(u: typeof usersTable.$inferSelect) {
+function safeUser(
+  u: typeof usersTable.$inferSelect,
+  progress?: Awaited<ReturnType<typeof getUserProgress>>,
+) {
   return {
     id: u.id,
     username: u.username,
@@ -18,6 +22,11 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
+    tier: progress?.tier ?? null,
+    tierLevel: progress?.level ?? null,
+    totalXp: progress?.totalXp ?? null,
+    xpIntoLevel: progress?.xpIntoLevel ?? null,
+    xpForNext: progress?.xpForNext ?? null,
   };
 }
 
@@ -228,10 +237,16 @@ router.get("/friends", requireAuth, async (req, res): Promise<void> => {
   }
 
   const friends = await db.select().from(usersTable).where(inArray(usersTable.id, friendIds));
+  const progressById = new Map<number, Awaited<ReturnType<typeof getUserProgress>>>();
+  await Promise.all(
+    friendIds.map(async (id) => {
+      progressById.set(id, await getUserProgress(id));
+    }),
+  );
 
   res.json(myFriendships.map(fs => ({
     id: fs.id,
-    friend: safeUser(friends.find(f => f.id === fs.friendId)!),
+    friend: safeUser(friends.find(f => f.id === fs.friendId)!, progressById.get(fs.friendId)),
     since: fs.since.toISOString(),
   })).filter(f => f.friend));
 });

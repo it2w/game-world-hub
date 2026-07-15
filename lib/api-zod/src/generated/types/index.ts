@@ -89,5 +89,6 @@ export * from './userProfile';
 export * from './userProfileStatus';
 export * from './userProfileTier';
 export * from './userStatus';
+export * from './userTier';
 export * from './userTwoFactorMethod';
 export * from './verifyEmailInput';

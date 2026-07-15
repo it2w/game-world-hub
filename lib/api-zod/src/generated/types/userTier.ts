@@ -7,12 +7,13 @@
  */
 
 /**
- * Auto-computed platform tier — cannot be set by the user
+ * Auto-computed platform tier when available
+ * @nullable
  */
-export type UserProfileTier = typeof UserProfileTier[keyof typeof UserProfileTier];
+export type UserTier = typeof UserTier[keyof typeof UserTier] | null;
 
 
-export const UserProfileTier = {
+export const UserTier = {
   INITIATE: 'INITIATE',
   SCOUT: 'SCOUT',
   OPERATIVE: 'OPERATIVE',

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UserStatus } from './userStatus';
+import type { UserTier } from './userTier';
 import type { UserTwoFactorMethod } from './userTwoFactorMethod';
 
 export interface User {
@@ -32,4 +33,17 @@ export interface User {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /**
+     * Auto-computed platform tier when available
+     * @nullable
+     */
+  tier?: UserTier;
+  /** @nullable */
+  tierLevel?: number | null;
+  /** @nullable */
+  totalXp?: number | null;
+  /** @nullable */
+  xpIntoLevel?: number | null;
+  /** @nullable */
+  xpForNext?: number | null;
 }

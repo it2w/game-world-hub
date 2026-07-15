@@ -36,7 +36,13 @@ export default function Register() {
           .min(1, t("register.validation.emailRequired"))
           .email(t("register.validation.emailInvalid"))
           .max(255),
-        password: z.string().min(6, t("register.validation.passwordMin")),
+        password: z
+          .string()
+          .min(16, t("register.validation.passwordMin"))
+          .regex(
+            /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&*)(_\-+=\\/؟!])/,
+            t("register.validation.passwordComplexity"),
+          ),
       }),
     [t],
   );

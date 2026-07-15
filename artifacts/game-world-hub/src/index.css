@@ -35,6 +35,14 @@
   75%  { filter: drop-shadow(0 0 24px #3b82f6) hue-rotate(135deg); transform: scale(1.02); }
   100% { filter: drop-shadow(0 0 12px #f97316) hue-rotate(0deg);   transform: scale(1); }
 }
+@keyframes tier-nova-kf {
+  0%   { filter: drop-shadow(0 0 14px #c026d3) hue-rotate(0deg)   brightness(1);   transform: scale(1); }
+  20%  { filter: drop-shadow(0 0 28px #e879f9) hue-rotate(72deg)  brightness(1.15); transform: scale(1.03); }
+  40%  { filter: drop-shadow(0 0 22px #7c3aed) hue-rotate(144deg) brightness(1);   transform: scale(1); }
+  60%  { filter: drop-shadow(0 0 30px #ec4899) hue-rotate(216deg) brightness(1.2);  transform: scale(1.03); }
+  80%  { filter: drop-shadow(0 0 24px #3b82f6) hue-rotate(288deg) brightness(1);   transform: scale(1); }
+  100% { filter: drop-shadow(0 0 14px #c026d3) hue-rotate(360deg) brightness(1);   transform: scale(1); }
+}
 
 .tier-anim-pulse   { animation: tier-pulse-kf   2.5s ease-in-out infinite; }
 .tier-anim-glow    { animation: tier-pulse-kf   2.0s ease-in-out infinite; }
@@ -43,6 +51,7 @@
 .tier-anim-shine   { animation: tier-shine-kf   2.0s ease-in-out infinite; }
 .tier-anim-rainbow { animation: tier-rainbow-kf 3.0s ease-in-out infinite; }
 .tier-anim-cosmic  { animation: tier-cosmic-kf  4.0s ease-in-out infinite; }
+.tier-anim-nova    { animation: tier-nova-kf    5.0s ease-in-out infinite; }
 
 @custom-variant dark (&:is(.dark *));
 

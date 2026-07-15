@@ -2085,7 +2085,8 @@ components:
           maxLength: 30
         password:
           type: string
-          minLength: 6
+          minLength: 16
+          description: Must be at least 16 characters and include uppercase, lowercase, number, and symbol.
         displayName:
           type: string
           minLength: 1
@@ -2164,6 +2165,18 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        tier:
+          type: ["string", "null"]
+          description: Auto-computed platform tier when available
+          enum: [INITIATE, SCOUT, OPERATIVE, HUNTER, WARRIOR, VETERAN, ELITE, CHAMPION, LEGEND, MYTHIC, CELESTIAL, TITAN, IMMORTAL, GODLIKE, TRANSCENDENT]
+        tierLevel:
+          type: ["integer", "null"]
+        totalXp:
+          type: ["integer", "null"]
+        xpIntoLevel:
+          type: ["integer", "null"]
+        xpForNext:
+          type: ["integer", "null"]
 
     UserProfile:
       type: object
@@ -2187,7 +2200,7 @@ components:
         tier:
           type: string
           description: Auto-computed platform tier — cannot be set by the user
-          enum: [INITIATE, SCOUT, OPERATIVE, HUNTER, WARRIOR, VETERAN, ELITE, CHAMPION, LEGEND, MYTHIC]
+          enum: [INITIATE, SCOUT, OPERATIVE, HUNTER, WARRIOR, VETERAN, ELITE, CHAMPION, LEGEND, MYTHIC, CELESTIAL, TITAN, IMMORTAL, GODLIKE, TRANSCENDENT]
         tierLevel:
           type: integer
           description: Numeric platform level (1+)

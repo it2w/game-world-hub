@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyUsernameMin = 3;
 export const registerBodyUsernameMax = 30;
 
-export const registerBodyPasswordMin = 6;
+export const registerBodyPasswordMin = 16;
 
 export const registerBodyDisplayNameMax = 50;
 
@@ -34,7 +34,7 @@ export const registerBodyEmailMax = 255;
 
 export const RegisterBody = zod.object({
   "username": zod.string().min(registerBodyUsernameMin).max(registerBodyUsernameMax),
-  "password": zod.string().min(registerBodyPasswordMin),
+  "password": zod.string().min(registerBodyPasswordMin).describe('Must be at least 16 characters and include uppercase, lowercase, number, and symbol.'),
   "displayName": zod.string().min(1).max(registerBodyDisplayNameMax),
   "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax)
 })
@@ -54,7 +54,12 @@ export const RegisterResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -86,7 +91,12 @@ export const LoginResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -120,7 +130,12 @@ export const GetMeResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -146,7 +161,12 @@ export const UpdateMyStatusResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -185,7 +205,12 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -256,7 +281,12 @@ export const SetMyEmailResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -286,7 +316,12 @@ export const VerifyMyEmailResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -331,7 +366,12 @@ export const EnableTwoFactorResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -356,7 +396,12 @@ export const DisableTwoFactorResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -375,7 +420,7 @@ export const GetUserResponse = zod.object({
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
-  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC']).describe('Auto-computed platform tier — cannot be set by the user'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).describe('Auto-computed platform tier — cannot be set by the user'),
   "tierLevel": zod.number().describe('Numeric platform level (1+)'),
   "totalXp": zod.number(),
   "xpIntoLevel": zod.number(),
@@ -435,7 +480,7 @@ export const UpdateProfileResponse = zod.object({
   "bannerUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
-  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC']).describe('Auto-computed platform tier — cannot be set by the user'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).describe('Auto-computed platform tier — cannot be set by the user'),
   "tierLevel": zod.number().describe('Numeric platform level (1+)'),
   "totalXp": zod.number(),
   "xpIntoLevel": zod.number(),
@@ -487,7 +532,12 @@ export const SearchUsersResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
 
@@ -624,7 +674,12 @@ export const DeleteMyAvatarResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -645,7 +700,12 @@ export const DeleteMyBannerResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })
 
 
@@ -718,7 +778,12 @@ export const ListFriendsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "since": zod.string()
 })
@@ -744,7 +809,12 @@ export const ListFriendRequestsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -760,7 +830,12 @@ export const ListFriendRequestsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -791,7 +866,12 @@ export const SendFriendRequestResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -807,7 +887,12 @@ export const SendFriendRequestResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -884,7 +969,12 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "since": zod.string()
 }))
@@ -912,7 +1002,12 @@ export const ListConversationsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -931,7 +1026,12 @@ export const ListConversationsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -990,7 +1090,12 @@ export const GetMessagesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1029,7 +1134,12 @@ export const SendMessageResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1072,7 +1182,12 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1091,7 +1206,12 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1124,7 +1244,12 @@ export const ListPartiesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1140,7 +1265,12 @@ export const ListPartiesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1191,7 +1321,12 @@ export const CreatePartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1207,7 +1342,12 @@ export const CreatePartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1243,7 +1383,12 @@ export const GetPartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1259,7 +1404,12 @@ export const GetPartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1313,7 +1463,12 @@ export const UpdatePartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1329,7 +1484,12 @@ export const UpdatePartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1393,7 +1553,12 @@ export const JoinPartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1409,7 +1574,12 @@ export const JoinPartyResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1471,7 +1641,12 @@ export const TransferPartyLeadershipResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1487,7 +1662,12 @@ export const TransferPartyLeadershipResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1521,7 +1701,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1537,7 +1722,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1558,7 +1748,12 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "action": zod.enum(['created', 'joined', 'left', 'invited']),
   "createdAt": zod.string()
@@ -1591,7 +1786,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1607,7 +1807,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1628,7 +1833,12 @@ export const ListPartyInvitesResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "createdAt": zod.string()
 })
@@ -1662,7 +1872,12 @@ export const AcceptPartyInviteResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1678,7 +1893,12 @@ export const AcceptPartyInviteResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1941,7 +2161,12 @@ export const ListBlockedUsersResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "createdAt": zod.string()
 })
@@ -2156,7 +2381,12 @@ export const ListLfgPostsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -2180,7 +2410,12 @@ export const ListLfgPostsResponseItem = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -2229,7 +2464,12 @@ export const CreateLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -2253,7 +2493,12 @@ export const CreateLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -2292,7 +2537,12 @@ export const RespondToLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -2316,7 +2566,12 @@ export const RespondToLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -2347,7 +2602,12 @@ export const CloseLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -2371,7 +2631,12 @@ export const CloseLfgPostResponse = zod.object({
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),

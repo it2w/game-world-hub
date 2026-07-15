@@ -33,6 +33,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TOTP_ISSUER = "Game World Hub";
 // Tolerate one 30s time-step of clock drift when verifying TOTP codes.
 const TOTP_EPOCH_TOLERANCE = 30;
+const PASSWORD_COMPLEXITY_RE = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&*)(_\-+=\\/؟!]).{16,}$/;
 
 async function isTotpCodeValid(code: string, secret: string): Promise<boolean> {
   try {
@@ -90,6 +91,13 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const email = parsed.data.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     res.status(400).json({ error: "Invalid email address" });
+    return;
+  }
+  if (!PASSWORD_COMPLEXITY_RE.test(password)) {
+    res.status(400).json({
+      error:
+        "Password must be at least 16 characters and include uppercase, lowercase, a number, and a symbol (e.g. @#$%^&*)(_-+=\\/؟!).",
+    });
     return;
   }
 

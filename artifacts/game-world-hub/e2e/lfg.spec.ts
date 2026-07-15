@@ -32,7 +32,7 @@ function makeUser(role: string): TestUser {
     username: `${role}${id}`.slice(0, 30),
     displayName: `${role} ${id}`.slice(0, 50),
     email: `${role}${id}@lfgtest.invalid`,
-    password: "testpass1",
+    password: "StrongPass123!@#", // 16+ chars, upper, lower, number, symbol
   };
 }
 

@@ -18,6 +18,7 @@ import Lfg from "./lfg";
 
 const h = vi.hoisted(() => {
   const closeMutate = vi.fn();
+  const respondMutate = vi.fn();
   const invalidateQueries = vi.fn();
 
   // Mutable slot: individual tests set this before rendering.
@@ -26,13 +27,19 @@ const h = vi.hoisted(() => {
   // Mutable slot: controls close mutation pending state.
   let closeIsPending = false;
 
+  // Mutable slot: controls respond mutation pending state.
+  let respondIsPending = false;
+
   return {
     closeMutate,
+    respondMutate,
     invalidateQueries,
     getPosts: () => currentPosts,
     setPosts: (p: unknown[]) => { currentPosts = p; },
     getCloseIsPending: () => closeIsPending,
     setCloseIsPending: (v: boolean) => { closeIsPending = v; },
+    getRespondIsPending: () => respondIsPending,
+    setRespondIsPending: (v: boolean) => { respondIsPending = v; },
   };
 });
 
@@ -67,6 +74,16 @@ const POST_NO_RESPONDERS = {
   responders: [],
 };
 
+// A post authored by someone else — viewer is not the author, hasn't responded yet.
+const OTHER_AUTHOR = { id: 99, username: "other", displayName: "Other", avatarUrl: null };
+const POST_BY_OTHER = {
+  ...POST_WITH_RESPONDERS,
+  id: "post-other",
+  author: OTHER_AUTHOR,
+  viewerHasResponded: false,
+  status: "open",
+};
+
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
 vi.mock("@workspace/api-client-react", () => ({
@@ -74,7 +91,7 @@ vi.mock("@workspace/api-client-react", () => ({
   // Reads from h.getPosts() at render-time so each test can control the data.
   useListLfgPosts: () => ({ data: h.getPosts(), isLoading: false }),
   useCreateLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
-  useRespondToLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
+  useRespondToLfgPost: () => ({ mutate: h.respondMutate, isPending: h.getRespondIsPending() }),
   useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: h.getCloseIsPending() }),
   useDeleteLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
   useInviteToParty: () => ({ mutate: vi.fn(), isPending: false }),
@@ -123,10 +140,12 @@ beforeEach(() => {
   h.setPosts([POST_WITH_RESPONDERS]);
 
   h.closeMutate.mockReset();
+  h.respondMutate.mockReset();
   h.invalidateQueries.mockReset();
 
-  // Default: close mutation is not pending.
+  // Default: mutations are not pending.
   h.setCloseIsPending(false);
+  h.setRespondIsPending(false);
 
   // Simulate a successful close so onSuccess callbacks fire.
   h.closeMutate.mockImplementation(
@@ -271,5 +290,30 @@ describe("LFG close-signal dialog — close mutation pending", () => {
     fireEvent.click(getPendingConfirmButton());
 
     expect(h.closeMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("LFG respond button — isPending guard", () => {
+  beforeEach(() => {
+    // Use a post authored by someone else so the RESPOND button is visible.
+    h.setPosts([POST_BY_OTHER]);
+    // Simulate a slow network: the respond mutation is already in-flight.
+    h.setRespondIsPending(true);
+  });
+
+  test("RESPOND button is disabled while the mutation is pending", () => {
+    render(<Lfg />);
+
+    const respondBtn = screen.getByRole("button", { name: /respond/i });
+    expect(respondBtn).toBeDisabled();
+  });
+
+  test("clicking the disabled RESPOND button does not call the mutate function", () => {
+    render(<Lfg />);
+
+    const respondBtn = screen.getByRole("button", { name: /respond/i });
+    fireEvent.click(respondBtn);
+
+    expect(h.respondMutate).not.toHaveBeenCalled();
   });
 });

@@ -95,6 +95,8 @@ export interface User {
   createdAt: string;
   /** Whether the user has an active Pro subscription */
   isPro?: boolean;
+  /** Whether the user has admin privileges */
+  isAdmin?: boolean;
   /**
      * Auto-computed platform tier when available
      * @nullable
@@ -266,6 +268,115 @@ export interface ProStatus {
      * @nullable
      */
   expiresAt?: string | null;
+}
+
+export interface RedeemCodeInput {
+  code: string;
+}
+
+export interface RedeemCodeResponse {
+  ok: boolean;
+  durationDays: number;
+}
+
+export type AdminUserStatus = typeof AdminUserStatus[keyof typeof AdminUserStatus];
+
+
+export const AdminUserStatus = {
+  online: 'online',
+  away: 'away',
+  busy: 'busy',
+  offline: 'offline',
+} as const;
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  displayName: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  email?: string | null;
+  isPro: boolean;
+  /** @nullable */
+  proExpiresAt?: string | null;
+  isAdmin: boolean;
+  status: AdminUserStatus;
+  createdAt: string;
+  /** @nullable */
+  tier?: string | null;
+  /** @nullable */
+  tierLevel?: number | null;
+  /** @nullable */
+  totalXp?: number | null;
+}
+
+export interface AdminUserList {
+  total: number;
+  limit: number;
+  offset: number;
+  items: AdminUser[];
+}
+
+export interface AdminActivateProInput {
+  durationDays?: number;
+}
+
+export type ActivationCodeStatus = typeof ActivationCodeStatus[keyof typeof ActivationCodeStatus];
+
+
+export const ActivationCodeStatus = {
+  active: 'active',
+  inactive: 'inactive',
+  expired: 'expired',
+} as const;
+
+export interface ActivationCode {
+  id: number;
+  code: string;
+  status: ActivationCodeStatus;
+  durationDays: number;
+  maxUses: number;
+  usedCount: number;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface ActivationCodeList {
+  items: ActivationCode[];
+}
+
+export interface CreateActivationCodeInput {
+  code?: string;
+  durationDays?: number;
+  maxUses?: number;
+  expiresAt?: string;
+}
+
+export interface AdminProSubscription {
+  id: number;
+  userId: number;
+  orderId: string;
+  provider: string;
+  status: string;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface AdminProSubscriptionList {
+  items: AdminProSubscription[];
 }
 
 /**
@@ -846,6 +957,21 @@ export interface Notification {
   relatedId?: number | null;
   createdAt: string;
 }
+
+export type ListAdminUsersParams = {
+/**
+ * Search by username, display name or email
+ */
+q?: string;
+/**
+ * Page size
+ */
+limit?: number;
+/**
+ * Page offset
+ */
+offset?: number;
+};
 
 export type SearchUsersParams = {
 q: string;

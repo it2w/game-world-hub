@@ -1,0 +1,63 @@
+{
+  "title": "لوحة الإدارة",
+  "tabs": {
+    "users": "المستخدمون",
+    "codes": "الأكواد",
+    "subscriptions": "الاشتراكات"
+  },
+  "loading": "جارٍ التحميل...",
+  "users": {
+    "search": "ابحث بالاسم أو البريد أو اسم المستخدم",
+    "searchButton": "بحث",
+    "user": "المستخدم",
+    "status": "الحالة",
+    "tier": "الرتبة",
+    "pro": "Pro",
+    "admin": "الإدارة",
+    "actions": "إجراءات",
+    "adminYes": "مدير",
+    "activatePro": "تفعيل Pro",
+    "deactivatePro": "إلغاء Pro",
+    "makeAdmin": "جعله مديرًا",
+    "empty": "لم يُعثر على مستخدمين."
+  },
+  "codes": {
+    "createTitle": "إنشاء كود",
+    "codeLabel": "الكود (اختياري)",
+    "codePlaceholder": "اتركه فارغًا للتوليد التلقائي",
+    "durationDays": "المدة (بالأيام)",
+    "maxUses": "عدد الاستخدامات",
+    "createButton": "إنشاء كود",
+    "code": "الكود",
+    "status": "الحالة",
+    "duration": "المدة",
+    "uses": "الاستخدامات",
+    "expires": "ينتهي",
+    "actions": "إجراءات",
+    "days": "يوم",
+    "disable": "تعطيل",
+    "empty": "لا توجد أكواد تفعيل بعد."
+  },
+  "subs": {
+    "user": "المستخدم",
+    "orderId": "رقم الطلب",
+    "provider": "مزود الدفع",
+    "status": "الحالة",
+    "amount": "المبلغ",
+    "started": "بدأ",
+    "expires": "ينتهي",
+    "empty": "لا توجد اشتراكات Pro بعد."
+  },
+  "toasts": {
+    "proActivated": "تم تفعيل Pro للمستخدم.",
+    "proActivateFailed": "تعذّر تفعيل Pro.",
+    "proDeactivated": "تم إلغاء Pro للمستخدم.",
+    "proDeactivateFailed": "تعذّر إلغاء Pro.",
+    "adminPromoted": "تم ترقية المستخدم إلى مدير.",
+    "adminPromoteFailed": "تعذّر ترقية المستخدم.",
+    "codeCreated": "تم إنشاء كود التفعيل ونسخه.",
+    "codeCreateFailed": "تعذّر إنشاء الكود.",
+    "codeDisabled": "تم تعطيل كود التفعيل.",
+    "codeDisableFailed": "تعذّر تعطيل الكود."
+  }
+}

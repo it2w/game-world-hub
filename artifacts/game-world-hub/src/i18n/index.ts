@@ -26,6 +26,10 @@ import enSettings from './locales/en/settings.json';
 import arSettings from './locales/ar/settings.json';
 import enLanding from './locales/en/landing.json';
 import arLanding from './locales/ar/landing.json';
+import enAdmin from './locales/en/admin.json';
+import arAdmin from './locales/ar/admin.json';
+import enOwner from './locales/en/owner.json';
+import arOwner from './locales/ar/owner.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -44,6 +48,8 @@ const resources = {
     profile: enProfile,
     settings: enSettings,
     landing: enLanding,
+    admin: enAdmin,
+    owner: enOwner,
   },
   ar: {
     common: arCommon,
@@ -58,6 +64,8 @@ const resources = {
     profile: arProfile,
     settings: arSettings,
     landing: arLanding,
+    admin: arAdmin,
+    owner: arOwner,
   },
 };
 

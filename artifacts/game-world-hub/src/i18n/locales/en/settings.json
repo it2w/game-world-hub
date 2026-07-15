@@ -91,7 +91,16 @@
     "imageRef": "Enter a URL or upload an image",
     "required": "Required"
   },
+  "activationCode": {
+    "title": "ACTIVATION CODE",
+    "description": "Have a Pro activation code? Enter it here to unlock your subscription.",
+    "placeholder": "XXXX-XXXX-XXXX-XXXX",
+    "redeem": "Redeem"
+  },
   "toasts": {
+    "codeRedeemed": "Pro activated for {{durationDays}} days.",
+    "codeRedeemFailed": "Could not redeem code.",
+    "codeRedeemFailedDesc": "Code is invalid, expired, or already used.",
     "verificationCodeSent": "Verification code sent",
     "verificationCodeSentDesc": "Enter the emailed code below.",
     "couldntSetEmail": "Couldn't set email",

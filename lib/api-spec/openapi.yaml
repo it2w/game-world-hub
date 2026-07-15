@@ -36,6 +36,10 @@ tags:
     description: Linked gaming accounts and game libraries (Steam import, manual add)
   - name: Storage
     description: Object storage upload and serving endpoints.
+  - name: pro
+    description: Pro subscription status, webhooks and activation codes
+  - name: admin
+    description: Admin-only user, subscription and activation code management
 
 paths:
   /healthz:
@@ -190,6 +194,237 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /me/redeem-code:
+    post:
+      operationId: redeemActivationCode
+      tags: [pro]
+      summary: Redeem an activation code for Pro access
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemCodeInput"
+      responses:
+        "200":
+          description: Code redeemed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedeemCodeResponse"
+        "400":
+          description: Invalid or exhausted code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List users for admin management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search by username, display name or email
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+          description: Page size
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Page offset
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin access required
+
+  /admin/users/{userId}/pro:
+    post:
+      operationId: adminActivatePro
+      tags: [admin]
+      summary: Manually activate Pro for a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateProInput"
+      responses:
+        "200":
+          description: Pro activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Admin access required
+        "404":
+          description: User not found
+    delete:
+      operationId: adminDeactivatePro
+      tags: [admin]
+      summary: Deactivate Pro for a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pro deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Admin access required
+
+  /admin/users/{userId}/admin:
+    post:
+      operationId: adminPromoteUser
+      tags: [admin]
+      summary: Promote a user to admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User promoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Admin access required
+        "404":
+          description: User not found
+
+  /admin/activation-codes:
+    post:
+      operationId: createActivationCode
+      tags: [admin]
+      summary: Create a new activation code
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateActivationCodeInput"
+      responses:
+        "201":
+          description: Activation code created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivationCode"
+        "403":
+          description: Admin access required
+        "409":
+          description: Code already exists
+    get:
+      operationId: listActivationCodes
+      tags: [admin]
+      summary: List activation codes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Activation code list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivationCodeList"
+        "403":
+          description: Admin access required
+
+  /admin/activation-codes/{codeId}:
+    delete:
+      operationId: disableActivationCode
+      tags: [admin]
+      summary: Disable an activation code
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: codeId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Code disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Admin access required
+
+  /admin/pro-subscriptions:
+    get:
+      operationId: listAdminProSubscriptions
+      tags: [admin]
+      summary: List Pro subscriptions with user details
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pro subscription list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProSubscriptionList"
+        "403":
+          description: Admin access required
 
   /auth/login/2fa:
     post:
@@ -2189,6 +2424,9 @@ components:
         isPro:
           type: boolean
           description: Whether the user has an active Pro subscription
+        isAdmin:
+          type: boolean
+          description: Whether the user has admin privileges
         tier:
           type: ["string", "null"]
           description: Auto-computed platform tier when available
@@ -2214,6 +2452,160 @@ components:
         expiresAt:
           type: ["string", "null"]
           description: ISO timestamp when Pro expires, if applicable
+
+    RedeemCodeInput:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+
+    RedeemCodeResponse:
+      type: object
+      required: [ok, durationDays]
+      properties:
+        ok:
+          type: boolean
+        durationDays:
+          type: integer
+
+    AdminUser:
+      type: object
+      required: [id, username, displayName, status, createdAt, isPro, isAdmin]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        isPro:
+          type: boolean
+        proExpiresAt:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        status:
+          type: string
+          enum: [online, away, busy, offline]
+        createdAt:
+          type: string
+        tier:
+          type: ["string", "null"]
+        tierLevel:
+          type: ["integer", "null"]
+        totalXp:
+          type: ["integer", "null"]
+
+    AdminUserList:
+      type: object
+      required: [total, limit, offset, items]
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+
+    AdminActivateProInput:
+      type: object
+      properties:
+        durationDays:
+          type: integer
+          default: 30
+
+    ActivationCode:
+      type: object
+      required: [id, code, status, durationDays, maxUses, usedCount, createdAt]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, expired]
+        durationDays:
+          type: integer
+        maxUses:
+          type: integer
+        usedCount:
+          type: integer
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ActivationCodeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivationCode"
+
+    CreateActivationCodeInput:
+      type: object
+      properties:
+        code:
+          type: string
+        durationDays:
+          type: integer
+          default: 30
+        maxUses:
+          type: integer
+          default: 1
+        expiresAt:
+          type: string
+          format: date-time
+
+    AdminProSubscription:
+      type: object
+      required: [id, userId, orderId, provider, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        orderId:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        amount:
+          type: ["string", "null"]
+        currency:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        displayName:
+          type: ["string", "null"]
+        startedAt:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminProSubscriptionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminProSubscription"
 
     UserProfile:
       type: object

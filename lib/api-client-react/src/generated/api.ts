@@ -20,12 +20,18 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ActivationCode,
+  ActivationCodeList,
   AddLibraryGameInput,
+  AdminActivateProInput,
+  AdminProSubscriptionList,
+  AdminUserList,
   AuthResponse,
   BlockedUser,
   ContentLink,
   ContentLinkInput,
   Conversation,
+  CreateActivationCodeInput,
   ErrorResponse,
   FriendEntry,
   FriendRequest,
@@ -42,6 +48,7 @@ import type {
   LinkGameAccountInput,
   LinkSteam201,
   LinkSteamInput,
+  ListAdminUsersParams,
   ListLfgPostsParams,
   LoginInput,
   Message,
@@ -66,6 +73,8 @@ import type {
   ProfilePhoto,
   ProfilePhotoInput,
   ProfileUpdate,
+  RedeemCodeInput,
+  RedeemCodeResponse,
   RegisterInput,
   SearchUsersParams,
   SetEmailInput,
@@ -689,6 +698,671 @@ export function useGetMePro<TData = Awaited<ReturnType<typeof getMePro>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMeProQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRedeemActivationCodeUrl = () => {
+
+
+
+
+  return `/api/me/redeem-code`
+}
+
+/**
+ * @summary Redeem an activation code for Pro access
+ */
+export const redeemActivationCode = async (redeemCodeInput: RedeemCodeInput, options?: RequestInit): Promise<RedeemCodeResponse> => {
+
+  return customFetch<RedeemCodeResponse>(getRedeemActivationCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(redeemCodeInput)
+  }
+);}
+
+
+
+
+
+export const getRedeemActivationCodeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemActivationCode>>, TError,{data: BodyType<RedeemCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof redeemActivationCode>>, TError,{data: BodyType<RedeemCodeInput>}, TContext> => {
+
+const mutationKey = ['redeemActivationCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redeemActivationCode>>, {data: BodyType<RedeemCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  redeemActivationCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedeemActivationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof redeemActivationCode>>>
+    export type RedeemActivationCodeMutationBody = BodyType<RedeemCodeInput>
+    export type RedeemActivationCodeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Redeem an activation code for Pro access
+ */
+export const useRedeemActivationCode = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemActivationCode>>, TError,{data: BodyType<RedeemCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof redeemActivationCode>>,
+        TError,
+        {data: BodyType<RedeemCodeInput>},
+        TContext
+      > => {
+      return useMutation(getRedeemActivationCodeMutationOptions(options));
+    }
+
+export const getListAdminUsersUrl = (params?: ListAdminUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/users?${stringifiedParams}` : `/api/admin/users`
+}
+
+/**
+ * @summary List users for admin management
+ */
+export const listAdminUsers = async (params?: ListAdminUsersParams, options?: RequestInit): Promise<AdminUserList> => {
+
+  return customFetch<AdminUserList>(getListAdminUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminUsersQueryKey = (params?: ListAdminUsersParams,) => {
+    return [
+    `/api/admin/users`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<ErrorResponse | void>>(params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUsers>>> = ({ signal }) => listAdminUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
+export type ListAdminUsersQueryError = ErrorType<ErrorResponse | void>
+
+
+/**
+ * @summary List users for admin management
+ */
+
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<ErrorResponse | void>>(
+ params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminActivateProUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/pro`
+}
+
+/**
+ * @summary Manually activate Pro for a user
+ */
+export const adminActivatePro = async (userId: number,
+    adminActivateProInput: AdminActivateProInput, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getAdminActivateProUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminActivateProInput)
+  }
+);}
+
+
+
+
+
+export const getAdminActivateProMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminActivatePro>>, TError,{userId: number;data: BodyType<AdminActivateProInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminActivatePro>>, TError,{userId: number;data: BodyType<AdminActivateProInput>}, TContext> => {
+
+const mutationKey = ['adminActivatePro'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminActivatePro>>, {userId: number;data: BodyType<AdminActivateProInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  adminActivatePro(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminActivateProMutationResult = NonNullable<Awaited<ReturnType<typeof adminActivatePro>>>
+    export type AdminActivateProMutationBody = BodyType<AdminActivateProInput>
+    export type AdminActivateProMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually activate Pro for a user
+ */
+export const useAdminActivatePro = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminActivatePro>>, TError,{userId: number;data: BodyType<AdminActivateProInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminActivatePro>>,
+        TError,
+        {userId: number;data: BodyType<AdminActivateProInput>},
+        TContext
+      > => {
+      return useMutation(getAdminActivateProMutationOptions(options));
+    }
+
+export const getAdminDeactivateProUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/pro`
+}
+
+/**
+ * @summary Deactivate Pro for a user
+ */
+export const adminDeactivatePro = async (userId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getAdminDeactivateProUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminDeactivateProMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeactivatePro>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeactivatePro>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['adminDeactivatePro'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeactivatePro>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminDeactivatePro(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeactivateProMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeactivatePro>>>
+
+    export type AdminDeactivateProMutationError = ErrorType<void>
+
+    /**
+ * @summary Deactivate Pro for a user
+ */
+export const useAdminDeactivatePro = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeactivatePro>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeactivatePro>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getAdminDeactivateProMutationOptions(options));
+    }
+
+export const getAdminPromoteUserUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/admin`
+}
+
+/**
+ * @summary Promote a user to admin
+ */
+export const adminPromoteUser = async (userId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getAdminPromoteUserUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminPromoteUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPromoteUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPromoteUser>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['adminPromoteUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPromoteUser>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  adminPromoteUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPromoteUserMutationResult = NonNullable<Awaited<ReturnType<typeof adminPromoteUser>>>
+
+    export type AdminPromoteUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Promote a user to admin
+ */
+export const useAdminPromoteUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPromoteUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminPromoteUser>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getAdminPromoteUserMutationOptions(options));
+    }
+
+export const getCreateActivationCodeUrl = () => {
+
+
+
+
+  return `/api/admin/activation-codes`
+}
+
+/**
+ * @summary Create a new activation code
+ */
+export const createActivationCode = async (createActivationCodeInput: CreateActivationCodeInput, options?: RequestInit): Promise<ActivationCode> => {
+
+  return customFetch<ActivationCode>(getCreateActivationCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createActivationCodeInput)
+  }
+);}
+
+
+
+
+
+export const getCreateActivationCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivationCode>>, TError,{data: BodyType<CreateActivationCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createActivationCode>>, TError,{data: BodyType<CreateActivationCodeInput>}, TContext> => {
+
+const mutationKey = ['createActivationCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createActivationCode>>, {data: BodyType<CreateActivationCodeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createActivationCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateActivationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createActivationCode>>>
+    export type CreateActivationCodeMutationBody = BodyType<CreateActivationCodeInput>
+    export type CreateActivationCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new activation code
+ */
+export const useCreateActivationCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivationCode>>, TError,{data: BodyType<CreateActivationCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createActivationCode>>,
+        TError,
+        {data: BodyType<CreateActivationCodeInput>},
+        TContext
+      > => {
+      return useMutation(getCreateActivationCodeMutationOptions(options));
+    }
+
+export const getListActivationCodesUrl = () => {
+
+
+
+
+  return `/api/admin/activation-codes`
+}
+
+/**
+ * @summary List activation codes
+ */
+export const listActivationCodes = async ( options?: RequestInit): Promise<ActivationCodeList> => {
+
+  return customFetch<ActivationCodeList>(getListActivationCodesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListActivationCodesQueryKey = () => {
+    return [
+    `/api/admin/activation-codes`
+    ] as const;
+    }
+
+
+export const getListActivationCodesQueryOptions = <TData = Awaited<ReturnType<typeof listActivationCodes>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActivationCodes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListActivationCodesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listActivationCodes>>> = ({ signal }) => listActivationCodes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listActivationCodes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListActivationCodesQueryResult = NonNullable<Awaited<ReturnType<typeof listActivationCodes>>>
+export type ListActivationCodesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List activation codes
+ */
+
+export function useListActivationCodes<TData = Awaited<ReturnType<typeof listActivationCodes>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listActivationCodes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListActivationCodesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisableActivationCodeUrl = (codeId: number,) => {
+
+
+
+
+  return `/api/admin/activation-codes/${codeId}`
+}
+
+/**
+ * @summary Disable an activation code
+ */
+export const disableActivationCode = async (codeId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDisableActivationCodeUrl(codeId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisableActivationCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableActivationCode>>, TError,{codeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disableActivationCode>>, TError,{codeId: number}, TContext> => {
+
+const mutationKey = ['disableActivationCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableActivationCode>>, {codeId: number}> = (props) => {
+          const {codeId} = props ?? {};
+
+          return  disableActivationCode(codeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisableActivationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof disableActivationCode>>>
+
+    export type DisableActivationCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Disable an activation code
+ */
+export const useDisableActivationCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableActivationCode>>, TError,{codeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disableActivationCode>>,
+        TError,
+        {codeId: number},
+        TContext
+      > => {
+      return useMutation(getDisableActivationCodeMutationOptions(options));
+    }
+
+export const getListAdminProSubscriptionsUrl = () => {
+
+
+
+
+  return `/api/admin/pro-subscriptions`
+}
+
+/**
+ * @summary List Pro subscriptions with user details
+ */
+export const listAdminProSubscriptions = async ( options?: RequestInit): Promise<AdminProSubscriptionList> => {
+
+  return customFetch<AdminProSubscriptionList>(getListAdminProSubscriptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminProSubscriptionsQueryKey = () => {
+    return [
+    `/api/admin/pro-subscriptions`
+    ] as const;
+    }
+
+
+export const getListAdminProSubscriptionsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminProSubscriptions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProSubscriptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminProSubscriptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminProSubscriptions>>> = ({ signal }) => listAdminProSubscriptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminProSubscriptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminProSubscriptionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminProSubscriptions>>>
+export type ListAdminProSubscriptionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List Pro subscriptions with user details
+ */
+
+export function useListAdminProSubscriptions<TData = Awaited<ReturnType<typeof listAdminProSubscriptions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProSubscriptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminProSubscriptionsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

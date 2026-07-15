@@ -56,6 +56,7 @@ export const RegisterResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -94,6 +95,7 @@ export const LoginResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -134,6 +136,7 @@ export const GetMeResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -166,6 +169,7 @@ export const UpdateMyStatusResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -188,6 +192,170 @@ export const GetMeProResponse = zod.object({
   "isPro": zod.boolean(),
   "activatedAt": zod.string().nullish().describe('ISO timestamp when Pro was activated'),
   "expiresAt": zod.string().nullish().describe('ISO timestamp when Pro expires, if applicable')
+})
+
+
+/**
+ * @summary Redeem an activation code for Pro access
+ */
+export const RedeemActivationCodeBody = zod.object({
+  "code": zod.string()
+})
+
+export const RedeemActivationCodeResponse = zod.object({
+  "ok": zod.boolean(),
+  "durationDays": zod.number()
+})
+
+
+/**
+ * @summary List users for admin management
+ */
+export const listAdminUsersQueryLimitDefault = 50;
+export const listAdminUsersQueryOffsetDefault = 0;
+
+export const ListAdminUsersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Search by username, display name or email'),
+  "limit": zod.coerce.number().default(listAdminUsersQueryLimitDefault).describe('Page size'),
+  "offset": zod.coerce.number().default(listAdminUsersQueryOffsetDefault).describe('Page offset')
+})
+
+export const ListAdminUsersResponse = zod.object({
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "isPro": zod.boolean(),
+  "proExpiresAt": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "createdAt": zod.string(),
+  "tier": zod.string().nullish(),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary Manually activate Pro for a user
+ */
+export const AdminActivateProParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const adminActivateProBodyDurationDaysDefault = 30;
+
+export const AdminActivateProBody = zod.object({
+  "durationDays": zod.number().default(adminActivateProBodyDurationDaysDefault)
+})
+
+export const AdminActivateProResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Deactivate Pro for a user
+ */
+export const AdminDeactivateProParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const AdminDeactivateProResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Promote a user to admin
+ */
+export const AdminPromoteUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const AdminPromoteUserResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Create a new activation code
+ */
+export const createActivationCodeBodyDurationDaysDefault = 30;
+export const createActivationCodeBodyMaxUsesDefault = 1;
+
+export const CreateActivationCodeBody = zod.object({
+  "code": zod.string().optional(),
+  "durationDays": zod.number().default(createActivationCodeBodyDurationDaysDefault),
+  "maxUses": zod.number().default(createActivationCodeBodyMaxUsesDefault),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+export const CreateActivationCodeResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive', 'expired']),
+  "durationDays": zod.number(),
+  "maxUses": zod.number(),
+  "usedCount": zod.number(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List activation codes
+ */
+export const ListActivationCodesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "status": zod.enum(['active', 'inactive', 'expired']),
+  "durationDays": zod.number(),
+  "maxUses": zod.number(),
+  "usedCount": zod.number(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Disable an activation code
+ */
+export const DisableActivationCodeParams = zod.object({
+  "codeId": zod.coerce.number()
+})
+
+export const DisableActivationCodeResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List Pro subscriptions with user details
+ */
+export const ListAdminProSubscriptionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "orderId": zod.string(),
+  "provider": zod.string(),
+  "status": zod.string(),
+  "amount": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "username": zod.string().nullish(),
+  "displayName": zod.string().nullish(),
+  "startedAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
 })
 
 
@@ -221,6 +389,7 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -298,6 +467,7 @@ export const SetMyEmailResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -334,6 +504,7 @@ export const VerifyMyEmailResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -385,6 +556,7 @@ export const EnableTwoFactorResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -416,6 +588,7 @@ export const DisableTwoFactorResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -555,6 +728,7 @@ export const SearchUsersResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -698,6 +872,7 @@ export const DeleteMyAvatarResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -725,6 +900,7 @@ export const DeleteMyBannerResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -804,6 +980,7 @@ export const ListFriendsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -836,6 +1013,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -858,6 +1036,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -895,6 +1074,7 @@ export const SendFriendRequestResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -917,6 +1097,7 @@ export const SendFriendRequestResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1000,6 +1181,7 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1034,6 +1216,7 @@ export const ListConversationsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1059,6 +1242,7 @@ export const ListConversationsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1124,6 +1308,7 @@ export const GetMessagesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1169,6 +1354,7 @@ export const SendMessageResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1218,6 +1404,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1243,6 +1430,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1282,6 +1470,7 @@ export const ListPartiesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1304,6 +1493,7 @@ export const ListPartiesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1361,6 +1551,7 @@ export const CreatePartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1383,6 +1574,7 @@ export const CreatePartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1425,6 +1617,7 @@ export const GetPartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1447,6 +1640,7 @@ export const GetPartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1507,6 +1701,7 @@ export const UpdatePartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1529,6 +1724,7 @@ export const UpdatePartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1599,6 +1795,7 @@ export const JoinPartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1621,6 +1818,7 @@ export const JoinPartyResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1689,6 +1887,7 @@ export const TransferPartyLeadershipResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1711,6 +1910,7 @@ export const TransferPartyLeadershipResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1751,6 +1951,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1773,6 +1974,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1800,6 +2002,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1839,6 +2042,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1861,6 +2065,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1888,6 +2093,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1928,6 +2134,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -1950,6 +2157,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2219,6 +2427,7 @@ export const ListBlockedUsersResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2440,6 +2649,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2470,6 +2680,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2525,6 +2736,7 @@ export const CreateLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2555,6 +2767,7 @@ export const CreateLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2600,6 +2813,7 @@ export const RespondToLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2630,6 +2844,7 @@ export const RespondToLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2667,6 +2882,7 @@ export const CloseLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
@@ -2697,6 +2913,7 @@ export const CloseLfgPostResponse = zod.object({
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
   "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),

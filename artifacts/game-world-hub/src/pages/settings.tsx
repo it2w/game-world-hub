@@ -1,4 +1,4 @@
-import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
+import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, useRedeemActivationCode, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, Ticket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
@@ -76,6 +76,7 @@ export default function Settings() {
   const setupTwoFactor = useSetupTwoFactor();
   const enableTwoFactor = useEnableTwoFactor();
   const disableTwoFactor = useDisableTwoFactor();
+  const redeemCode = useRedeemActivationCode();
   const { upload, isUploading } = useImageUpload();
 
   const [emailInput, setEmailInput] = useState("");
@@ -84,6 +85,7 @@ export default function Settings() {
   const [totpInfo, setTotpInfo] = useState<{ secret?: string; otpauthUrl?: string }>({});
   const [twofaCode, setTwofaCode] = useState("");
   const [disablePassword, setDisablePassword] = useState("");
+  const [activationCode, setActivationCode] = useState("");
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const bannerFileRef = useRef<HTMLInputElement>(null);
 
@@ -162,6 +164,20 @@ export default function Settings() {
         refreshMe();
       },
       onError: (err) => toast({ title: t("toasts.couldntDisable2fa"), description: errText(err, t("toasts.couldntDisable2faDesc")), variant: "destructive" }),
+    });
+  };
+
+  const handleRedeemCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = activationCode.trim();
+    if (!code) return;
+    redeemCode.mutate({ data: { code } }, {
+      onSuccess: (resp) => {
+        toast({ title: t("toasts.codeRedeemed", { durationDays: resp.durationDays }) });
+        setActivationCode("");
+        refreshMe();
+      },
+      onError: (err) => toast({ title: t("toasts.codeRedeemFailed"), description: errText(err, t("toasts.codeRedeemFailedDesc")), variant: "destructive" }),
     });
   };
 
@@ -777,6 +793,25 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Activation Code */}
+      <div className="bg-card border border-border p-6">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+          <Ticket className="w-4 h-4" /> {t("activationCode.title")}
+        </h2>
+        <p className="font-mono text-xs text-muted-foreground mb-4">{t("activationCode.description")}</p>
+        <form onSubmit={handleRedeemCode} className="flex gap-2 max-w-md">
+          <Input
+            value={activationCode}
+            onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+            placeholder={t("activationCode.placeholder")}
+            className="font-mono rounded-none border-border bg-background uppercase"
+          />
+          <Button type="submit" className="font-mono rounded-none" disabled={redeemCode.isPending || activationCode.trim().length === 0}>
+            {t("activationCode.redeem")}
+          </Button>
+        </form>
       </div>
     </div>
   );

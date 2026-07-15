@@ -814,7 +814,7 @@ function PricingSection() {
               ))}
             </ul>
             <Button asChild className="rounded-none font-mono uppercase tracking-widest bg-gradient-to-r from-amber-500 to-yellow-300 text-black hover:from-amber-400 hover:to-yellow-200">
-              <a href="https://sashoop.com/pro-subscription-game-world-hub/p55420885" target="_blank" rel="noreferrer" data-testid="link-pricing-pro">
+              <a href="https://sashoop.com/pro-subscription-game-world-hub/p1404499967" target="_blank" rel="noreferrer" data-testid="link-pricing-pro">
                 {t("pricing.proCta")}
               </a>
             </Button>

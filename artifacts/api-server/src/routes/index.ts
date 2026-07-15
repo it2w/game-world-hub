@@ -16,6 +16,8 @@ import notificationsRouter from "./notifications";
 import iceRouter from "./ice";
 import storageRouter from "./storage";
 import proRouter from "./pro";
+import adminRouter from "./admin";
+import ownerRouter from "./owner";
 
 const router: IRouter = Router();
 
@@ -36,5 +38,7 @@ router.use(notificationsRouter);
 router.use(iceRouter);
 router.use(storageRouter);
 router.use(proRouter);
+router.use(adminRouter);
+router.use(ownerRouter);
 
 export default router;

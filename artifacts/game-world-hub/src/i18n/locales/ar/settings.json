@@ -91,7 +91,16 @@
     "imageRef": "أدخل رابطًا أو ارفع صورة",
     "required": "مطلوب"
   },
+  "activationCode": {
+    "title": "كود التفعيل",
+    "description": "لديك كود تفعيل Pro؟ أدخله هنا لتفعيل اشتراكك.",
+    "placeholder": "XXXX-XXXX-XXXX-XXXX",
+    "redeem": "تفعيل"
+  },
   "toasts": {
+    "codeRedeemed": "تم تفعيل Pro لمدة {{durationDays}} يوم.",
+    "codeRedeemFailed": "تعذّر تفعيل الكود.",
+    "codeRedeemFailedDesc": "الكود غير صالح أو منتهي أو استُنفدت استخداماته.",
     "verificationCodeSent": "تم إرسال رمز التحقق",
     "verificationCodeSentDesc": "أدخل الرمز المُرسَل إلى بريدك أدناه.",
     "couldntSetEmail": "تعذّر تعيين البريد الإلكتروني",

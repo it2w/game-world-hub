@@ -20,6 +20,7 @@ import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQ
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { ProBadge } from "@/components/pro-badge";
+import { Shield } from "lucide-react";
 
 export function AppSidebar() {
   const { t, i18n } = useTranslation("common");
@@ -120,6 +121,16 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {user?.isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/admin")}>
+                    <Link href="/admin">
+                      <Shield className="w-4 h-4" />
+                      <span>{t("sidebar.admin")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

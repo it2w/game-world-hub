@@ -35,6 +35,8 @@ export interface User {
   createdAt: string;
   /** Whether the user has an active Pro subscription */
   isPro?: boolean;
+  /** Whether the user has admin privileges */
+  isAdmin?: boolean;
   /**
      * Auto-computed platform tier when available
      * @nullable

@@ -5,6 +5,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seed } from "./lib/seed";
 import { attachSignaling } from "./ws/signaling";
+import { ensureInitialOwner } from "./lib/owner";
 
 // How long after the last heartbeat we treat a game as no longer running.
 const PRESENCE_STALE = "4 minutes";
@@ -56,6 +57,15 @@ server.listen(port, async () => {
     logger.info("Seed complete");
   } catch (e) {
     logger.error({ err: e }, "Seed failed");
+  }
+
+  try {
+    const ownerCreds = await ensureInitialOwner();
+    if (ownerCreds) {
+      logger.warn({ ownerUsername: ownerCreds.username, ownerPassword: ownerCreds.password }, "OWNER CREATED — save these credentials; this is the only time the password is shown");
+    }
+  } catch (e) {
+    logger.error({ err: e }, "Owner initialization failed");
   }
 
   startPresenceSweep();

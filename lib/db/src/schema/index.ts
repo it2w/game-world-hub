@@ -13,3 +13,5 @@ export * from "./verification-codes";
 export * from "./profile-comments";
 export * from "./profile-photos";
 export * from "./proSubscriptions";
+export * from "./activationCodes";
+export * from "./superAdmins";

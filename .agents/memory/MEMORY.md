@@ -18,3 +18,4 @@
 - [Canvas visibility fallback](canvas-visibility-fallback.md) — this user often can't see canvas iframes; mirror every canvas reveal with presentAsset screenshots in chat.
 - [Screenshots vs mount animations](screenshot-mount-animations.md) — stills catch ~1s post-load (partial animations OK); shoot below-fold sections via /#hash — SPA must jump on mount.
 - [Pro subscription via Salla](pro-subscription-salla.md) — users table mirrors `isPro` from `pro_subscriptions`; Salla webhook activates Pro via a custom username checkout field and HMAC signature.
+- [API server zod imports](api-server-zod-imports.md) — API routes must validate with `@workspace/api-zod` generated schemas; `zod` is not a direct dependency of the API server package.

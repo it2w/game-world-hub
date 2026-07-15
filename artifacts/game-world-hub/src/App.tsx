@@ -23,6 +23,8 @@ import Achievements from '@/pages/achievements';
 import LibraryPage from '@/pages/library';
 import Profile from '@/pages/profile';
 import Settings from '@/pages/settings';
+import Admin from '@/pages/admin';
+import Owner from '@/pages/owner';
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/landing';
 
@@ -71,7 +73,8 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      
+      <Route path="/owner" component={Owner} />
+
       {/* Any non-auth route renders inside the authenticated Shell layout.
           A pathless <Route> matches everything not already handled above, so
           the inner <Switch> resolves the actual page against the same location. */}
@@ -89,6 +92,7 @@ function Router() {
             <Route path="/games" component={LibraryPage} />
             <Route path="/profile/:userId" component={Profile} />
             <Route path="/settings" component={Settings} />
+            <Route path="/admin" component={Admin} />
             <Route component={NotFound} />
           </Switch>
         </Shell>

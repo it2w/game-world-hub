@@ -1,0 +1,63 @@
+{
+  "title": "ADMIN_PANEL",
+  "tabs": {
+    "users": "Users",
+    "codes": "Codes",
+    "subscriptions": "Subscriptions"
+  },
+  "loading": "Loading...",
+  "users": {
+    "search": "Search by username, name or email",
+    "searchButton": "Search",
+    "user": "User",
+    "status": "Status",
+    "tier": "Tier",
+    "pro": "Pro",
+    "admin": "Admin",
+    "actions": "Actions",
+    "adminYes": "Admin",
+    "activatePro": "Activate Pro",
+    "deactivatePro": "Deactivate Pro",
+    "makeAdmin": "Make Admin",
+    "empty": "No users found."
+  },
+  "codes": {
+    "createTitle": "CREATE CODE",
+    "codeLabel": "Code (optional)",
+    "codePlaceholder": "Leave blank for auto-generated",
+    "durationDays": "Duration (days)",
+    "maxUses": "Max uses",
+    "createButton": "Create code",
+    "code": "Code",
+    "status": "Status",
+    "duration": "Duration",
+    "uses": "Uses",
+    "expires": "Expires",
+    "actions": "Actions",
+    "days": "days",
+    "disable": "Disable",
+    "empty": "No activation codes yet."
+  },
+  "subs": {
+    "user": "User",
+    "orderId": "Order ID",
+    "provider": "Provider",
+    "status": "Status",
+    "amount": "Amount",
+    "started": "Started",
+    "expires": "Expires",
+    "empty": "No Pro subscriptions yet."
+  },
+  "toasts": {
+    "proActivated": "Pro activated for user.",
+    "proActivateFailed": "Could not activate Pro.",
+    "proDeactivated": "Pro deactivated for user.",
+    "proDeactivateFailed": "Could not deactivate Pro.",
+    "adminPromoted": "User promoted to admin.",
+    "adminPromoteFailed": "Could not promote user.",
+    "codeCreated": "Activation code created and copied.",
+    "codeCreateFailed": "Could not create code.",
+    "codeDisabled": "Activation code disabled.",
+    "codeDisableFailed": "Could not disable code."
+  }
+}

@@ -23,9 +23,11 @@ import {
   usersTable,
   partiesTable,
   partyMembersTable,
+  partyInvitesTable,
   conversationsTable,
   conversationParticipantsTable,
   partyActivityTable,
+  messagesTable,
 } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
@@ -417,5 +419,161 @@ describe("POST /parties/:partyId/leave", () => {
         )
       );
     assert.equal(participantRows.length, 0, "member should lose access to party conversation after leaving");
+  });
+});
+
+// ─── Re-join tests ────────────────────────────────────────────────────────────
+
+describe("POST /parties/:partyId/join — re-join after leave", () => {
+  // Ensure member is fully in the party and conversation before each test in this block
+  before(async () => {
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    await db
+      .insert(conversationParticipantsTable)
+      .values({ conversationId: convId, userId: memberId });
+  });
+
+  test("re-joining restores member to conversation_participants", async () => {
+    // Step 1: leave
+    const leaveRes = await request(
+      "POST",
+      `/parties/${partyId}/leave`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(leaveRes.status, 200, "leave should succeed");
+
+    // Confirm removed from conversation_participants
+    const afterLeave = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(afterLeave.length, 0, "should not be a conversation participant after leaving");
+
+    // Step 2: create a pending invite so re-join is allowed for this private party
+    await db.insert(partyInvitesTable).values({
+      partyId,
+      invitedUserId: memberId,
+      invitedByUserId: leaderId,
+      status: "pending",
+    });
+
+    // Step 3: re-join
+    const joinRes = await request(
+      "POST",
+      `/parties/${partyId}/join`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(joinRes.status, 200, "re-join should succeed");
+
+    // Confirm restored to party_members
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(
+        and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId))
+      );
+    assert.equal(memberRows.length, 1, "re-joined member should be back in party_members");
+
+    // Confirm restored to conversation_participants
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 1, "re-joined member should be back in conversation_participants");
+  });
+
+  test("re-joined member can send a message to the party conversation", async () => {
+    // Ensure a clean starting state: member in party + conversation
+    const existingMember = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    if (!existingMember.length) {
+      await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    }
+    const existingParticipant = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    if (!existingParticipant.length) {
+      await db
+        .insert(conversationParticipantsTable)
+        .values({ conversationId: convId, userId: memberId });
+    }
+
+    // Leave
+    const leaveRes = await request(
+      "POST",
+      `/parties/${partyId}/leave`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(leaveRes.status, 200, "leave should succeed");
+
+    // Create invite and re-join
+    await db.insert(partyInvitesTable).values({
+      partyId,
+      invitedUserId: memberId,
+      invitedByUserId: leaderId,
+      status: "pending",
+    });
+    const joinRes = await request(
+      "POST",
+      `/parties/${partyId}/join`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(joinRes.status, 200, "re-join should succeed");
+
+    // Send a message — should succeed (201), not be blocked (403)
+    const msgRes = await request(
+      "POST",
+      `/conversations/${convId}/messages`,
+      memberId,
+      `ptest_member_${SUFFIX}`,
+      { content: "back in the party!" }
+    );
+    assert.equal(msgRes.status, 201, "re-joined member should be able to send messages to the party conversation");
+
+    // Verify the message was persisted
+    const [savedMsg] = await db
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          eq(messagesTable.conversationId, convId),
+          eq(messagesTable.senderId, memberId)
+        )
+      );
+    assert.ok(savedMsg, "message should exist in the database");
+    assert.equal(savedMsg.content, "back in the party!");
   });
 });

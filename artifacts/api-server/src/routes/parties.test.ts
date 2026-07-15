@@ -1630,3 +1630,145 @@ describe("POST /parties/:partyId/invite — concurrent requests", () => {
     assert.equal(notifRows.length, 1, "exactly one notification must exist after concurrent requests");
   });
 });
+
+// ─── Re-invite while already a member ────────────────────────────────────────
+
+describe("POST /party-invites/:inviteId/accept — re-invite while already a party member", () => {
+  // Use outsiderId so membership state is fully controlled.
+  const createdInviteIds: number[] = [];
+
+  before(async () => {
+    // Ensure outsider has no membership, conversation access, or any invites going in.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    await db
+      .delete(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId)
+        )
+      );
+  });
+
+  after(async () => {
+    // Clean up invites, notifications, and any membership added during this block.
+    if (createdInviteIds.length) {
+      await db
+        .delete(notificationsTable)
+        .where(inArray(notificationsTable.relatedId, createdInviteIds));
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, createdInviteIds));
+    }
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+  });
+
+  test("accepting a second invite while already a member returns 200 with no duplicate rows", async () => {
+    // Step 1: send the first invite via the HTTP endpoint and accept it.
+    const firstInviteRes = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(firstInviteRes.status, 200, "first invite should succeed");
+
+    const [firstInvite] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(firstInvite, "first invite row must exist");
+    createdInviteIds.push(firstInvite.id);
+
+    const firstAcceptRes = await request(
+      "POST",
+      `/party-invites/${firstInvite.id}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(firstAcceptRes.status, 200, "first accept should succeed");
+
+    // Confirm outsider is now a member.
+    const memberRowsAfterFirst = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    assert.equal(memberRowsAfterFirst.length, 1, "exactly one party_members row after first accept");
+
+    // Step 2: insert a second pending invite for the same user who is now a member,
+    // simulating a re-invite arriving while active membership already exists.
+    const [secondInvite] = await db
+      .insert(partyInvitesTable)
+      .values({
+        partyId,
+        invitedUserId: outsiderId,
+        invitedByUserId: leaderId,
+        status: "pending",
+      })
+      .returning({ id: partyInvitesTable.id });
+    createdInviteIds.push(secondInvite.id);
+
+    // Step 3: outsider (already a member) accepts the second invite.
+    const secondAcceptRes = await request(
+      "POST",
+      `/party-invites/${secondInvite.id}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(secondAcceptRes.status, 200, "second accept should return 200 even though user is already a member");
+
+    // Step 4: confirm no duplicate rows in party_members.
+    const memberRowsAfterSecond = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    assert.equal(
+      memberRowsAfterSecond.length,
+      1,
+      "party_members must still have exactly one row after accepting a re-invite as an existing member"
+    );
+
+    // Step 5: confirm no duplicate rows in conversation_participants.
+    const participantRowsAfterSecond = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    assert.equal(
+      participantRowsAfterSecond.length,
+      1,
+      "conversation_participants must still have exactly one row after accepting a re-invite as an existing member"
+    );
+  });
+});

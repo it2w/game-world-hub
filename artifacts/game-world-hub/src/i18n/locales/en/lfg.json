@@ -62,10 +62,16 @@
   },
   "closeConfirm": {
     "title": "Close Signal",
-    "subtitle": "These players responded to your {{game}} signal. Visit their profiles before closing.",
+    "subtitle": "These players responded to your {{game}} signal. Invite them to your party or visit their profiles before closing.",
     "noResponders": "No one has responded yet.",
     "cancel": "CANCEL",
     "confirm": "CLOSE SIGNAL",
-    "closing": "CLOSING..."
+    "closing": "CLOSING...",
+    "invite": "Invite",
+    "invited": "Invited",
+    "inviteSent": "Invite sent to {{name}}",
+    "inviteFailed": "Could not send invite",
+    "noParty": "Join or create a party first",
+    "selectParty": "Select party"
   }
 }

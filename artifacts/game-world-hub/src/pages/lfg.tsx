@@ -8,6 +8,9 @@ import {
   getListLfgPostsQueryKey,
   useGetMe,
   getGetMeQueryKey,
+  useListParties,
+  getListPartiesQueryKey,
+  useInviteToParty,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -22,7 +25,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock } from "lucide-react";
+import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock, UserPlus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type CreateLfgForm = {
   game: string;
@@ -77,12 +81,42 @@ export default function Lfg() {
   const respond = useRespondToLfgPost();
   const close = useCloseLfgPost();
   const remove = useDeleteLfgPost();
+  const inviteToParty = useInviteToParty();
+
+  const { data: parties } = useListParties({ query: { queryKey: getListPartiesQueryKey() } });
+
+  // Parties where the current user is a member (to invite from)
+  const myParties = useMemo(() => {
+    if (!parties || !me) return [];
+    return parties.filter((p) => p.members.some((m) => m.id === me.id));
+  }, [parties, me]);
 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
 
   type LfgPost = NonNullable<typeof posts>[number];
   const [closeConfirmPost, setCloseConfirmPost] = useState<LfgPost | null>(null);
+  // Track which responder IDs have already been invited in this session
+  const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
+
+  // Single place to close the confirm dialog so both pieces of state always reset together
+  const closeConfirmDialog = () => {
+    setCloseConfirmPost(null);
+    setInvitedIds(new Set());
+  };
+
+  const handleInviteResponder = (userId: number, displayName: string, partyId: number) => {
+    inviteToParty.mutate(
+      { partyId, data: { userId } },
+      {
+        onSuccess: () => {
+          setInvitedIds((prev) => new Set([...prev, userId]));
+          toast({ title: t("closeConfirm.inviteSent", { name: displayName }) });
+        },
+        onError: () => toast({ title: t("closeConfirm.inviteFailed"), variant: "destructive" }),
+      },
+    );
+  };
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListLfgPostsQueryKey() });
 
@@ -436,7 +470,7 @@ export default function Lfg() {
       </div>
 
       {/* Close confirmation dialog */}
-      <Dialog open={!!closeConfirmPost} onOpenChange={(v) => { if (!v) setCloseConfirmPost(null); }}>
+      <Dialog open={!!closeConfirmPost} onOpenChange={(v) => { if (!v) closeConfirmDialog(); }}>
         <DialogContent className="border-border bg-card rounded-none sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
@@ -451,21 +485,79 @@ export default function Lfg() {
             {closeConfirmPost && closeConfirmPost.responders.length === 0 ? (
               <p className="text-xs font-mono text-muted-foreground text-center py-4">{t("closeConfirm.noResponders")}</p>
             ) : (
-              closeConfirmPost?.responders.map((r) => (
-                <Link key={r.id} href={`/profile/${r.id}`} onClick={() => setCloseConfirmPost(null)}>
-                  <div className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 rounded-sm bg-muted border border-border flex items-center justify-center font-mono text-xs overflow-hidden shrink-0">
-                      {r.avatarUrl
-                        ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
-                        : r.displayName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-mono text-sm font-semibold truncate">{r.displayName}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground truncate">@{r.username}</div>
-                    </div>
+              closeConfirmPost?.responders.map((r) => {
+                const alreadyInvited = invitedIds.has(r.id);
+                return (
+                  <div key={r.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors">
+                    {/* Profile link — left side */}
+                    <Link href={`/profile/${r.id}`} onClick={closeConfirmDialog} className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                      <div className="w-8 h-8 rounded-sm bg-muted border border-border flex items-center justify-center font-mono text-xs overflow-hidden shrink-0">
+                        {r.avatarUrl
+                          ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          : r.displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm font-semibold truncate">{r.displayName}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground truncate">@{r.username}</div>
+                      </div>
+                    </Link>
+
+                    {/* Invite button — right side */}
+                    {alreadyInvited ? (
+                      <Button variant="ghost" size="sm" disabled className="font-mono rounded-none text-[10px] text-primary shrink-0 px-2">
+                        <Check className="w-3 h-3 me-1" /> {t("closeConfirm.invited")}
+                      </Button>
+                    ) : myParties.length === 0 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        title={t("closeConfirm.noParty")}
+                        className="font-mono rounded-none text-[10px] shrink-0 px-2"
+                      >
+                        <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.invite")}
+                      </Button>
+                    ) : myParties.length === 1 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={inviteToParty.isPending}
+                        className="font-mono rounded-none text-[10px] shrink-0 px-2"
+                        onClick={() => handleInviteResponder(r.id, r.displayName, myParties[0].id)}
+                      >
+                        <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.invite")}
+                      </Button>
+                    ) : (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={inviteToParty.isPending}
+                            className="font-mono rounded-none text-[10px] shrink-0 px-2"
+                          >
+                            <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.invite")}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-52 p-1 bg-card border-border rounded-none" align="end">
+                          <p className="font-mono text-[10px] uppercase text-muted-foreground px-2 py-1 border-b border-border mb-1">
+                            {t("closeConfirm.selectParty")}
+                          </p>
+                          {myParties.map((p) => (
+                            <button
+                              key={p.id}
+                              className="w-full text-start px-2 py-1.5 font-mono text-xs hover:bg-muted/50 truncate"
+                              onClick={() => handleInviteResponder(r.id, r.displayName, p.id)}
+                            >
+                              {p.name}
+                            </button>
+                          ))}
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
-                </Link>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -473,7 +565,7 @@ export default function Lfg() {
             <Button
               variant="outline"
               className="font-mono rounded-none text-xs flex-1"
-              onClick={() => setCloseConfirmPost(null)}
+              onClick={closeConfirmDialog}
             >
               {t("closeConfirm.cancel")}
             </Button>
@@ -485,7 +577,7 @@ export default function Lfg() {
                 if (!closeConfirmPost) return;
                 close.mutate({ postId: closeConfirmPost.id }, {
                   onSuccess: () => {
-                    setCloseConfirmPost(null);
+                    closeConfirmDialog();
                     invalidate();
                   },
                 });

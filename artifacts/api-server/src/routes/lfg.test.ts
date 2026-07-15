@@ -513,6 +513,43 @@ describe("DELETE /lfg/:postId — notification cleanup", () => {
   });
 });
 
+describe("POST /lfg/:postId/respond — invalid body", () => {
+  test("returns 400 when message is a non-string value", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${openPostId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+      },
+      body: JSON.stringify({ message: 12345 }),
+    });
+    assert.equal(res.status, 400, "expected 400 when message is a non-string");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+
+  test("returns 400 when message exceeds the 300-character limit", async () => {
+    const longMessage = "a".repeat(301);
+    const res = await fetch(`${baseUrl}/api/lfg/${openPostId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+      },
+      body: JSON.stringify({ message: longMessage }),
+    });
+    assert.equal(res.status, 400, "expected 400 when message exceeds 300 chars");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+});
+
 describe("GET /lfg — closed-post visibility", () => {
   test("excludes closed posts that belong to other users", async () => {
     // responderId is NOT the author, so the author's closed post must not appear

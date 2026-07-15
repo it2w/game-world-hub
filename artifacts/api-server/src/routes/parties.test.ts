@@ -28,6 +28,7 @@ import {
   conversationParticipantsTable,
   partyActivityTable,
   messagesTable,
+  notificationsTable,
 } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
@@ -1017,5 +1018,124 @@ describe("POST /party-invites/:inviteId/accept — idempotency", () => {
         )
       );
     assert.equal(participantRows.length, 1, "still exactly one conversation_participants row after second accept");
+  });
+});
+
+// ─── Duplicate-invite deduplication tests ─────────────────────────────────────
+
+describe("POST /parties/:partyId/invite — deduplication", () => {
+  // Track the invite id created by the first invite so we can scope notification checks
+  const inviteIds: number[] = [];
+
+  before(async () => {
+    // Ensure outsider is not a party member (they must not already be a member for invite to be meaningful)
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    // Remove any pre-existing pending invites for outsider so the test starts clean
+    await db
+      .delete(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+  });
+
+  after(async () => {
+    // Clean up invites and their associated notifications created during this block
+    if (inviteIds.length) {
+      await db
+        .delete(notificationsTable)
+        .where(inArray(notificationsTable.relatedId, inviteIds));
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, inviteIds));
+    }
+  });
+
+  test("first invite creates exactly one party_invites row and one notification", async () => {
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(res.status, 200, "first invite should succeed");
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(inviteRows.length, 1, "exactly one pending invite row after first invite");
+    inviteIds.push(inviteRows[0].id);
+
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.relatedId, inviteRows[0].id)
+        )
+      );
+    assert.equal(notifRows.length, 1, "exactly one notification after first invite");
+  });
+
+  test("second invite to the same pending user returns success without adding a row or notification", async () => {
+    // A pending invite already exists from the previous test — calling invite again must be a no-op
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(res.status, 200, "second invite should return success");
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    // Still exactly one invite row
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(inviteRows.length, 1, "still exactly one pending invite row after second invite");
+
+    // Still exactly one notification tied to the original invite
+    assert.equal(inviteIds.length, 1, "inviteIds should contain the id from the first invite");
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.relatedId, inviteIds[0])
+        )
+      );
+    assert.equal(notifRows.length, 1, "still exactly one notification after second invite");
   });
 });

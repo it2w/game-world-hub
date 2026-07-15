@@ -313,6 +313,22 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
+  // Idempotency: if a pending invite already exists for this user+party, return success without duplicating
+  const [existingInvite] = await db
+    .select()
+    .from(partyInvitesTable)
+    .where(
+      and(
+        eq(partyInvitesTable.partyId, partyId),
+        eq(partyInvitesTable.invitedUserId, parsed.data.userId),
+        eq(partyInvitesTable.status, "pending")
+      )
+    );
+  if (existingInvite) {
+    res.json({ success: true });
+    return;
+  }
+
   const [inv] = await db
     .insert(partyInvitesTable)
     .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })

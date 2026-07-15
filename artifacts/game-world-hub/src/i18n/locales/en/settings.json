@@ -10,6 +10,8 @@
     "urlOrUpload": "URL or upload →",
     "uploadImage": "Upload image",
     "biography": "BIOGRAPHY DATA",
+    "rank": "COMPETITIVE RANK",
+    "rankPlaceholder": "e.g. Gold, Platinum III, Diamond 2",
     "writeConfig": "WRITE CONFIG"
   },
   "wall": {

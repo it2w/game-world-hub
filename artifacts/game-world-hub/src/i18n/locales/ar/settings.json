@@ -10,6 +10,8 @@
     "urlOrUpload": "رابط أو رفع ملف ←",
     "uploadImage": "رفع صورة",
     "biography": "النبذة",
+    "rank": "الرتبة التنافسية",
+    "rankPlaceholder": "مثال: ذهبي، بلاتيني III، ألماسي 2",
     "writeConfig": "حفظ الإعدادات"
   },
   "wall": {

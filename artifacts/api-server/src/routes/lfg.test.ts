@@ -150,6 +150,85 @@ async function postRespond(
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
+describe("POST /lfg/:postId/respond — concurrent duplicate guard", () => {
+  // Isolated post so this describe block doesn't share state with others
+  let concurrentPostId = 0;
+  let concurrentResponderId = 0;
+
+  before(async () => {
+    const [concurrentResponder] = await db
+      .insert(usersTable)
+      .values(makeUser("concurrent"))
+      .returning({ id: usersTable.id });
+    concurrentResponderId = concurrentResponder.id;
+    createdUserIds.push(concurrentResponderId);
+
+    const [concurrentPost] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId,
+        game: "RaceGame",
+        description: "Post for concurrent-response test",
+        neededPlayers: 2,
+        micRequired: false,
+        status: "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    concurrentPostId = concurrentPost.id;
+    createdPostIds.push(concurrentPostId);
+  });
+
+  test("two simultaneous requests create exactly one DB row and one notification", async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      ...authHeader(concurrentResponderId, `lfgtest_concurrent_${SUFFIX}`),
+    };
+    const body = JSON.stringify({ message: "Race me!" });
+
+    // Fire both requests at the same time — simulates two-tab simultaneous submit
+    const [res1, res2] = await Promise.all([
+      fetch(`${baseUrl}/api/lfg/${concurrentPostId}/respond`, { method: "POST", headers, body }),
+      fetch(`${baseUrl}/api/lfg/${concurrentPostId}/respond`, { method: "POST", headers, body }),
+    ]);
+
+    assert.equal(res1.status, 200, "first concurrent request must return 200");
+    assert.equal(res2.status, 200, "second concurrent request must return 200");
+
+    // Exactly one response row
+    const responseRows = await db
+      .select()
+      .from(lfgResponsesTable)
+      .where(
+        and(
+          eq(lfgResponsesTable.postId, concurrentPostId),
+          eq(lfgResponsesTable.userId, concurrentResponderId),
+        ),
+      );
+    assert.equal(
+      responseRows.length,
+      1,
+      "concurrent duplicate responses must produce exactly one lfg_responses row",
+    );
+
+    // Exactly one notification
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, authorId),
+          eq(notificationsTable.type, "lfg_response"),
+          eq(notificationsTable.relatedId, concurrentPostId),
+        ),
+      );
+    assert.equal(
+      notifRows.length,
+      1,
+      "concurrent duplicate responses must produce exactly one lfg_response notification",
+    );
+  });
+});
+
 describe("POST /lfg/:postId/respond — author and duplicate guards", () => {
   test("returns 400 when the post author responds to their own post", async () => {
     const res = await postRespond(openPostId, authorId, `lfgtest_author_${SUFFIX}`);

@@ -2,8 +2,8 @@ import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { eq, inArray } from "drizzle-orm";
-import { db, usersTable, lfgPostsTable, lfgResponsesTable, pool } from "@workspace/db";
+import { eq, inArray, and } from "drizzle-orm";
+import { db, usersTable, lfgPostsTable, lfgResponsesTable, notificationsTable, pool } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
 
@@ -115,6 +115,9 @@ before(async () => {
 after(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   if (createdPostIds.length) {
+    await db.delete(notificationsTable).where(
+      inArray(notificationsTable.relatedId, createdPostIds),
+    );
     await db.delete(lfgResponsesTable).where(
       inArray(lfgResponsesTable.postId, createdPostIds),
     );
@@ -217,6 +220,94 @@ describe("POST /lfg/:postId/respond — stale-post guard", () => {
     assert.ok(
       typeof body.error === "string" && body.error.length > 0,
       "expected an error message in the body",
+    );
+  });
+});
+
+describe("POST /lfg/:postId/respond — notification to post author", () => {
+  // Use a dedicated post so notification state is isolated from other describe blocks
+  let notifPostId = 0;
+
+  before(async () => {
+    const [notifPost] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId,
+        game: "NotifGame",
+        description: "Post for notification tests",
+        neededPlayers: 1,
+        micRequired: false,
+        status: "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    notifPostId = notifPost.id;
+    createdPostIds.push(notifPostId);
+  });
+
+  test("creates a notification for the post author on a new response", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${notifPostId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+      },
+      body: JSON.stringify({ message: "I want to join!" }),
+    });
+    assert.equal(res.status, 200, "respond should return 200");
+
+    const rows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, authorId),
+          eq(notificationsTable.type, "lfg_response"),
+          eq(notificationsTable.relatedId, notifPostId),
+        ),
+      );
+
+    assert.ok(rows.length >= 1, "expected at least one lfg_response notification for the author");
+  });
+
+  test("does NOT create a second notification on a duplicate response", async () => {
+    // Count existing notifications for this post before the duplicate
+    const before = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, authorId),
+          eq(notificationsTable.type, "lfg_response"),
+          eq(notificationsTable.relatedId, notifPostId),
+        ),
+      );
+
+    // Send the same response again (duplicate)
+    const res = await fetch(`${baseUrl}/api/lfg/${notifPostId}/respond`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+      },
+      body: JSON.stringify({ message: "I want to join!" }),
+    });
+    assert.equal(res.status, 200, "duplicate respond should still return 200");
+
+    const after = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, authorId),
+          eq(notificationsTable.type, "lfg_response"),
+          eq(notificationsTable.relatedId, notifPostId),
+        ),
+      );
+
+    assert.equal(
+      after.length,
+      before.length,
+      "duplicate response must not create an additional notification",
     );
   });
 });

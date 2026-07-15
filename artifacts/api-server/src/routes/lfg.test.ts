@@ -284,6 +284,18 @@ describe("POST /lfg/:postId/respond — notification to post author", () => {
       typeof row.title === "string" && row.title.includes("NotifGame"),
       `notification title must include the game name; got: "${row.title}"`,
     );
+    // Verify the body contains the responder's free-text message
+    assert.equal(
+      row.body,
+      "I want to join!",
+      `notification body must equal the responder's message; got: "${row.body}"`,
+    );
+    // Verify the notification is addressed to the post author explicitly
+    assert.equal(
+      row.userId,
+      authorId,
+      `notification userId must equal the post author's ID; got: ${row.userId}`,
+    );
   });
 
   test("does NOT create a second notification on a duplicate response", async () => {

@@ -294,6 +294,49 @@ describe("POST /parties/:partyId/kick/:userId", () => {
   });
 });
 
+// ─── Invite tests ─────────────────────────────────────────────────────────────
+
+describe("POST /parties/:partyId/invite — non-member authorization", () => {
+  test("a non-member cannot invite someone to the party", async () => {
+    // Confirm the outsider is NOT a member of the party
+    const rows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(
+        and(
+          eq(partyMembersTable.partyId, partyId),
+          eq(partyMembersTable.userId, outsiderId)
+        )
+      );
+    assert.equal(rows.length, 0, "outsider must not be a party member");
+
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`,
+      { userId: memberId }
+    );
+    assert.equal(res.status, 403, "non-member invite should be rejected with 403");
+    assert.match(
+      (res.body as { error: string }).error,
+      /party member/i
+    );
+
+    // No invite row should have been created
+    const invites = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, memberId)
+        )
+      );
+    assert.equal(invites.length, 0, "no invite should be created by a non-member");
+  });
+});
+
 // ─── Transfer tests ───────────────────────────────────────────────────────────
 
 describe("POST /parties/:partyId/transfer/:userId", () => {

@@ -1533,3 +1533,100 @@ describe("POST /parties/:partyId/invite — re-invite after declined or accepted
     assert.equal(notifRows.length, 1, "a new notification must be created for the re-invite after accept");
   });
 });
+
+// ─── Concurrent-invite deduplication tests ────────────────────────────────────
+
+describe("POST /parties/:partyId/invite — concurrent requests", () => {
+  // A second outsider so this describe block is isolated from the sequential-dedup block above
+  let outsider2Id = 0;
+  const concurrentInviteIds: number[] = [];
+
+  before(async () => {
+    // Create a fresh user so no prior invite state exists
+    const [u] = await db
+      .insert(usersTable)
+      .values({
+        username: `ptest_outsider2_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: `PTest Outsider2`,
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id });
+    outsider2Id = u.id;
+    createdUserIds.push(outsider2Id);
+
+    // Ensure no pending invite for this user exists
+    await db
+      .delete(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsider2Id),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+  });
+
+  after(async () => {
+    if (concurrentInviteIds.length) {
+      await db
+        .delete(notificationsTable)
+        .where(inArray(notificationsTable.relatedId, concurrentInviteIds));
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, concurrentInviteIds));
+    }
+  });
+
+  test("two simultaneous invite requests produce exactly one invite row, one notification, and both return success", async () => {
+    // Fire two concurrent POST /parties/:partyId/invite requests for the same user
+    const [res1, res2] = await Promise.all([
+      request(
+        "POST",
+        `/parties/${partyId}/invite`,
+        leaderId,
+        `ptest_leader_${SUFFIX}`,
+        { userId: outsider2Id }
+      ),
+      request(
+        "POST",
+        `/parties/${partyId}/invite`,
+        leaderId,
+        `ptest_leader_${SUFFIX}`,
+        { userId: outsider2Id }
+      ),
+    ]);
+
+    // Both responses must be successful (idempotent)
+    assert.equal(res1.status, 200, "first concurrent request should return 200");
+    assert.deepEqual((res1.body as { success: boolean }).success, true, "first response body should be success");
+    assert.equal(res2.status, 200, "second concurrent request should return 200");
+    assert.deepEqual((res2.body as { success: boolean }).success, true, "second response body should be success");
+
+    // Exactly one pending invite row must exist
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsider2Id),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.equal(inviteRows.length, 1, "exactly one pending invite row must exist after concurrent requests");
+    concurrentInviteIds.push(inviteRows[0].id);
+
+    // Exactly one notification must exist for that invite
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsider2Id),
+          eq(notificationsTable.relatedId, inviteRows[0].id)
+        )
+      );
+    assert.equal(notifRows.length, 1, "exactly one notification must exist after concurrent requests");
+  });
+});

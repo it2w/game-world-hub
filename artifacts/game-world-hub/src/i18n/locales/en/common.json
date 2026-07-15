@@ -52,7 +52,11 @@
     "transferLeadership": "Transfer leadership",
     "qualityPickerTitle": "SCREEN SHARE QUALITY",
     "startSharing": "START SHARING",
-    "cancel": "CANCEL"
+    "cancel": "CANCEL",
+    "cameraOn": "Enable camera",
+    "cameraOff": "Disable camera",
+    "mutePeer": "Mute this participant",
+    "cameraLabel": "Camera"
   },
   "call": {
     "incoming": "Incoming Call",

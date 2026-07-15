@@ -948,6 +948,18 @@ export const HideConversationResponse = zod.object({
 
 
 /**
+ * @summary Permanently delete a direct conversation and all its messages for both parties
+ */
+export const DeleteConversationFullParams = zod.object({
+  "conversationId": zod.coerce.number()
+})
+
+export const DeleteConversationFullResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get messages in a conversation
  */
 export const GetMessagesParams = zod.object({

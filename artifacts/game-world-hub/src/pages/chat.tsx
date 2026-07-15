@@ -8,6 +8,7 @@ import {
   useGetMe,
   useDeleteMessage,
   useHideConversation,
+  useDeleteConversationFull,
   getGetMessagesQueryKey,
   getListConversationsQueryKey,
   getGetMeQueryKey
@@ -15,7 +16,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Users, Shield, Trash2, Copy, X } from "lucide-react";
+import { Send, Users, Shield, Trash2, Copy, X, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
 
@@ -42,6 +43,8 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const sendMessage = useSendMessage();
   const deleteMessage = useDeleteMessage();
   const hideConversation = useHideConversation();
+  const deleteConversationFull = useDeleteConversationFull();
+  const [confirmDeleteConvId, setConfirmDeleteConvId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<number | null>(null);
@@ -138,6 +141,16 @@ export default function Chat({ params }: { params: { conversationId?: string } }
     });
   };
 
+  const handleDeleteConversationFull = (convId: number) => {
+    deleteConversationFull.mutate({ conversationId: convId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+        setLocation("/chat");
+        setConfirmDeleteConvId(null);
+      }
+    });
+  };
+
   const getConversationName = (conv: any) => {
     if (conv.name) return conv.name;
     if (conv.type === 'direct' && me) {
@@ -204,15 +217,46 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                     </div>
                   ) : null}
                 </button>
-                {/* Hide conversation button */}
+                {/* Direct conversation actions */}
                 {conv.type === 'direct' && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleHideConversation(conv.id); }}
-                    className="opacity-0 group-hover:opacity-100 self-center me-2 p-1.5 text-muted-foreground hover:text-destructive transition-opacity"
-                    title={t("sidebar.hideConversation")}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 self-center me-2 transition-opacity">
+                    {confirmDeleteConvId === conv.id ? (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteConversationFull(conv.id); }}
+                          disabled={deleteConversationFull.isPending}
+                          className="p-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+                          title={t("sidebar.confirmDelete")}
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(null); }}
+                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                          title={t("sidebar.cancel")}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(conv.id); }}
+                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                          title={t("sidebar.deleteConversation")}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleHideConversation(conv.id); }}
+                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                          title={t("sidebar.hideConversation")}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             );

@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
 import { and, eq } from "drizzle-orm";
-import { db, usersTable, partyMembersTable, conversationParticipantsTable } from "@workspace/db";
+import { db, usersTable, partyMembersTable, conversationParticipantsTable, partiesTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -378,6 +378,11 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
     case "call-cancel":
       if (typeof msg.callId === "string") handleCallCancel(client, msg.callId);
       break;
+    case "admin-mute":
+      if (typeof msg.room === "string" && typeof msg.userId === "number") {
+        await handleAdminMute(client, msg.room, msg.userId);
+      }
+      break;
     case "typing":
       if (typeof msg.conversationId === "number") await handleTyping(client, msg.conversationId);
       break;
@@ -386,6 +391,38 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
       break;
     default:
       break;
+  }
+}
+
+/**
+ * Allow a party leader to force-mute another member. The target receives a
+ * `force-mute` frame which their client processes by enabling their local mute.
+ * Only works for `party:` rooms and only when the sender is the current leader.
+ */
+async function handleAdminMute(leader: Client, room: string, targetUserId: number): Promise<void> {
+  if (!room.startsWith("party:")) return;
+  const partyId = Number(room.slice("party:".length));
+  if (!Number.isInteger(partyId) || partyId <= 0) return;
+
+  const members = rooms.get(room);
+  const self = members?.get(leader.userId);
+  if (!members || !self || self.client !== leader) return;
+
+  try {
+    const [party] = await db
+      .select({ leaderId: partiesTable.leaderId })
+      .from(partiesTable)
+      .where(eq(partiesTable.id, partyId));
+    if (!party || party.leaderId !== leader.userId) return;
+  } catch (err) {
+    logger.error({ err, room }, "voice: admin-mute party check failed");
+    return;
+  }
+
+  const target = members.get(targetUserId);
+  if (target) {
+    send(target.client.ws, { type: "force-mute", room });
+    logger.info({ room, by: leader.userId, target: targetUserId }, "voice: admin-mute applied");
   }
 }
 

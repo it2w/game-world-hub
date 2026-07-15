@@ -861,6 +861,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /conversations/{conversationId}/full:
+    delete:
+      operationId: deleteConversationFull
+      tags: [messages]
+      summary: Permanently delete a direct conversation and all its messages for both parties
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Not a direct conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /conversations/{conversationId}/messages:
     get:
       operationId: getMessages

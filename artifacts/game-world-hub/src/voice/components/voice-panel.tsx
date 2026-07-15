@@ -49,6 +49,8 @@ import {
   UserMinus,
   Crown,
   Play,
+  Video,
+  VideoOff,
 } from "lucide-react";
 
 /**
@@ -63,11 +65,15 @@ export function VoicePanel() {
     peers,
     muted,
     sharing,
+    cameraEnabled,
     speaking,
     localScreenStream,
+    localCameraStream,
     voiceQuality,
     screenQuality,
     toggleMute,
+    toggleCamera,
+    remoteMute,
     startScreenShare,
     stopScreenShare,
     leaveVoice,
@@ -124,7 +130,9 @@ export function VoicePanel() {
   if (!activeRoom) return null;
 
   const screenSharers = peers.filter((p) => p.sharing && p.screenStream);
+  const cameraViewers = peers.filter((p) => p.cameraEnabled && p.cameraStream);
   const anyScreens = screenSharers.length > 0 || (sharing && localScreenStream);
+  const anyCameras = cameraViewers.length > 0 || (cameraEnabled && localCameraStream);
 
   return (
     <>
@@ -187,10 +195,12 @@ export function VoicePanel() {
                   speaking={p.speaking && !p.muted}
                   muted={p.muted}
                   sharing={p.sharing}
+                  cameraEnabled={p.cameraEnabled}
                   connectionState={p.connectionState}
                   isLeader={isLeader && !!partyId}
                   onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
                   onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                  onMutePeer={() => remoteMute(p.userId)}
                 />
               ))}
               {peers.length === 0 && (
@@ -217,6 +227,30 @@ export function VoicePanel() {
                     stream={p.screenStream}
                     label={p.displayName}
                     onOpen={() => setTheater(p.screenStream)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Camera thumbnails */}
+            {anyCameras && (
+              <div className="border-t border-border p-2 grid grid-cols-2 gap-2">
+                {cameraEnabled && localCameraStream && (
+                  <ScreenThumb
+                    stream={localCameraStream}
+                    label={t("voice.you")}
+                    self
+                    cameraLabel
+                    onOpen={() => setTheater(localCameraStream)}
+                  />
+                )}
+                {cameraViewers.map((p) => (
+                  <ScreenThumb
+                    key={p.userId}
+                    stream={p.cameraStream}
+                    label={p.displayName}
+                    cameraLabel
+                    onOpen={() => setTheater(p.cameraStream)}
                   />
                 ))}
               </div>
@@ -268,6 +302,15 @@ export function VoicePanel() {
             title={muted ? t("voice.unmute") : t("voice.mute")}
           >
             {muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </Button>
+          <Button
+            size="sm"
+            variant={cameraEnabled ? "default" : "outline"}
+            className="flex-1 rounded-none h-8 px-0"
+            onClick={() => void toggleCamera()}
+            title={cameraEnabled ? t("voice.cameraOff") : t("voice.cameraOn")}
+          >
+            {cameraEnabled ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
           </Button>
           <Button
             size="sm"
@@ -376,22 +419,26 @@ function ParticipantRow({
   speaking,
   muted,
   sharing,
+  cameraEnabled,
   connectionState,
   self,
   isLeader,
   onKick,
   onTransfer,
+  onMutePeer,
 }: {
   name: string;
   avatarUrl: string | null;
   speaking: boolean;
   muted: boolean;
   sharing: boolean;
+  cameraEnabled?: boolean;
   connectionState: RTCPeerConnectionState;
   self?: boolean;
   isLeader?: boolean;
   onKick?: () => void;
   onTransfer?: () => void;
+  onMutePeer?: () => void;
 }) {
   const { t } = useTranslation("common");
   const [everConnected, setEverConnected] = useState(false);
@@ -466,6 +513,15 @@ function ParticipantRow({
         {/* Leader action buttons */}
         {!self && isLeader && showActions && !unreachable && (
           <div className="flex items-center gap-0.5 shrink-0">
+            {!muted && (
+              <button
+                onClick={onMutePeer}
+                className="p-0.5 text-muted-foreground hover:text-amber-500 transition-colors"
+                title={t("voice.mutePeer")}
+              >
+                <MicOff className="w-3 h-3" />
+              </button>
+            )}
             <button
               onClick={onTransfer}
               className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
@@ -494,6 +550,7 @@ function ParticipantRow({
             {connecting && (
               <Loader2 className="w-3 h-3 text-muted-foreground animate-spin shrink-0" />
             )}
+            {cameraEnabled && <Video className="w-3 h-3 text-primary shrink-0" />}
             {sharing && <Monitor className="w-3 h-3 text-primary shrink-0" />}
             {muted ? (
               <MicOff className="w-3 h-3 text-destructive shrink-0" />
@@ -518,11 +575,13 @@ function ScreenThumb({
   stream,
   label,
   self,
+  cameraLabel,
   onOpen,
 }: {
   stream: MediaStream | null;
   label: string;
   self?: boolean;
+  cameraLabel?: boolean;
   onOpen: () => void;
 }) {
   const { t } = useTranslation("common");
@@ -533,9 +592,9 @@ function ScreenThumb({
       title={t("voice.openScreen", { label })}
     >
       <VideoTile stream={stream} className="w-full h-full object-contain" />
-      <span className="absolute bottom-0 start-0 end-0 bg-background/80 text-[9px] px-1 py-0.5 truncate text-start">
-        {label}
-        {self ? t("voice.youSuffix") : ""}
+      <span className="absolute bottom-0 start-0 end-0 bg-background/80 text-[9px] px-1 py-0.5 truncate text-start flex items-center gap-1">
+        {cameraLabel && <Video className="w-2.5 h-2.5 shrink-0" />}
+        {label}{self ? t("voice.youSuffix") : ""}
       </span>
       <span className="absolute inset-0 flex items-center justify-center bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity">
         <Maximize2 className="w-4 h-4" />

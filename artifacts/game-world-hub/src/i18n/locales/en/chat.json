@@ -3,7 +3,10 @@
     "title": "Comms_Channels",
     "you": "You",
     "noMessages": "No messages yet",
-    "hideConversation": "Hide conversation"
+    "hideConversation": "Hide conversation",
+    "deleteConversation": "Delete conversation for everyone",
+    "confirmDelete": "Confirm: permanently delete for both parties",
+    "cancel": "Cancel"
   },
   "conversation": {
     "directMessage": "Direct Message",

@@ -7,15 +7,15 @@ import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, Trophy, X } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, Trophy, X, Shield, Award, Star, Gem, Crown, Flame, Medal } from "lucide-react";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
 
 // Rank tier colour palette (self-reported competitive rank)
 const RANK_COLORS: Record<string, string> = {
-  bronze: "#CD7F32",
   iron: "#A8A8A8",
+  bronze: "#CD7F32",
   silver: "#C0C0C0",
   gold: "#FFD700",
   platinum: "#00C7C7",
@@ -24,12 +24,32 @@ const RANK_COLORS: Record<string, string> = {
   grandmaster: "#F44336",
 };
 
+// Distinctive icon per rank tier
+const RANK_ICONS: Record<string, React.ElementType> = {
+  iron: Shield,
+  bronze: Medal,
+  silver: Award,
+  gold: Star,
+  platinum: Gem,
+  diamond: Gem,
+  master: Crown,
+  grandmaster: Flame,
+};
+
 function getRankColor(rank: string): string {
   const lower = rank.toLowerCase();
   for (const key of Object.keys(RANK_COLORS)) {
     if (lower.includes(key)) return RANK_COLORS[key];
   }
   return "#6B7280"; // muted gray fallback
+}
+
+function getRankIcon(rank: string): React.ElementType {
+  const lower = rank.toLowerCase();
+  for (const key of Object.keys(RANK_ICONS)) {
+    if (lower.includes(key)) return RANK_ICONS[key];
+  }
+  return Trophy; // fallback
 }
 
 export default function Profile() {
@@ -202,7 +222,7 @@ export default function Profile() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="bg-card border border-border relative overflow-hidden">
-        {user.bannerUrl && (
+        {user.bannerUrl ? (
           <div className="h-44 relative border-b border-border group">
             <img src={user.bannerUrl} alt="" className="w-full h-full object-cover" data-testid="img-profile-banner" />
             <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
@@ -218,7 +238,13 @@ export default function Profile() {
               </button>
             )}
           </div>
-        )}
+        ) : isOwner ? (
+          <div className="h-32 relative border-b border-border bg-gradient-to-br from-primary/10 via-muted/20 to-background flex items-center justify-center">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50 select-none">
+              {t("noBanner")}
+            </span>
+          </div>
+        ) : null}
         <div className="p-8 relative flex flex-col md:flex-row gap-8 items-center md:items-start">
         <div className="absolute top-0 end-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
         
@@ -301,14 +327,20 @@ export default function Profile() {
 
           {user.rank && (
             <div className="flex items-center gap-2">
-              <span
-                className="flex items-center gap-2 px-3 py-1.5 border text-xs font-mono uppercase tracking-widest font-bold"
-                style={{ borderColor: getRankColor(user.rank), color: getRankColor(user.rank), background: `${getRankColor(user.rank)}18` }}
-                title={t("rank.label")}
-              >
-                <Trophy className="w-3.5 h-3.5" style={{ color: getRankColor(user.rank) }} />
-                {user.rank}
-              </span>
+              {(() => {
+                const RankIcon = getRankIcon(user.rank);
+                const color = getRankColor(user.rank);
+                return (
+                  <span
+                    className="flex items-center gap-2 px-3 py-1.5 border text-xs font-mono uppercase tracking-widest font-bold"
+                    style={{ borderColor: color, color, background: `${color}18` }}
+                    title={t("rank.label")}
+                  >
+                    <RankIcon className="w-3.5 h-3.5" style={{ color }} />
+                    {user.rank}
+                  </span>
+                );
+              })()}
             </div>
           )}
 

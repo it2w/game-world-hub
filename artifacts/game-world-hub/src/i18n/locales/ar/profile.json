@@ -68,5 +68,6 @@
     "avatarDeleted": "تمت إزالة الصورة الشخصية",
     "bannerDeleted": "تمت إزالة الغلاف",
     "deleteFailed": "تعذّر الحذف"
-  }
+  },
+  "noBanner": "لا توجد صورة غلاف"
 }

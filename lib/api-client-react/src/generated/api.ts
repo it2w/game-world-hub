@@ -2972,6 +2972,77 @@ export const useHideConversation = <TError = ErrorType<unknown>,
       return useMutation(getHideConversationMutationOptions(options));
     }
 
+export const getDeleteConversationFullUrl = (conversationId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/full`
+}
+
+/**
+ * @summary Permanently delete a direct conversation and all its messages for both parties
+ */
+export const deleteConversationFull = async (conversationId: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteConversationFullUrl(conversationId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteConversationFullMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConversationFull>>, TError,{conversationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteConversationFull>>, TError,{conversationId: number}, TContext> => {
+
+const mutationKey = ['deleteConversationFull'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteConversationFull>>, {conversationId: number}> = (props) => {
+          const {conversationId} = props ?? {};
+
+          return  deleteConversationFull(conversationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteConversationFullMutationResult = NonNullable<Awaited<ReturnType<typeof deleteConversationFull>>>
+
+    export type DeleteConversationFullMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Permanently delete a direct conversation and all its messages for both parties
+ */
+export const useDeleteConversationFull = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteConversationFull>>, TError,{conversationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteConversationFull>>,
+        TError,
+        {conversationId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteConversationFullMutationOptions(options));
+    }
+
 export const getGetMessagesUrl = (conversationId: number,) => {
 
 

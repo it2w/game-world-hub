@@ -68,5 +68,6 @@
     "avatarDeleted": "Profile picture removed",
     "bannerDeleted": "Banner removed",
     "deleteFailed": "Couldn't delete"
-  }
+  },
+  "noBanner": "No cover photo"
 }

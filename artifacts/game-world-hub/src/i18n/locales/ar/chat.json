@@ -3,7 +3,10 @@
     "title": "قنوات الاتصال",
     "you": "أنت",
     "noMessages": "لا توجد رسائل بعد",
-    "hideConversation": "إخفاء المحادثة"
+    "hideConversation": "إخفاء المحادثة",
+    "deleteConversation": "حذف المحادثة للطرفين",
+    "confirmDelete": "تأكيد: حذف نهائي للطرفين",
+    "cancel": "إلغاء"
   },
   "conversation": {
     "directMessage": "رسالة مباشرة",

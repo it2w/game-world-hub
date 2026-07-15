@@ -196,6 +196,39 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
   );
 });
 
+// DELETE /conversations/:conversationId/full — delete entire DM for both parties
+router.delete("/conversations/:conversationId/full", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const conversationId = parseInt(raw, 10);
+
+  const [membership] = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+  if (!membership) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  if (!conv || conv.type !== "direct") {
+    res.status(400).json({ error: "Only direct conversations can be fully deleted" });
+    return;
+  }
+
+  // Remove related notifications first, then messages, reads, participants, conversation
+  await db
+    .delete(notificationsTable)
+    .where(and(eq(notificationsTable.type, "message"), eq(notificationsTable.relatedId, conversationId)));
+  await db.delete(messagesTable).where(eq(messagesTable.conversationId, conversationId));
+  await db.delete(messageReadsTable).where(eq(messageReadsTable.conversationId, conversationId));
+  await db.delete(conversationParticipantsTable).where(eq(conversationParticipantsTable.conversationId, conversationId));
+  await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+
+  res.json({ success: true });
+});
+
 // DELETE /conversations/:conversationId — hide from your list (removes you as participant)
 router.delete("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;

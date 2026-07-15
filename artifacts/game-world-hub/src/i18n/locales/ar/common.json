@@ -52,7 +52,11 @@
     "transferLeadership": "تحويل القيادة",
     "qualityPickerTitle": "جودة مشاركة الشاشة",
     "startSharing": "بدء المشاركة",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "cameraOn": "تفعيل الكاميرا",
+    "cameraOff": "إيقاف الكاميرا",
+    "mutePeer": "كتم هذا المشارك",
+    "cameraLabel": "كاميرا"
   },
   "call": {
     "incoming": "مكالمة واردة",

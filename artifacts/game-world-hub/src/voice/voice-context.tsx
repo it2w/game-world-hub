@@ -36,10 +36,12 @@ export interface PeerUiState {
   avatarUrl: string | null;
   muted: boolean;
   sharing: boolean;
+  cameraEnabled: boolean;
   speaking: boolean;
   connectionState: RTCPeerConnectionState;
   audioStream: MediaStream | null;
   screenStream: MediaStream | null;
+  cameraStream: MediaStream | null;
 }
 
 export type ActiveRoom =
@@ -64,8 +66,10 @@ interface VoiceContextValue {
   peers: PeerUiState[];
   muted: boolean;
   sharing: boolean;
+  cameraEnabled: boolean;
   speaking: boolean;
   localScreenStream: MediaStream | null;
+  localCameraStream: MediaStream | null;
   voiceQuality: VoiceQuality;
   screenQuality: ScreenQuality;
   incomingCall: IncomingCall | null;
@@ -81,6 +85,8 @@ interface VoiceContextValue {
   declineCall: () => void;
   cancelCall: () => void;
   toggleMute: () => void;
+  toggleCamera: () => Promise<void>;
+  remoteMute: (userId: number) => void;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => void;
   setVoiceQuality: (q: VoiceQuality) => void;
@@ -101,8 +107,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [peersState, setPeersState] = useState<Record<number, PeerUiState>>({});
   const [muted, setMuted] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [cameraEnabled, setCameraEnabledState] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
+  const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
   const [voiceQuality, setVoiceQualityState] = useState<VoiceQuality>(DEFAULT_VOICE_QUALITY);
   const [screenQuality, setScreenQualityState] = useState<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
@@ -119,6 +127,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const peersRef = useRef<Map<number, { peer: Peer; info: CallUser }>>(new Map());
   const micStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<ActiveRoom | null>(null);
   const mutedRef = useRef(false);
   const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
@@ -154,7 +163,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const broadcastState = useCallback(() => {
     const room = activeRoomRef.current;
     if (!room) return;
-    wsSend({ type: "state", room: room.room, muted: mutedRef.current, sharing: !!screenStreamRef.current });
+    wsSend({
+      type: "state",
+      room: room.room,
+      muted: mutedRef.current,
+      sharing: !!screenStreamRef.current,
+      cameraStreamId: cameraStreamRef.current?.id ?? null,
+    });
   }, [wsSend]);
 
   // ─── Speaking detector ────────────────────────────────────────────────────
@@ -302,6 +317,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             ensureDetector().add(String(info.userId), stream);
           },
           onRemoteScreen: (stream) => patchPeer(info.userId, { screenStream: stream }),
+          onRemoteCamera: (stream) => patchPeer(info.userId, { cameraStream: stream }),
           onConnectionStateChange: (state) => {
             patchPeer(info.userId, { connectionState: state });
             handlePeerConnectionState(info.userId, state);
@@ -322,10 +338,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           avatarUrl: info.avatarUrl,
           muted: info.muted ?? false,
           sharing: info.sharing ?? false,
+          cameraEnabled: false,
           speaking: false,
           connectionState: "new",
           audioStream: null,
           screenStream: null,
+          cameraStream: null,
         },
       }));
 
@@ -344,6 +362,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           const preset = SCREEN_PRESETS[screenQualityRef.current];
           peer.applyScreenParams(preset.maxBitrate, preset.frameRate);
         }
+      }
+      const camera = cameraStreamRef.current;
+      if (camera) {
+        const [cvtrack] = camera.getVideoTracks();
+        if (cvtrack) peer.setCameraTrack(cvtrack, camera);
       }
     },
     [wsSend, patchPeer, ensureDetector, handlePeerConnectionState],
@@ -373,6 +396,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       screenStreamRef.current = null;
       setLocalScreenStream(null);
       setSharing(false);
+    }
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+      setLocalCameraStream(null);
+      setCameraEnabledState(false);
     }
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -411,15 +440,34 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           break;
         }
 
-        case "peer-state":
-          patchPeer(msg.userId, { muted: !!msg.muted, sharing: !!msg.sharing });
+        case "peer-state": {
+          patchPeer(msg.userId, {
+            muted: !!msg.muted,
+            sharing: !!msg.sharing,
+            cameraEnabled: !!msg.cameraStreamId,
+          });
+          // Update the peer's cameraStreamId so ontrack can route video correctly.
+          const peerEntry = peersRef.current.get(msg.userId);
+          if (peerEntry) peerEntry.peer.setCameraStreamId(msg.cameraStreamId ?? null);
           break;
+        }
 
         case "force-leave":
           // We were evicted because we joined the same room elsewhere.
           if (activeRoomRef.current?.room === msg.room) {
             teardownRoom();
             setActiveRoom(null);
+          }
+          break;
+
+        case "force-mute":
+          // Leader force-muted us — apply mute if not already muted.
+          if (!mutedRef.current) {
+            mutedRef.current = true;
+            setMuted(true);
+            const mic = micStreamRef.current;
+            if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = false));
+            broadcastState();
           }
           break;
 
@@ -702,6 +750,47 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     broadcastState();
   }, [broadcastState]);
 
+  const stopCamera = useCallback(() => {
+    const stream = cameraStreamRef.current;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current = null;
+    setLocalCameraStream(null);
+    setCameraEnabledState(false);
+    for (const { peer } of peersRef.current.values()) peer.setCameraTrack(null);
+    broadcastState();
+  }, [broadcastState]);
+
+  const toggleCamera = useCallback(async () => {
+    if (!activeRoomRef.current) return;
+    if (cameraStreamRef.current) {
+      stopCamera();
+      return;
+    }
+    setError(null);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    } catch {
+      setError("Camera access denied");
+      return;
+    }
+    cameraStreamRef.current = stream;
+    setLocalCameraStream(stream);
+    setCameraEnabledState(true);
+    const [track] = stream.getVideoTracks();
+    if (track) track.addEventListener("ended", stopCamera);
+    for (const { peer } of peersRef.current.values()) {
+      if (track) peer.setCameraTrack(track, stream);
+    }
+    broadcastState();
+  }, [broadcastState, stopCamera]);
+
+  const remoteMute = useCallback((userId: number) => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    wsSend({ type: "admin-mute", room: room.room, userId });
+  }, [wsSend]);
+
   const startScreenShare = useCallback(async () => {
     if (!activeRoomRef.current) return;
     setError(null);
@@ -801,8 +890,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     peers,
     muted,
     sharing,
+    cameraEnabled,
     speaking,
     localScreenStream,
+    localCameraStream,
     voiceQuality,
     screenQuality,
     incomingCall,
@@ -817,6 +908,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     declineCall,
     cancelCall,
     toggleMute,
+    toggleCamera,
+    remoteMute,
     startScreenShare,
     stopScreenShare,
     setVoiceQuality,

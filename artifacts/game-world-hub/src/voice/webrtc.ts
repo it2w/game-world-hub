@@ -55,6 +55,7 @@ export interface PeerCallbacks {
   sendSignal: (data: unknown) => void;
   onRemoteAudio: (stream: MediaStream) => void;
   onRemoteScreen: (stream: MediaStream | null) => void;
+  onRemoteCamera: (stream: MediaStream | null) => void;
   onConnectionStateChange: (state: RTCPeerConnectionState) => void;
 }
 
@@ -69,6 +70,9 @@ export class Peer {
 
   private micSender: RTCRtpSender | null = null;
   private screenSender: RTCRtpSender | null = null;
+  private cameraSender: RTCRtpSender | null = null;
+  /** Stream ID of the remote peer's camera stream, set from peer-state messages. */
+  private cameraStreamId: string | null = null;
 
   constructor(cb: PeerCallbacks, polite: boolean, iceServers: RTCIceServer[] = ICE_SERVERS) {
     this.cb = cb;
@@ -100,6 +104,11 @@ export class Peer {
       if (!stream) return;
       if (track.kind === "audio") {
         this.cb.onRemoteAudio(stream);
+      } else if (this.cameraStreamId && stream.id === this.cameraStreamId) {
+        this.cb.onRemoteCamera(stream);
+        const clear = () => this.cb.onRemoteCamera(null);
+        track.addEventListener("ended", clear);
+        track.addEventListener("mute", clear);
       } else {
         this.cb.onRemoteScreen(stream);
         const clear = () => this.cb.onRemoteScreen(null);
@@ -180,6 +189,29 @@ export class Peer {
       void this.micSender.replaceTrack(track);
     } else if (track) {
       this.micSender = this.pc.addTrack(track, stream);
+    }
+  }
+
+  /**
+   * Update the remote peer's camera stream ID. Must be called as soon as a
+   * `peer-state` message with `cameraStreamId` is received so that the
+   * `ontrack` handler can route incoming video tracks correctly.
+   */
+  setCameraStreamId(id: string | null): void {
+    this.cameraStreamId = id;
+  }
+
+  /** Attach, replace, or remove the outgoing camera track. */
+  setCameraTrack(track: MediaStreamTrack | null, stream?: MediaStream): void {
+    if (this.cameraSender) {
+      if (track) {
+        void this.cameraSender.replaceTrack(track);
+      } else {
+        this.pc.removeTrack(this.cameraSender);
+        this.cameraSender = null;
+      }
+    } else if (track && stream) {
+      this.cameraSender = this.pc.addTrack(track, stream);
     }
   }
 

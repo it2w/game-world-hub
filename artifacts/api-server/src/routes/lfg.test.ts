@@ -267,6 +267,23 @@ describe("POST /lfg/:postId/respond — notification to post author", () => {
       );
 
     assert.ok(rows.length >= 1, "expected at least one lfg_response notification for the author");
+
+    const row = rows[0];
+    // Verify the notification type is correct
+    assert.equal(row.type, "lfg_response", "notification type must be 'lfg_response'");
+    // Verify relatedId points to the correct post
+    assert.equal(row.relatedId, notifPostId, "notification relatedId must match the post ID");
+    // Verify the title contains the responder's display name and the game name
+    // The responder was created with makeUser("responder") → displayName = "LfgTest responder"
+    // The post was created with game = "NotifGame"
+    assert.ok(
+      typeof row.title === "string" && row.title.includes("LfgTest responder"),
+      `notification title must include the responder's display name; got: "${row.title}"`,
+    );
+    assert.ok(
+      typeof row.title === "string" && row.title.includes("NotifGame"),
+      `notification title must include the game name; got: "${row.title}"`,
+    );
   });
 
   test("does NOT create a second notification on a duplicate response", async () => {

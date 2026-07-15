@@ -268,6 +268,29 @@ describe("POST /parties/:partyId/kick/:userId", () => {
       /kick yourself/i
     );
   });
+
+  test("kicked member cannot send messages to the party conversation", async () => {
+    // Ensure member is NOT in conversation_participants (they were kicked in the first test)
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 0, "member should not be a participant after being kicked");
+
+    const res = await request(
+      "POST",
+      `/conversations/${convId}/messages`,
+      memberId,
+      `ptest_member_${SUFFIX}`,
+      { content: "should be rejected" }
+    );
+    assert.equal(res.status, 403, "kicked member should not be able to send messages to party conversation");
+  });
 });
 
 // ─── Transfer tests ───────────────────────────────────────────────────────────
@@ -419,6 +442,29 @@ describe("POST /parties/:partyId/leave", () => {
         )
       );
     assert.equal(participantRows.length, 0, "member should lose access to party conversation after leaving");
+  });
+
+  test("member who left cannot send messages to the party conversation", async () => {
+    // Member already left in the previous test — confirm they're not a participant
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 0, "member should not be a participant after leaving");
+
+    const res = await request(
+      "POST",
+      `/conversations/${convId}/messages`,
+      memberId,
+      `ptest_member_${SUFFIX}`,
+      { content: "should be rejected" }
+    );
+    assert.equal(res.status, 403, "member who left should not be able to send messages to party conversation");
   });
 });
 

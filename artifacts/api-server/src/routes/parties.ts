@@ -329,9 +329,35 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  // Use ON CONFLICT DO NOTHING to handle the race where two concurrent requests
-  // both pass the pre-check above and then race to insert. The partial unique
-  // index (status = 'pending') ensures at most one pending invite per party+user.
+  // Clear any stale party_invite notifications for prior invites to the same party+user
+  // so the recipient's inbox doesn't accumulate redundant entries across re-invite cycles.
+  const priorInvites = await db
+    .select({ id: partyInvitesTable.id })
+    .from(partyInvitesTable)
+    .where(
+      and(
+        eq(partyInvitesTable.partyId, partyId),
+        eq(partyInvitesTable.invitedUserId, parsed.data.userId)
+      )
+    );
+  if (priorInvites.length > 0) {
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, parsed.data.userId),
+          eq(notificationsTable.type, "party_invite"),
+          inArray(
+            notificationsTable.relatedId,
+            priorInvites.map((r) => r.id)
+          )
+        )
+      );
+  }
+
+  // Use ON CONFLICT DO NOTHING so concurrent requests that race past the
+  // pending-invite check above are handled atomically — no error is thrown,
+  // the insert is silently skipped, and `inserted` is undefined.
   const [inv] = await db
     .insert(partyInvitesTable)
     .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })

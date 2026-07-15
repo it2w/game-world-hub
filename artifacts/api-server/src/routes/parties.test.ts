@@ -1772,3 +1772,166 @@ describe("POST /party-invites/:inviteId/accept — re-invite while already a par
     );
   });
 });
+
+// ─── Stale-notification deduplication tests ───────────────────────────────────
+
+describe("POST /parties/:partyId/invite — stale notifications cleared on re-invite", () => {
+  // Use outsiderId so membership state is fully controlled.
+  const createdInviteIds: number[] = [];
+
+  before(async () => {
+    // Start with a completely clean slate for outsider.
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    await db
+      .delete(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId)
+        )
+      );
+  });
+
+  after(async () => {
+    if (createdInviteIds.length) {
+      await db
+        .delete(notificationsTable)
+        .where(inArray(notificationsTable.relatedId, createdInviteIds));
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, createdInviteIds));
+    }
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+  });
+
+  test("only one party_invite notification exists after two invite-decline-reinvite cycles", async () => {
+    // ── Cycle 1 ──────────────────────────────────────────────────────────────
+    const invite1Res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(invite1Res.status, 200, "cycle 1 invite should succeed");
+
+    const [invite1] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(invite1, "cycle 1 invite row must exist");
+    createdInviteIds.push(invite1.id);
+
+    const decline1Res = await request(
+      "POST",
+      `/party-invites/${invite1.id}/decline`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(decline1Res.status, 200, "cycle 1 decline should succeed");
+
+    // ── Cycle 2 ──────────────────────────────────────────────────────────────
+    const invite2Res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(invite2Res.status, 200, "cycle 2 invite should succeed");
+
+    const [invite2] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(invite2, "cycle 2 invite row must exist");
+    assert.notEqual(invite2.id, invite1.id, "cycle 2 must use a new invite row");
+    createdInviteIds.push(invite2.id);
+
+    const decline2Res = await request(
+      "POST",
+      `/party-invites/${invite2.id}/decline`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(decline2Res.status, 200, "cycle 2 decline should succeed");
+
+    // ── Third invite (the one the user would actually see) ────────────────────
+    const invite3Res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: outsiderId }
+    );
+    assert.equal(invite3Res.status, 200, "third invite should succeed");
+
+    const [invite3] = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(
+        and(
+          eq(partyInvitesTable.partyId, partyId),
+          eq(partyInvitesTable.invitedUserId, outsiderId),
+          eq(partyInvitesTable.status, "pending")
+        )
+      );
+    assert.ok(invite3, "third invite row must exist");
+    assert.notEqual(invite3.id, invite2.id, "third invite must use a new row");
+    createdInviteIds.push(invite3.id);
+
+    // ── Verify exactly one party_invite notification survives ─────────────────
+    const allNotifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.type, "party_invite"),
+          inArray(notificationsTable.relatedId, createdInviteIds)
+        )
+      );
+    assert.equal(
+      allNotifRows.length,
+      1,
+      "only one party_invite notification should survive after two invite-decline-reinvite cycles"
+    );
+    assert.equal(
+      allNotifRows[0].relatedId,
+      invite3.id,
+      "the surviving notification must belong to the most recent invite"
+    );
+  });
+});

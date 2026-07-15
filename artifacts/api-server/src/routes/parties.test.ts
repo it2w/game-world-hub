@@ -1535,6 +1535,16 @@ describe("POST /parties/:partyId/invite — re-invite after declined or accepted
       );
     assert.equal(pendingAfterAccept.length, 0, "no pending invite should remain after accept");
 
+    // Step 2.5: outsider leaves the party — otherwise a re-invite is a no-op
+    // because inviting an existing member is gracefully skipped.
+    const leaveRes = await request(
+      "POST",
+      `/parties/${partyId}/leave`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(leaveRes.status, 200, "leave should succeed");
+
     // Step 3: send the invite again — should create a fresh row and notification.
     const secondRes = await request(
       "POST",
@@ -1976,5 +1986,90 @@ describe("POST /parties/:partyId/invite — stale notifications cleared on re-in
       invite3.id,
       "the surviving notification must belong to the most recent invite"
     );
+  });
+});
+
+// ─── Inviting an existing member ──────────────────────────────────────────────
+
+describe("POST /parties/:partyId/invite — target already a party member", () => {
+  before(async () => {
+    // Ensure memberId IS a party member
+    const existing = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    if (!existing.length) {
+      await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    }
+    // Start clean: no invites for member on this party
+    const staleInvites = await db
+      .select({ id: partyInvitesTable.id })
+      .from(partyInvitesTable)
+      .where(and(eq(partyInvitesTable.partyId, partyId), eq(partyInvitesTable.invitedUserId, memberId)));
+    if (staleInvites.length) {
+      await db
+        .delete(notificationsTable)
+        .where(
+          and(
+            eq(notificationsTable.userId, memberId),
+            eq(notificationsTable.type, "party_invite"),
+            inArray(notificationsTable.relatedId, staleInvites.map((r) => r.id))
+          )
+        );
+      await db
+        .delete(partyInvitesTable)
+        .where(inArray(partyInvitesTable.id, staleInvites.map((r) => r.id)));
+    }
+  });
+
+  test("inviting an existing member returns success without creating an invite row or notification", async () => {
+    // Sanity: target is already a member
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    assert.equal(memberRows.length, 1, "target must already be a party member");
+
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: memberId }
+    );
+    assert.equal(res.status, 200, "inviting an existing member should return 200 (graceful no-op)");
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    // No invite row must have been created
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(and(eq(partyInvitesTable.partyId, partyId), eq(partyInvitesTable.invitedUserId, memberId)));
+    assert.equal(inviteRows.length, 0, "no invite row should be created for an existing member");
+
+    // No party_invite notification must have been delivered
+    const notifRows = await db
+      .select()
+      .from(notificationsTable)
+      .where(and(eq(notificationsTable.userId, memberId), eq(notificationsTable.type, "party_invite")));
+    assert.equal(notifRows.length, 0, "no party_invite notification should be created for an existing member");
+  });
+
+  test("repeated invite to an existing member is still a no-op", async () => {
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/invite`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`,
+      { userId: memberId }
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    const inviteRows = await db
+      .select()
+      .from(partyInvitesTable)
+      .where(and(eq(partyInvitesTable.partyId, partyId), eq(partyInvitesTable.invitedUserId, memberId)));
+    assert.equal(inviteRows.length, 0, "still no invite rows after repeated invite to an existing member");
   });
 });

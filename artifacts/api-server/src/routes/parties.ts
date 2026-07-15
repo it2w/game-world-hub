@@ -313,6 +313,17 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
+  // If the target user is already a party member, an invite is pointless —
+  // return success without creating an invite row or notification.
+  const [targetMembership] = await db
+    .select()
+    .from(partyMembersTable)
+    .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, parsed.data.userId)));
+  if (targetMembership) {
+    res.json({ success: true });
+    return;
+  }
+
   // Idempotency: if a pending invite already exists for this user+party, return success without duplicating
   const [existingInvite] = await db
     .select()

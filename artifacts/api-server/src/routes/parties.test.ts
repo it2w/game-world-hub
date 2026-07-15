@@ -577,3 +577,149 @@ describe("POST /parties/:partyId/join — re-join after leave", () => {
     assert.equal(savedMsg.content, "back in the party!");
   });
 });
+
+// ─── Accept-invite re-join after kick tests ───────────────────────────────────
+
+describe("POST /party-invites/:inviteId/accept — re-join after kick", () => {
+  // Before each test: put member back in party + conversation so kick works cleanly
+  before(async () => {
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    await db.insert(conversationParticipantsTable).values({ conversationId: convId, userId: memberId });
+  });
+
+  test("accepting a new invite after being kicked restores conversation_participants", async () => {
+    // Step 1: kick the member
+    const kickRes = await request(
+      "POST",
+      `/parties/${partyId}/kick/${memberId}`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`
+    );
+    assert.equal(kickRes.status, 200, "kick should succeed");
+
+    // Confirm removed from conversation_participants
+    const afterKick = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(afterKick.length, 0, "kicked member should have no participant row");
+
+    // Step 2: leader sends a fresh invite
+    const [inv] = await db
+      .insert(partyInvitesTable)
+      .values({
+        partyId,
+        invitedUserId: memberId,
+        invitedByUserId: leaderId,
+        status: "pending",
+      })
+      .returning({ id: partyInvitesTable.id });
+
+    // Step 3: member accepts the invite via the accept endpoint
+    const acceptRes = await request(
+      "POST",
+      `/party-invites/${inv.id}/accept`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(acceptRes.status, 200, "invite accept should succeed");
+
+    // Confirm restored to conversation_participants
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 1, "accepted invite should restore member to conversation_participants");
+  });
+
+  test("member accepted via invite can send a message to the party conversation", async () => {
+    // Ensure clean state: member kicked and not in conversation
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, memberId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+
+    // Re-add so kick endpoint can remove them
+    await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    await db.insert(conversationParticipantsTable).values({ conversationId: convId, userId: memberId });
+
+    // Kick
+    const kickRes = await request(
+      "POST",
+      `/parties/${partyId}/kick/${memberId}`,
+      leaderId,
+      `ptest_leader_${SUFFIX}`
+    );
+    assert.equal(kickRes.status, 200, "kick should succeed");
+
+    // Create and accept a fresh invite
+    const [inv] = await db
+      .insert(partyInvitesTable)
+      .values({
+        partyId,
+        invitedUserId: memberId,
+        invitedByUserId: leaderId,
+        status: "pending",
+      })
+      .returning({ id: partyInvitesTable.id });
+
+    const acceptRes = await request(
+      "POST",
+      `/party-invites/${inv.id}/accept`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(acceptRes.status, 200, "invite accept should succeed");
+
+    // Attempt to send a message — should succeed (201)
+    const msgRes = await request(
+      "POST",
+      `/conversations/${convId}/messages`,
+      memberId,
+      `ptest_member_${SUFFIX}`,
+      { content: "re-invited after kick!" }
+    );
+    assert.equal(msgRes.status, 201, "member re-invited after kick should be able to send messages");
+
+    // Verify the message was persisted
+    const [savedMsg] = await db
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          eq(messagesTable.conversationId, convId),
+          eq(messagesTable.senderId, memberId),
+          eq(messagesTable.content, "re-invited after kick!")
+        )
+      );
+    assert.ok(savedMsg, "message should exist in the database");
+  });
+});

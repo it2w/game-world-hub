@@ -181,8 +181,8 @@ async function request(
 
 describe("POST /parties/:partyId/kick/:userId", () => {
   test("leader can kick a member", async () => {
-    // Re-add member in case a prior test removed them
-    const existing = await db
+    // Re-add member to party_members and conversation_participants in case a prior test removed them
+    const existingMember = await db
       .select()
       .from(partyMembersTable)
       .where(
@@ -191,8 +191,21 @@ describe("POST /parties/:partyId/kick/:userId", () => {
           eq(partyMembersTable.userId, memberId)
         )
       );
-    if (!existing.length) {
+    if (!existingMember.length) {
       await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    }
+
+    const existingParticipant = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    if (!existingParticipant.length) {
+      await db.insert(conversationParticipantsTable).values({ conversationId: convId, userId: memberId });
     }
 
     const res = await request(
@@ -205,7 +218,7 @@ describe("POST /parties/:partyId/kick/:userId", () => {
     assert.deepEqual((res.body as { success: boolean }).success, true);
 
     // Member should no longer be in party_members
-    const rows = await db
+    const memberRows = await db
       .select()
       .from(partyMembersTable)
       .where(
@@ -214,7 +227,19 @@ describe("POST /parties/:partyId/kick/:userId", () => {
           eq(partyMembersTable.userId, memberId)
         )
       );
-    assert.equal(rows.length, 0, "kicked member should be removed from party");
+    assert.equal(memberRows.length, 0, "kicked member should be removed from party");
+
+    // Member should no longer be a participant in the party conversation
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 0, "kicked member should lose access to party conversation");
   });
 
   test("non-leader cannot kick a member", async () => {
@@ -324,5 +349,73 @@ describe("POST /parties/:partyId/transfer/:userId", () => {
       .update(partiesTable)
       .set({ leaderId })
       .where(eq(partiesTable.id, partyId));
+  });
+});
+
+// ─── Leave tests ──────────────────────────────────────────────────────────────
+
+describe("POST /parties/:partyId/leave", () => {
+  // Ensure member is in both party_members and conversation_participants before each leave test
+  before(async () => {
+    const existingMember = await db
+      .select()
+      .from(partyMembersTable)
+      .where(
+        and(
+          eq(partyMembersTable.partyId, partyId),
+          eq(partyMembersTable.userId, memberId)
+        )
+      );
+    if (!existingMember.length) {
+      await db.insert(partyMembersTable).values({ partyId, userId: memberId });
+    }
+
+    const existingParticipant = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    if (!existingParticipant.length) {
+      await db.insert(conversationParticipantsTable).values({ conversationId: convId, userId: memberId });
+    }
+  });
+
+  test("leaving removes member from party conversation participants", async () => {
+    const res = await request(
+      "POST",
+      `/parties/${partyId}/leave`,
+      memberId,
+      `ptest_member_${SUFFIX}`
+    );
+    assert.equal(res.status, 200, "leave should succeed");
+    assert.deepEqual((res.body as { success: boolean }).success, true);
+
+    // Member should no longer be in party_members
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(
+        and(
+          eq(partyMembersTable.partyId, partyId),
+          eq(partyMembersTable.userId, memberId)
+        )
+      );
+    assert.equal(memberRows.length, 0, "member should be removed from party after leaving");
+
+    // Member should no longer be a participant in the party conversation
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, memberId)
+        )
+      );
+    assert.equal(participantRows.length, 0, "member should lose access to party conversation after leaving");
   });
 });

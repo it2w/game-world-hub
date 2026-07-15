@@ -24,6 +24,10 @@ args = "test"
 task = "workflow.run"
 args = "web-test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "lfg-e2e"
+
 [[workflows.workflow]]
 name = "test"
 author = "agent"
@@ -42,6 +46,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/game-world-hub run test"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "lfg-e2e"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/game-world-hub && PLAYWRIGHT_BASE_URL=http://localhost:80 PLAYWRIGHT_API_BASE=http://localhost:80/api pnpm exec playwright test --config playwright.config.ts"
 
 [workflows.workflow.metadata]
 isValidation = true

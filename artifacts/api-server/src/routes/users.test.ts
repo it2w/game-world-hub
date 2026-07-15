@@ -153,6 +153,52 @@ async function requestUnauthenticated(
   });
 }
 
+async function requestWithBody(
+  method: string,
+  path: string,
+  actorId: number,
+  actorUsername: string,
+  body: unknown,
+): Promise<{ status: number; body: unknown }> {
+  const token = signToken({ userId: actorId, username: actorUsername });
+  const payload = JSON.stringify(body);
+
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${baseUrl}${path}`);
+    const req = httpRequest(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname + url.search,
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (res: IncomingMessage) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk));
+        res.on("end", () => {
+          if (!data) {
+            resolve({ status: res.statusCode ?? 0, body: null });
+            return;
+          }
+          try {
+            resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, body: data });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 // ─── DELETE /users/me/avatar ──────────────────────────────────────────────────
 
 describe("DELETE /users/me/avatar", () => {
@@ -257,5 +303,63 @@ describe("DELETE /users/me/photos/:photoId", () => {
       .from(profilePhotosTable)
       .where(eq(profilePhotosTable.id, photo.id));
     assert.equal(rows.length, 1, "other user's photo should remain in DB");
+  });
+});
+
+// ─── POST /users/me/photos — 12-photo limit ───────────────────────────────────
+
+describe("POST /users/me/photos — photo limit enforcement", () => {
+  const limitPhotoIds: number[] = [];
+
+  before(async () => {
+    // Seed exactly 12 photos for the owner so the profile is full
+    const values = Array.from({ length: 12 }, (_, i) => ({
+      userId,
+      objectPath: `/objects/limit-photo-${i}.jpg`,
+      caption: null,
+    }));
+    const inserted = await db
+      .insert(profilePhotosTable)
+      .values(values)
+      .returning({ id: profilePhotosTable.id });
+    for (const row of inserted) {
+      limitPhotoIds.push(row.id);
+      createdPhotoIds.push(row.id);
+    }
+  });
+
+  after(async () => {
+    // Clean up the 12 seeded photos (those not already deleted by the test)
+    if (limitPhotoIds.length) {
+      await db
+        .delete(profilePhotosTable)
+        .where(inArray(profilePhotosTable.id, limitPhotoIds));
+    }
+  });
+
+  test("uploading a 13th photo returns 400 with photo-limit error", async () => {
+    const res = await requestWithBody(
+      "POST",
+      "/users/me/photos",
+      userId,
+      `utest_owner_${SUFFIX}`,
+      { objectPath: "/objects/thirteenth.jpg" },
+    );
+    assert.equal(res.status, 400, "should return 400 when the photo limit is reached");
+    const body = res.body as Record<string, unknown>;
+    assert.ok(
+      typeof body.error === "string" && body.error.includes("Photo limit reached (12)"),
+      `expected error to mention photo limit, got: ${JSON.stringify(body.error)}`,
+    );
+  });
+
+  test("DB row count remains at 12 after the failed upload", async () => {
+    const rows = await db
+      .select()
+      .from(profilePhotosTable)
+      .where(eq(profilePhotosTable.userId, userId));
+    // Filter to only the photos seeded in this describe block
+    const limitRows = rows.filter(r => limitPhotoIds.includes(r.id));
+    assert.equal(limitRows.length, 12, "DB should still have exactly 12 photos after the rejected upload");
   });
 });

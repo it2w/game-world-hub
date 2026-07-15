@@ -75,7 +75,7 @@ after(async () => {
   }
 });
 
-// ─── HTTP helper ──────────────────────────────────────────────────────────────
+// ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 async function request(
   method: string,
@@ -118,9 +118,49 @@ async function request(
   });
 }
 
+/** Send a request with no Authorization header at all. */
+async function requestUnauthenticated(
+  method: string,
+  path: string,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${baseUrl}${path}`);
+    const req = httpRequest(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname + url.search,
+        method,
+      },
+      (res: IncomingMessage) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk));
+        res.on("end", () => {
+          if (!data) {
+            resolve({ status: res.statusCode ?? 0, body: null });
+            return;
+          }
+          try {
+            resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, body: data });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 // ─── DELETE /users/me/avatar ──────────────────────────────────────────────────
 
 describe("DELETE /users/me/avatar", () => {
+  test("unauthenticated request returns 401", async () => {
+    const res = await requestUnauthenticated("DELETE", "/users/me/avatar");
+    assert.equal(res.status, 401, "should return 401 when no Authorization header is sent");
+  });
+
   test("authenticated user can clear their own avatar", async () => {
     const res = await request(
       "DELETE",
@@ -141,6 +181,11 @@ describe("DELETE /users/me/avatar", () => {
 // ─── DELETE /users/me/banner ──────────────────────────────────────────────────
 
 describe("DELETE /users/me/banner", () => {
+  test("unauthenticated request returns 401", async () => {
+    const res = await requestUnauthenticated("DELETE", "/users/me/banner");
+    assert.equal(res.status, 401, "should return 401 when no Authorization header is sent");
+  });
+
   test("authenticated user can clear their own banner", async () => {
     const res = await request(
       "DELETE",
@@ -161,6 +206,11 @@ describe("DELETE /users/me/banner", () => {
 // ─── DELETE /users/me/photos/:photoId ────────────────────────────────────────
 
 describe("DELETE /users/me/photos/:photoId", () => {
+  test("unauthenticated request returns 401", async () => {
+    const res = await requestUnauthenticated("DELETE", "/users/me/photos/999999");
+    assert.equal(res.status, 401, "should return 401 when no Authorization header is sent");
+  });
+
   test("authenticated user can delete their own photo", async () => {
     // Insert a photo for the owner
     const [photo] = await db

@@ -147,6 +147,46 @@ async function postRespond(
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
+describe("POST /lfg/:postId/respond — author and duplicate guards", () => {
+  test("returns 400 when the post author responds to their own post", async () => {
+    const res = await postRespond(openPostId, authorId, `lfgtest_author_${SUFFIX}`);
+    assert.equal(res.status, 400, "expected 400 when author responds to own post");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+
+  test("returns 200 on a duplicate response without adding a second record", async () => {
+    // First response — should succeed and insert one record
+    const res1 = await postRespond(openPostId, responderId, `lfgtest_responder_${SUFFIX}`);
+    assert.equal(res1.status, 200, "expected 200 for first response");
+
+    const countBefore = await db
+      .select()
+      .from(lfgResponsesTable)
+      .where(
+        eq(lfgResponsesTable.postId, openPostId),
+      )
+      .then((rows) => rows.filter((r) => r.userId === responderId).length);
+
+    // Second response — idempotent, should still return 200
+    const res2 = await postRespond(openPostId, responderId, `lfgtest_responder_${SUFFIX}`);
+    assert.equal(res2.status, 200, "expected 200 for duplicate response");
+
+    const countAfter = await db
+      .select()
+      .from(lfgResponsesTable)
+      .where(
+        eq(lfgResponsesTable.postId, openPostId),
+      )
+      .then((rows) => rows.filter((r) => r.userId === responderId).length);
+
+    assert.equal(countAfter, countBefore, "duplicate response must not add a second DB record");
+  });
+});
+
 describe("POST /lfg/:postId/respond — stale-post guard", () => {
   test("returns 409 when the post is closed", async () => {
     const res = await postRespond(closedPostId, responderId, `lfgtest_responder_${SUFFIX}`);

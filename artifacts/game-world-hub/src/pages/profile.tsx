@@ -8,6 +8,7 @@ import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, Trophy, X, Shield, Award, Star, Gem, Crown, Flame, Medal } from "lucide-react";
+import { TierBadge, TierPip, type TierName } from "@/components/tier-badge";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
@@ -325,22 +326,36 @@ export default function Profile() {
             </p>
           )}
 
-          {user.rank && (
-            <div className="flex items-center gap-2">
-              {(() => {
-                const RankIcon = getRankIcon(user.rank);
-                const color = getRankColor(user.rank);
-                return (
-                  <span
-                    className="flex items-center gap-2 px-3 py-1.5 border text-xs font-mono uppercase tracking-widest font-bold"
-                    style={{ borderColor: color, color, background: `${color}18` }}
-                    title={t("rank.label")}
-                  >
-                    <RankIcon className="w-3.5 h-3.5" style={{ color }} />
-                    {user.rank}
-                  </span>
-                );
-              })()}
+          {/* Auto-computed platform tier — prominently displayed */}
+          {"tier" in user && user.tier && (
+            <div className="flex flex-col items-center md:items-start gap-3 py-2">
+              <TierBadge
+                tier={user.tier as TierName}
+                level={user.tierLevel ?? 1}
+                xpIntoLevel={user.xpIntoLevel ?? 0}
+                xpForNext={user.xpForNext ?? 400}
+                size="md"
+                showXpBar
+              />
+              {/* Self-reported game rank (secondary) */}
+              {user.rank && (
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const RankIcon = getRankIcon(user.rank!);
+                    const color = getRankColor(user.rank!);
+                    return (
+                      <span
+                        className="flex items-center gap-2 px-3 py-1 border text-[10px] font-mono uppercase tracking-widest opacity-75"
+                        style={{ borderColor: color, color, background: `${color}12` }}
+                        title={t("rank.label")}
+                      >
+                        <RankIcon className="w-3 h-3" style={{ color }} />
+                        {user.rank}
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
 

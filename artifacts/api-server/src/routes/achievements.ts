@@ -12,46 +12,9 @@ import {
   platformLinksTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { computeXp, computeLevel, getTier } from "../lib/xp";
 
 const router: IRouter = Router();
-
-// XP awarded per unit of each tracked activity. Kept here (not in the DB) so
-// progression is derived on-read from existing data — no migrations, no drift.
-const XP = {
-  friend: 50,
-  partyCreated: 120,
-  partyJoined: 40,
-  message: 4,
-  lfgPost: 70,
-  lfgResponse: 35,
-  game: 20,
-  platform: 30,
-} as const;
-
-/**
- * Progressive level curve: level 2 costs 400 XP, and each subsequent level
- * costs 200 XP more than the last. Returns the current level plus how far the
- * player is into it, so the client can render an XP bar.
- */
-function computeLevel(totalXp: number) {
-  let level = 1;
-  let remaining = totalXp;
-  let need = 400;
-  while (remaining >= need) {
-    remaining -= need;
-    level += 1;
-    need = 400 + (level - 1) * 200;
-  }
-  return { level, xpIntoLevel: remaining, xpForNext: need };
-}
-
-function rankTitle(level: number): string {
-  if (level >= 10) return "LEGEND";
-  if (level >= 7) return "ELITE";
-  if (level >= 5) return "VETERAN";
-  if (level >= 3) return "OPERATIVE";
-  return "ROOKIE";
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function countWhere(table: any, column: any, userId: number): Promise<number> {
@@ -94,16 +57,7 @@ router.get("/achievements", requireAuth, async (req, res) => {
     platforms,
   };
 
-  const totalXp =
-    friends * XP.friend +
-    partiesCreated * XP.partyCreated +
-    partiesJoined * XP.partyJoined +
-    messagesSent * XP.message +
-    lfgPosts * XP.lfgPost +
-    lfgResponses * XP.lfgResponse +
-    games * XP.game +
-    platforms * XP.platform;
-
+  const totalXp = computeXp({ friends, partiesCreated, partiesJoined, messagesSent: messagesSent, lfgPosts, lfgResponses, games, platforms });
   const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
 
   const defs: Array<{
@@ -135,7 +89,7 @@ router.get("/achievements", requireAuth, async (req, res) => {
 
   res.json({
     level,
-    rank: rankTitle(level),
+    rank: getTier(level),
     totalXp,
     xpIntoLevel,
     xpForNext,

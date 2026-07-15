@@ -8,6 +8,7 @@
 import type { PlatformLink } from './platformLink';
 import type { UserGame } from './userGame';
 import type { UserProfileStatus } from './userProfileStatus';
+import type { UserProfileTier } from './userProfileTier';
 
 export interface UserProfile {
   id: number;
@@ -20,10 +21,17 @@ export interface UserProfile {
   /** @nullable */
   bio?: string | null;
   /**
-     * User's self-reported competitive rank
+     * User's self-reported competitive rank (e.g. Gold, Platinum III)
      * @nullable
      */
   rank?: string | null;
+  /** Auto-computed platform tier — cannot be set by the user */
+  tier: UserProfileTier;
+  /** Numeric platform level (1+) */
+  tierLevel: number;
+  totalXp: number;
+  xpIntoLevel: number;
+  xpForNext: number;
   allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */

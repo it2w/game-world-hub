@@ -87,6 +87,7 @@ export * from './userGame';
 export * from './userGameInput';
 export * from './userProfile';
 export * from './userProfileStatus';
+export * from './userProfileTier';
 export * from './userStatus';
 export * from './userTwoFactorMethod';
 export * from './verifyEmailInput';

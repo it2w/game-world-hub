@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -9,7 +9,14 @@ import {
   profileCommentsTable,
   profilePhotosTable,
   blocksTable,
+  friendshipsTable,
+  partiesTable,
+  partyMembersTable,
+  messagesTable,
+  lfgPostsTable,
+  lfgResponsesTable,
 } from "@workspace/db";
+import { computeXp, computeLevel, getTier } from "../lib/xp";
 import {
   UpdateProfileBody,
   CreateProfileCommentBody,
@@ -119,8 +126,33 @@ router.get("/users/:userId", requireAuth, async (req, res): Promise<void> => {
 
   const platforms = await db.select().from(platformLinksTable).where(eq(platformLinksTable.userId, userId));
 
+  // Auto-tier: compute XP from user activity (parallel DB counts, read-only).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cw = async (table: any, col: any) => {
+    const [r] = await db.select({ c: count() }).from(table).where(eq(col, userId));
+    return Number(r?.c ?? 0);
+  };
+  const [friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, gameCount, platformCount] = await Promise.all([
+    cw(friendshipsTable, friendshipsTable.userId),
+    cw(partiesTable, partiesTable.leaderId),
+    cw(partyMembersTable, partyMembersTable.userId),
+    cw(messagesTable, messagesTable.senderId),
+    cw(lfgPostsTable, lfgPostsTable.authorId),
+    cw(lfgResponsesTable, lfgResponsesTable.userId),
+    cw(userGamesTable, userGamesTable.userId),
+    cw(platformLinksTable, platformLinksTable.userId),
+  ]);
+  const totalXp = computeXp({ friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games: gameCount, platforms: platformCount });
+  const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
+  const tier = getTier(level);
+
   res.json({
     ...safeUser(user),
+    tier,
+    tierLevel: level,
+    totalXp,
+    xpIntoLevel,
+    xpForNext,
     games: games.map(g => ({
       id: g.id,
       game: {

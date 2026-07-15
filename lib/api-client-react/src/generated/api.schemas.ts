@@ -211,6 +211,25 @@ export interface StatusUpdate {
   currentGame?: string | null;
 }
 
+/**
+ * Auto-computed platform tier — cannot be set by the user
+ */
+export type UserProfileTier = typeof UserProfileTier[keyof typeof UserProfileTier];
+
+
+export const UserProfileTier = {
+  INITIATE: 'INITIATE',
+  SCOUT: 'SCOUT',
+  OPERATIVE: 'OPERATIVE',
+  HUNTER: 'HUNTER',
+  WARRIOR: 'WARRIOR',
+  VETERAN: 'VETERAN',
+  ELITE: 'ELITE',
+  CHAMPION: 'CHAMPION',
+  LEGEND: 'LEGEND',
+  MYTHIC: 'MYTHIC',
+} as const;
+
 export type UserProfileStatus = typeof UserProfileStatus[keyof typeof UserProfileStatus];
 
 
@@ -270,10 +289,17 @@ export interface UserProfile {
   /** @nullable */
   bio?: string | null;
   /**
-     * User's self-reported competitive rank
+     * User's self-reported competitive rank (e.g. Gold, Platinum III)
      * @nullable
      */
   rank?: string | null;
+  /** Auto-computed platform tier — cannot be set by the user */
+  tier: UserProfileTier;
+  /** Numeric platform level (1+) */
+  tierLevel: number;
+  totalXp: number;
+  xpIntoLevel: number;
+  xpForNext: number;
   allowProfileComments: boolean;
   status: UserProfileStatus;
   /** @nullable */

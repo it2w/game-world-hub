@@ -2,6 +2,48 @@
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
+/* ── Tier badge animations ──────────────────────────────────────────────── */
+@keyframes tier-pulse-kf {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--tier-glow, #22c55e)); }
+  50%       { filter: drop-shadow(0 0 14px var(--tier-glow, #22c55e)); }
+}
+@keyframes tier-flicker-kf {
+  0%, 100% { filter: drop-shadow(0 0 6px #ef4444); opacity: 1; }
+  40%      { filter: drop-shadow(0 0 18px #ef4444); opacity: 0.9; }
+  60%      { filter: drop-shadow(0 0 10px #f97316); opacity: 1; }
+}
+@keyframes tier-spark-kf {
+  0%   { filter: drop-shadow(0 0 6px #a855f7); }
+  33%  { filter: drop-shadow(0 0 20px #7c3aed); }
+  66%  { filter: drop-shadow(0 0 10px #ec4899); }
+  100% { filter: drop-shadow(0 0 6px #a855f7); }
+}
+@keyframes tier-shine-kf {
+  0%   { filter: drop-shadow(0 0 8px #eab308); }
+  50%  { filter: drop-shadow(0 0 22px #fde047) brightness(1.1); }
+  100% { filter: drop-shadow(0 0 8px #eab308); }
+}
+@keyframes tier-rainbow-kf {
+  0%   { filter: drop-shadow(0 0 10px #ec4899) hue-rotate(0deg); }
+  50%  { filter: drop-shadow(0 0 22px #7c3aed) hue-rotate(60deg); }
+  100% { filter: drop-shadow(0 0 10px #ec4899) hue-rotate(0deg); }
+}
+@keyframes tier-cosmic-kf {
+  0%   { filter: drop-shadow(0 0 12px #f97316) hue-rotate(0deg);   transform: scale(1); }
+  25%  { filter: drop-shadow(0 0 24px #7c3aed) hue-rotate(45deg);  transform: scale(1.02); }
+  50%  { filter: drop-shadow(0 0 18px #ec4899) hue-rotate(90deg);  transform: scale(1); }
+  75%  { filter: drop-shadow(0 0 24px #3b82f6) hue-rotate(135deg); transform: scale(1.02); }
+  100% { filter: drop-shadow(0 0 12px #f97316) hue-rotate(0deg);   transform: scale(1); }
+}
+
+.tier-anim-pulse   { animation: tier-pulse-kf   2.5s ease-in-out infinite; }
+.tier-anim-glow    { animation: tier-pulse-kf   2.0s ease-in-out infinite; }
+.tier-anim-flicker { animation: tier-flicker-kf 1.8s ease-in-out infinite; }
+.tier-anim-spark   { animation: tier-spark-kf   2.2s ease-in-out infinite; }
+.tier-anim-shine   { animation: tier-shine-kf   2.0s ease-in-out infinite; }
+.tier-anim-rainbow { animation: tier-rainbow-kf 3.0s ease-in-out infinite; }
+.tier-anim-cosmic  { animation: tier-cosmic-kf  4.0s ease-in-out infinite; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

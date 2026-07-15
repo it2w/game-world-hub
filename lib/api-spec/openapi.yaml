@@ -2167,7 +2167,7 @@ components:
 
     UserProfile:
       type: object
-      required: [id, username, displayName, status, createdAt, games, platforms, allowProfileComments]
+      required: [id, username, displayName, status, createdAt, games, platforms, allowProfileComments, tier, tierLevel, totalXp, xpIntoLevel, xpForNext]
       properties:
         id:
           type: integer
@@ -2183,7 +2183,20 @@ components:
           type: ["string", "null"]
         rank:
           type: ["string", "null"]
-          description: User's self-reported competitive rank
+          description: User's self-reported competitive rank (e.g. Gold, Platinum III)
+        tier:
+          type: string
+          description: Auto-computed platform tier — cannot be set by the user
+          enum: [INITIATE, SCOUT, OPERATIVE, HUNTER, WARRIOR, VETERAN, ELITE, CHAMPION, LEGEND, MYTHIC]
+        tierLevel:
+          type: integer
+          description: Numeric platform level (1+)
+        totalXp:
+          type: integer
+        xpIntoLevel:
+          type: integer
+        xpForNext:
+          type: integer
         allowProfileComments:
           type: boolean
         status:

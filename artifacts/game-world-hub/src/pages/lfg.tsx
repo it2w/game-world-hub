@@ -98,6 +98,7 @@ export default function Lfg() {
   // Track which responder the "create party & invite" popover is open for
   const [createPartyFor, setCreatePartyFor] = useState<{ id: number; displayName: string } | null>(null);
   const [newPartyName, setNewPartyName] = useState("");
+  const [newPartySize, setNewPartySize] = useState<number>(4);
 
   type LfgPost = NonNullable<typeof posts>[number];
   const [closeConfirmPost, setCloseConfirmPost] = useState<LfgPost | null>(null);
@@ -110,9 +111,9 @@ export default function Lfg() {
     setInvitedIds(new Set());
   };
 
-  const handleCreatePartyAndInvite = (userId: number, displayName: string, partyName: string) => {
+  const handleCreatePartyAndInvite = (userId: number, displayName: string, partyName: string, maxSize: number) => {
     createParty.mutate(
-      { data: { name: partyName, maxSize: 4 } },
+      { data: { name: partyName, maxSize } },
       {
         onSuccess: (newParty) => {
           queryClient.invalidateQueries({ queryKey: getListPartiesQueryKey() });
@@ -123,6 +124,7 @@ export default function Lfg() {
                 setInvitedIds((prev) => new Set([...prev, userId]));
                 setCreatePartyFor(null);
                 setNewPartyName("");
+                setNewPartySize(4);
                 toast({ title: t("closeConfirm.inviteSent", { name: displayName }) });
               },
               onError: () => toast({ title: t("closeConfirm.inviteFailed"), variant: "destructive" }),
@@ -542,9 +544,11 @@ export default function Lfg() {
                         onOpenChange={(v) => {
                           if (v) {
                             setCreatePartyFor({ id: r.id, displayName: r.displayName });
+                            setNewPartySize(Math.min(100, Math.max(2, closeConfirmPost?.neededPlayers ?? 4)));
                           } else {
                             setCreatePartyFor(null);
                             setNewPartyName("");
+                            setNewPartySize(4);
                           }
                         }}
                       >
@@ -557,7 +561,7 @@ export default function Lfg() {
                             <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.createAndInvite")}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-60 p-3 bg-card border-border rounded-none" align="end">
+                        <PopoverContent className="w-64 p-3 bg-card border-border rounded-none" align="end">
                           <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2">
                             {t("closeConfirm.newPartyName")}
                           </p>
@@ -568,15 +572,26 @@ export default function Lfg() {
                             className="font-mono bg-background border-border rounded-none text-xs mb-2 focus-visible:ring-primary"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && newPartyName.trim()) {
-                                handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim());
+                                handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim(), newPartySize);
                               }
                             }}
+                          />
+                          <p className="font-mono text-[10px] uppercase text-muted-foreground mb-1">
+                            {t("closeConfirm.partySizeLabel")}
+                          </p>
+                          <Input
+                            type="number"
+                            min={2}
+                            max={100}
+                            value={newPartySize}
+                            onChange={(e) => setNewPartySize(Math.min(100, Math.max(2, Number(e.target.value) || 2)))}
+                            className="font-mono bg-background border-border rounded-none text-xs mb-2 focus-visible:ring-primary"
                           />
                           <Button
                             size="sm"
                             className="font-mono rounded-none text-[10px] w-full"
                             disabled={!newPartyName.trim() || createParty.isPending || inviteToParty.isPending}
-                            onClick={() => handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim())}
+                            onClick={() => handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim(), newPartySize)}
                           >
                             {createParty.isPending || inviteToParty.isPending
                               ? t("closeConfirm.creating")

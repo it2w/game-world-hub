@@ -80,6 +80,7 @@
     "createAndInvite": "إنشاء ودعوة",
     "newPartyName": "اسم الفريق الجديد",
     "newPartyNamePlaceholder": "مثلاً: فرقة ألفا",
+    "partySizeLabel": "حجم الفريق (المقاعد)",
     "createAndInviteConfirm": "إنشاء ودعوة",
     "creating": "جارٍ الإنشاء...",
     "createPartyFailed": "تعذّر إنشاء الفريق"

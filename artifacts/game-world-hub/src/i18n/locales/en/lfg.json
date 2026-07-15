@@ -76,6 +76,7 @@
     "createAndInvite": "Create & Invite",
     "newPartyName": "New party name",
     "newPartyNamePlaceholder": "e.g. Squad Alpha",
+    "partySizeLabel": "Party size (slots)",
     "createAndInviteConfirm": "CREATE & INVITE",
     "creating": "CREATING...",
     "createPartyFailed": "Could not create party"

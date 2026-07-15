@@ -72,6 +72,12 @@
     "inviteSent": "Invite sent to {{name}}",
     "inviteFailed": "Could not send invite",
     "noParty": "Join or create a party first",
-    "selectParty": "Select party"
+    "selectParty": "Select party",
+    "createAndInvite": "Create & Invite",
+    "newPartyName": "New party name",
+    "newPartyNamePlaceholder": "e.g. Squad Alpha",
+    "createAndInviteConfirm": "CREATE & INVITE",
+    "creating": "CREATING...",
+    "createPartyFailed": "Could not create party"
   }
 }

@@ -76,6 +76,12 @@
     "inviteSent": "تم إرسال الدعوة إلى {{name}}",
     "inviteFailed": "تعذّر إرسال الدعوة",
     "noParty": "انضم إلى فريق أو أنشئ واحداً أولاً",
-    "selectParty": "اختر الفريق"
+    "selectParty": "اختر الفريق",
+    "createAndInvite": "إنشاء ودعوة",
+    "newPartyName": "اسم الفريق الجديد",
+    "newPartyNamePlaceholder": "مثلاً: فرقة ألفا",
+    "createAndInviteConfirm": "إنشاء ودعوة",
+    "creating": "جارٍ الإنشاء...",
+    "createPartyFailed": "تعذّر إنشاء الفريق"
   }
 }

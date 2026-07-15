@@ -10,6 +10,10 @@ import Lfg from "./lfg";
  * then either fires the close mutation (CLOSE SIGNAL) or does nothing (CANCEL).
  * When there are no responders it shows a placeholder message instead.
  *
+ * When the author has no party, "Create & Invite" opens a popover with a
+ * party-name input; submitting creates the party then immediately invites the
+ * selected responder.
+ *
  * The API / React-Query / router layers are all stubbed — only the dialog's own
  * interaction logic is under test.
  */
@@ -21,29 +25,31 @@ const h = vi.hoisted(() => {
   const respondMutate = vi.fn();
   const deleteMutate = vi.fn();
   const createMutate = vi.fn();
+  const createPartyMutate = vi.fn();
+  const inviteToPartyMutate = vi.fn();
   const invalidateQueries = vi.fn();
+  const toast = vi.fn();
 
   // Mutable slot: individual tests set this before rendering.
   let currentPosts: unknown[] = [];
 
-  // Mutable slot: controls close mutation pending state.
+  // Mutable slot: controls mutation pending states.
   let closeIsPending = false;
-
-  // Mutable slot: controls respond mutation pending state.
   let respondIsPending = false;
-
-  // Mutable slot: controls delete mutation pending state.
   let deleteIsPending = false;
-
-  // Mutable slot: controls create mutation pending state.
   let createIsPending = false;
+  let createPartyIsPending = false;
+  let inviteIsPending = false;
 
   return {
     closeMutate,
     respondMutate,
     deleteMutate,
     createMutate,
+    createPartyMutate,
+    inviteToPartyMutate,
     invalidateQueries,
+    toast,
     getPosts: () => currentPosts,
     setPosts: (p: unknown[]) => { currentPosts = p; },
     getCloseIsPending: () => closeIsPending,
@@ -54,6 +60,10 @@ const h = vi.hoisted(() => {
     setDeleteIsPending: (v: boolean) => { deleteIsPending = v; },
     getCreateIsPending: () => createIsPending,
     setCreateIsPending: (v: boolean) => { createIsPending = v; },
+    getCreatePartyIsPending: () => createPartyIsPending,
+    setCreatePartyIsPending: (v: boolean) => { createPartyIsPending = v; },
+    getInviteIsPending: () => inviteIsPending,
+    setInviteIsPending: (v: boolean) => { inviteIsPending = v; },
   };
 });
 
@@ -108,7 +118,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useRespondToLfgPost: () => ({ mutate: h.respondMutate, isPending: h.getRespondIsPending() }),
   useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: h.getCloseIsPending() }),
   useDeleteLfgPost: () => ({ mutate: h.deleteMutate, isPending: h.getDeleteIsPending() }),
-  useInviteToParty: () => ({ mutate: vi.fn(), isPending: false }),
+  useInviteToParty: () => ({ mutate: h.inviteToPartyMutate, isPending: h.getInviteIsPending() }),
+  useCreateParty: () => ({ mutate: h.createPartyMutate, isPending: h.getCreatePartyIsPending() }),
   useListParties: () => ({ data: [] }),
   getListLfgPostsQueryKey: () => ["lfg-posts"],
   getGetMeQueryKey: () => ["me"],
@@ -126,7 +137,7 @@ vi.mock("wouter", () => ({
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: h.toast }),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -147,6 +158,19 @@ function getCancelButton() {
   return screen.getByRole("button", { name: /^cancel$/i });
 }
 
+/** Click the "Create & Invite" button for the first responder. */
+function clickCreateAndInvite() {
+  const btn = screen.getAllByRole("button", { name: /create & invite/i })[0];
+  fireEvent.click(btn);
+}
+
+/** Type a party name into the popover input. */
+function typePartyName(name: string) {
+  const input = screen.getByPlaceholderText(/squad alpha/i);
+  fireEvent.change(input, { target: { value: name } });
+  return input;
+}
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -157,13 +181,18 @@ beforeEach(() => {
   h.respondMutate.mockReset();
   h.deleteMutate.mockReset();
   h.createMutate.mockReset();
+  h.createPartyMutate.mockReset();
+  h.inviteToPartyMutate.mockReset();
   h.invalidateQueries.mockReset();
+  h.toast.mockReset();
 
   // Default: mutations are not pending.
   h.setCloseIsPending(false);
   h.setRespondIsPending(false);
   h.setDeleteIsPending(false);
   h.setCreateIsPending(false);
+  h.setCreatePartyIsPending(false);
+  h.setInviteIsPending(false);
 
   // Simulate a successful close so onSuccess callbacks fire.
   h.closeMutate.mockImplementation(
@@ -404,5 +433,202 @@ describe("LFG create dialog — isPending guard on submit", () => {
     fireEvent.click(getBroadcastButton());
 
     expect(h.createMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("LFG close-signal dialog — create party & invite (no party)", () => {
+  test("shows Create & Invite button when author has no party", () => {
+    render(<Lfg />);
+    openCloseDialog();
+
+    // Both responders get a "Create & Invite" button.
+    const btns = screen.getAllByRole("button", { name: /create & invite/i });
+    expect(btns.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("clicking Create & Invite opens a popover with a party name input", () => {
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+
+    expect(screen.getByPlaceholderText(/squad alpha/i)).toBeInTheDocument();
+  });
+
+  test("CREATE & INVITE confirm button is disabled when party name is empty", () => {
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+
+    // The confirm button inside the popover — name empty, must be disabled.
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    // The popover's submit button is after the trigger; pick the last one.
+    const popoverConfirm = confirmBtns[confirmBtns.length - 1];
+    expect(popoverConfirm).toBeDisabled();
+  });
+
+  test("typing a name enables the CREATE & INVITE confirm button", () => {
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("Squad Alpha");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    const popoverConfirm = confirmBtns[confirmBtns.length - 1];
+    expect(popoverConfirm).not.toBeDisabled();
+  });
+
+  test("submitting calls createParty with the typed name", () => {
+    h.createPartyMutate.mockImplementation(() => {
+      // Do not call onSuccess — we just want to verify the call.
+    });
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    expect(h.createPartyMutate).toHaveBeenCalledOnce();
+    expect(h.createPartyMutate).toHaveBeenCalledWith(
+      { data: expect.objectContaining({ name: "My Squad" }) },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test("keyboard Enter on the name input triggers the create+invite flow", () => {
+    h.createPartyMutate.mockImplementation(() => {});
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    const input = typePartyName("Enter Squad");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(h.createPartyMutate).toHaveBeenCalledOnce();
+    expect(h.createPartyMutate).toHaveBeenCalledWith(
+      { data: expect.objectContaining({ name: "Enter Squad" }) },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test("on createParty success, inviteToParty is called with the new party id and responder id", () => {
+    const NEW_PARTY = { id: 99, name: "My Squad", members: [] };
+
+    h.createPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onSuccess?: (party: typeof NEW_PARTY) => void }) => {
+        opts?.onSuccess?.(NEW_PARTY);
+      },
+    );
+    h.inviteToPartyMutate.mockImplementation(() => {});
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    expect(h.inviteToPartyMutate).toHaveBeenCalledOnce();
+    expect(h.inviteToPartyMutate).toHaveBeenCalledWith(
+      { partyId: 99, data: { userId: 10 } }, // responder id=10 (Player One)
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  test("on full success, toast is shown and responder is marked Invited", async () => {
+    const NEW_PARTY = { id: 99, name: "My Squad", members: [] };
+
+    h.createPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onSuccess?: (party: typeof NEW_PARTY) => void }) => {
+        opts?.onSuccess?.(NEW_PARTY);
+      },
+    );
+    h.inviteToPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onSuccess?: () => void }) => {
+        opts?.onSuccess?.();
+      },
+    );
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    // Toast fired.
+    expect(h.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining("Player One") }),
+    );
+
+    // Responder row now shows "Invited" badge.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /invited/i })).toBeInTheDocument();
+    });
+  });
+
+  test("on createParty failure, shows error toast and does not call inviteToParty", () => {
+    h.createPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onError?: () => void }) => {
+        opts?.onError?.();
+      },
+    );
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("Bad Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    expect(h.inviteToPartyMutate).not.toHaveBeenCalled();
+    expect(h.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
+  });
+
+  test("on invite failure after party creation, shows error toast", () => {
+    const NEW_PARTY = { id: 99, name: "My Squad", members: [] };
+
+    h.createPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onSuccess?: (party: typeof NEW_PARTY) => void }) => {
+        opts?.onSuccess?.(NEW_PARTY);
+      },
+    );
+    h.inviteToPartyMutate.mockImplementation(
+      (_args: unknown, opts?: { onError?: () => void }) => {
+        opts?.onError?.();
+      },
+    );
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    expect(h.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
+  });
+
+  test("CREATE & INVITE confirm button is disabled while createParty is pending", () => {
+    h.setCreatePartyIsPending(true);
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /creating/i });
+    expect(confirmBtns[0]).toBeDisabled();
   });
 });

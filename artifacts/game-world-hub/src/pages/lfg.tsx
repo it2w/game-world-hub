@@ -11,6 +11,7 @@ import {
   useListParties,
   getListPartiesQueryKey,
   useInviteToParty,
+  useCreateParty,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +83,7 @@ export default function Lfg() {
   const close = useCloseLfgPost();
   const remove = useDeleteLfgPost();
   const inviteToParty = useInviteToParty();
+  const createParty = useCreateParty();
 
   const { data: parties } = useListParties({ query: { queryKey: getListPartiesQueryKey() } });
 
@@ -93,6 +95,9 @@ export default function Lfg() {
 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  // Track which responder the "create party & invite" popover is open for
+  const [createPartyFor, setCreatePartyFor] = useState<{ id: number; displayName: string } | null>(null);
+  const [newPartyName, setNewPartyName] = useState("");
 
   type LfgPost = NonNullable<typeof posts>[number];
   const [closeConfirmPost, setCloseConfirmPost] = useState<LfgPost | null>(null);
@@ -103,6 +108,30 @@ export default function Lfg() {
   const closeConfirmDialog = () => {
     setCloseConfirmPost(null);
     setInvitedIds(new Set());
+  };
+
+  const handleCreatePartyAndInvite = (userId: number, displayName: string, partyName: string) => {
+    createParty.mutate(
+      { data: { name: partyName, maxSize: 4 } },
+      {
+        onSuccess: (newParty) => {
+          queryClient.invalidateQueries({ queryKey: getListPartiesQueryKey() });
+          inviteToParty.mutate(
+            { partyId: newParty.id, data: { userId } },
+            {
+              onSuccess: () => {
+                setInvitedIds((prev) => new Set([...prev, userId]));
+                setCreatePartyFor(null);
+                setNewPartyName("");
+                toast({ title: t("closeConfirm.inviteSent", { name: displayName }) });
+              },
+              onError: () => toast({ title: t("closeConfirm.inviteFailed"), variant: "destructive" }),
+            },
+          );
+        },
+        onError: () => toast({ title: t("closeConfirm.createPartyFailed"), variant: "destructive" }),
+      },
+    );
   };
 
   const handleInviteResponder = (userId: number, displayName: string, partyId: number) => {
@@ -508,15 +537,53 @@ export default function Lfg() {
                         <Check className="w-3 h-3 me-1" /> {t("closeConfirm.invited")}
                       </Button>
                     ) : myParties.length === 0 ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled
-                        title={t("closeConfirm.noParty")}
-                        className="font-mono rounded-none text-[10px] shrink-0 px-2"
+                      <Popover
+                        open={createPartyFor?.id === r.id}
+                        onOpenChange={(v) => {
+                          if (v) {
+                            setCreatePartyFor({ id: r.id, displayName: r.displayName });
+                          } else {
+                            setCreatePartyFor(null);
+                            setNewPartyName("");
+                          }
+                        }}
                       >
-                        <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.invite")}
-                      </Button>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="font-mono rounded-none text-[10px] shrink-0 px-2"
+                          >
+                            <UserPlus className="w-3 h-3 me-1" /> {t("closeConfirm.createAndInvite")}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-60 p-3 bg-card border-border rounded-none" align="end">
+                          <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2">
+                            {t("closeConfirm.newPartyName")}
+                          </p>
+                          <Input
+                            value={newPartyName}
+                            onChange={(e) => setNewPartyName(e.target.value)}
+                            placeholder={t("closeConfirm.newPartyNamePlaceholder")}
+                            className="font-mono bg-background border-border rounded-none text-xs mb-2 focus-visible:ring-primary"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newPartyName.trim()) {
+                                handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim());
+                              }
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            className="font-mono rounded-none text-[10px] w-full"
+                            disabled={!newPartyName.trim() || createParty.isPending || inviteToParty.isPending}
+                            onClick={() => handleCreatePartyAndInvite(r.id, r.displayName, newPartyName.trim())}
+                          >
+                            {createParty.isPending || inviteToParty.isPending
+                              ? t("closeConfirm.creating")
+                              : t("closeConfirm.createAndInviteConfirm")}
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
                     ) : myParties.length === 1 ? (
                       <Button
                         variant="outline"

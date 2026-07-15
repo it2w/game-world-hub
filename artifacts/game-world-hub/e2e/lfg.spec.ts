@@ -216,6 +216,51 @@ test.describe("LFG post lifecycle", () => {
   });
 });
 
+// ─── Deletion tests ───────────────────────────────────────────────────────────
+
+test.describe("LFG post deletion", () => {
+  /**
+   * Author creates a post, clicks the trash button, and the card disappears
+   * immediately (optimistic invalidation). A second user who had the post in
+   * their view no longer sees it after reloading.
+   */
+  test("delete button removes the card immediately for the author and hides it from other users after reload", async ({ browser }) => {
+    const gameTitle = `DelGame_${uid()}`;
+    const author = makeUser("del");
+    const viewer = makeUser("view");
+
+    // ── Author: register and create post ──────────────────────────────────────
+    const authorCtx = await browser.newContext();
+    const authorPage = await authorCtx.newPage();
+    await registerUser(authorPage, author);
+    await goToLfg(authorPage);
+    await createPost(authorPage, gameTitle);
+
+    const authorCard = authorPage.locator("div.border", { hasText: gameTitle }).first();
+    await expect(authorCard).toBeVisible({ timeout: 10_000 });
+
+    // ── Viewer: register, navigate to /lfg, confirm the post is visible ───────
+    const viewerCtx = await browser.newContext();
+    const viewerPage = await viewerCtx.newPage();
+    await registerUser(viewerPage, viewer);
+    await goToLfg(viewerPage);
+    await expect(viewerPage.locator("div.border", { hasText: gameTitle }).first()).toBeVisible({ timeout: 10_000 });
+
+    // ── Author: click the trash / delete button ───────────────────────────────
+    await authorCard.getByTestId("btn-delete-post").click();
+
+    // Card must disappear immediately — no page reload needed (list invalidated)
+    await expect(authorPage.locator("div.border", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
+
+    // ── Viewer: reload — the deleted post must not appear ─────────────────────
+    await goToLfg(viewerPage);
+    await expect(viewerPage.locator("div.border", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
+
+    await authorCtx.close();
+    await viewerCtx.close();
+  });
+});
+
 // ─── Filter tests ─────────────────────────────────────────────────────────────
 
 test.describe("LFG client-side filter", () => {

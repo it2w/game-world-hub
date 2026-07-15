@@ -453,6 +453,7 @@ export default function Lfg() {
                           size="sm"
                           className="font-mono rounded-none text-xs text-destructive hover:text-destructive"
                           disabled={remove.isPending}
+                          data-testid="btn-delete-post"
                           onClick={() => remove.mutate({ postId: post.id }, { onSuccess: invalidate })}
                         >
                           <Trash2 className="w-3 h-3" />

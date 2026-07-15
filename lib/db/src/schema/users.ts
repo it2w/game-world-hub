@@ -27,6 +27,12 @@ export const usersTable = pgTable("users", {
   // Last time the user's open tab reported activity (heartbeat). Used to auto-clear
   // currentGame a few minutes after every tab is closed.
   lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+  // Pro subscription status. Auto-computed from proSubscriptions; mirrored here for fast reads.
+  isPro: boolean("is_pro").notNull().default(false),
+  proActivatedAt: timestamp("pro_activated_at", { withTimezone: true }),
+  proExpiresAt: timestamp("pro_expires_at", { withTimezone: true }),
+  proOrderId: text("pro_order_id"),
+  proProvider: text("pro_provider").notNull().default("salla"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

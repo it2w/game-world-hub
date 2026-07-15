@@ -25,6 +25,8 @@ export interface UserProfile {
      * @nullable
      */
   rank?: string | null;
+  /** Whether the user has an active Pro subscription */
+  isPro: boolean;
   /** Auto-computed platform tier — cannot be set by the user */
   tier: UserProfileTier;
   /** Numeric platform level (1+) */

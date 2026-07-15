@@ -93,6 +93,8 @@ export interface User {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /** Whether the user has an active Pro subscription */
+  isPro?: boolean;
   /**
      * Auto-computed platform tier when available
      * @nullable
@@ -252,6 +254,20 @@ export interface StatusUpdate {
   currentGame?: string | null;
 }
 
+export interface ProStatus {
+  isPro: boolean;
+  /**
+     * ISO timestamp when Pro was activated
+     * @nullable
+     */
+  activatedAt?: string | null;
+  /**
+     * ISO timestamp when Pro expires, if applicable
+     * @nullable
+     */
+  expiresAt?: string | null;
+}
+
 /**
  * Auto-computed platform tier — cannot be set by the user
  */
@@ -339,6 +355,8 @@ export interface UserProfile {
      * @nullable
      */
   rank?: string | null;
+  /** Whether the user has an active Pro subscription */
+  isPro: boolean;
   /** Auto-computed platform tier — cannot be set by the user */
   tier: UserProfileTier;
   /** Numeric platform level (1+) */

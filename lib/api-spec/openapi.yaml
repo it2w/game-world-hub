@@ -170,6 +170,27 @@ paths:
         "204":
           description: Heartbeat recorded
 
+  /me/pro:
+    get:
+      operationId: getMePro
+      tags: [pro]
+      summary: Get current Pro subscription status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pro status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProStatus"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/login/2fa:
     post:
       operationId: verifyTwoFactorLogin
@@ -2165,6 +2186,9 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        isPro:
+          type: boolean
+          description: Whether the user has an active Pro subscription
         tier:
           type: ["string", "null"]
           description: Auto-computed platform tier when available
@@ -2178,9 +2202,22 @@ components:
         xpForNext:
           type: ["integer", "null"]
 
+    ProStatus:
+      type: object
+      required: [isPro]
+      properties:
+        isPro:
+          type: boolean
+        activatedAt:
+          type: ["string", "null"]
+          description: ISO timestamp when Pro was activated
+        expiresAt:
+          type: ["string", "null"]
+          description: ISO timestamp when Pro expires, if applicable
+
     UserProfile:
       type: object
-      required: [id, username, displayName, status, createdAt, games, platforms, allowProfileComments, tier, tierLevel, totalXp, xpIntoLevel, xpForNext]
+      required: [id, username, displayName, status, createdAt, games, platforms, allowProfileComments, isPro, tier, tierLevel, totalXp, xpIntoLevel, xpForNext]
       properties:
         id:
           type: integer
@@ -2197,6 +2234,9 @@ components:
         rank:
           type: ["string", "null"]
           description: User's self-reported competitive rank (e.g. Gold, Platinum III)
+        isPro:
+          type: boolean
+          description: Whether the user has an active Pro subscription
         tier:
           type: string
           description: Auto-computed platform tier — cannot be set by the user

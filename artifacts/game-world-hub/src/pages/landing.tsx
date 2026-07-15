@@ -797,22 +797,27 @@ function PricingSection() {
         </Reveal>
 
         <Reveal delay={120} className="h-full" variant="pop">
-          <div className="relative h-full bg-card border border-dashed border-border p-8 flex flex-col gap-6" data-testid="card-plan-pro">
-            <span className="absolute -top-2.5 start-6 bg-muted text-muted-foreground font-mono text-[10px] uppercase tracking-widest px-2 py-0.5">
+          <div className="relative h-full bg-card border border-primary p-8 flex flex-col gap-6" data-testid="card-plan-pro">
+            <span className="absolute -top-2.5 start-6 bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-mono text-[10px] uppercase tracking-widest px-2 py-0.5">
               {t("pricing.proTag")}
             </span>
             <div>
               <div dir="ltr" className="font-mono text-xs tracking-[0.35em] text-muted-foreground">{t("pricing.proName")}</div>
-              <div className="mt-2 font-mono text-4xl font-bold text-muted-foreground">{t("pricing.proPrice")}</div>
+              <div className="mt-2 font-mono text-4xl font-bold text-primary">{t("pricing.proPrice")}</div>
             </div>
             <ul className="flex flex-col gap-3 flex-1">
               {proFeatures.map((f) => (
-                <li key={f} className="flex items-start gap-3 text-sm text-muted-foreground">
-                  <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                <li key={f} className="flex items-start gap-3 text-sm">
+                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <span>{t(`pricing.${f}`)}</span>
                 </li>
               ))}
             </ul>
+            <Button asChild className="rounded-none font-mono uppercase tracking-widest bg-gradient-to-r from-amber-500 to-yellow-300 text-black hover:from-amber-400 hover:to-yellow-200">
+              <a href="https://sashoop.com/pro-subscription-game-world-hub/p55420885" target="_blank" rel="noreferrer" data-testid="link-pricing-pro">
+                {t("pricing.proCta")}
+              </a>
+            </Button>
           </div>
         </Reveal>
       </div>

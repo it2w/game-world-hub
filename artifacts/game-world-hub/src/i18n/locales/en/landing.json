@@ -52,7 +52,7 @@
   "pricing": {
     "prompt": "> plans --list",
     "title": "Plans & perks",
-    "body": "Every core feature is free today — an optional PRO tier with extra perks is on the way.",
+    "body": "Every core feature is free. Upgrade to PRO for the full gaming command center.",
     "freeName": "PLAYER",
     "freePrice": "Free",
     "freeTag": "Available now",
@@ -61,14 +61,15 @@
     "freeF3": "LFG matchmaking and ranks",
     "freeF4": "Steam library sync and 2FA security",
     "proName": "PRO",
-    "proPrice": "Soon",
-    "proTag": "In the works",
-    "proF1": "A distinctive badge next to your name",
-    "proF2": "Extra profile customization",
-    "proF3": "Priority support",
-    "proF4": "More perks announced later",
-    "note": "Pricing details will be announced when PRO launches.",
-    "cta": "Create your free account"
+    "proPrice": "SAR 120",
+    "proTag": "Available now",
+    "proF1": "Animated PRO badge and custom profile",
+    "proF2": "Squad tools: bigger voice rooms, roles, scheduled LFG",
+    "proF3": "Clans, tournaments, and game highlights",
+    "proF4": "Boosted LFG posts and verified ranks",
+    "note": "Pay securely through Salla. Enter your GWH username at checkout.",
+    "cta": "Create your free account",
+    "proCta": "Upgrade to PRO"
   },
   "support": {
     "prompt": "> support --faq",

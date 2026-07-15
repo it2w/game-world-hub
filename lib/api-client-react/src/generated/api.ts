@@ -59,6 +59,7 @@ import type {
   PlatformLink,
   PlatformLinkInput,
   PlayerProgress,
+  ProStatus,
   ProfileComment,
   ProfileCommentInput,
   ProfileCommentsResponse,
@@ -622,6 +623,83 @@ export const useMeHeartbeat = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getMeHeartbeatMutationOptions(options));
     }
+
+export const getGetMeProUrl = () => {
+
+
+
+
+  return `/api/me/pro`
+}
+
+/**
+ * @summary Get current Pro subscription status
+ */
+export const getMePro = async ( options?: RequestInit): Promise<ProStatus> => {
+
+  return customFetch<ProStatus>(getGetMeProUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMeProQueryKey = () => {
+    return [
+    `/api/me/pro`
+    ] as const;
+    }
+
+
+export const getGetMeProQueryOptions = <TData = Awaited<ReturnType<typeof getMePro>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMePro>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeProQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMePro>>> = ({ signal }) => getMePro({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMePro>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMeProQueryResult = NonNullable<Awaited<ReturnType<typeof getMePro>>>
+export type GetMeProQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get current Pro subscription status
+ */
+
+export function useGetMePro<TData = Awaited<ReturnType<typeof getMePro>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMePro>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMeProQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getVerifyTwoFactorLoginUrl = () => {
 

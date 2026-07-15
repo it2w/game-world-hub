@@ -33,6 +33,8 @@ export interface User {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /** Whether the user has an active Pro subscription */
+  isPro?: boolean;
   /**
      * Auto-computed platform tier when available
      * @nullable

@@ -15,6 +15,7 @@ import platformsRouter from "./platforms";
 import notificationsRouter from "./notifications";
 import iceRouter from "./ice";
 import storageRouter from "./storage";
+import proRouter from "./pro";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(platformsRouter);
 router.use(notificationsRouter);
 router.use(iceRouter);
 router.use(storageRouter);
+router.use(proRouter);
 
 export default router;

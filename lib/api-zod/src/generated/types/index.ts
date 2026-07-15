@@ -65,6 +65,7 @@ export * from './profileCommentsResponse';
 export * from './profilePhoto';
 export * from './profilePhotoInput';
 export * from './profileUpdate';
+export * from './proStatus';
 export * from './registerInput';
 export * from './searchUsersParams';
 export * from './setEmailInput';

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { StatusBadge } from "@/components/status-badge";
 import { TierPip } from "@/components/tier-badge";
+import { ProBadge } from "@/components/pro-badge";
 import { useVoice } from "@/voice/voice-context";
 import { Search, UserPlus, Check, X, UserMinus, Play, Phone } from "lucide-react";
 import { Link } from "wouter";
@@ -148,6 +149,7 @@ export default function Friends() {
                         {entry.friend.displayName}
                       </Link>
                       {entry.friend.tier && <TierPip tier={entry.friend.tier} />}
+                      {entry.friend.isPro && <ProBadge size="sm" />}
                     </div>
                     {entry.friend.currentGame ? (
                       <div className="text-xs text-primary font-mono truncate flex items-center gap-1 mt-0.5">

@@ -36,6 +36,8 @@ function safeUser(
   u: typeof usersTable.$inferSelect,
   progress?: Awaited<ReturnType<typeof getUserProgress>>,
 ) {
+  const now = new Date();
+  const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
   return {
     id: u.id,
     username: u.username,
@@ -48,6 +50,7 @@ function safeUser(
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
+    isPro: proActive,
     tier: progress?.tier ?? null,
     tierLevel: progress?.level ?? null,
     totalXp: progress?.totalXp ?? null,

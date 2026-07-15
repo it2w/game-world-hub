@@ -12,13 +12,14 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
+import { ProBadge } from "@/components/pro-badge";
 
 export function AppSidebar() {
   const { t, i18n } = useTranslation("common");
@@ -143,7 +144,10 @@ export function AppSidebar() {
                 }`} />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-bold leading-none text-foreground">{user.displayName}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold leading-none text-foreground">{user.displayName}</span>
+                  {user.isPro && <ProBadge size="sm" />}
+                </div>
                 <span className="text-xs text-muted-foreground font-mono leading-none mt-1">@{user.username}</span>
               </div>
             </Link>

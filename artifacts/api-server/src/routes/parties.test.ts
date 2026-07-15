@@ -798,6 +798,79 @@ describe("POST /party-invites/:inviteId/accept — re-join after kick", () => {
   });
 });
 
+// ─── Declined-invite re-accept tests ─────────────────────────────────────────
+
+describe("POST /party-invites/:inviteId/accept — cannot accept a declined invite", () => {
+  let declinedInviteId = 0;
+
+  before(async () => {
+    // Ensure outsider is not already a member or participant
+    await db
+      .delete(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    await db
+      .delete(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+
+    // Create a pending invite and immediately decline it
+    const [inv] = await db
+      .insert(partyInvitesTable)
+      .values({
+        partyId,
+        invitedUserId: outsiderId,
+        invitedByUserId: leaderId,
+        status: "pending",
+      })
+      .returning({ id: partyInvitesTable.id });
+    declinedInviteId = inv.id;
+
+    await db
+      .update(partyInvitesTable)
+      .set({ status: "declined" })
+      .where(eq(partyInvitesTable.id, declinedInviteId));
+  });
+
+  test("accepting a declined invite returns 409", async () => {
+    const res = await request(
+      "POST",
+      `/party-invites/${declinedInviteId}/accept`,
+      outsiderId,
+      `ptest_outsider_${SUFFIX}`
+    );
+    assert.equal(res.status, 409, "accepting a declined invite should return 409");
+    assert.match(
+      (res.body as { error: string }).error,
+      /declined/i
+    );
+  });
+
+  test("user is not added to party_members after attempting to accept a declined invite", async () => {
+    const memberRows = await db
+      .select()
+      .from(partyMembersTable)
+      .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, outsiderId)));
+    assert.equal(memberRows.length, 0, "user must not be in party_members after a rejected re-accept");
+  });
+
+  test("user is not added to conversation_participants after attempting to accept a declined invite", async () => {
+    const participantRows = await db
+      .select()
+      .from(conversationParticipantsTable)
+      .where(
+        and(
+          eq(conversationParticipantsTable.conversationId, convId),
+          eq(conversationParticipantsTable.userId, outsiderId)
+        )
+      );
+    assert.equal(participantRows.length, 0, "user must not be in conversation_participants after a rejected re-accept");
+  });
+});
+
 // ─── Idempotent-accept tests ───────────────────────────────────────────────────
 
 describe("POST /party-invites/:inviteId/accept — idempotency", () => {

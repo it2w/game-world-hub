@@ -204,12 +204,62 @@ test.describe("LFG post lifecycle", () => {
 
     await respondBtn.click();
 
-    // The destructive toast title must contain "Signal closed"
+    // The destructive toast title must contain "Signal closed".
+    // Use .first() to avoid the strict-mode violation caused by the aria-live
+    // notification span that also echoes the same text.
     await expect(
-      responderPage.getByText(/signal closed/i),
+      responderPage.getByText(/signal closed/i).first(),
     ).toBeVisible({ timeout: 12_000 });
 
     await authorCtx.close();
     await responderCtx.close();
+  });
+});
+
+// ─── Filter tests ─────────────────────────────────────────────────────────────
+
+test.describe("LFG client-side filter", () => {
+  /**
+   * Create two posts with distinct game titles, type one title into the filter,
+   * confirm only the matching card is visible, then clear and confirm both return.
+   */
+  test("filter hides non-matching posts and restores all when cleared", async ({ browser }) => {
+    const gameA = `FilterGameA_${uid()}`;
+    const gameB = `FilterGameB_${uid()}`;
+    const author = makeUser("flt");
+
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+
+    await registerUser(page, author);
+    await goToLfg(page);
+
+    // Create post A
+    await createPost(page, gameA);
+    // Wait for card A to appear before creating the second post
+    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 10_000 });
+
+    // Create post B
+    await createPost(page, gameB);
+    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible({ timeout: 10_000 });
+
+    // Both cards should be visible before any filter is applied
+    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible();
+    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible();
+
+    // Type game title A into the filter — only card A should remain
+    const filterInput = page.getByPlaceholder(/filter by game/i);
+    await filterInput.fill(gameA);
+
+    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border", { hasText: gameB })).not.toBeVisible({ timeout: 5_000 });
+
+    // Clear the filter — both cards should reappear
+    await filterInput.clear();
+
+    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible({ timeout: 5_000 });
+
+    await ctx.close();
   });
 });

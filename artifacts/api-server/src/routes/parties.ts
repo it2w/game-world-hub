@@ -329,22 +329,19 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  let inv: typeof partyInvitesTable.$inferSelect;
-  try {
-    const [inserted] = await db
-      .insert(partyInvitesTable)
-      .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })
-      .returning();
-    inv = inserted;
-  } catch (err: unknown) {
-    // Unique-constraint violation (code 23505) means a concurrent request raced us
-    // and inserted a pending invite first. Treat as idempotent success.
-    const pgErr = err as { code?: string };
-    if (pgErr?.code === "23505") {
-      res.json({ success: true });
-      return;
-    }
-    throw err;
+  // Use ON CONFLICT DO NOTHING to handle the race where two concurrent requests
+  // both pass the pre-check above and then race to insert. The partial unique
+  // index (status = 'pending') ensures at most one pending invite per party+user.
+  const [inv] = await db
+    .insert(partyInvitesTable)
+    .values({ partyId, invitedUserId: parsed.data.userId, invitedByUserId: myId })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!inv) {
+    // A concurrent request won the race — treat as idempotent success.
+    res.json({ success: true });
+    return;
   }
 
   const [invitedBy] = await db.select().from(usersTable).where(eq(usersTable.id, myId));

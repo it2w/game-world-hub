@@ -632,3 +632,69 @@ describe("LFG close-signal dialog — create party & invite (no party)", () => {
     expect(confirmBtns[0]).toBeDisabled();
   });
 });
+
+// ─── Party size seeding from neededPlayers ────────────────────────────────────
+
+describe("LFG create-party popover — party size defaults from post neededPlayers", () => {
+  /**
+   * After clicking Create & Invite the popover renders exactly one
+   * <input type="number"> (the size field). We locate it via the
+   * spinbutton ARIA role — that is the only numeric input visible
+   * while both the close dialog and the popover are open.
+   */
+  function getSizeInput() {
+    const spinbuttons = screen.getAllByRole("spinbutton");
+    return spinbuttons[0] as HTMLInputElement;
+  }
+
+  test("size input defaults to neededPlayers when value is in range (neededPlayers=5 → 5)", () => {
+    h.setPosts([{ ...POST_WITH_RESPONDERS, neededPlayers: 5 }]);
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+
+    expect(getSizeInput().value).toBe("5");
+  });
+
+  test("size input is clamped to 2 when neededPlayers is below minimum (neededPlayers=1 → 2)", () => {
+    h.setPosts([{ ...POST_WITH_RESPONDERS, neededPlayers: 1 }]);
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+
+    expect(getSizeInput().value).toBe("2");
+  });
+
+  test("size input is clamped to 100 when neededPlayers is above maximum (neededPlayers=150 → 100)", () => {
+    h.setPosts([{ ...POST_WITH_RESPONDERS, neededPlayers: 150 }]);
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+
+    expect(getSizeInput().value).toBe("100");
+  });
+
+  test("createParty is called with a maxSize matching the seeded size input value", () => {
+    h.setPosts([{ ...POST_WITH_RESPONDERS, neededPlayers: 5 }]);
+    h.createPartyMutate.mockImplementation(() => {
+      // Do not call onSuccess — we only inspect the call arguments.
+    });
+
+    render(<Lfg />);
+    openCloseDialog();
+    clickCreateAndInvite();
+    typePartyName("My Squad");
+
+    const confirmBtns = screen.getAllByRole("button", { name: /create & invite/i });
+    fireEvent.click(confirmBtns[confirmBtns.length - 1]);
+
+    expect(h.createPartyMutate).toHaveBeenCalledOnce();
+    expect(h.createPartyMutate).toHaveBeenCalledWith(
+      { data: expect.objectContaining({ name: "My Squad", maxSize: 5 }) },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+});

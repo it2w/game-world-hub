@@ -72,3 +72,9 @@ id = "DEivZuFxvKdt_vUPmbzXD"
 uri = "file://screenshots/v2-pricing-ar.jpg"
 type = "image"
 title = "الاشتراكات + الدعم + اتصل بنا"
+
+[[outputs]]
+id = "88iEWFjcUshmHRNcukwqA"
+uri = "file://screenshots/pro-pricing.jpg"
+type = "image"
+title = "PRO pricing card on the landing page"

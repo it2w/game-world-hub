@@ -17,3 +17,4 @@
 - [Arabic i18n & RTL](i18n-arabic-rtl.md) — per-ns JSON bundles, gwh_lang key; new UI must use logical (ms/me/start/end) classes; server labels translate client-side via stable ids; user content stays as-is.
 - [Canvas visibility fallback](canvas-visibility-fallback.md) — this user often can't see canvas iframes; mirror every canvas reveal with presentAsset screenshots in chat.
 - [Screenshots vs mount animations](screenshot-mount-animations.md) — stills catch ~1s post-load (partial animations OK); shoot below-fold sections via /#hash — SPA must jump on mount.
+- [Pro subscription via Salla](pro-subscription-salla.md) — users table mirrors `isPro` from `pro_subscriptions`; Salla webhook activates Pro via a custom username checkout field and HMAC signature.

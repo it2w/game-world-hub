@@ -187,6 +187,18 @@ describe("POST /lfg/:postId/respond — author and duplicate guards", () => {
   });
 });
 
+describe("POST /lfg/:postId/respond — missing-post guard", () => {
+  test("returns 404 when the post does not exist", async () => {
+    const res = await postRespond(999999999, responderId, `lfgtest_responder_${SUFFIX}`);
+    assert.equal(res.status, 404, "expected 404 when post does not exist");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+});
+
 describe("POST /lfg/:postId/respond — stale-post guard", () => {
   test("returns 409 when the post is closed", async () => {
     const res = await postRespond(closedPostId, responderId, `lfgtest_responder_${SUFFIX}`);

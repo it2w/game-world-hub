@@ -23,11 +23,16 @@ const h = vi.hoisted(() => {
   // Mutable slot: individual tests set this before rendering.
   let currentPosts: unknown[] = [];
 
+  // Mutable slot: controls close mutation pending state.
+  let closeIsPending = false;
+
   return {
     closeMutate,
     invalidateQueries,
     getPosts: () => currentPosts,
     setPosts: (p: unknown[]) => { currentPosts = p; },
+    getCloseIsPending: () => closeIsPending,
+    setCloseIsPending: (v: boolean) => { closeIsPending = v; },
   };
 });
 
@@ -70,7 +75,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useListLfgPosts: () => ({ data: h.getPosts(), isLoading: false }),
   useCreateLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
   useRespondToLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
-  useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: false }),
+  useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: h.getCloseIsPending() }),
   useDeleteLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
   useListParties: () => ({ data: [] }),
   useInviteToParty: () => ({ mutate: vi.fn(), isPending: false }),
@@ -119,6 +124,9 @@ beforeEach(() => {
 
   h.closeMutate.mockReset();
   h.invalidateQueries.mockReset();
+
+  // Default: close mutation is not pending.
+  h.setCloseIsPending(false);
 
   // Simulate a successful close so onSuccess callbacks fire.
   h.closeMutate.mockImplementation(
@@ -229,5 +237,39 @@ describe("LFG close-signal dialog — no responders", () => {
     // No responder rows rendered.
     expect(screen.queryByText("@player1")).not.toBeInTheDocument();
     expect(screen.queryByText("@player2")).not.toBeInTheDocument();
+  });
+});
+
+describe("LFG close-signal dialog — close mutation pending", () => {
+  beforeEach(() => {
+    // Simulate a slow network: the close mutation is already in-flight.
+    h.setCloseIsPending(true);
+  });
+
+  /** When isPending=true the button label changes to "CLOSING..." */
+  function getPendingConfirmButton() {
+    return screen.getByRole("button", { name: /closing/i });
+  }
+
+  test("CLOSE SIGNAL button is disabled while the mutation is pending", () => {
+    render(<Lfg />);
+
+    openCloseDialog();
+
+    expect(
+      screen.getByRole("heading", { name: /close signal/i }),
+    ).toBeInTheDocument();
+
+    expect(getPendingConfirmButton()).toBeDisabled();
+  });
+
+  test("clicking the disabled CLOSE SIGNAL button does not call the mutate function", () => {
+    render(<Lfg />);
+
+    openCloseDialog();
+
+    fireEvent.click(getPendingConfirmButton());
+
+    expect(h.closeMutate).not.toHaveBeenCalled();
   });
 });

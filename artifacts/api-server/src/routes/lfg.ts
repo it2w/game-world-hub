@@ -215,6 +215,18 @@ router.delete("/lfg/:postId", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // Clean up stale LFG notifications that point to this post before deleting the post,
+  // so the author's feed doesn't show ghost entries for a post that no longer exists.
+  // Scoped to `lfg_response` type only — other notification types use relatedId from
+  // different ID spaces (parties, friends, etc.) and must not be touched.
+  await db
+    .delete(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.relatedId, postId),
+        eq(notificationsTable.type, "lfg_response"),
+      ),
+    );
   await db.delete(lfgPostsTable).where(eq(lfgPostsTable.id, postId));
   res.json({ success: true });
 });

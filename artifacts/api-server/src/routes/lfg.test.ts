@@ -329,6 +329,99 @@ describe("POST /lfg/:postId/respond — notification to post author", () => {
   });
 });
 
+describe("DELETE /lfg/:postId — notification cleanup", () => {
+  let deletePostId = 0;
+  let deleteNotifId = 0;
+
+  before(async () => {
+    // Create a fresh open post owned by the author
+    const [deletePost] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId,
+        game: "DeleteGame",
+        description: "Post to be deleted",
+        neededPlayers: 1,
+        micRequired: false,
+        status: "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    deletePostId = deletePost.id;
+    createdPostIds.push(deletePostId);
+
+    // Seed a notification that points to this post (simulates a responder notif)
+    const [notif] = await db
+      .insert(notificationsTable)
+      .values({
+        userId: authorId,
+        type: "lfg_response",
+        title: "Someone responded",
+        relatedId: deletePostId,
+      })
+      .returning({ id: notificationsTable.id });
+    deleteNotifId = notif.id;
+  });
+
+  // Seed a non-LFG notification with the same relatedId to confirm it is NOT deleted
+  let unrelatedNotifId = 0;
+  before(async () => {
+    const [unrelated] = await db
+      .insert(notificationsTable)
+      .values({
+        userId: authorId,
+        type: "friend_request",
+        title: "Unrelated notification",
+        relatedId: deletePostId, // same numeric ID — must survive the delete
+      })
+      .returning({ id: notificationsTable.id });
+    unrelatedNotifId = unrelated.id;
+  });
+
+  after(async () => {
+    // Clean up unrelated notif in case the test didn't run
+    await db.delete(notificationsTable).where(eq(notificationsTable.id, unrelatedNotifId));
+  });
+
+  test("deleting a post also removes its lfg_response notifications", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${deletePostId}`, {
+      method: "DELETE",
+      headers: authHeader(authorId, `lfgtest_author_${SUFFIX}`),
+    });
+    assert.equal(res.status, 200, "DELETE should return 200");
+
+    // The post is now gone; remove from createdPostIds so after() doesn't fail
+    const idx = createdPostIds.indexOf(deletePostId);
+    if (idx !== -1) createdPostIds.splice(idx, 1);
+
+    // Verify the lfg_response notification was cleaned up
+    const remaining = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(notificationsTable.id, deleteNotifId));
+
+    assert.equal(
+      remaining.length,
+      0,
+      "lfg_response notification should be deleted when the post is deleted",
+    );
+  });
+
+  test("deleting a post does NOT remove non-LFG notifications with the same relatedId", async () => {
+    // The unrelated friend_request notification seeded with the same relatedId
+    // must still exist — the cleanup must be scoped to lfg_response type only.
+    const remaining = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(notificationsTable.id, unrelatedNotifId));
+
+    assert.equal(
+      remaining.length,
+      1,
+      "non-LFG notification with same relatedId must not be deleted when post is removed",
+    );
+  });
+});
+
 describe("GET /lfg — closed-post visibility", () => {
   test("excludes closed posts that belong to other users", async () => {
     // responderId is NOT the author, so the author's closed post must not appear

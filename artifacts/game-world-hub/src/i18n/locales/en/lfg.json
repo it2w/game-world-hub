@@ -59,5 +59,13 @@
   "toasts": {
     "signalClosed": "Signal closed — this post is no longer open",
     "signalExpired": "Signal expired — this post is no longer accepting responses"
+  },
+  "closeConfirm": {
+    "title": "Close Signal",
+    "subtitle": "These players responded to your {{game}} signal. Visit their profiles before closing.",
+    "noResponders": "No one has responded yet.",
+    "cancel": "CANCEL",
+    "confirm": "CLOSE SIGNAL",
+    "closing": "CLOSING..."
   }
 }

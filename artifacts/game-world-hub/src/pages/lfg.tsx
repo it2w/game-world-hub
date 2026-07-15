@@ -12,7 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -21,6 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock } from "lucide-react";
 
 type CreateLfgForm = {
@@ -79,6 +80,9 @@ export default function Lfg() {
 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+
+  type LfgPost = NonNullable<typeof posts>[number];
+  const [closeConfirmPost, setCloseConfirmPost] = useState<LfgPost | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListLfgPostsQueryKey() });
 
@@ -374,8 +378,7 @@ export default function Lfg() {
                             variant="outline"
                             size="sm"
                             className="font-mono rounded-none text-xs"
-                            disabled={close.isPending}
-                            onClick={() => close.mutate({ postId: post.id }, { onSuccess: invalidate })}
+                            onClick={() => setCloseConfirmPost(post)}
                           >
                             <X className="w-3 h-3 me-1" /> {t("card.close")}
                           </Button>
@@ -431,6 +434,68 @@ export default function Lfg() {
           })
         )}
       </div>
+
+      {/* Close confirmation dialog */}
+      <Dialog open={!!closeConfirmPost} onOpenChange={(v) => { if (!v) setCloseConfirmPost(null); }}>
+        <DialogContent className="border-border bg-card rounded-none sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
+              {t("closeConfirm.title")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs text-muted-foreground pt-2">
+              {t("closeConfirm.subtitle", { game: closeConfirmPost?.game })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1 max-h-64 overflow-y-auto py-2">
+            {closeConfirmPost && closeConfirmPost.responders.length === 0 ? (
+              <p className="text-xs font-mono text-muted-foreground text-center py-4">{t("closeConfirm.noResponders")}</p>
+            ) : (
+              closeConfirmPost?.responders.map((r) => (
+                <Link key={r.id} href={`/profile/${r.id}`} onClick={() => setCloseConfirmPost(null)}>
+                  <div className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 rounded-sm bg-muted border border-border flex items-center justify-center font-mono text-xs overflow-hidden shrink-0">
+                      {r.avatarUrl
+                        ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        : r.displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold truncate">{r.displayName}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground truncate">@{r.username}</div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 border-t border-border pt-4">
+            <Button
+              variant="outline"
+              className="font-mono rounded-none text-xs flex-1"
+              onClick={() => setCloseConfirmPost(null)}
+            >
+              {t("closeConfirm.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              className="font-mono rounded-none text-xs flex-1"
+              disabled={close.isPending}
+              onClick={() => {
+                if (!closeConfirmPost) return;
+                close.mutate({ postId: closeConfirmPost.id }, {
+                  onSuccess: () => {
+                    setCloseConfirmPost(null);
+                    invalidate();
+                  },
+                });
+              }}
+            >
+              {close.isPending ? t("closeConfirm.closing") : t("closeConfirm.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import Lfg from "./lfg";
 const h = vi.hoisted(() => {
   const closeMutate = vi.fn();
   const respondMutate = vi.fn();
+  const deleteMutate = vi.fn();
   const invalidateQueries = vi.fn();
 
   // Mutable slot: individual tests set this before rendering.
@@ -30,9 +31,13 @@ const h = vi.hoisted(() => {
   // Mutable slot: controls respond mutation pending state.
   let respondIsPending = false;
 
+  // Mutable slot: controls delete mutation pending state.
+  let deleteIsPending = false;
+
   return {
     closeMutate,
     respondMutate,
+    deleteMutate,
     invalidateQueries,
     getPosts: () => currentPosts,
     setPosts: (p: unknown[]) => { currentPosts = p; },
@@ -40,6 +45,8 @@ const h = vi.hoisted(() => {
     setCloseIsPending: (v: boolean) => { closeIsPending = v; },
     getRespondIsPending: () => respondIsPending,
     setRespondIsPending: (v: boolean) => { respondIsPending = v; },
+    getDeleteIsPending: () => deleteIsPending,
+    setDeleteIsPending: (v: boolean) => { deleteIsPending = v; },
   };
 });
 
@@ -93,7 +100,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useCreateLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
   useRespondToLfgPost: () => ({ mutate: h.respondMutate, isPending: h.getRespondIsPending() }),
   useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: h.getCloseIsPending() }),
-  useDeleteLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteLfgPost: () => ({ mutate: h.deleteMutate, isPending: h.getDeleteIsPending() }),
   useInviteToParty: () => ({ mutate: vi.fn(), isPending: false }),
   useListParties: () => ({ data: [] }),
   getListLfgPostsQueryKey: () => ["lfg-posts"],
@@ -141,11 +148,13 @@ beforeEach(() => {
 
   h.closeMutate.mockReset();
   h.respondMutate.mockReset();
+  h.deleteMutate.mockReset();
   h.invalidateQueries.mockReset();
 
   // Default: mutations are not pending.
   h.setCloseIsPending(false);
   h.setRespondIsPending(false);
+  h.setDeleteIsPending(false);
 
   // Simulate a successful close so onSuccess callbacks fire.
   h.closeMutate.mockImplementation(
@@ -315,5 +324,39 @@ describe("LFG respond button — isPending guard", () => {
     fireEvent.click(respondBtn);
 
     expect(h.respondMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("LFG delete button — isPending guard", () => {
+  beforeEach(() => {
+    // Use a post authored by the viewer so the trash-can delete button is visible.
+    h.setPosts([POST_WITH_RESPONDERS]);
+    // Simulate a slow network: the delete mutation is already in-flight.
+    h.setDeleteIsPending(true);
+  });
+
+  test("delete button is disabled while the mutation is pending", () => {
+    render(<Lfg />);
+
+    // The delete button renders only a Trash2 icon with no text label, so we
+    // locate it by its position inside the author-action group via aria role.
+    // All buttons with role="button" are queried; the trash button is the one
+    // that is currently disabled (CLOSE is not disabled when only delete is pending).
+    const allButtons = screen.getAllByRole("button");
+    const deleteBtn = allButtons.find((btn) => btn.hasAttribute("disabled") && btn.querySelector("svg"));
+    expect(deleteBtn).toBeDefined();
+    expect(deleteBtn).toBeDisabled();
+  });
+
+  test("clicking the disabled delete button does not call the mutate function", () => {
+    render(<Lfg />);
+
+    const allButtons = screen.getAllByRole("button");
+    const deleteBtn = allButtons.find((btn) => btn.hasAttribute("disabled") && btn.querySelector("svg"));
+    expect(deleteBtn).toBeDefined();
+
+    fireEvent.click(deleteBtn!);
+
+    expect(h.deleteMutate).not.toHaveBeenCalled();
   });
 });

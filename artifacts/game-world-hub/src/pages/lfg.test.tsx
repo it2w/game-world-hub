@@ -20,6 +20,7 @@ const h = vi.hoisted(() => {
   const closeMutate = vi.fn();
   const respondMutate = vi.fn();
   const deleteMutate = vi.fn();
+  const createMutate = vi.fn();
   const invalidateQueries = vi.fn();
 
   // Mutable slot: individual tests set this before rendering.
@@ -34,10 +35,14 @@ const h = vi.hoisted(() => {
   // Mutable slot: controls delete mutation pending state.
   let deleteIsPending = false;
 
+  // Mutable slot: controls create mutation pending state.
+  let createIsPending = false;
+
   return {
     closeMutate,
     respondMutate,
     deleteMutate,
+    createMutate,
     invalidateQueries,
     getPosts: () => currentPosts,
     setPosts: (p: unknown[]) => { currentPosts = p; },
@@ -47,6 +52,8 @@ const h = vi.hoisted(() => {
     setRespondIsPending: (v: boolean) => { respondIsPending = v; },
     getDeleteIsPending: () => deleteIsPending,
     setDeleteIsPending: (v: boolean) => { deleteIsPending = v; },
+    getCreateIsPending: () => createIsPending,
+    setCreateIsPending: (v: boolean) => { createIsPending = v; },
   };
 });
 
@@ -97,7 +104,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetMe: () => ({ data: ME }),
   // Reads from h.getPosts() at render-time so each test can control the data.
   useListLfgPosts: () => ({ data: h.getPosts(), isLoading: false }),
-  useCreateLfgPost: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateLfgPost: () => ({ mutate: h.createMutate, isPending: h.getCreateIsPending() }),
   useRespondToLfgPost: () => ({ mutate: h.respondMutate, isPending: h.getRespondIsPending() }),
   useCloseLfgPost: () => ({ mutate: h.closeMutate, isPending: h.getCloseIsPending() }),
   useDeleteLfgPost: () => ({ mutate: h.deleteMutate, isPending: h.getDeleteIsPending() }),
@@ -149,12 +156,14 @@ beforeEach(() => {
   h.closeMutate.mockReset();
   h.respondMutate.mockReset();
   h.deleteMutate.mockReset();
+  h.createMutate.mockReset();
   h.invalidateQueries.mockReset();
 
   // Default: mutations are not pending.
   h.setCloseIsPending(false);
   h.setRespondIsPending(false);
   h.setDeleteIsPending(false);
+  h.setCreateIsPending(false);
 
   // Simulate a successful close so onSuccess callbacks fire.
   h.closeMutate.mockImplementation(
@@ -358,5 +367,42 @@ describe("LFG delete button — isPending guard", () => {
     fireEvent.click(deleteBtn!);
 
     expect(h.deleteMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("LFG create dialog — isPending guard on submit", () => {
+  beforeEach(() => {
+    // No posts needed — we only exercise the create dialog.
+    h.setPosts([]);
+    // Simulate a slow network: the create mutation is already in-flight.
+    h.setCreateIsPending(true);
+  });
+
+  /** Open the create-LFG dialog by clicking the POST SIGNAL trigger button. */
+  function openCreateDialog() {
+    fireEvent.click(screen.getByRole("button", { name: /post signal/i }));
+  }
+
+  /** The submit button label switches to BROADCASTING… while pending. */
+  function getBroadcastButton() {
+    return screen.getByRole("button", { name: /broadcasting/i });
+  }
+
+  test("BROADCAST button is disabled while the create mutation is pending", () => {
+    render(<Lfg />);
+
+    openCreateDialog();
+
+    expect(getBroadcastButton()).toBeDisabled();
+  });
+
+  test("clicking the disabled BROADCAST button does not call the mutate function", () => {
+    render(<Lfg />);
+
+    openCreateDialog();
+
+    fireEvent.click(getBroadcastButton());
+
+    expect(h.createMutate).not.toHaveBeenCalled();
   });
 });

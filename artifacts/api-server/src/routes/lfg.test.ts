@@ -1,0 +1,214 @@
+import { test, before, after, describe } from "node:test";
+import assert from "node:assert/strict";
+import { createServer, type Server } from "node:http";
+import { AddressInfo } from "node:net";
+import { eq, inArray } from "drizzle-orm";
+import { db, usersTable, lfgPostsTable, lfgResponsesTable, pool } from "@workspace/db";
+import { signToken } from "../middlewares/auth";
+import app from "../app";
+
+/**
+ * Integration tests for LFG stale-post guards (Task 28 behaviour).
+ *
+ * Covered scenarios:
+ *   1. POST /lfg/:postId/respond on a manually-closed post  → 409
+ *   2. POST /lfg/:postId/respond on a time-expired post     → 409
+ *   3. GET  /lfg excludes closed posts that belong to other users
+ */
+
+// ─── Fixtures ──────────────────────────────────────────────────────────────
+
+const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+let server: Server;
+let baseUrl: string;
+
+// Users
+let authorId = 0;
+let responderId = 0;
+
+// Posts created in before(); deleted in after()
+let closedPostId = 0;
+let expiredPostId = 0;
+let openPostId = 0;
+
+const createdUserIds: number[] = [];
+const createdPostIds: number[] = [];
+
+function makeUser(tag: string) {
+  return {
+    username: `lfgtest_${tag}_${SUFFIX}`,
+    passwordHash: "x",
+    displayName: `LfgTest ${tag}`,
+    status: "online" as const,
+  };
+}
+
+function authHeader(userId: number, username: string): Record<string, string> {
+  return { Authorization: `Bearer ${signToken({ userId, username })}` };
+}
+
+before(async () => {
+  // Create two users: one who owns posts, one who tries to respond
+  const [author, responder] = await db
+    .insert(usersTable)
+    .values([makeUser("author"), makeUser("responder")])
+    .returning({ id: usersTable.id, username: usersTable.username });
+  authorId = author.id;
+  responderId = responder.id;
+  createdUserIds.push(authorId, responderId);
+
+  // Closed post (status = "closed")
+  const [closedPost] = await db
+    .insert(lfgPostsTable)
+    .values({
+      authorId,
+      game: "TestGame",
+      description: "Closed post",
+      neededPlayers: 1,
+      micRequired: false,
+      status: "closed",
+    })
+    .returning({ id: lfgPostsTable.id });
+  closedPostId = closedPost.id;
+  createdPostIds.push(closedPostId);
+
+  // Expired post (status = "open" but expiresAt is in the past)
+  const pastDate = new Date(Date.now() - 60_000); // 1 minute ago
+  const [expiredPost] = await db
+    .insert(lfgPostsTable)
+    .values({
+      authorId,
+      game: "TestGame",
+      description: "Expired post",
+      neededPlayers: 1,
+      micRequired: false,
+      status: "open",
+      expiresAt: pastDate,
+    })
+    .returning({ id: lfgPostsTable.id });
+  expiredPostId = expiredPost.id;
+  createdPostIds.push(expiredPostId);
+
+  // Open post owned by the author (should appear in GET /lfg for everyone)
+  const [openPost] = await db
+    .insert(lfgPostsTable)
+    .values({
+      authorId,
+      game: "TestGame",
+      description: "Open post",
+      neededPlayers: 1,
+      micRequired: false,
+      status: "open",
+    })
+    .returning({ id: lfgPostsTable.id });
+  openPostId = openPost.id;
+  createdPostIds.push(openPostId);
+
+  // Spin up an HTTP server wrapping the Express app
+  server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  baseUrl = `http://127.0.0.1:${port}`;
+});
+
+after(async () => {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (createdPostIds.length) {
+    await db.delete(lfgResponsesTable).where(
+      inArray(lfgResponsesTable.postId, createdPostIds),
+    );
+    await db.delete(lfgPostsTable).where(
+      inArray(lfgPostsTable.id, createdPostIds),
+    );
+  }
+  if (createdUserIds.length) {
+    await db.delete(usersTable).where(inArray(usersTable.id, createdUserIds));
+  }
+  await pool.end();
+});
+
+// ─── Helper ────────────────────────────────────────────────────────────────
+
+async function postRespond(
+  postId: number,
+  userId: number,
+  username: string,
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/lfg/${postId}/respond`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(userId, username),
+    },
+    body: JSON.stringify({ message: "Let me in!" }),
+  });
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────────────
+
+describe("POST /lfg/:postId/respond — stale-post guard", () => {
+  test("returns 409 when the post is closed", async () => {
+    const res = await postRespond(closedPostId, responderId, `lfgtest_responder_${SUFFIX}`);
+    assert.equal(res.status, 409, "expected 409 for a closed post");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+
+  test("returns 409 when the post has expired", async () => {
+    const res = await postRespond(expiredPostId, responderId, `lfgtest_responder_${SUFFIX}`);
+    assert.equal(res.status, 409, "expected 409 for an expired post");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+});
+
+describe("GET /lfg — closed-post visibility", () => {
+  test("excludes closed posts that belong to other users", async () => {
+    // responderId is NOT the author, so the author's closed post must not appear
+    const res = await fetch(`${baseUrl}/api/lfg`, {
+      headers: authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+    });
+    assert.equal(res.status, 200);
+    const posts = await res.json() as Array<{ id: number; status: string }>;
+
+    const closedOtherPost = posts.find((p) => p.id === closedPostId);
+    assert.equal(
+      closedOtherPost,
+      undefined,
+      "closed post from another user should not appear in GET /lfg",
+    );
+  });
+
+  test("includes the viewer's own closed post", async () => {
+    // authorId IS the owner of the closed post — it should appear for them
+    const res = await fetch(`${baseUrl}/api/lfg`, {
+      headers: authHeader(authorId, `lfgtest_author_${SUFFIX}`),
+    });
+    assert.equal(res.status, 200);
+    const posts = await res.json() as Array<{ id: number; status: string }>;
+
+    const ownClosedPost = posts.find((p) => p.id === closedPostId);
+    assert.ok(
+      ownClosedPost !== undefined,
+      "author's own closed post should appear in GET /lfg for the author",
+    );
+    assert.equal(ownClosedPost?.status, "closed");
+  });
+
+  test("open non-expired posts are visible to non-owners", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg`, {
+      headers: authHeader(responderId, `lfgtest_responder_${SUFFIX}`),
+    });
+    assert.equal(res.status, 200);
+    const posts = await res.json() as Array<{ id: number }>;
+    const found = posts.find((p) => p.id === openPostId);
+    assert.ok(found !== undefined, "open post should be visible to non-owner");
+  });
+});

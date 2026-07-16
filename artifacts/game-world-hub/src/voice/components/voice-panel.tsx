@@ -50,8 +50,8 @@ import {
   Play,
   Video,
   VideoOff,
+  Headphones,
   EarOff,
-  Ear,
 } from "lucide-react";
 
 /* ── HALO keyframes injected once ───────────────────────────────────────── */
@@ -348,7 +348,7 @@ export function VoicePanel() {
                 <span className="text-[13px] font-bold uppercase tracking-widest">{t("voice.you")}</span>
                 {effectiveSpeaking && !effectiveMuted && <EqBars />}
                 {effectiveMuted && <MicOff className="w-3.5 h-3.5 text-destructive" />}
-                {effectiveDeafened && <EarOff className="w-3.5 h-3.5 text-destructive ml-1" />}
+                {effectiveDeafened && <Headphones className="w-3.5 h-3.5 text-destructive ml-1" />}
               </div>
 
               {/* Status badges row */}
@@ -536,7 +536,7 @@ export function VoicePanel() {
             onClick={toggleDeafen}
             title={deafened ? t("voice.undeafen") : t("voice.deafen")}
           >
-            {deafened ? <EarOff className="w-4 h-4" /> : <Ear className="w-4 h-4" />}
+            {deafened ? <EarOff className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
           </ControlBtn>
 
           {/* Camera */}

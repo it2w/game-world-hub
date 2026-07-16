@@ -39,32 +39,24 @@
     },
     "files": [
       "dist/**/*",
-      "renderer/**/*",
+      "assets/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../api-server/dist",
-        "to": "api-server/dist"
-      }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
       "icon": "build/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Game World Hub",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
@@ -72,21 +64,28 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "menuCategory": "Game World Hub",
       "shortcutName": "Game World Hub",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "installerHeader": "build/icon.ico"
+      "installerHeader": "build/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "GameWorldHub-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "GameWorldHub-Portable-${version}.${ext}"
     },
     "publish": {
-      "provider": "generic",
-      "url": "https://releases.gameworldhub.example.com/updates/"
+      "provider": "github",
+      "owner": "gameworldhub",
+      "repo": "desktop-releases",
+      "releaseType": "release"
     },
     "protocols": [
       {
         "name": "Game World Hub",
-        "schemes": [
-          "gameworldhub"
-        ]
+        "schemes": ["gameworldhub"]
       }
     ]
   }

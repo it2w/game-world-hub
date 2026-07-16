@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline';" />
+  <title>Loading</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 440px;
+      height: 280px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0d0d12 0%, #12121a 50%, #0a0a10 100%);
+      border: 1px solid rgba(0, 255, 100, 0.15);
+      border-radius: 12px;
+      box-shadow:
+        0 0 0 1px rgba(0,255,100,0.06),
+        0 0 40px rgba(0,200,80,0.12),
+        0 20px 60px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Scanline overlay */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255,255,255,0.012) 2px,
+        rgba(255,255,255,0.012) 4px
+      );
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    /* Corner accent */
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 80px; height: 80px;
+      background: radial-gradient(circle at 0 0, rgba(0,255,100,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Logo mark */
+    .logo-wrap {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      margin-bottom: 20px;
+    }
+
+    .logo-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0, 255, 100, 0.3);
+      animation: spin-ring 3s linear infinite;
+    }
+
+    .logo-ring-2 {
+      inset: 6px;
+      border-color: rgba(0, 255, 100, 0.15);
+      animation: spin-ring 5s linear infinite reverse;
+    }
+
+    @keyframes spin-ring {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .logo-inner {
+      position: absolute;
+      inset: 12px;
+      background: radial-gradient(circle, rgba(0,255,100,0.18) 0%, transparent 70%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-letter {
+      font-size: 22px;
+      font-weight: 800;
+      color: #00ff64;
+      text-shadow: 0 0 20px rgba(0,255,100,0.6);
+      letter-spacing: -0.5px;
+    }
+
+    /* App name */
+    .app-name {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f0f0f0;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .app-tagline {
+      font-size: 10px;
+      color: rgba(0,255,100,0.7);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      width: 240px;
+      height: 2px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00cc50 0%, #00ff64 100%);
+      border-radius: 2px;
+      width: 0%;
+      animation: load-progress 2.2s ease-out forwards;
+      box-shadow: 0 0 8px rgba(0,255,100,0.6);
+    }
+
+    @keyframes load-progress {
+      0%   { width: 0%;   opacity: 1; }
+      70%  { width: 88%;  opacity: 1; }
+      90%  { width: 95%;  opacity: 1; }
+      100% { width: 100%; opacity: 1; }
+    }
+
+    .loading-text {
+      margin-top: 12px;
+      font-size: 9px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      animation: blink-text 1.2s ease-in-out infinite;
+    }
+
+    @keyframes blink-text {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.55; }
+    }
+
+    /* Version */
+    .version {
+      position: absolute;
+      bottom: 14px;
+      right: 16px;
+      font-size: 9px;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-wrap">
+      <div class="logo-ring"></div>
+      <div class="logo-ring logo-ring-2"></div>
+      <div class="logo-inner">
+        <span class="logo-letter">GW</span>
+      </div>
+    </div>
+
+    <div class="app-name">Game World Hub</div>
+    <div class="app-tagline">Your gaming universe</div>
+
+    <div class="progress-track">
+      <div class="progress-fill"></div>
+    </div>
+    <div class="loading-text">Connecting...</div>
+
+    <div class="version" id="ver">v1.0.0</div>
+  </div>
+
+  <script>
+    // Scroll through status messages
+    const msgs = ['Connecting...', 'Loading...', 'Almost ready...'];
+    let i = 0;
+    const el = document.querySelector('.loading-text');
+    setInterval(() => {
+      i = (i + 1) % msgs.length;
+      el.textContent = msgs[i];
+    }, 900);
+  </script>
+</body>
+</html>

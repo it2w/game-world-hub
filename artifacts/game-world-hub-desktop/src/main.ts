@@ -1,32 +1,38 @@
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, shell } from 'electron';
+import {
+  app, BrowserWindow, desktopCapturer,
+  dialog, ipcMain, shell,
+} from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
-import { TrayManager } from './tray';
-import { NotificationPoller } from './notifications';
-import { startApiServer, stopApiServer } from './api-server';
+import { TrayManager }         from './tray';
+import { NotificationPoller }  from './notifications';
+import { createSplash, closeSplash } from './splash';
+import { GameDetector, type DetectedGame } from './game-detector';
+import { ConnectivityMonitor } from './connectivity';
+import { showOverlay, destroyOverlay } from './overlay';
+import {
+  HOSTED_URL, HOSTED_API_BASE,
+  MIN_WIDTH, MIN_HEIGHT, DEFAULT_WIDTH, DEFAULT_HEIGHT,
+} from './constants';
 
 // ─── Config ────────────────────────────────────────────────────────────────
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-const DEV_PORT = process.env.VITE_PORT || '5173';
-
-/**
- * Base URL of the bundled API server. Empty until the child process has
- * started; populated by startApiServer() before the window is created so it
- * can be handed to the renderer and the notification poller.
- */
-let apiBaseUrl = '';
+const isDev    = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const DEV_PORT = process.env.VITE_PORT ?? '5173';
 
 /** URL the BrowserWindow loads */
-const WEB_URL = isDev
-  ? `http://localhost:${DEV_PORT}`
-  : `file://${path.join(__dirname, '..', 'renderer', 'index.html')}`;
+const WEB_URL = isDev ? `http://localhost:${DEV_PORT}` : HOSTED_URL;
+/** API base for notification polling */
+const API_BASE = isDev ? `http://localhost:${DEV_PORT}` : HOSTED_API_BASE;
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
-let mainWindow: BrowserWindow | null = null;
-let trayManager: TrayManager | null = null;
-let notificationPoller: NotificationPoller | null = null;
+let mainWindow:          BrowserWindow           | null = null;
+let trayManager:         TrayManager             | null = null;
+let notificationPoller:  NotificationPoller      | null = null;
+let gameDetector:        GameDetector            | null = null;
+let connectivityMonitor: ConnectivityMonitor     | null = null;
+
 /** Set to true before programmatic quit so close-to-tray is bypassed */
 let isQuitting = false;
 
@@ -35,17 +41,14 @@ let isQuitting = false;
 const gotLock = app.requestSingleInstanceLock();
 
 if (!gotLock) {
-  // Another instance is already running — hand off and exit
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
-    // A second launch attempted — focus our window instead
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
       mainWindow.show();
     }
-    // Handle deep link passed via argv (Windows)
     const deepLinkUrl = argv.find(arg => arg.startsWith('gameworldhub://'));
     if (deepLinkUrl) handleDeepLink(deepLinkUrl);
   });
@@ -53,10 +56,8 @@ if (!gotLock) {
 
 // ─── Custom Protocol (gameworldhub://) ─────────────────────────────────────
 
-/** Register custom protocol for deep links. Must be called before app ready. */
 function registerProtocol(): void {
   if (process.defaultApp) {
-    // Dev mode: electron is the app, pass our script as the first arg
     if (process.argv.length >= 2) {
       app.setAsDefaultProtocolClient('gameworldhub', process.execPath, [
         path.resolve(process.argv[1]),
@@ -67,14 +68,10 @@ function registerProtocol(): void {
   }
 }
 
-/** Parse a deep-link URL and navigate the renderer to the equivalent path */
 function handleDeepLink(url: string): void {
   try {
-    // gameworldhub://party/42   → /party/42
-    // gameworldhub://friends    → /friends
     const withoutScheme = url.replace('gameworldhub://', '');
     const navPath = '/' + withoutScheme.replace(/^\/+/, '');
-
     mainWindow?.webContents.send('navigate', navPath);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -90,52 +87,46 @@ function handleDeepLink(url: string): void {
 
 function createWindow(): void {
   const windowState = windowStateKeeper({
-    defaultWidth: 1280,
-    defaultHeight: 800,
+    defaultWidth:  DEFAULT_WIDTH,
+    defaultHeight: DEFAULT_HEIGHT,
   });
 
   mainWindow = new BrowserWindow({
     x: windowState.x,
     y: windowState.y,
-    width: windowState.width,
-    height: windowState.height,
-    minWidth: 900,
-    minHeight: 600,
-    title: 'Game World Hub',
-    // Dark background to prevent white flash before page loads
+    width:     windowState.width,
+    height:    windowState.height,
+    minWidth:  MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
+    title:     'Game World Hub',
     backgroundColor: '#0a0a0a',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload:          path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      webSecurity: true,
-      // Hand the bundled API server's URL to the preload script so the web
-      // app can point its fetch client at the local backend.
-      additionalArguments: [`--gwh-api-base=${apiBaseUrl}`],
+      nodeIntegration:  false,
+      sandbox:          false,
+      webSecurity:      true,
+      // Pass the hosted API base to the preload bridge
+      additionalArguments: [
+        `--gwh-api-base=${API_BASE}`,
+        `--gwh-platform=electron`,
+      ],
     },
-    show: false, // shown once 'ready-to-show' fires
-    frame: true,
+    show:            false,
+    frame:           true,
     autoHideMenuBar: true,
   });
 
-  // Persist window state (position + size + maximized)
   windowState.manage(mainWindow);
 
-  // Screen sharing: browsers grant getDisplayMedia automatically, but Electron
-  // requires an explicit handler to choose the capture source. On Windows/macOS
-  // this uses the OS picker; elsewhere we fall back to the primary screen.
+  // Screen sharing handler
   mainWindow.webContents.session.setDisplayMediaRequestHandler(
     (_request, callback) => {
       desktopCapturer
         .getSources({ types: ['screen', 'window'] })
-        .then((sources) => {
-          const primary = sources.find((s) => s.id.startsWith('screen:')) ?? sources[0];
-          if (primary) {
-            callback({ video: primary });
-          } else {
-            callback({});
-          }
+        .then(sources => {
+          const primary = sources.find(s => s.id.startsWith('screen:')) ?? sources[0];
+          callback(primary ? { video: primary } : {});
         })
         .catch(() => callback({}));
     },
@@ -146,13 +137,16 @@ function createWindow(): void {
     console.error('[window] failed to load URL:', WEB_URL, err);
   });
 
-  // Show once rendered — avoids white flash
+  // Close splash and show main window once rendered
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-    if (isDev) mainWindow?.webContents.openDevTools({ mode: 'detach' });
+    closeSplash();
+    setTimeout(() => {
+      mainWindow?.show();
+      if (isDev) mainWindow?.webContents.openDevTools({ mode: 'detach' });
+    }, 450); // slight delay for splash fade-out
   });
 
-  // Close-to-tray: hide instead of quitting
+  // Close-to-tray
   mainWindow.on('close', event => {
     if (!isQuitting) {
       event.preventDefault();
@@ -160,11 +154,9 @@ function createWindow(): void {
     }
   });
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+  mainWindow.on('closed', () => { mainWindow = null; });
 
-  // Open external links in the system browser, not inside Electron
+  // Open external links in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       shell.openExternal(url);
@@ -172,7 +164,7 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
-  // Navigate to devtools with F12
+  // F12 → DevTools toggle
   mainWindow.webContents.on('before-input-event', (_event, input) => {
     if (input.key === 'F12' && input.type === 'keyDown') {
       if (mainWindow?.webContents.isDevToolsOpened()) {
@@ -187,41 +179,55 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function registerIpcHandlers(): void {
-  // Renderer sends JWT after login so main process can use it for polling
+  // Auth token forwarding to notification poller
   ipcMain.on('set-auth-token', (_event, token: string) => {
     notificationPoller?.setToken(token);
   });
-
-  // Renderer clears token on logout
   ipcMain.on('clear-auth-token', () => {
     notificationPoller?.clearToken();
   });
 
-  // Renderer reports current status for tray indicator
+  // Status → tray indicator
   ipcMain.on('set-status', (_event, status: string) => {
     trayManager?.updateStatusLabel(status);
   });
 
-  // Renderer queries app version
+  // App metadata
   ipcMain.handle('get-app-version', () => app.getVersion());
 
-  // Renderer reads / writes launch-at-startup setting
+  // Launch-at-startup
   ipcMain.handle('get-login-item-settings', () => {
     const settings = app.getLoginItemSettings();
     return { openAtLogin: settings.openAtLogin };
   });
-
   ipcMain.handle('set-login-item', (_event, openAtLogin: boolean) => {
     app.setLoginItemSettings({ openAtLogin });
     return { openAtLogin };
   });
 
-  // Renderer requests to show/restore the main window
+  // Show window from tray click / notification click
   ipcMain.on('show-window', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+  });
+
+  // Connectivity status query
+  ipcMain.handle('get-connectivity', () => {
+    return connectivityMonitor?.getStatus() ?? 'online';
+  });
+
+  // Renderer requests to reload after coming back online
+  ipcMain.on('reload-window', () => {
+    mainWindow?.webContents.reload();
+  });
+
+  // Game detection status query
+  ipcMain.handle('get-current-game', () => {
+    return gameDetector?.getCurrentGame() ?? null;
+  });
+
+  // Renderer triggers an overlay notification directly
+  ipcMain.on('show-overlay', (_event, notif) => {
+    showOverlay(notif as import('./overlay').OverlayNotification);
   });
 }
 
@@ -232,52 +238,51 @@ registerProtocol();
 app.whenReady().then(async () => {
   registerIpcHandlers();
 
-  // Start the bundled API server before creating the window so the renderer
-  // receives the correct local API URL and never loads against a dead backend.
-  try {
-    const api = await startApiServer();
-    apiBaseUrl = api.baseUrl;
-    console.log(`[main] bundled API server ready at ${apiBaseUrl}`);
-  } catch (err) {
-    console.error('[main] failed to start bundled API server:', err);
-    dialog.showErrorBox(
-      'Game World Hub',
-      `Could not start the local server.\n\n${(err as Error).message}`,
-    );
+  // Show splash immediately
+  createSplash();
+
+  // Small pause so splash renders before we do heavier work
+  await new Promise(r => setTimeout(r, 200));
+
+  createWindow();
+
+  if (!mainWindow) {
+    dialog.showErrorBox('Game World Hub', 'Failed to create the main window.');
     isQuitting = true;
     app.quit();
     return;
   }
 
-  createWindow();
+  // System tray
+  trayManager = new TrayManager(mainWindow, {
+    onQuit: () => { isQuitting = true; app.quit(); },
+    onNavigate: (navPath: string) => {
+      mainWindow?.webContents.send('navigate', navPath);
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
+  });
 
-  if (mainWindow) {
-    trayManager = new TrayManager(mainWindow, {
-      onQuit: () => {
-        isQuitting = true;
-        app.quit();
-      },
-      onNavigate: (navPath: string) => {
-        mainWindow?.webContents.send('navigate', navPath);
-        mainWindow?.show();
-        mainWindow?.focus();
-      },
-    });
+  // Notification polling against the production API
+  notificationPoller = new NotificationPoller(mainWindow, API_BASE, showOverlay);
 
-    notificationPoller = new NotificationPoller(mainWindow, apiBaseUrl);
-  }
+  // Game detection (Windows only) — updates tray label on change
+  gameDetector = new GameDetector(mainWindow, (game: DetectedGame | null) => {
+    trayManager?.updateCurrentGame(game);
+  });
+  gameDetector.start();
 
-  // macOS: re-create window if activated with no windows
+  // Connectivity monitoring
+  connectivityMonitor = new ConnectivityMonitor(mainWindow);
+  connectivityMonitor.start();
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-
-  // macOS: handle deep link via open-url event
   app.on('open-url', (_event, url) => handleDeepLink(url));
 });
 
 app.on('window-all-closed', () => {
-  // On Windows/Linux, quit when all windows closed (unless user chose tray-only)
   if (process.platform !== 'darwin') {
     isQuitting = true;
     app.quit();
@@ -287,9 +292,13 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   notificationPoller?.stop();
-  // Reliably tear down the bundled API server child process.
-  stopApiServer();
+  gameDetector?.stop();
+  connectivityMonitor?.stop();
+  destroyOverlay();
 });
 
-// Safety net: also kill the child if the main process is terminated abruptly.
-process.on('exit', () => stopApiServer());
+process.on('exit', () => {
+  gameDetector?.stop();
+  connectivityMonitor?.stop();
+  destroyOverlay();
+});

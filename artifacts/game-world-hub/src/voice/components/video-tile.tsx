@@ -5,10 +5,12 @@ export function VideoTile({
   stream,
   muted = true,
   className,
+  style,
 }: {
   stream: MediaStream | null;
   muted?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
 
@@ -19,5 +21,5 @@ export function VideoTile({
     if (stream) void el.play().catch(() => {});
   }, [stream]);
 
-  return <video ref={ref} autoPlay playsInline muted={muted} className={className} />;
+  return <video ref={ref} autoPlay playsInline muted={muted} className={className} style={style} />;
 }

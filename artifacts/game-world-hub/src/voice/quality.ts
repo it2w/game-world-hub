@@ -29,9 +29,9 @@ export const VOICE_PRESETS: Record<VoiceQuality, VoicePreset> = {
 };
 
 export const SCREEN_PRESETS: Record<ScreenQuality, ScreenPreset> = {
-  "480p": { label: "480p · 15fps", width: 854, height: 480, frameRate: 15, maxBitrate: 600_000 },
-  "720p": { label: "720p · 30fps", width: 1280, height: 720, frameRate: 30, maxBitrate: 1_500_000 },
-  "1080p": { label: "1080p · 30fps", width: 1920, height: 1080, frameRate: 30, maxBitrate: 3_000_000 },
+  "480p": { label: "480p · 30fps", width: 854, height: 480, frameRate: 30, maxBitrate: 800_000 },
+  "720p": { label: "720p · 60fps", width: 1280, height: 720, frameRate: 60, maxBitrate: 2_500_000 },
+  "1080p": { label: "1080p · 60fps", width: 1920, height: 1080, frameRate: 60, maxBitrate: 5_000_000 },
 };
 
 export const VOICE_QUALITY_ORDER: VoiceQuality[] = ["low", "medium", "high"];

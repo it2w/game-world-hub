@@ -6,5 +6,8 @@ export const modules: ModuleMap = {
   "./components/mockups/gwh-logos/HexForge.tsx": () => import("../components/mockups/gwh-logos/HexForge.tsx"),
   "./components/mockups/gwh-logos/HexSplit.tsx": () => import("../components/mockups/gwh-logos/HexSplit.tsx"),
   "./components/mockups/gwh-logos/PadPulse.tsx": () => import("../components/mockups/gwh-logos/PadPulse.tsx"),
-  "./components/mockups/gwh-logos/PixelForge.tsx": () => import("../components/mockups/gwh-logos/PixelForge.tsx")
+  "./components/mockups/gwh-logos/PixelForge.tsx": () => import("../components/mockups/gwh-logos/PixelForge.tsx"),
+  "./components/mockups/voice-panel/Apex.tsx": () => import("../components/mockups/voice-panel/Apex.tsx"),
+  "./components/mockups/voice-panel/Grid.tsx": () => import("../components/mockups/voice-panel/Grid.tsx"),
+  "./components/mockups/voice-panel/Halo.tsx": () => import("../components/mockups/voice-panel/Halo.tsx")
 };

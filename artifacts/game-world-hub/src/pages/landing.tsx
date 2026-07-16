@@ -750,19 +750,9 @@ function AboutSection() {
 
 // ─── download section ─────────────────────────────────────────────────────────
 
-/** Direct download link — update after each release build */
-const WINDOWS_DOWNLOAD_URL =
-  "https://github.com/gameworldhub/desktop-releases/releases/latest/download/GameWorldHub-Setup-1.0.0.exe";
-
-const WINDOWS_VERSION = "1.0.0";
-
 function DownloadSection() {
   const { t } = useTranslation("landing");
   const points = ["p1", "p2", "p3", "p4", "p5", "p6"] as const;
-
-  const handleDownload = () => {
-    window.open(WINDOWS_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
-  };
 
   return (
     <Section id="download" prompt={t("download.prompt")} title={t("download.title")} body={t("download.body")}>
@@ -779,25 +769,18 @@ function DownloadSection() {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
-              size="lg"
-              onClick={handleDownload}
-              className="rounded-none font-mono uppercase tracking-widest group"
+              size="lg" disabled
+              className="rounded-none font-mono uppercase tracking-widest"
               data-testid="button-download-windows"
             >
-              <Download className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+              <Download className="w-4 h-4" />
               {t("download.button")}
             </Button>
             <span className="border border-primary/40 bg-primary/10 text-primary font-mono text-[10px] uppercase tracking-widest px-2 py-1">
-              v{WINDOWS_VERSION} · {t("download.available")}
+              {t("download.soon")}
             </span>
           </div>
-
-          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.sizeNote")}</p>
-
-          <div className="mt-6 flex flex-wrap gap-4 text-xs text-muted-foreground font-mono">
-            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-primary/60" /> {t("download.req1")}</span>
-            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-primary/60" /> {t("download.req2")}</span>
-          </div>
+          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.soonNote")}</p>
 
           <div className="mt-8 border-t border-border pt-6">
             <p className="text-sm text-muted-foreground mb-3">{t("download.webNote")}</p>

@@ -90,6 +90,22 @@ const STYLE = `
 .gwh-peer-glow { animation: gwh-peer-glow 2s ease-in-out infinite; }
 `;
 
+/* ── Headphones-off icon (not in this lucide-react version) ─────────────── */
+function HeadphonesOff({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24" height="24" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+  );
+}
+
 /* ── EQ bars (large for self, small for peers) ───────────────────────────── */
 function EqBars({ size = "lg" }: { size?: "lg" | "sm" }) {
   if (size === "sm") {
@@ -347,7 +363,7 @@ export function VoicePanel() {
                 <span className="text-[13px] font-bold uppercase tracking-widest">{t("voice.you")}</span>
                 {effectiveSpeaking && !effectiveMuted && <EqBars />}
                 {effectiveMuted && <MicOff className="w-3.5 h-3.5 text-destructive" />}
-                {effectiveDeafened && <Headphones className="w-3.5 h-3.5 text-destructive ml-1" />}
+                {effectiveDeafened && <HeadphonesOff className="w-3.5 h-3.5 text-destructive ml-1" />}
               </div>
 
               {/* Status badges row */}
@@ -535,7 +551,7 @@ export function VoicePanel() {
             onClick={toggleDeafen}
             title={deafened ? t("voice.undeafen") : t("voice.deafen")}
           >
-            <Headphones className="w-4 h-4" />
+            {deafened ? <HeadphonesOff className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
           </ControlBtn>
 
           {/* Camera */}

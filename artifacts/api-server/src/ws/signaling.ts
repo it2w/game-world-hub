@@ -1,26 +1,28 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
-import { and, eq } from "drizzle-orm";
-import { db, usersTable, partyMembersTable, conversationParticipantsTable, partiesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, usersTable, partiesTable, conversationParticipantsTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
 /**
- * WebRTC signaling server for voice chat & screen sharing.
+ * WebSocket server for call signaling, admin actions, and presence events.
  *
- * Media (audio + screen video) flows peer-to-peer over WebRTC. This server
- * only relays signaling (SDP offers/answers + ICE candidates) and coordinates
- * room membership and the direct-call handshake. Nothing is persisted — all
- * state is in memory and lives only as long as connections are open.
+ * Media (audio / video / screen) is handled entirely by LiveKit Cloud — this
+ * server no longer relays SDP or ICE candidates.  What remains here:
  *
- * Rooms are keyed by a string:
- *   - `party:<partyId>`  — a party voice channel (group mesh)
- *   - `call:<callId>`    — an ephemeral 1:1 direct call
+ *   - Direct-call handshake  (call-invite / accept / decline / cancel)
+ *   - Admin force-mute       (party leader mutes a member on their LiveKit side)
+ *   - Force-evict            (kick a user so their client disconnects from LiveKit)
+ *   - Typing indicators      (chat "typing…" events)
+ *
+ * `callRooms` is exported so the `/api/livekit/token` route can authorise call
+ * participants before issuing tokens.
  */
 
-// ─── Types ───────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Client {
   ws: WebSocket;
@@ -28,14 +30,7 @@ interface Client {
   username: string;
   displayName: string;
   avatarUrl: string | null;
-  rooms: Set<string>;
   isAlive: boolean;
-}
-
-interface RoomMember {
-  client: Client;
-  muted: boolean;
-  sharing: boolean;
 }
 
 interface PendingCall {
@@ -45,41 +40,26 @@ interface PendingCall {
   targetId: number;
 }
 
-// ─── State ───────────────────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────────────────────
 
-/** roomId → (userId → member) */
-const rooms = new Map<string, Map<number, RoomMember>>();
-/** userId → set of that user's connections (multiple tabs/devices) */
+/** userId → set of that user's open connections (multi-tab / multi-device) */
 const clientsByUser = new Map<number, Set<Client>>();
-/** ws → client wrapper */
+/** ws → client */
 const clientBySocket = new Map<WebSocket, Client>();
-/** callId → pending call */
+/** callId → pending call metadata */
 const pendingCalls = new Map<string, PendingCall>();
 /**
- * roomId → the two participants authorized for a `call:<id>` room. Populated the
- * moment an invite is created (so both the accepting callee and the caller can
- * join) and cleared when the call is resolved or the room empties. This is the
- * authorization list for call rooms.
+ * roomId → the two participants authorised for a `call:<id>` LiveKit room.
+ * Populated when a caller sends `call-invite`; cleared when the call is
+ * resolved or the caller/callee disconnects.  Exported for use by the
+ * `/api/livekit/token` route so it can verify membership before issuing tokens.
  */
-const callRooms = new Map<string, { callerId: number; targetId: number }>();
+export const callRooms = new Map<string, { callerId: number; targetId: number }>();
 
-// ─── Helpers ─────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function send(ws: WebSocket, msg: unknown): void {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
-  }
-}
-
-function peerSummary(member: RoomMember) {
-  return {
-    userId: member.client.userId,
-    username: member.client.username,
-    displayName: member.client.displayName,
-    avatarUrl: member.client.avatarUrl,
-    muted: member.muted,
-    sharing: member.sharing,
-  };
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 function registerClient(client: Client): void {
@@ -101,125 +81,7 @@ function unregisterClient(client: Client): void {
   }
 }
 
-// ─── Room operations ─────────────────────────────────────────────────────
-
-/**
- * A client may only join a room it legitimately belongs to:
- *   - `party:<id>` — must be a current member of that party (checked in the DB).
- *   - `call:<id>`  — must be the caller or target of that call.
- * Anything else is rejected. Without this, any authenticated user could join
- * arbitrary rooms and receive/relay signaling for calls they aren't part of.
- */
-async function authorizeJoin(client: Client, room: string): Promise<boolean> {
-  if (room.startsWith("party:")) {
-    const partyId = Number(room.slice("party:".length));
-    if (!Number.isInteger(partyId) || partyId <= 0) return false;
-    try {
-      const [membership] = await db
-        .select({ userId: partyMembersTable.userId })
-        .from(partyMembersTable)
-        .where(and(eq(partyMembersTable.partyId, partyId), eq(partyMembersTable.userId, client.userId)));
-      return !!membership;
-    } catch (err) {
-      logger.error({ err, room }, "voice: party authorization check failed");
-      return false;
-    }
-  }
-  if (room.startsWith("call:")) {
-    const info = callRooms.get(room);
-    return !!info && (info.callerId === client.userId || info.targetId === client.userId);
-  }
-  return false;
-}
-
-async function joinRoom(client: Client, room: string): Promise<void> {
-  if (!(await authorizeJoin(client, room))) {
-    send(client.ws, { type: "error", message: "Not authorized to join room", room });
-    logger.warn({ room, userId: client.userId }, "voice: rejected unauthorized room join");
-    return;
-  }
-
-  let members = rooms.get(room);
-  if (!members) {
-    members = new Map();
-    rooms.set(room, members);
-  }
-
-  // Cross-tab: if this user is already in the room via another connection,
-  // evict the old one so there is exactly one peer per user per room.
-  const existing = members.get(client.userId);
-  if (existing && existing.client !== client) {
-    send(existing.client.ws, { type: "force-leave", room });
-    existing.client.rooms.delete(room);
-    members.delete(client.userId);
-    // Tell remaining peers the old connection left before the new one joins.
-    for (const [, m] of members) {
-      send(m.client.ws, { type: "peer-left", room, userId: client.userId });
-    }
-  }
-
-  // Send the joiner the list of peers already present.
-  const peers = Array.from(members.values()).map(peerSummary);
-  send(client.ws, { type: "joined", room, peers });
-
-  // Add the joiner and announce to everyone else.
-  const member: RoomMember = { client, muted: false, sharing: false };
-  members.set(client.userId, member);
-  client.rooms.add(room);
-
-  for (const [uid, m] of members) {
-    if (uid === client.userId) continue;
-    send(m.client.ws, { type: "peer-joined", room, peer: peerSummary(member) });
-  }
-
-  logger.info({ room, userId: client.userId, size: members.size }, "voice: peer joined room");
-}
-
-function leaveRoom(client: Client, room: string): void {
-  const members = rooms.get(room);
-  if (!members) {
-    client.rooms.delete(room);
-    return;
-  }
-  const member = members.get(client.userId);
-  // Only remove if this exact connection owns the membership.
-  if (member && member.client === client) {
-    members.delete(client.userId);
-    for (const [, m] of members) {
-      send(m.client.ws, { type: "peer-left", room, userId: client.userId });
-    }
-  }
-  client.rooms.delete(room);
-  if (members.size === 0) {
-    rooms.delete(room);
-    if (room.startsWith("call:")) callRooms.delete(room);
-  }
-}
-
-function relaySignal(client: Client, room: string, toUserId: number, data: unknown): void {
-  const members = rooms.get(room);
-  // The sender must be an active member of the room (via this exact connection)
-  // before we relay anything on their behalf.
-  const self = members?.get(client.userId);
-  if (!members || !self || self.client !== client) return;
-  const target = members.get(toUserId);
-  if (!target) return;
-  send(target.client.ws, { type: "signal", room, from: client.userId, data });
-}
-
-function updateState(client: Client, room: string, muted: boolean, sharing: boolean): void {
-  const members = rooms.get(room);
-  const member = members?.get(client.userId);
-  if (!member || member.client !== client) return;
-  member.muted = muted;
-  member.sharing = sharing;
-  for (const [uid, m] of members!) {
-    if (uid === client.userId) continue;
-    send(m.client.ws, { type: "peer-state", room, userId: client.userId, muted, sharing });
-  }
-}
-
-// ─── Direct call handshake ───────────────────────────────────────────────
+// ─── Direct-call handshake ───────────────────────────────────────────────────
 
 function handleCallInvite(caller: Client, targetId: number): void {
   const targets = clientsByUser.get(targetId);
@@ -233,14 +95,15 @@ function handleCallInvite(caller: Client, targetId: number): void {
   pendingCalls.set(callId, { callId, room, callerId: caller.userId, targetId });
   callRooms.set(room, { callerId: caller.userId, targetId });
 
-  // Auto-expire the invite if unanswered.
+  // Auto-expire the invite if unanswered within 45 s.
   setTimeout(() => {
     if (pendingCalls.has(callId)) {
       pendingCalls.delete(callId);
-      // Only drop the room authorization if nobody actually joined it.
-      if (!rooms.has(room)) callRooms.delete(room);
+      if (!callRooms.has(room)) return;
+      callRooms.delete(room);
       send(caller.ws, { type: "call-failed", to: targetId, reason: "timeout" });
-      for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
+      const ts = clientsByUser.get(targetId);
+      if (ts) for (const t of ts) send(t.ws, { type: "call-cancelled", callId });
     }
   }, 45_000);
 
@@ -252,17 +115,10 @@ function handleCallInvite(caller: Client, targetId: number): void {
     displayName: caller.displayName,
     avatarUrl: caller.avatarUrl,
   };
-  for (const t of targets) {
-    send(t.ws, { type: "incoming-call", callId, room, from });
-  }
+  for (const t of targets) send(t.ws, { type: "incoming-call", callId, room, from });
 }
 
-/**
- * A direct-call invite is fanned out to every one of the callee's sessions. The
- * first session to accept or decline wins (it deletes the pending call, so any
- * later action is a no-op). Once one session has acted, this stops the callee's
- * *other* sessions from ringing by clearing their invite UI.
- */
+/** First session of the callee to accept or decline wins; clear the others. */
 function clearOtherCalleeSessions(actor: Client, callId: string): void {
   const sessions = clientsByUser.get(actor.userId);
   if (!sessions) return;
@@ -275,8 +131,6 @@ function handleCallAccept(callee: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.targetId !== callee.userId) return;
   pendingCalls.delete(callId);
-
-  // This session answered — stop the callee's other sessions from ringing.
   clearOtherCalleeSessions(callee, callId);
 
   const callers = clientsByUser.get(call.callerId);
@@ -284,41 +138,32 @@ function handleCallAccept(callee: Client, callId: string): void {
     send(callee.ws, { type: "call-failed", to: call.callerId, reason: "offline" });
     return;
   }
-  for (const c of callers) {
-    send(c.ws, { type: "call-accepted", callId, room: call.room, by: callee.userId });
-  }
-  // Both sides now issue their own `join` for call.room; the mesh connects.
+  for (const c of callers) send(c.ws, { type: "call-accepted", callId, room: call.room, by: callee.userId });
   send(callee.ws, { type: "call-accepted", callId, room: call.room, by: callee.userId });
+  // callRooms entry is kept alive until the call room empties — LiveKit triggers
+  // the client to disconnect, which clears the entry via cleanupCallsFor.
 }
 
 function handleCallDecline(callee: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.targetId !== callee.userId) return;
   pendingCalls.delete(callId);
-  if (!rooms.has(call.room)) callRooms.delete(call.room);
-  // This session declined — clear the invite on the callee's other sessions so
-  // they stop ringing (only an explicit decline reaches this path now).
+  callRooms.delete(call.room);
   clearOtherCalleeSessions(callee, callId);
   const callers = clientsByUser.get(call.callerId);
-  if (callers) {
-    for (const c of callers) send(c.ws, { type: "call-declined", callId, by: callee.userId });
-  }
+  if (callers) for (const c of callers) send(c.ws, { type: "call-declined", callId, by: callee.userId });
 }
 
 function handleCallCancel(caller: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.callerId !== caller.userId) return;
   pendingCalls.delete(callId);
-  if (!rooms.has(call.room)) callRooms.delete(call.room);
+  callRooms.delete(call.room);
   const targets = clientsByUser.get(call.targetId);
-  if (targets) {
-    for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
-  }
+  if (targets) for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
 }
 
 function cleanupCallsFor(client: Client): void {
-  // Only act once this was the user's final connection — other tabs/devices of
-  // the same user keep the pending call alive.
   const remaining = clientsByUser.get(client.userId);
   const stillOnline = !!remaining && Array.from(remaining).some((c) => c !== client);
   if (stillOnline) return;
@@ -326,19 +171,79 @@ function cleanupCallsFor(client: Client): void {
   for (const [callId, call] of pendingCalls) {
     if (call.callerId === client.userId) {
       pendingCalls.delete(callId);
-      if (!rooms.has(call.room)) callRooms.delete(call.room);
+      callRooms.delete(call.room);
       const targets = clientsByUser.get(call.targetId);
       if (targets) for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
     } else if (call.targetId === client.userId) {
       pendingCalls.delete(callId);
-      if (!rooms.has(call.room)) callRooms.delete(call.room);
+      callRooms.delete(call.room);
       const callers = clientsByUser.get(call.callerId);
       if (callers) for (const c of callers) send(c.ws, { type: "call-declined", callId, by: client.userId });
     }
   }
 }
 
-// ─── Message dispatch ────────────────────────────────────────────────────
+// ─── Admin force-mute ─────────────────────────────────────────────────────────
+
+/**
+ * Party leader sends `admin-mute` → server verifies leadership in DB → relays
+ * `force-mute` to the target's WS connections.  The target's LiveKit client
+ * then calls `localParticipant.setMicrophoneEnabled(false)`.
+ */
+async function handleAdminMute(leader: Client, room: string, targetUserId: number): Promise<void> {
+  if (!room.startsWith("party:")) return;
+  const partyId = Number(room.slice("party:".length));
+  if (!Number.isInteger(partyId) || partyId <= 0) return;
+
+  try {
+    const [party] = await db
+      .select({ leaderId: partiesTable.leaderId })
+      .from(partiesTable)
+      .where(eq(partiesTable.id, partyId));
+    if (!party || party.leaderId !== leader.userId) return;
+  } catch (err) {
+    logger.error({ err, room }, "voice: admin-mute party check failed");
+    return;
+  }
+
+  const targets = clientsByUser.get(targetUserId);
+  if (targets) {
+    for (const t of targets) send(t.ws, { type: "force-mute", room });
+    logger.info({ room, by: leader.userId, target: targetUserId }, "voice: admin-mute applied");
+  }
+}
+
+// ─── Typing indicator ─────────────────────────────────────────────────────────
+
+async function handleTyping(client: Client, conversationId: number): Promise<void> {
+  let participants: { userId: number }[];
+  try {
+    participants = await db
+      .select({ userId: conversationParticipantsTable.userId })
+      .from(conversationParticipantsTable)
+      .where(eq(conversationParticipantsTable.conversationId, conversationId));
+  } catch (err) {
+    logger.error({ err, conversationId }, "ws: failed to fetch participants for typing");
+    return;
+  }
+  if (!participants.some((p) => p.userId === client.userId)) return;
+
+  for (const p of participants) {
+    if (p.userId === client.userId) continue;
+    const ts = clientsByUser.get(p.userId);
+    if (!ts) continue;
+    for (const t of ts) {
+      send(t.ws, {
+        type: "typing",
+        conversationId,
+        userId: client.userId,
+        displayName: client.displayName,
+      });
+    }
+  }
+}
+
+// ─── Message dispatch ─────────────────────────────────────────────────────────
 
 async function handleMessage(client: Client, raw: RawData): Promise<void> {
   let msg: any;
@@ -350,22 +255,6 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
   }
 
   switch (msg?.type) {
-    case "join":
-      if (typeof msg.room === "string") await joinRoom(client, msg.room);
-      break;
-    case "leave":
-      if (typeof msg.room === "string") leaveRoom(client, msg.room);
-      break;
-    case "signal":
-      if (typeof msg.room === "string" && typeof msg.to === "number") {
-        relaySignal(client, msg.room, msg.to, msg.data);
-      }
-      break;
-    case "state":
-      if (typeof msg.room === "string") {
-        updateState(client, msg.room, !!msg.muted, !!msg.sharing);
-      }
-      break;
     case "call-invite":
       if (typeof msg.to === "number") handleCallInvite(client, msg.to);
       break;
@@ -394,119 +283,29 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
   }
 }
 
-/**
- * Allow a party leader to force-mute another member. The target receives a
- * `force-mute` frame which their client processes by enabling their local mute.
- * Only works for `party:` rooms and only when the sender is the current leader.
- */
-async function handleAdminMute(leader: Client, room: string, targetUserId: number): Promise<void> {
-  if (!room.startsWith("party:")) return;
-  const partyId = Number(room.slice("party:".length));
-  if (!Number.isInteger(partyId) || partyId <= 0) return;
-
-  const members = rooms.get(room);
-  const self = members?.get(leader.userId);
-  if (!members || !self || self.client !== leader) return;
-
-  try {
-    const [party] = await db
-      .select({ leaderId: partiesTable.leaderId })
-      .from(partiesTable)
-      .where(eq(partiesTable.id, partyId));
-    if (!party || party.leaderId !== leader.userId) return;
-  } catch (err) {
-    logger.error({ err, room }, "voice: admin-mute party check failed");
-    return;
-  }
-
-  const target = members.get(targetUserId);
-  if (target) {
-    send(target.client.ws, { type: "force-mute", room });
-    logger.info({ room, by: leader.userId, target: targetUserId }, "voice: admin-mute applied");
-  }
-}
-
-/** Relay typing indicator to all online participants of a conversation (except sender). */
-async function handleTyping(client: Client, conversationId: number): Promise<void> {
-  let participants: { userId: number }[];
-  try {
-    participants = await db
-      .select({ userId: conversationParticipantsTable.userId })
-      .from(conversationParticipantsTable)
-      .where(eq(conversationParticipantsTable.conversationId, conversationId));
-  } catch (err) {
-    logger.error({ err, conversationId }, "ws: failed to fetch conversation participants for typing");
-    return;
-  }
-  // Verify the sender is actually a participant (authorization)
-  const isMember = participants.some((p) => p.userId === client.userId);
-  if (!isMember) return;
-
-  for (const p of participants) {
-    if (p.userId === client.userId) continue;
-    const targets = clientsByUser.get(p.userId);
-    if (!targets) continue;
-    for (const t of targets) {
-      send(t.ws, {
-        type: "typing",
-        conversationId,
-        userId: client.userId,
-        displayName: client.displayName,
-      });
-    }
-  }
-}
-
 function handleClose(client: Client): void {
-  for (const room of Array.from(client.rooms)) {
-    leaveRoom(client, room);
-  }
   cleanupCallsFor(client);
   unregisterClient(client);
   logger.info({ userId: client.userId }, "voice: client disconnected");
 }
 
-// ─── External eviction API ───────────────────────────────────────────────
+// ─── External eviction API ────────────────────────────────────────────────────
 
 /**
- * Force-evict a user from a specific signaling room (e.g. after a party kick).
- * All of the user's active sessions in that room receive a `force-leave` and
- * are removed from the in-memory room membership so they cannot relay any
- * further signaling frames.
+ * Tell all of a user's WS sessions to leave a specific room (e.g. after a
+ * party kick).  The client receives `force-leave` and calls
+ * `livekitRoom.disconnect()` to exit the LiveKit room.
  */
 export function evictUserFromRoom(userId: number, room: string): void {
-  const members = rooms.get(room);
-  if (!members) return;
-  const member = members.get(userId);
-  if (!member) return;
-
-  // Send force-leave to the kicked user so their client tears down the call.
-  send(member.client.ws, { type: "force-leave", room });
-  member.client.rooms.delete(room);
-  members.delete(userId);
-
-  // Tell the remaining peers that this user left.
-  for (const [, m] of members) {
-    send(m.client.ws, { type: "peer-left", room, userId });
-  }
-
-  if (members.size === 0) {
-    rooms.delete(room);
-  }
-
-  // Also clear any other sessions for the same user that might be in the room
-  // (defensive: joinRoom ensures only one session per user per room, but cover it anyway).
   const sessions = clientsByUser.get(userId);
-  if (sessions) {
-    for (const client of sessions) {
-      if (client.rooms.has(room)) {
-        client.rooms.delete(room);
-      }
-    }
+  if (!sessions) return;
+  for (const client of sessions) {
+    send(client.ws, { type: "force-leave", room });
+    logger.info({ room, userId }, "voice: force-evicted user from room");
   }
 }
 
-// ─── Server attachment ───────────────────────────────────────────────────
+// ─── Server attachment ────────────────────────────────────────────────────────
 
 export function attachSignaling(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -523,7 +322,6 @@ export function attachSignaling(server: Server): void {
       return;
     }
 
-    // Only handle our signaling path; ignore other upgrades (e.g. Vite HMR).
     if (pathname !== "/api/ws") return;
 
     if (!token) {
@@ -547,7 +345,6 @@ export function attachSignaling(server: Server): void {
   });
 
   wss.on("connection", async (ws: WebSocket, payload: { userId: number; username: string }) => {
-    // Look up display info for richer peer summaries.
     let displayName = payload.username;
     let avatarUrl: string | null = null;
     try {
@@ -557,7 +354,7 @@ export function attachSignaling(server: Server): void {
         avatarUrl = toPublicImageUrl(user.avatarUrl ?? null);
       }
     } catch (err) {
-      logger.error({ err }, "voice: failed to load user for connection");
+      logger.error({ err }, "voice: failed to load user on connect");
     }
 
     const client: Client = {
@@ -566,16 +363,13 @@ export function attachSignaling(server: Server): void {
       username: payload.username,
       displayName,
       avatarUrl,
-      rooms: new Set(),
       isAlive: true,
     };
     registerClient(client);
     send(ws, { type: "ready", userId: client.userId });
     logger.info({ userId: client.userId }, "voice: client connected");
 
-    ws.on("pong", () => {
-      client.isAlive = true;
-    });
+    ws.on("pong", () => { client.isAlive = true; });
     ws.on("message", (data) => {
       void handleMessage(client, data).catch((err) =>
         logger.error({ err, userId: client.userId }, "voice: message handler failed"),
@@ -585,13 +379,9 @@ export function attachSignaling(server: Server): void {
     ws.on("error", () => handleClose(client));
   });
 
-  // Heartbeat: terminate connections that stop responding to pings.
   const interval = setInterval(() => {
     for (const [ws, client] of clientBySocket) {
-      if (!client.isAlive) {
-        ws.terminate();
-        continue;
-      }
+      if (!client.isAlive) { ws.terminate(); continue; }
       client.isAlive = false;
       ws.ping();
     }

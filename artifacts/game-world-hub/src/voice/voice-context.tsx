@@ -7,20 +7,27 @@ import React, {
   useRef,
   useState,
 } from "react";
+import {
+  Room,
+  RoomEvent,
+  Track,
+  ConnectionQuality,
+  type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication,
+  type Participant,
+} from "livekit-client";
 import { useAuth } from "@/hooks/use-auth";
-import { Peer, getSignalingUrl, fetchIceServers, ICE_SERVERS } from "./webrtc";
-import { SpeakingDetector } from "./audio";
+import { getApiBase, getSignalingUrl } from "./webrtc";
 import { RemoteAudioSink } from "./components/remote-audio-sink";
 import {
   DEFAULT_SCREEN_QUALITY,
   DEFAULT_VOICE_QUALITY,
-  SCREEN_PRESETS,
-  VOICE_PRESETS,
   type ScreenQuality,
   type VoiceQuality,
 } from "./quality";
 
-// ─── Public types ──────────────────────────────────────────────────────────
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export interface CallUser {
   userId: number;
@@ -98,19 +105,72 @@ interface VoiceContextValue {
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
 
-// ─── Provider ────────────────────────────────────────────────────────────────
+// ─── Pure helpers (outside component — no hook deps) ──────────────────────────
+
+function participantMeta(p: RemoteParticipant): { displayName: string; avatarUrl: string | null } {
+  try {
+    const m = JSON.parse(p.metadata ?? "{}");
+    return {
+      displayName: m.displayName || p.name || p.identity,
+      avatarUrl: m.avatarUrl ?? null,
+    };
+  } catch {
+    return { displayName: p.name || p.identity, avatarUrl: null };
+  }
+}
+
+function qualityToConnState(q: ConnectionQuality): RTCPeerConnectionState {
+  if (q === ConnectionQuality.Excellent || q === ConnectionQuality.Good) return "connected";
+  if (q === ConnectionQuality.Poor) return "connecting";
+  if (q === ConnectionQuality.Lost) return "disconnected";
+  return "new";
+}
+
+function buildPeerState(p: RemoteParticipant): PeerUiState {
+  const { displayName, avatarUrl } = participantMeta(p);
+  let audioStream: MediaStream | null = null;
+  let screenStream: MediaStream | null = null;
+  let cameraStream: MediaStream | null = null;
+
+  // audioStream is intentionally left null: livekit-client auto-plays remote
+  // audio via its own internal HTMLAudioElement.  Deafen is applied via
+  // RemoteAudioTrack.setVolume(0) in applyDeafenVolume(), not via srcObject.
+  void audioStream;
+  for (const pub of p.videoTrackPublications.values()) {
+    if (!pub.track?.mediaStream) continue;
+    if (pub.source === Track.Source.ScreenShare) screenStream = pub.track.mediaStream;
+    else if (pub.source === Track.Source.Camera) cameraStream = pub.track.mediaStream;
+  }
+
+  return {
+    userId: Number(p.identity),
+    username: p.name ?? p.identity,
+    displayName,
+    avatarUrl,
+    muted: !p.isMicrophoneEnabled,
+    sharing: p.isScreenShareEnabled,
+    cameraEnabled: p.isCameraEnabled,
+    speaking: p.isSpeaking,
+    connectionState: qualityToConnState(p.connectionQuality),
+    audioStream,
+    screenStream,
+    cameraStream,
+  };
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
 
-  // React state (drives rendering)
+  // ── React state ────────────────────────────────────────────────────────────
   const [connected, setConnected] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
   const [peersState, setPeersState] = useState<Record<number, PeerUiState>>({});
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [cameraEnabled, setCameraEnabledState] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
   const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
@@ -119,379 +179,281 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCall | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // True only for the terminal "couldn't reconnect" failure, which offers a
-  // one-tap Rejoin. Distinguishes that fatal state from transient errors
-  // (e.g. a cancelled screen share) that should just auto-dismiss.
   const [canRejoin, setCanRejoin] = useState(false);
 
-  // Mutable refs (peer plumbing)
+  // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
-  const myUserIdRef = useRef<number | null>(null);
-  const peersRef = useRef<Map<number, { peer: Peer; info: CallUser }>>(new Map());
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const livekitRef = useRef<Room | null>(null);
   const activeRoomRef = useRef<ActiveRoom | null>(null);
   const mutedRef = useRef(false);
   const deafenedRef = useRef(false);
-  // Track whether the user was already muted before deafening so we can
-  // restore the correct mic state when they un-deafen.
   const mutedBeforeDeafenRef = useRef(false);
-  const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
-  const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
-  const detectorRef = useRef<SpeakingDetector | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldConnectRef = useRef(false);
-  const iceServersRef = useRef<RTCIceServer[]>(ICE_SERVERS);
+  const incomingCallRef = useRef<IncomingCall | null>(null);
 
-  useEffect(() => {
-    activeRoomRef.current = activeRoom;
-  }, [activeRoom]);
+  useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
+  useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
-  // ─── Peer UI state helpers ────────────────────────────────────────────────
+  // ── Peer state helpers ─────────────────────────────────────────────────────
 
-  const patchPeer = useCallback((userId: number, patch: Partial<PeerUiState>) => {
+  /** Patch a single peer's state by participant identity string. */
+  const patchPeer = useCallback((identity: string, patch: Partial<PeerUiState>) => {
+    const uid = Number(identity);
+    if (isNaN(uid)) return;
     setPeersState((prev) => {
-      const existing = prev[userId];
+      const existing = prev[uid];
       if (!existing) return prev;
-      return { ...prev, [userId]: { ...existing, ...patch } };
+      return { ...prev, [uid]: { ...existing, ...patch } };
     });
   }, []);
 
-  // ─── Signaling send ───────────────────────────────────────────────────────
-
-  const wsSend = useCallback((msg: unknown) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(msg));
-    }
-  }, []);
-
-  const broadcastState = useCallback(() => {
-    const room = activeRoomRef.current;
-    if (!room) return;
-    wsSend({
-      type: "state",
-      room: room.room,
-      muted: mutedRef.current,
-      sharing: !!screenStreamRef.current,
-      cameraStreamId: cameraStreamRef.current?.id ?? null,
-    });
-  }, [wsSend]);
-
-  // ─── Speaking detector ────────────────────────────────────────────────────
-
-  const ensureDetector = useCallback(() => {
-    if (!detectorRef.current) {
-      detectorRef.current = new SpeakingDetector((id, isSpeaking) => {
-        if (id === "self") {
-          setSpeaking(isSpeaking);
-        } else {
-          patchPeer(Number(id), { speaking: isSpeaking });
-        }
-      });
-    }
-    return detectorRef.current;
-  }, [patchPeer]);
-
-  // ─── Local media ──────────────────────────────────────────────────────────
-
-  const ensureMic = useCallback(async (): Promise<MediaStream> => {
-    if (micStreamRef.current) return micStreamRef.current;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: false,
-    });
-    micStreamRef.current = stream;
-    const [track] = stream.getAudioTracks();
-    if (track) track.enabled = !mutedRef.current;
-    ensureDetector().add("self", stream);
-    return stream;
-  }, [ensureDetector]);
-
-  // ─── Connection recovery (ICE restart) ────────────────────────────────────
-
-  // How long a peer may sit in `disconnected` before we attempt to heal the
-  // path. Short networks blips often recover on their own within a second or
-  // two, so we wait before spending an ICE restart.
-  const ICE_RESTART_GRACE_MS = 2500;
-  const iceRestartTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
-
-  const clearIceRestartTimer = useCallback((userId: number) => {
-    const t = iceRestartTimersRef.current.get(userId);
-    if (t) {
-      clearTimeout(t);
-      iceRestartTimersRef.current.delete(userId);
-    }
-  }, []);
-
-  // Bound ICE-restart attempts so a permanently broken path (e.g. no reachable
-  // TURN) can't loop forever. We allow a few restarts within a rolling window;
-  // exhausting them surfaces a clear failure instead of silently retrying.
-  const MAX_ICE_RESTART_ATTEMPTS = 3;
-  const ICE_RESTART_WINDOW_MS = 20000;
-  const iceRestartAttemptsRef = useRef<Map<number, { count: number; windowStart: number }>>(new Map());
-
-  const clearIceRestartAttempts = useCallback((userId: number) => {
-    iceRestartAttemptsRef.current.delete(userId);
-  }, []);
-
-  const triggerIceRestart = useCallback(async (userId: number) => {
-    const entry = peersRef.current.get(userId);
-    if (!entry) return;
-    const { peer } = entry;
-    // Only the impolite peer initiates, so both sides don't emit competing
-    // restart offers for the same broken path.
-    if (peer.isPolite) return;
-    // The connection may have healed on its own while the grace timer ran.
-    const state = peer.pc.connectionState;
-    if (state === "connected" || state === "closed") return;
-
-    // Enforce the retry ceiling. The window resets once it has elapsed since the
-    // first attempt, so occasional blips spread over time each get a fresh
-    // budget rather than accumulating toward a permanent lockout.
-    const now = Date.now();
-    const record = iceRestartAttemptsRef.current.get(userId);
-    if (!record || now - record.windowStart > ICE_RESTART_WINDOW_MS) {
-      iceRestartAttemptsRef.current.set(userId, { count: 1, windowStart: now });
-    } else if (record.count >= MAX_ICE_RESTART_ATTEMPTS) {
-      // Out of attempts within the window — stop looping and tell the user so
-      // they can rejoin rather than sitting in a silently-failing call.
-      clearIceRestartTimer(userId);
-      setError("Couldn't reconnect — try rejoining");
-      setCanRejoin(true);
-      return;
-    } else {
-      record.count += 1;
-    }
-
-    // Refresh ICE servers (fresh TURN credentials) for the restart, so a path
-    // that requires relay can succeed even if the original credentials expired.
-    // Best-effort: fall back to the cached list on failure.
-    const token = localStorage.getItem("gwh_token");
-    let servers = iceServersRef.current;
-    if (token) {
-      try {
-        servers = await fetchIceServers(token);
-        iceServersRef.current = servers;
-      } catch {
-        /* keep cached servers */
+  /** Rebuild all peer states from the current LiveKit room participants. */
+  const rebuildPeers = useCallback((room: Room) => {
+    setPeersState(() => {
+      const next: Record<number, PeerUiState> = {};
+      for (const p of room.remoteParticipants.values()) {
+        const uid = Number(p.identity);
+        if (!isNaN(uid)) next[uid] = buildPeerState(p);
       }
-      // Peer may have been torn down while we awaited the fetch.
-      if (!peersRef.current.has(userId)) return;
-    }
-    peer.restartIce(servers);
-  }, [clearIceRestartTimer]);
-
-  const handlePeerConnectionState = useCallback(
-    (userId: number, state: RTCPeerConnectionState) => {
-      if (state === "disconnected") {
-        // Give the path a chance to recover before restarting.
-        if (!iceRestartTimersRef.current.has(userId)) {
-          const timer = setTimeout(() => {
-            iceRestartTimersRef.current.delete(userId);
-            void triggerIceRestart(userId);
-          }, ICE_RESTART_GRACE_MS);
-          iceRestartTimersRef.current.set(userId, timer);
-        }
-      } else if (state === "failed") {
-        // `failed` won't recover on its own — restart immediately.
-        clearIceRestartTimer(userId);
-        void triggerIceRestart(userId);
-      } else if (state === "connected" || state === "closed") {
-        // Recovered (or gone): drop any pending restart and reset the attempt
-        // budget so a later blip starts fresh instead of inheriting old counts.
-        clearIceRestartTimer(userId);
-        clearIceRestartAttempts(userId);
-      }
-    },
-    [triggerIceRestart, clearIceRestartTimer, clearIceRestartAttempts],
-  );
-
-  // ─── Peer lifecycle ───────────────────────────────────────────────────────
-
-  const createPeer = useCallback(
-    (info: CallUser & { muted?: boolean; sharing?: boolean }, room: string) => {
-      if (peersRef.current.has(info.userId)) return;
-      const myId = myUserIdRef.current ?? 0;
-      const polite = myId > info.userId;
-
-      const peer = new Peer(
-        {
-          sendSignal: (data) => wsSend({ type: "signal", room, to: info.userId, data }),
-          onRemoteAudio: (stream) => {
-            patchPeer(info.userId, { audioStream: stream });
-            ensureDetector().add(String(info.userId), stream);
-          },
-          onRemoteScreen: (stream) => patchPeer(info.userId, { screenStream: stream }),
-          onRemoteCamera: (stream) => patchPeer(info.userId, { cameraStream: stream }),
-          onConnectionStateChange: (state) => {
-            patchPeer(info.userId, { connectionState: state });
-            handlePeerConnectionState(info.userId, state);
-          },
-        },
-        polite,
-        iceServersRef.current,
-      );
-
-      peersRef.current.set(info.userId, { peer, info });
-
-      setPeersState((prev) => ({
-        ...prev,
-        [info.userId]: {
-          userId: info.userId,
-          username: info.username,
-          displayName: info.displayName,
-          avatarUrl: info.avatarUrl,
-          muted: info.muted ?? false,
-          sharing: info.sharing ?? false,
-          cameraEnabled: false,
-          speaking: false,
-          connectionState: "new",
-          audioStream: null,
-          screenStream: null,
-          cameraStream: null,
-        },
-      }));
-
-      // Attach current local tracks (fires perfect-negotiation offer).
-      const mic = micStreamRef.current;
-      if (mic) {
-        const [track] = mic.getAudioTracks();
-        peer.setMicTrack(track ?? null, mic);
-        peer.applyAudioBitrate(VOICE_PRESETS[voiceQualityRef.current].maxBitrate);
-      }
-      const screen = screenStreamRef.current;
-      if (screen) {
-        const [vtrack] = screen.getVideoTracks();
-        if (vtrack) {
-          peer.setScreenTrack(vtrack, screen);
-          const preset = SCREEN_PRESETS[screenQualityRef.current];
-          peer.applyScreenParams(preset.maxBitrate, preset.frameRate);
-        }
-      }
-      const camera = cameraStreamRef.current;
-      if (camera) {
-        const [cvtrack] = camera.getVideoTracks();
-        if (cvtrack) peer.setCameraTrack(cvtrack, camera);
-      }
-    },
-    [wsSend, patchPeer, ensureDetector, handlePeerConnectionState],
-  );
-
-  const destroyPeer = useCallback((userId: number) => {
-    clearIceRestartTimer(userId);
-    clearIceRestartAttempts(userId);
-    const entry = peersRef.current.get(userId);
-    if (entry) {
-      entry.peer.close();
-      peersRef.current.delete(userId);
-    }
-    detectorRef.current?.remove(String(userId));
-    setPeersState((prev) => {
-      if (!(userId in prev)) return prev;
-      const next = { ...prev };
-      delete next[userId];
       return next;
     });
   }, []);
 
-  const teardownRoom = useCallback(() => {
-    for (const userId of Array.from(peersRef.current.keys())) destroyPeer(userId);
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-      setLocalScreenStream(null);
-      setSharing(false);
-    }
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
-      cameraStreamRef.current = null;
-      setLocalCameraStream(null);
-      setCameraEnabledState(false);
-    }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      detectorRef.current?.remove("self");
-      micStreamRef.current = null;
-    }
-    setSpeaking(false);
-    setPeersState({});
-  }, [destroyPeer]);
+  // ── Deafen volume helper ────────────────────────────────────────────────────
 
-  // ─── Inbound signaling messages ───────────────────────────────────────────
+  /** Apply or lift deafen across all current remote audio tracks. */
+  const applyDeafenVolume = useCallback((isDeafened: boolean) => {
+    const room = livekitRef.current;
+    if (!room) return;
+    for (const p of room.remoteParticipants.values()) {
+      for (const pub of p.audioTrackPublications.values()) {
+        pub.audioTrack?.setVolume(isDeafened ? 0 : 1);
+      }
+    }
+  }, []);
+
+  // ── LiveKit room teardown ───────────────────────────────────────────────────
+
+  const teardownLiveKit = useCallback(() => {
+    const room = livekitRef.current;
+    if (room) {
+      room.removeAllListeners();
+      void room.disconnect();
+      livekitRef.current = null;
+    }
+    setPeersState({});
+    setSharing(false);
+    setCameraEnabled(false);
+    setSpeaking(false);
+    setLocalScreenStream(null);
+    setLocalCameraStream(null);
+  }, []);
+
+  // ── LiveKit token fetch ─────────────────────────────────────────────────────
+
+  async function fetchToken(roomName: string): Promise<{ token: string; url: string }> {
+    const authToken = localStorage.getItem("gwh_token");
+    const res = await fetch(
+      `${getApiBase()}/api/livekit/token?room=${encodeURIComponent(roomName)}`,
+      { headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} },
+    );
+    if (!res.ok) throw new Error(`LiveKit token: ${res.status}`);
+    return res.json() as Promise<{ token: string; url: string }>;
+  }
+
+  // ── LiveKit room connect ────────────────────────────────────────────────────
+
+  const connectLiveKit = useCallback(
+    async (roomName: string): Promise<void> => {
+      teardownLiveKit();
+
+      const { token, url } = await fetchToken(roomName);
+
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      livekitRef.current = room;
+
+      // ── Room event listeners ──────────────────────────────────────────────
+
+      room.on(RoomEvent.ParticipantConnected, (p: RemoteParticipant) => {
+        const uid = Number(p.identity);
+        if (isNaN(uid)) return;
+        const { displayName, avatarUrl } = participantMeta(p);
+        setPeersState((prev) => ({
+          ...prev,
+          [uid]: {
+            userId: uid,
+            username: p.name ?? String(uid),
+            displayName,
+            avatarUrl,
+            muted: !p.isMicrophoneEnabled,
+            sharing: false,
+            cameraEnabled: false,
+            speaking: false,
+            connectionState: "new" as RTCPeerConnectionState,
+            audioStream: null,
+            screenStream: null,
+            cameraStream: null,
+          },
+        }));
+      });
+
+      room.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
+        const uid = Number(p.identity);
+        setPeersState((prev) => {
+          const next = { ...prev };
+          delete next[uid];
+          return next;
+        });
+      });
+
+      room.on(
+        RoomEvent.TrackSubscribed,
+        (track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
+          const ms = track.mediaStream ?? null;
+          if (track.kind === Track.Kind.Audio) {
+            // Apply current deafen setting to newly subscribed tracks.
+            if (deafenedRef.current) pub.audioTrack?.setVolume(0);
+            patchPeer(p.identity, { audioStream: ms, muted: false });
+          } else if (track.kind === Track.Kind.Video) {
+            if (pub.source === Track.Source.ScreenShare) {
+              patchPeer(p.identity, { screenStream: ms, sharing: true });
+            } else if (pub.source === Track.Source.Camera) {
+              patchPeer(p.identity, { cameraStream: ms, cameraEnabled: true });
+            }
+          }
+        },
+      );
+
+      room.on(
+        RoomEvent.TrackUnsubscribed,
+        (_track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
+          if (pub.kind === Track.Kind.Audio) {
+            patchPeer(p.identity, { audioStream: null });
+          } else if (pub.source === Track.Source.ScreenShare) {
+            patchPeer(p.identity, { screenStream: null, sharing: false });
+          } else if (pub.source === Track.Source.Camera) {
+            patchPeer(p.identity, { cameraStream: null, cameraEnabled: false });
+          }
+        },
+      );
+
+      room.on(
+        RoomEvent.TrackMuted,
+        (pub: RemoteTrackPublication, p: Participant) => {
+          // Ignore local participant — we track our own mute state separately.
+          if (p.identity === room.localParticipant?.identity) return;
+          if (pub.kind === Track.Kind.Audio) {
+            patchPeer(p.identity, { muted: true });
+          } else if (pub.source === Track.Source.ScreenShare) {
+            patchPeer(p.identity, { sharing: false, screenStream: null });
+          } else if (pub.source === Track.Source.Camera) {
+            patchPeer(p.identity, { cameraEnabled: false, cameraStream: null });
+          }
+        },
+      );
+
+      room.on(
+        RoomEvent.TrackUnmuted,
+        (pub: RemoteTrackPublication, p: Participant) => {
+          if (p.identity === room.localParticipant?.identity) return;
+          if (pub.kind === Track.Kind.Audio) {
+            const ms = pub.track?.mediaStream ?? null;
+            patchPeer(p.identity, { muted: false, audioStream: ms });
+          }
+        },
+      );
+
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+        const ids = new Set(speakers.map((s) => s.identity));
+        const localId = room.localParticipant?.identity;
+        if (localId) setSpeaking(ids.has(localId));
+        setPeersState((prev) => {
+          const next = { ...prev };
+          for (const uid of Object.keys(next)) {
+            const n = Number(uid);
+            const peer = next[n];
+            if (peer) next[n] = { ...peer, speaking: ids.has(String(n)) };
+          }
+          return next;
+        });
+      });
+
+      room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, p: Participant) => {
+        // Only patch remote participants; local quality isn't shown in peers list.
+        if (p.identity !== room.localParticipant?.identity) {
+          patchPeer(p.identity, { connectionState: qualityToConnState(quality) });
+        }
+      });
+
+      room.on(RoomEvent.LocalTrackPublished, (pub) => {
+        if (!pub.track) return;
+        if (pub.source === Track.Source.ScreenShare) {
+          const ms = pub.track.mediaStream ?? null;
+          setLocalScreenStream(ms);
+          setSharing(true);
+          // Handle browser "Stop sharing" button.
+          pub.track.mediaStreamTrack?.addEventListener("ended", () => {
+            void room.localParticipant.setScreenShareEnabled(false);
+          });
+        } else if (pub.source === Track.Source.Camera) {
+          setLocalCameraStream(pub.track.mediaStream ?? null);
+          setCameraEnabled(true);
+        }
+      });
+
+      room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) {
+          setLocalScreenStream(null);
+          setSharing(false);
+        } else if (pub.source === Track.Source.Camera) {
+          setLocalCameraStream(null);
+          setCameraEnabled(false);
+        }
+      });
+
+      room.on(RoomEvent.Disconnected, () => {
+        // Only flag a problem if we didn't disconnect intentionally.
+        if (activeRoomRef.current && livekitRef.current) {
+          setError("Voice disconnected — try rejoining");
+          setCanRejoin(true);
+        }
+      });
+
+      // ── Connect & enable mic ──────────────────────────────────────────────
+      await room.connect(url, token);
+      await room.localParticipant.setMicrophoneEnabled(!mutedRef.current);
+      rebuildPeers(room);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teardownLiveKit, patchPeer, rebuildPeers],
+  );
+
+  // ── WebSocket (call invite + typing) ───────────────────────────────────────
+
+  const wsSend = useCallback((msg: unknown) => {
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }, []);
 
   const handleServerMessage = useCallback(
     async (msg: any) => {
       switch (msg?.type) {
-        case "ready":
-          myUserIdRef.current = msg.userId;
-          break;
-
-        case "joined": {
-          for (const peer of msg.peers ?? []) createPeer(peer, msg.room);
-          break;
-        }
-
-        case "peer-joined":
-          createPeer(msg.peer, msg.room);
-          break;
-
-        case "peer-left":
-          destroyPeer(msg.userId);
-          break;
-
-        case "signal": {
-          const entry = peersRef.current.get(msg.from);
-          if (entry) await entry.peer.handleSignal(msg.data);
-          break;
-        }
-
-        case "peer-state": {
-          patchPeer(msg.userId, {
-            muted: !!msg.muted,
-            sharing: !!msg.sharing,
-            cameraEnabled: !!msg.cameraStreamId,
-          });
-          // Update the peer's cameraStreamId so ontrack can route video correctly.
-          const peerEntry = peersRef.current.get(msg.userId);
-          if (peerEntry) peerEntry.peer.setCameraStreamId(msg.cameraStreamId ?? null);
-          break;
-        }
-
-        case "force-leave":
-          // We were evicted because we joined the same room elsewhere.
-          if (activeRoomRef.current?.room === msg.room) {
-            teardownRoom();
-            setActiveRoom(null);
-          }
-          break;
-
-        case "force-mute":
-          // Leader force-muted us — apply mute if not already muted.
-          if (!mutedRef.current) {
-            mutedRef.current = true;
-            setMuted(true);
-            const mic = micStreamRef.current;
-            if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = false));
-            broadcastState();
-          }
-          break;
-
         case "incoming-call":
-          // Only present the invite if this session is free. A busy session
-          // simply ignores it — it must NOT decline, since a decline cancels
-          // the call for this user's *other* (possibly free) sessions too. If
-          // every session is busy, the caller falls back to the server-side
-          // no-answer timeout.
-          if (!activeRoomRef.current && !incomingCall) {
+          if (!activeRoomRef.current && !incomingCallRef.current) {
             setIncomingCall({ callId: msg.callId, room: msg.room, from: msg.from });
           }
           break;
 
         case "call-ringing":
-          // Server assigned the real callId; reconcile the optimistic state so
-          // cancelling routes correctly.
           setOutgoingCall((prev) =>
             prev && prev.to.userId === msg.to
               ? { callId: msg.callId, room: msg.room, to: prev.to }
@@ -502,13 +464,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         case "call-accepted": {
           setOutgoingCall((prev) => {
             if (prev && prev.callId === msg.callId && !activeRoomRef.current) {
-              // Caller side: join the freshly-created call room.
               void (async () => {
-                try {
-                  await ensureMic();
-                } catch {
-                  setError("Microphone unavailable");
-                }
                 const room: ActiveRoom = {
                   kind: "call",
                   room: msg.room,
@@ -517,8 +473,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
                 };
                 setActiveRoom(room);
                 activeRoomRef.current = room;
-                wsSend({ type: "join", room: msg.room });
-                broadcastState();
+                try {
+                  await connectLiveKit(msg.room);
+                } catch {
+                  setError("Failed to connect to voice");
+                  setActiveRoom(null);
+                  activeRoomRef.current = null;
+                }
               })();
             }
             return null;
@@ -540,80 +501,72 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           setError(msg.reason === "offline" ? "User is offline" : "Call could not be completed");
           break;
 
+        case "force-leave":
+          if (activeRoomRef.current?.room === msg.room) {
+            teardownLiveKit();
+            setActiveRoom(null);
+            activeRoomRef.current = null;
+          }
+          break;
+
+        case "force-mute":
+          if (!mutedRef.current) {
+            mutedRef.current = true;
+            setMuted(true);
+            void livekitRef.current?.localParticipant.setMicrophoneEnabled(false);
+          }
+          break;
+
         case "typing":
-          // Relay chat typing events to any listeners (e.g. chat.tsx)
-          window.dispatchEvent(new CustomEvent("gwh:typing", {
-            detail: { conversationId: msg.conversationId, userId: msg.userId, displayName: msg.displayName },
-          }));
+          window.dispatchEvent(
+            new CustomEvent("gwh:typing", {
+              detail: {
+                conversationId: msg.conversationId,
+                userId: msg.userId,
+                displayName: msg.displayName,
+              },
+            }),
+          );
           break;
 
         default:
           break;
       }
     },
-    [createPeer, destroyPeer, patchPeer, teardownRoom, ensureMic, wsSend, broadcastState, incomingCall],
+    [connectLiveKit, teardownLiveKit],
   );
 
   const handleServerMessageRef = useRef(handleServerMessage);
-  useEffect(() => {
-    handleServerMessageRef.current = handleServerMessage;
-  }, [handleServerMessage]);
-
-  // ─── WebSocket connection management ──────────────────────────────────────
+  useEffect(() => { handleServerMessageRef.current = handleServerMessage; }, [handleServerMessage]);
 
   const connect = useCallback(() => {
     if (!shouldConnectRef.current) return;
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
-      return;
-    }
+    const ws = wsRef.current;
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
     const token = localStorage.getItem("gwh_token");
     if (!token) return;
 
-    // Refresh ICE servers (STUN + any TURN with fresh credentials) for the
-    // peers created during this session. Best-effort: failure falls back to
-    // STUN-only inside fetchIceServers.
-    void fetchIceServers(token).then((servers) => {
-      iceServersRef.current = servers;
-    });
+    const sock = new WebSocket(getSignalingUrl(token));
+    wsRef.current = sock;
 
-    const ws = new WebSocket(getSignalingUrl(token));
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnected(true);
-      // Rejoin an in-progress room after a reconnect.
-      const room = activeRoomRef.current;
-      if (room) {
-        wsSend({ type: "join", room: room.room });
-        broadcastState();
-      }
-    };
-    ws.onmessage = (ev) => {
+    sock.onopen = () => setConnected(true);
+    sock.onmessage = (ev) => {
       try {
         const msg = JSON.parse(typeof ev.data === "string" ? ev.data : "");
         void handleServerMessageRef.current(msg);
-      } catch {
-        /* ignore malformed frames */
-      }
+      } catch { /* ignore malformed frames */ }
     };
-    ws.onclose = () => {
+    sock.onclose = () => {
       setConnected(false);
       wsRef.current = null;
-      if (shouldConnectRef.current) {
-        reconnectRef.current = setTimeout(connect, 2000);
-      }
+      if (shouldConnectRef.current) reconnectRef.current = setTimeout(connect, 2000);
     };
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [wsSend, broadcastState]);
+    sock.onerror = () => sock.close();
+  }, []);
 
-  // Forward outgoing chat typing events → WS
+  // Forward outgoing chat typing events → WS.
   useEffect(() => {
-    const handler = (e: Event) => {
-      const msg = (e as CustomEvent).detail;
-      wsSend(msg);
-    };
+    const handler = (e: Event) => wsSend((e as CustomEvent).detail);
     window.addEventListener("gwh:ws-send", handler);
     return () => window.removeEventListener("gwh:ws-send", handler);
   }, [wsSend]);
@@ -622,81 +575,64 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated) return;
     shouldConnectRef.current = true;
     connect();
-    // Cleanup runs on logout (isAuthenticated flips) or unmount — always fully
-    // tear down the socket, media, and call state so nothing lingers.
     return () => {
       shouldConnectRef.current = false;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
-      teardownRoom();
+      teardownLiveKit();
       setActiveRoom(null);
       activeRoomRef.current = null;
       setIncomingCall(null);
       setOutgoingCall(null);
       wsRef.current?.close();
       wsRef.current = null;
-      detectorRef.current?.close();
-      detectorRef.current = null;
     };
-  }, [isAuthenticated, connect, teardownRoom]);
+  }, [isAuthenticated, connect, teardownLiveKit]);
 
-  // ─── Actions ──────────────────────────────────────────────────────────────
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   const leaveVoice = useCallback(() => {
-    const room = activeRoomRef.current;
-    if (room) wsSend({ type: "leave", room: room.room });
-    teardownRoom();
+    teardownLiveKit();
     setActiveRoom(null);
     activeRoomRef.current = null;
+    mutedRef.current = false;
+    setMuted(false);
     setCanRejoin(false);
-  }, [wsSend, teardownRoom]);
+    setError(null);
+  }, [teardownLiveKit]);
 
-  // One-tap recovery from the terminal "couldn't reconnect" state. Tears down
-  // the broken peer connections and re-runs the existing join flow against the
-  // *same* room (party voice or 1:1 call), so both sides rebuild the mesh. The
-  // leave→join pair resets server-side membership so peers on the other end
-  // drop their stale peer objects (peer-left) and recreate them (peer-joined).
   const rejoin = useCallback(async () => {
     const room = activeRoomRef.current;
     if (!room) return;
     setError(null);
     setCanRejoin(false);
-    for (const userId of Array.from(peersRef.current.keys())) destroyPeer(userId);
-    setPeersState({});
+    teardownLiveKit();
     try {
-      await ensureMic();
+      await connectLiveKit(room.room);
     } catch {
-      // The rejoin itself failed before we could re-establish anything —
-      // surface a fresh error so the user isn't left staring at a stale panel.
-      setError("Microphone access denied");
+      setError("Failed to reconnect");
       setCanRejoin(true);
-      return;
     }
-    wsSend({ type: "leave", room: room.room });
-    wsSend({ type: "join", room: room.room });
-    broadcastState();
-  }, [destroyPeer, ensureMic, wsSend, broadcastState]);
+  }, [teardownLiveKit, connectLiveKit]);
 
   const joinPartyVoice = useCallback(
     async (partyId: number, title: string) => {
       setError(null);
       setCanRejoin(false);
-      const roomId = `party:${partyId}`;
-      if (activeRoomRef.current?.room === roomId) return;
-      // Leave any current room first (one active voice session at a time).
+      const roomName = `party:${partyId}`;
+      if (activeRoomRef.current?.room === roomName) return;
       if (activeRoomRef.current) leaveVoice();
-      try {
-        await ensureMic();
-      } catch {
-        setError("Microphone access denied");
-        return;
-      }
-      const room: ActiveRoom = { kind: "party", room: roomId, partyId, title };
+      const room: ActiveRoom = { kind: "party", room: roomName, partyId, title };
       setActiveRoom(room);
       activeRoomRef.current = room;
-      wsSend({ type: "join", room: roomId });
-      broadcastState();
+      try {
+        await connectLiveKit(roomName);
+      } catch {
+        setError("Failed to join voice channel");
+        setActiveRoom(null);
+        activeRoomRef.current = null;
+      }
     },
-    [ensureMic, leaveVoice, wsSend, broadcastState],
+    [leaveVoice, connectLiveKit],
   );
 
   const callUser = useCallback(
@@ -706,205 +642,119 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         setError("Leave your current channel before starting a call");
         return;
       }
-      // Optimistic outgoing state; callId is confirmed by `call-ringing`.
-      const tempId = `pending-${user.userId}`;
-      setOutgoingCall({ callId: tempId, room: "", to: user });
+      setOutgoingCall({ callId: `pending-${user.userId}`, room: "", to: user });
       wsSend({ type: "call-invite", to: user.userId });
     },
     [wsSend],
   );
 
   const acceptCall = useCallback(async () => {
-    const call = incomingCall;
+    const call = incomingCallRef.current;
     if (!call) return;
     setIncomingCall(null);
-    try {
-      await ensureMic();
-    } catch {
-      setError("Microphone access denied");
-      wsSend({ type: "call-decline", callId: call.callId });
-      return;
-    }
     const room: ActiveRoom = { kind: "call", room: call.room, peer: call.from, title: call.from.displayName };
     setActiveRoom(room);
     activeRoomRef.current = room;
     wsSend({ type: "call-accept", callId: call.callId });
-    wsSend({ type: "join", room: call.room });
-    broadcastState();
-  }, [incomingCall, ensureMic, wsSend, broadcastState]);
+    try {
+      await connectLiveKit(call.room);
+    } catch {
+      setError("Failed to connect to call");
+      setActiveRoom(null);
+      activeRoomRef.current = null;
+    }
+  }, [wsSend, connectLiveKit]);
 
   const declineCall = useCallback(() => {
-    const call = incomingCall;
+    const call = incomingCallRef.current;
     if (!call) return;
     setIncomingCall(null);
     wsSend({ type: "call-decline", callId: call.callId });
-  }, [incomingCall, wsSend]);
+  }, [wsSend]);
 
   const cancelCall = useCallback(() => {
-    const call = outgoingCall;
-    setOutgoingCall(null);
-    if (call && !call.callId.startsWith("pending-")) {
-      wsSend({ type: "call-cancel", callId: call.callId });
-    }
-  }, [outgoingCall, wsSend]);
+    setOutgoingCall((prev) => {
+      if (prev && !prev.callId.startsWith("pending-")) {
+        wsSend({ type: "call-cancel", callId: prev.callId });
+      }
+      return null;
+    });
+  }, [wsSend]);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
     mutedRef.current = next;
     setMuted(next);
-    const mic = micStreamRef.current;
-    if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = !next));
-    broadcastState();
-  }, [broadcastState]);
+    void livekitRef.current?.localParticipant.setMicrophoneEnabled(!next);
+  }, []);
 
-  /**
-   * Deafen: silence ALL incoming audio and force-mute the mic.
-   * Un-deafen: resume incoming audio; restore mic to the state it was in
-   * before deafening (staying muted if the user was already muted before).
-   */
   const toggleDeafen = useCallback(() => {
     const nextDeafened = !deafenedRef.current;
     deafenedRef.current = nextDeafened;
     setDeafened(nextDeafened);
+    applyDeafenVolume(nextDeafened);
 
     if (nextDeafened) {
-      // Remember current mic state, then force-mute.
       mutedBeforeDeafenRef.current = mutedRef.current;
       if (!mutedRef.current) {
         mutedRef.current = true;
         setMuted(true);
-        const mic = micStreamRef.current;
-        if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = false));
-        broadcastState();
+        void livekitRef.current?.localParticipant.setMicrophoneEnabled(false);
       }
     } else {
-      // Restore mic to pre-deafen state.
       const wasMuted = mutedBeforeDeafenRef.current;
       mutedRef.current = wasMuted;
       setMuted(wasMuted);
-      const mic = micStreamRef.current;
-      if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = !wasMuted));
-      broadcastState();
+      if (!wasMuted) {
+        void livekitRef.current?.localParticipant.setMicrophoneEnabled(true);
+      }
     }
-    // RemoteAudioSink will react to the deafened state change automatically.
-  }, [broadcastState]);
-
-  const stopCamera = useCallback(() => {
-    const stream = cameraStreamRef.current;
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    cameraStreamRef.current = null;
-    setLocalCameraStream(null);
-    setCameraEnabledState(false);
-    for (const { peer } of peersRef.current.values()) peer.setCameraTrack(null);
-    broadcastState();
-  }, [broadcastState]);
+  }, [applyDeafenVolume]);
 
   const toggleCamera = useCallback(async () => {
-    if (!activeRoomRef.current) return;
-    if (cameraStreamRef.current) {
-      stopCamera();
-      return;
-    }
-    setError(null);
-    let stream: MediaStream;
+    const room = livekitRef.current;
+    if (!room || !activeRoomRef.current) return;
+    const next = !room.localParticipant.isCameraEnabled;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      await room.localParticipant.setCameraEnabled(next);
     } catch {
       setError("Camera access denied");
-      return;
     }
-    cameraStreamRef.current = stream;
-    setLocalCameraStream(stream);
-    setCameraEnabledState(true);
-    const [track] = stream.getVideoTracks();
-    if (track) track.addEventListener("ended", stopCamera);
-    for (const { peer } of peersRef.current.values()) {
-      if (track) peer.setCameraTrack(track, stream);
-    }
-    broadcastState();
-  }, [broadcastState, stopCamera]);
-
-  const remoteMute = useCallback((userId: number) => {
-    const room = activeRoomRef.current;
-    if (!room) return;
-    wsSend({ type: "admin-mute", room: room.room, userId });
-  }, [wsSend]);
-
-  const startScreenShare = useCallback(async () => {
-    if (!activeRoomRef.current) return;
-    setError(null);
-    const preset = SCREEN_PRESETS[screenQualityRef.current];
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: preset.width },
-          height: { ideal: preset.height },
-          frameRate: { ideal: preset.frameRate },
-        },
-        audio: false,
-      });
-    } catch {
-      setError("Screen share was cancelled");
-      return;
-    }
-    screenStreamRef.current = stream;
-    setLocalScreenStream(stream);
-    setSharing(true);
-
-    const [track] = stream.getVideoTracks();
-    // Browser "Stop sharing" button ends the track.
-    if (track) track.addEventListener("ended", () => stopScreenShare());
-
-    for (const { peer } of peersRef.current.values()) {
-      if (track) {
-        peer.setScreenTrack(track, stream);
-        peer.applyScreenParams(preset.maxBitrate, preset.frameRate);
-      }
-    }
-    broadcastState();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [broadcastState]);
-
-  const stopScreenShare = useCallback(() => {
-    const stream = screenStreamRef.current;
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    screenStreamRef.current = null;
-    setLocalScreenStream(null);
-    setSharing(false);
-    for (const { peer } of peersRef.current.values()) peer.setScreenTrack(null);
-    broadcastState();
-  }, [broadcastState]);
-
-  const setVoiceQuality = useCallback((q: VoiceQuality) => {
-    voiceQualityRef.current = q;
-    setVoiceQualityState(q);
-    const bitrate = VOICE_PRESETS[q].maxBitrate;
-    for (const { peer } of peersRef.current.values()) peer.applyAudioBitrate(bitrate);
   }, []);
 
-  const setScreenQuality = useCallback(async (q: ScreenQuality) => {
-    screenQualityRef.current = q;
-    setScreenQualityState(q);
-    const preset = SCREEN_PRESETS[q];
-    const stream = screenStreamRef.current;
-    if (stream) {
-      const [track] = stream.getVideoTracks();
-      if (track) {
-        try {
-          await track.applyConstraints({
-            width: { ideal: preset.width },
-            height: { ideal: preset.height },
-            frameRate: { ideal: preset.frameRate },
-          });
-        } catch {
-          /* constraints may be rejected; bitrate cap still applies */
-        }
-      }
-      for (const { peer } of peersRef.current.values()) {
-        peer.applyScreenParams(preset.maxBitrate, preset.frameRate);
-      }
+  const remoteMute = useCallback(
+    (userId: number) => {
+      const room = activeRoomRef.current;
+      if (!room) return;
+      wsSend({ type: "admin-mute", room: room.room, userId });
+    },
+    [wsSend],
+  );
+
+  const startScreenShare = useCallback(async () => {
+    const room = livekitRef.current;
+    if (!room || !activeRoomRef.current) return;
+    setError(null);
+    try {
+      await room.localParticipant.setScreenShareEnabled(true);
+    } catch {
+      setError("Screen share was cancelled");
     }
+  }, []);
+
+  const stopScreenShare = useCallback(() => {
+    const room = livekitRef.current;
+    if (!room) return;
+    void room.localParticipant.setScreenShareEnabled(false);
+  }, []);
+
+  const setVoiceQuality = useCallback((q: VoiceQuality) => {
+    setVoiceQualityState(q);
+    // LiveKit's adaptive stream / dynacast handles quality automatically.
+  }, []);
+
+  const setScreenQuality = useCallback((q: ScreenQuality) => {
+    setScreenQualityState(q);
   }, []);
 
   const isInPartyVoice = useCallback(
@@ -912,9 +762,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     [activeRoom],
   );
 
-  // Auto-clear transient errors. The terminal "couldn't reconnect" failure is
-  // held open (canRejoin) so its Rejoin action stays available until the user
-  // acts or leaves.
+  // Auto-clear transient errors (but hold canRejoin open until acted on).
   useEffect(() => {
     if (!error || canRejoin) return;
     const t = setTimeout(() => setError(null), 5000);
@@ -961,6 +809,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   return (
     <VoiceContext.Provider value={value}>
       {children}
+      {/* LiveKit auto-plays audio; RemoteAudioSink handles deafen-while-absent edge cases */}
       <RemoteAudioSink peers={peers} deafened={deafened} />
     </VoiceContext.Provider>
   );

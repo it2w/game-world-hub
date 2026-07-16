@@ -3,63 +3,73 @@ import { renderHook, act } from "@testing-library/react";
 import { createElement } from "react";
 
 /**
- * Coverage for the one-tap "Rejoin" recovery path.
+ * Coverage for the voice-context lifecycle under LiveKit.
  *
- * Rejoin is the escape hatch from the terminal "couldn't reconnect" failure:
- * tapping it must tear down the broken peers, re-run leave→join against the same
- * room so both sides rebuild the mesh, and clear the fatal message. A rejoin
- * that fails at the first step (mic unavailable) must surface a fresh error and
- * keep the Rejoin action available. The fatal message must also be held open
- * (never auto-dismissed) for as long as Rejoin is offered.
+ * Scenarios:
+ *  1. Rejoin after unexpected disconnect: old room is torn down, new room is
+ *     connected, peers cleared, fatal error cleared.
+ *  2. Rejoin that fails (LiveKit connect error): stale room torn down, fresh
+ *     error shown, Rejoin kept available.
+ *  3. Fatal error (canRejoin=true) is never auto-dismissed by the 5s timer.
+ *  4. Transient error (canRejoin=false, e.g. screen-share cancelled) auto-
+ *     dismisses after 5 s and never offers Rejoin.
  *
- * The WebRTC/media layer is faked so these assertions are about the voice
- * context's own lifecycle logic, not a real browser stack: `Peer`, the speaking
- * detector, the audio sink, `WebSocket`, and `getUserMedia` are all stubbed. We
- * drive the peer connection state directly to reach the terminal failure the
- * same way the real ICE-restart-exhaustion path does.
+ * livekit-client, WebSocket, fetch, and useAuth are all stubbed.
  */
 
-// ─── Hoisted fakes (shared between vi.mock factories and the tests) ──────────
+// ─── Hoisted fakes ────────────────────────────────────────────────────────────
 
 const h = vi.hoisted(() => {
-  const peers: FakePeer[] = [];
+  const rooms: FakeRoom[] = [];
   const sockets: FakeWebSocket[] = [];
 
-  // Swappable media implementations, reset per test.
-  let getUserMediaImpl: () => Promise<unknown> = () => Promise.resolve(makeStream());
-  let getDisplayMediaImpl: () => Promise<unknown> = () => Promise.resolve(makeStream());
+  // Per-test control flags (mutated via helpers below).
+  let connectReject: Error | null = null;
+  let screenShareReject: Error | null = null;
 
-  function makeStream() {
-    return {
-      getAudioTracks: () => [{ enabled: true, kind: "audio", stop() {} }],
-      getVideoTracks: () => [] as unknown[],
-      getTracks: () => [{ stop() {} }],
-    };
+  class FakeLocalParticipant {
+    identity = "42";
+    isCameraEnabled = false;
+    isMicrophoneEnabled = false;
+    setMicrophoneEnabled = vi.fn().mockResolvedValue(undefined);
+    setCameraEnabled = vi.fn().mockResolvedValue(undefined);
+    // Reads screenShareReject at call-time via closure.
+    setScreenShareEnabled = vi.fn().mockImplementation(async (enabled: boolean) => {
+      if (enabled && screenShareReject) throw screenShareReject;
+    });
   }
 
-  class FakePeer {
-    cb: any;
-    polite: boolean;
-    pc: { connectionState: string };
-    closed = false;
-    constructor(cb: any, polite: boolean) {
-      this.cb = cb;
-      this.polite = polite;
-      this.pc = { connectionState: "new" };
-      peers.push(this);
+  class FakeRoom {
+    _listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+    remoteParticipants = new Map<string, unknown>();
+    localParticipant = new FakeLocalParticipant();
+    connectCalled = false;
+    disconnectCalled = false;
+
+    constructor() {
+      rooms.push(this);
     }
-    get isPolite() {
-      return this.polite;
+
+    on(event: string, fn: (...a: unknown[]) => void) {
+      if (!this._listeners.has(event)) this._listeners.set(event, []);
+      this._listeners.get(event)!.push(fn);
+      return this;
     }
-    setMicTrack() {}
-    applyAudioBitrate() {}
-    setScreenTrack() {}
-    applyScreenParams() {}
-    restartIce() {}
-    async handleSignal() {}
-    close() {
-      this.closed = true;
-      this.pc.connectionState = "closed";
+    removeAllListeners() {
+      this._listeners.clear();
+      return this;
+    }
+    async connect(_url: string, _token: string) {
+      this.connectCalled = true;
+      if (connectReject) throw connectReject;
+    }
+    async disconnect() {
+      this.disconnectCalled = true;
+    }
+    /** Test helper: fire a room event (e.g. "disconnected"). */
+    fire(event: string, ...args: unknown[]) {
+      const fns = this._listeners.get(event);
+      if (fns) for (const fn of fns) fn(...args);
     }
   }
 
@@ -70,7 +80,7 @@ const h = vi.hoisted(() => {
     static CLOSED = 3;
     url: string;
     readyState = 1;
-    sent: any[] = [];
+    sent: unknown[] = [];
     onopen: (() => void) | null = null;
     onmessage: ((ev: { data: string }) => void) | null = null;
     onclose: (() => void) | null = null;
@@ -80,55 +90,62 @@ const h = vi.hoisted(() => {
       sockets.push(this);
       queueMicrotask(() => this.onopen?.());
     }
-    send(data: string) {
-      this.sent.push(JSON.parse(data));
-    }
+    send(data: string) { this.sent.push(JSON.parse(data)); }
     close() {
       this.readyState = 3;
       queueMicrotask(() => this.onclose?.());
     }
-    /** Test helper: deliver a server frame to the client. */
     emit(msg: unknown) {
       this.onmessage?.({ data: JSON.stringify(msg) });
     }
   }
 
   return {
-    peers,
+    rooms,
     sockets,
-    FakePeer,
+    FakeRoom,
     FakeWebSocket,
-    makeStream,
-    getUserMedia: (...args: unknown[]) => getUserMediaImpl(...(args as [])),
-    getDisplayMedia: (...args: unknown[]) => getDisplayMediaImpl(...(args as [])),
-    setGetUserMedia: (fn: () => Promise<unknown>) => {
-      getUserMediaImpl = fn;
-    },
-    setGetDisplayMedia: (fn: () => Promise<unknown>) => {
-      getDisplayMediaImpl = fn;
-    },
-    reset: () => {
-      peers.length = 0;
+    setConnectReject: (err: Error | null) => { connectReject = err; },
+    setScreenShareReject: (err: Error | null) => { screenShareReject = err; },
+    reset() {
+      rooms.length = 0;
       sockets.length = 0;
-      getUserMediaImpl = () => Promise.resolve(makeStream());
-      getDisplayMediaImpl = () => Promise.resolve(makeStream());
+      connectReject = null;
+      screenShareReject = null;
     },
   };
 });
 
-vi.mock("./webrtc", () => ({
-  Peer: h.FakePeer,
-  getSignalingUrl: () => "ws://test/api/ws",
-  fetchIceServers: async () => [],
-  ICE_SERVERS: [],
-}));
+// ─── Module mocks ─────────────────────────────────────────────────────────────
 
-vi.mock("./audio", () => ({
-  SpeakingDetector: class {
-    add() {}
-    remove() {}
-    close() {}
-  },
+vi.mock("livekit-client", () => {
+  // Mirror the real enum string values that voice-context.tsx uses.
+  const RoomEvent = {
+    ParticipantConnected: "participantConnected",
+    ParticipantDisconnected: "participantDisconnected",
+    TrackSubscribed: "trackSubscribed",
+    TrackUnsubscribed: "trackUnsubscribed",
+    TrackMuted: "trackMuted",
+    TrackUnmuted: "trackUnmuted",
+    ActiveSpeakersChanged: "activeSpeakersChanged",
+    ConnectionQualityChanged: "connectionQualityChanged",
+    LocalTrackPublished: "localTrackPublished",
+    LocalTrackUnpublished: "localTrackUnpublished",
+    Disconnected: "disconnected",
+  };
+  const Track = {
+    Kind: { Audio: "audio", Video: "video" },
+    Source: { Camera: "camera_capture", ScreenShare: "screen_share", Microphone: "microphone" },
+  };
+  const ConnectionQuality = {
+    Excellent: "excellent", Good: "good", Poor: "poor", Lost: "lost", Unknown: "unknown",
+  };
+  return { Room: h.FakeRoom, RoomEvent, Track, ConnectionQuality };
+});
+
+vi.mock("./webrtc", () => ({
+  getSignalingUrl: () => "ws://test/api/ws",
+  getApiBase: () => "http://test",
 }));
 
 vi.mock("./components/remote-audio-sink", () => ({
@@ -139,212 +156,153 @@ vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ isAuthenticated: true }),
 }));
 
-// Imported after the mocks are registered.
 import { VoiceProvider, useVoice } from "./voice-context";
 
-// ─── Test harness ────────────────────────────────────────────────────────
-
-const MY_ID = 1;
-const PEER_ID = 2; // MY_ID < PEER_ID ⇒ we are the impolite peer, which drives ICE restarts.
-
-function peerSummary(id: number) {
-  return {
-    userId: id,
-    username: `u${id}`,
-    displayName: `User ${id}`,
-    avatarUrl: null,
-    muted: false,
-    sharing: false,
-  };
-}
+// ─── Test harness ─────────────────────────────────────────────────────────────
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return createElement(VoiceProvider, null, children);
 }
 
-/** Render the provider, flush the socket open, and consume the `ready` frame. */
+/** Render the provider, flush WS open + ready frame. */
 async function mountVoice() {
   const view = renderHook(() => useVoice(), { wrapper });
-  await act(async () => {
-    await Promise.resolve();
-  });
-  const ws = h.sockets.at(-1)!;
-  act(() => ws.emit({ type: "ready", userId: MY_ID }));
-  return { result: view.result, ws, unmount: view.unmount };
+  // Let React effects and the WS open microtask settle.
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  return { result: view.result, unmount: view.unmount };
 }
 
 /**
- * Drive a peer to the terminal "couldn't reconnect" failure the same way the
- * ICE-restart budget being exhausted does: repeated `failed` connection states
- * until the attempt ceiling is crossed.
+ * Join a party voice channel and wait for the LiveKit connection to settle.
+ * Returns the FakeRoom that was connected.
  */
-async function exhaustReconnect(peer: InstanceType<typeof h.FakePeer>) {
+async function joinParty(result: ReturnType<typeof renderHook>["result"], partyId = 10) {
   await act(async () => {
-    for (let i = 0; i < 4; i++) {
-      peer.pc.connectionState = "failed";
-      peer.cb.onConnectionStateChange("failed");
-    }
-    await Promise.resolve();
-    await Promise.resolve();
+    await result.current.joinPartyVoice(partyId, "Squad");
   });
+  return h.rooms.at(-1)!;
 }
 
 beforeEach(() => {
   h.reset();
   localStorage.setItem("gwh_token", "test-token");
   (globalThis as any).WebSocket = h.FakeWebSocket;
-  Object.defineProperty(navigator, "mediaDevices", {
-    configurable: true,
-    value: { getUserMedia: h.getUserMedia, getDisplayMedia: h.getDisplayMedia },
-  });
+  // Stub fetch for the /api/livekit/token endpoint used inside connectLiveKit.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: "fake-lk-token", url: "wss://fake.livekit.cloud" }),
+    }),
+  );
 });
 
 afterEach(() => {
   localStorage.clear();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
-// ─── Tests ───────────────────────────────────────────────────────────────
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("voice rejoin", () => {
-  test("destroys stale peers, re-issues leave→join for the same room, and clears the failure", async () => {
-    const { result, ws } = await mountVoice();
+  test("tears down the stale LiveKit room, reconnects to the same room, and clears the failure", async () => {
+    const { result } = await mountVoice();
 
-    await act(async () => {
-      await result.current.joinPartyVoice(10, "Squad");
-    });
+    // Join a party voice channel (LiveKit connect succeeds by default).
+    const firstRoom = await joinParty(result);
     expect(result.current.activeRoom?.room).toBe("party:10");
+    expect(firstRoom.connectCalled).toBe(true);
 
-    act(() => ws.emit({ type: "joined", room: "party:10", peers: [peerSummary(PEER_ID)] }));
-    expect(result.current.peers).toHaveLength(1);
-    const peer = h.peers.at(-1)!;
-
-    await exhaustReconnect(peer);
-    expect(result.current.error).toBe("Couldn't reconnect — try rejoining");
+    // Simulate an unexpected disconnect (network drop etc.).
+    act(() => firstRoom.fire("disconnected"));
+    expect(result.current.error).toBe("Voice disconnected — try rejoining");
     expect(result.current.canRejoin).toBe(true);
 
-    const sentBefore = ws.sent.length;
+    // Trigger rejoin.
+    await act(async () => { await result.current.rejoin(); });
 
-    await act(async () => {
-      await result.current.rejoin();
-    });
-
-    // Stale peer torn down.
-    expect(peer.closed).toBe(true);
+    // Stale room must be torn down.
+    expect(firstRoom.disconnectCalled).toBe(true);
     expect(result.current.peers).toHaveLength(0);
 
-    // leave → join re-issued for the SAME room, in that order.
-    const after = ws.sent.slice(sentBefore);
-    const leaveIdx = after.findIndex((m) => m.type === "leave" && m.room === "party:10");
-    const joinIdx = after.findIndex((m) => m.type === "join" && m.room === "party:10");
-    expect(leaveIdx).toBeGreaterThanOrEqual(0);
-    expect(joinIdx).toBeGreaterThan(leaveIdx);
+    // A fresh room must be connected to the SAME room name.
+    expect(h.rooms).toHaveLength(2);
+    expect(h.rooms[1].connectCalled).toBe(true);
 
     // Fatal message cleared.
     expect(result.current.error).toBeNull();
     expect(result.current.canRejoin).toBe(false);
+    expect(result.current.activeRoom?.room).toBe("party:10");
   });
 
-  test("a rejoin that fails immediately (mic unavailable) surfaces a fresh error and keeps Rejoin available", async () => {
-    // Microphone is denied for the whole session — the caller enters the call
-    // room anyway (documented behaviour), so mic is never cached and rejoin's
-    // ensureMic will fail.
-    h.setGetUserMedia(() => Promise.reject(new Error("denied")));
+  test("a rejoin that fails (LiveKit connect error) surfaces a fresh error and keeps Rejoin available", async () => {
+    const { result } = await mountVoice();
 
-    const { result, ws } = await mountVoice();
+    const firstRoom = await joinParty(result);
+    expect(result.current.activeRoom?.room).toBe("party:10");
 
-    // Caller flow: invite → ringing → accepted (mic fails but still joins).
-    act(() => {
-      result.current.callUser({
-        userId: PEER_ID,
-        username: "u2",
-        displayName: "User 2",
-        avatarUrl: null,
-      });
-    });
-    act(() => ws.emit({ type: "call-ringing", callId: "c1", room: "call:c1", to: PEER_ID }));
-    await act(async () => {
-      ws.emit({ type: "call-accepted", callId: "c1", room: "call:c1" });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(result.current.activeRoom?.room).toBe("call:c1");
-
-    act(() => ws.emit({ type: "joined", room: "call:c1", peers: [peerSummary(PEER_ID)] }));
-    expect(result.current.peers).toHaveLength(1);
-    const peer = h.peers.at(-1)!;
-
-    // Reach the terminal failure so Rejoin is genuinely on offer.
-    await exhaustReconnect(peer);
+    // Reach the "Voice disconnected" state so Rejoin is on offer.
+    act(() => firstRoom.fire("disconnected"));
     expect(result.current.canRejoin).toBe(true);
 
-    const sentBefore = ws.sent.length;
+    // Make the next LiveKit connect() throw.
+    h.setConnectReject(new Error("Connection refused"));
 
-    await act(async () => {
-      await result.current.rejoin();
-    });
+    await act(async () => { await result.current.rejoin(); });
 
-    // Stale peer still torn down before the failed mic acquisition.
-    expect(peer.closed).toBe(true);
+    // Stale room was still torn down before the connect attempt failed.
+    expect(firstRoom.disconnectCalled).toBe(true);
     expect(result.current.peers).toHaveLength(0);
 
-    // Fresh error, and Rejoin stays available.
-    expect(result.current.error).toBe("Microphone access denied");
+    // Fresh error shown; Rejoin stays available.
+    expect(result.current.error).toBe("Failed to reconnect");
     expect(result.current.canRejoin).toBe(true);
 
-    // Aborted before rejoining, so no fresh join frame went out.
-    const after = ws.sent.slice(sentBefore);
-    expect(after.some((m) => m.type === "join")).toBe(false);
+    // A second room was attempted (connect was called on it).
+    expect(h.rooms).toHaveLength(2);
+    expect(h.rooms[1].connectCalled).toBe(true);
   });
 
   test("holds the fatal failure message open (never auto-dismissed) while Rejoin is offered", async () => {
     vi.useFakeTimers();
 
-    const { result, ws } = await mountVoice();
+    const { result } = await mountVoice();
 
-    await act(async () => {
-      await result.current.joinPartyVoice(10, "Squad");
-    });
-    act(() => ws.emit({ type: "joined", room: "party:10", peers: [peerSummary(PEER_ID)] }));
-    const peer = h.peers.at(-1)!;
+    // Need to flush async effects that were deferred before fake timers.
+    await act(async () => { await Promise.resolve(); });
 
-    await exhaustReconnect(peer);
-    expect(result.current.error).toBe("Couldn't reconnect — try rejoining");
+    const firstRoom = await joinParty(result);
+    act(() => firstRoom.fire("disconnected"));
+    expect(result.current.error).toBe("Voice disconnected — try rejoining");
     expect(result.current.canRejoin).toBe(true);
 
-    // Well past the 5s transient-error auto-clear window.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000);
-    });
+    // Well past the 5 s transient-error auto-clear window.
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
 
-    // Still held open with Rejoin offered.
-    expect(result.current.error).toBe("Couldn't reconnect — try rejoining");
+    // Still open — fatal errors pinned until the user acts.
+    expect(result.current.error).toBe("Voice disconnected — try rejoining");
     expect(result.current.canRejoin).toBe(true);
   });
 
   test("by contrast, a transient (non-fatal) error auto-dismisses and offers no Rejoin", async () => {
     vi.useFakeTimers();
-    h.setGetDisplayMedia(() => Promise.reject(new Error("cancelled")));
 
-    const { result, ws } = await mountVoice();
+    // Make screen share throw (user cancels the browser picker).
+    h.setScreenShareReject(new Error("Permission denied"));
 
-    await act(async () => {
-      await result.current.joinPartyVoice(10, "Squad");
-    });
+    const { result } = await mountVoice();
+    await act(async () => { await Promise.resolve(); });
+
+    await joinParty(result);
     expect(result.current.activeRoom?.room).toBe("party:10");
-    void ws; // room is joined; screen share below produces the transient error
 
-    await act(async () => {
-      await result.current.startScreenShare();
-    });
+    await act(async () => { await result.current.startScreenShare(); });
     expect(result.current.error).toBe("Screen share was cancelled");
     expect(result.current.canRejoin).toBe(false);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5_000);
-    });
-
-    // Transient errors clear themselves; no Rejoin was ever offered.
+    // After 5 s the error auto-clears; Rejoin is never offered.
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
     expect(result.current.error).toBeNull();
     expect(result.current.canRejoin).toBe(false);
   });

@@ -1,11 +1,12 @@
 - [Desktop bundled API server](desktop-bundled-api-server.md) — Electron forks the API bundle on a local port; DB is Postgres so the app still needs an external DATABASE_URL.
-- [WebRTC signaling](webrtc-signaling.md) — voice/screen mesh over WS at /api/ws; MUST authorize room joins server-side (party membership / call participant) or users can eavesdrop.
+- [LiveKit voice transport](livekit-voice.md) — LiveKit Cloud replaced custom P2P WebRTC; WS at /api/ws kept only for call-invite handshake, admin-mute relay, and typing events.
+- [WebRTC signaling (historical)](webrtc-signaling.md) — superseded by LiveKit; kept for historical context on authorization pattern.
 - [wouter v3 layout routing](wouter-routing.md) — wrap the shared authenticated Shell in a pathless `<Route>`, not `<Route path="/">`, or every sub-route 404s.
 - [GWH served at root](gwh-served-at-root.md) — Game World Hub's base is `/`; deep-link URLs are root-relative (`/lfg`, `/ranks`), NOT `/game-world-hub/...`.
 - [User-supplied external links](user-link-fields.md) — never store/render a client `url`; store a validated handle + platform and derive the URL server-side (stored-link injection).
 - [Friend relationship status](friend-relationship-status.md) — profile Add/Remove/Accept buttons need `GET /friends/:friendId/status`; outgoing pending requests aren't in any list endpoint.
 - [User blocking](user-blocking.md) — blocking must be enforced at every interaction (friends + DMs, both directions) and hidden from the blocked user; reuse hasBlocked/isBlockedBetween helpers.
-- [Frontend voice testing](frontend-voice-testing.md) — web artifact uses vitest+jsdom; test the voice provider by mocking the whole webrtc/audio/ws stack, not browser primitives.
+- [Frontend voice testing](frontend-voice-testing.md) — web artifact uses vitest+jsdom; mock livekit-client (Room/RoomEvent), fetch (token endpoint), and WebSocket; fire room events via room.fire(eventString).
 - [Orval codegen quirks](orval-codegen-request-bodies.md) — named `$ref` bodies only; never `format: email` in the spec (orval emits zod-v4 `zod.email()`, breaks zod 3) — enforce format in route code.
 - [Orval zod index conflict](orval-zod-index.md) — api-zod/src/index.ts must only re-export `./generated/api` (zod schemas); adding `./generated/types` causes TS2308 name clashes. Also api-client-react/src/index.ts must explicitly export `customFetch`.
 - [Game library integrations](game-library-integrations.md) — only Steam has a public owned-games API; Epic/BattleNet/Xbox are manual; launch via allowlisted protocol deep links.

@@ -8,9 +8,10 @@ import {
   Shield, Mail, KeyRound, LogOut, AlertTriangle,
   ChevronDown, ChevronUp, Loader2, Users, BarChart3,
   Tag, CreditCard, Settings, Copy, Ban, Crown,
-  CheckCircle2, XCircle, RefreshCw, Plus, Search,
+  XCircle, RefreshCw, Plus, Search,
   Activity, UserX, UserCheck, TrendingUp, Clock,
-  Eye, FileText, Zap, AlertCircle,
+  FileText, Zap, MessageSquare, Swords, Megaphone,
+  Trophy, Filter,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
@@ -21,10 +22,13 @@ interface OwnerInfo     { id: number; username: string; email: string | null; em
 
 interface Stats {
   totalUsers: number; proUsers: number; adminUsers: number;
-  newToday: number; newWeek: number; activeToday: number; suspended: number;
+  newToday: number; newWeek: number; activeToday: number;
+  onlineNow: number; suspended: number;
   activeCodes: number; totalSubscriptions: number;
   openLfgPosts: number; totalLfgPosts: number;
+  totalMessages: number; activeParties: number;
   recentSignups: { id: number; username: string; displayName: string; isPro: boolean; isAdmin: boolean; createdAt: string }[];
+  topPlayers: { id: number; username: string; displayName: string; isPro: boolean; status: string; lfgCount: number }[];
 }
 
 interface UserRow {
@@ -371,31 +375,85 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
 
   useEffect(() => { load(); }, [load]);
 
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [bcTitle, setBcTitle] = useState("");
+  const [bcBody,  setBcBody]  = useState("");
+  const [sending, setSending] = useState(false);
+
+  const sendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault(); setSending(true);
+    try {
+      const { sent } = await ownerFetch<{ sent: number }>("owner/broadcast", session.token, {
+        method: "POST", body: JSON.stringify({ title: bcTitle.trim(), body: bcBody.trim() || undefined }),
+      });
+      toast({ title: `${t("stats.broadcastSent")} (${sent})` });
+      setBcTitle(""); setBcBody(""); setShowBroadcast(false);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setSending(false); }
+  };
+
   const mainCards = [
-    { label: t("stats.totalUsers"),  value: stats?.totalUsers,  icon: <Users      className="w-5 h-5 text-blue-400"   />, sub: null },
-    { label: t("stats.proUsers"),    value: stats?.proUsers,    icon: <Crown      className="w-5 h-5 text-yellow-400" />, sub: null },
-    { label: t("stats.admins"),      value: stats?.adminUsers,  icon: <Shield     className="w-5 h-5 text-purple-400" />, sub: null },
-    { label: t("stats.activeToday"), value: stats?.activeToday, icon: <Zap        className="w-5 h-5 text-green-400"  />, sub: null },
-    { label: t("stats.newToday"),    value: stats?.newToday,    icon: <TrendingUp className="w-5 h-5 text-cyan-400"   />, sub: stats ? `+${stats.newWeek} ${t("stats.thisWeek")}` : null },
-    { label: t("stats.suspended"),   value: stats?.suspended,   icon: <UserX      className="w-5 h-5 text-red-400"    />, sub: null },
-    { label: t("stats.activeCodes"), value: stats?.activeCodes, icon: <Tag        className="w-5 h-5 text-orange-400" />, sub: null },
-    { label: t("stats.totalSubs"),   value: stats?.totalSubscriptions, icon: <CreditCard className="w-5 h-5 text-pink-400" />, sub: null },
-    { label: t("stats.openLfg"),     value: stats?.openLfgPosts, icon: <FileText  className="w-5 h-5 text-indigo-400" />, sub: stats ? `${stats.totalLfgPosts} ${t("stats.total")}` : null },
+    { label: t("stats.onlineNow"),   value: stats?.onlineNow,   icon: <span className="relative flex"><span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75"/><Zap className="w-5 h-5 text-green-400 relative"/></span>, sub: null, highlight: true },
+    { label: t("stats.totalUsers"),  value: stats?.totalUsers,  icon: <Users      className="w-5 h-5 text-blue-400"   />, sub: null, highlight: false },
+    { label: t("stats.proUsers"),    value: stats?.proUsers,    icon: <Crown      className="w-5 h-5 text-yellow-400" />, sub: null, highlight: false },
+    { label: t("stats.admins"),      value: stats?.adminUsers,  icon: <Shield     className="w-5 h-5 text-purple-400" />, sub: null, highlight: false },
+    { label: t("stats.activeToday"), value: stats?.activeToday, icon: <Zap        className="w-5 h-5 text-cyan-400"   />, sub: null, highlight: false },
+    { label: t("stats.newToday"),    value: stats?.newToday,    icon: <TrendingUp className="w-5 h-5 text-emerald-400"/>, sub: stats ? `+${stats.newWeek} ${t("stats.thisWeek")}` : null, highlight: false },
+    { label: t("stats.suspended"),   value: stats?.suspended,   icon: <UserX      className="w-5 h-5 text-red-400"    />, sub: null, highlight: false },
+    { label: t("stats.totalMessages"),value:stats?.totalMessages,icon: <MessageSquare className="w-5 h-5 text-sky-400"/>, sub: null, highlight: false },
+    { label: t("stats.activeParties"),value:stats?.activeParties,icon: <Swords    className="w-5 h-5 text-orange-400" />, sub: null, highlight: false },
+    { label: t("stats.activeCodes"), value: stats?.activeCodes, icon: <Tag        className="w-5 h-5 text-violet-400" />, sub: null, highlight: false },
+    { label: t("stats.totalSubs"),   value: stats?.totalSubscriptions, icon: <CreditCard className="w-5 h-5 text-pink-400" />, sub: null, highlight: false },
+    { label: t("stats.openLfg"),     value: stats?.openLfgPosts, icon: <FileText  className="w-5 h-5 text-indigo-400" />, sub: stats ? `${stats.totalLfgPosts} ${t("stats.total")}` : null, highlight: false },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-primary/50 text-primary hover:bg-primary/10"
+          onClick={() => setShowBroadcast((v) => !v)}>
+          <Megaphone className="w-3.5 h-3.5 me-1.5" /> {t("stats.broadcast")}
+        </Button>
         <Button size="sm" variant="ghost" onClick={load} className="h-7 px-2 font-mono text-xs">
           <RefreshCw className={`w-3.5 h-3.5 me-1.5 ${loading ? "animate-spin" : ""}`} /> {t("refresh")}
         </Button>
       </div>
 
+      {/* Broadcast panel */}
+      {showBroadcast && (
+        <form onSubmit={sendBroadcast} className="border border-primary/40 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Megaphone className="w-4 h-4 text-primary" />
+            <span className="font-mono text-xs uppercase text-primary font-bold">{t("stats.broadcastTitle")}</span>
+          </div>
+          <Input
+            value={bcTitle} onChange={(e) => setBcTitle(e.target.value)}
+            placeholder={t("stats.broadcastTitlePlaceholder")}
+            className="font-mono rounded-none text-sm"
+            required
+          />
+          <textarea
+            value={bcBody} onChange={(e) => setBcBody(e.target.value)}
+            placeholder={t("stats.broadcastBodyPlaceholder")}
+            className="w-full font-mono text-sm bg-background border border-input rounded-none px-3 py-2 resize-none h-20 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <div className="flex gap-2">
+            <Button type="submit" className="rounded-none font-mono text-xs h-8" disabled={sending || !bcTitle.trim()}>
+              {sending ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Megaphone className="w-3.5 h-3.5 me-1.5" />}
+              {t("stats.broadcastSend")}
+            </Button>
+            <Button type="button" variant="ghost" className="rounded-none font-mono text-xs h-8"
+              onClick={() => setShowBroadcast(false)}>{t("stats.broadcastCancel")}</Button>
+          </div>
+        </form>
+      )}
+
+      {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {mainCards.map(({ label, value, icon, sub }) => (
-          <div key={label} className="border border-border bg-background p-4 flex flex-col gap-1.5">
+        {mainCards.map(({ label, value, icon, sub, highlight }) => (
+          <div key={label} className={`border bg-background p-4 flex flex-col gap-1.5 ${highlight ? "border-green-500/40 bg-green-500/5" : "border-border"}`}>
             <div className="flex items-center gap-2">{icon}<span className="font-mono text-[10px] text-muted-foreground uppercase">{label}</span></div>
-            <div className="font-mono text-2xl font-bold text-foreground">
+            <div className={`font-mono text-2xl font-bold ${highlight ? "text-green-400" : "text-foreground"}`}>
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (value ?? "—")}
             </div>
             {sub && !loading && <div className="font-mono text-[10px] text-muted-foreground">{sub}</div>}
@@ -403,27 +461,51 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
         ))}
       </div>
 
-      {/* Recent signups */}
-      {!loading && stats && (stats.recentSignups?.length ?? 0) > 0 && (
-        <div className="border border-border bg-background p-4 space-y-2">
-          <div className="font-mono text-xs uppercase text-muted-foreground mb-3 flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5" /> {t("stats.recentSignups")}
-          </div>
-          <div className="space-y-2">
-            {stats.recentSignups.map((u) => (
-              <div key={u.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">{u.displayName}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">@{u.username}</span>
-                  {u.isPro   && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-yellow-500/60 text-yellow-400">PRO</Badge>}
-                  {u.isAdmin && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-500/60 text-purple-400">ADMIN</Badge>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Recent signups */}
+        {(stats?.recentSignups?.length ?? 0) > 0 && (
+          <div className="border border-border bg-background p-4">
+            <div className="font-mono text-xs uppercase text-muted-foreground mb-3 flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5" /> {t("stats.recentSignups")}
+            </div>
+            <div className="space-y-2">
+              {(stats?.recentSignups ?? []).map((u) => (
+                <div key={u.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-sm truncate">{u.displayName || u.username}</span>
+                    {u.isPro   && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-yellow-500/60 text-yellow-400 shrink-0">PRO</Badge>}
+                    {u.isAdmin && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-500/60 text-purple-400 shrink-0">ADM</Badge>}
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground shrink-0 ms-2">{timeAgo(u.createdAt)}</span>
                 </div>
-                <span className="font-mono text-[10px] text-muted-foreground">{timeAgo(u.createdAt)}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Top players */}
+        {(stats?.topPlayers?.length ?? 0) > 0 && (
+          <div className="border border-border bg-background p-4">
+            <div className="font-mono text-xs uppercase text-muted-foreground mb-3 flex items-center gap-2">
+              <Trophy className="w-3.5 h-3.5 text-yellow-400" /> {t("stats.topPlayers")}
+            </div>
+            <div className="space-y-2">
+              {(stats?.topPlayers ?? []).map((u, i) => (
+                <div key={u.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`font-mono text-xs font-bold w-5 shrink-0 ${i === 0 ? "text-yellow-400" : i === 1 ? "text-slate-300" : i === 2 ? "text-orange-400" : "text-muted-foreground"}`}>
+                      #{i + 1}
+                    </span>
+                    <span className="font-mono text-sm truncate">{u.displayName || u.username}</span>
+                    {u.isPro && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-yellow-500/60 text-yellow-400 shrink-0">PRO</Badge>}
+                  </div>
+                  <span className="font-mono text-xs text-primary font-bold shrink-0 ms-2">{u.lfgCount} {t("stats.posts")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -433,19 +515,20 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
 function UsersTab({ session, t, toast }: {
   session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [query,   setQuery]   = useState("");
-  const [users,   setUsers]   = useState<UserRow[]>([]);
-  const [total,   setTotal]   = useState(0);
-  const [offset,  setOffset]  = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [acting,  setActing]  = useState<number | null>(null);
-  const [proDays, setProDays] = useState<Record<number, string>>({});
+  const [query,    setQuery]    = useState("");
+  const [filterBy, setFilterBy] = useState<"all"|"pro"|"admin"|"suspended"|"online">("all");
+  const [users,    setUsers]    = useState<UserRow[]>([]);
+  const [total,    setTotal]    = useState(0);
+  const [offset,   setOffset]   = useState(0);
+  const [loading,  setLoading]  = useState(false);
+  const [acting,   setActing]   = useState<number | null>(null);
+  const [proDays,  setProDays]  = useState<Record<number, string>>({});
   const LIMIT = 20;
 
-  const load = useCallback(async (q: string, off: number, append = false) => {
+  const load = useCallback(async (q: string, fb: string, off: number, append = false) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
+      const params = new URLSearchParams({ limit: String(LIMIT), offset: String(off), filterBy: fb });
       if (q) params.set("q", q);
       const data = await ownerFetch<{ total: number; items: UserRow[] }>(`owner/users?${params}`, session.token);
       setTotal(data.total);
@@ -454,9 +537,9 @@ function UsersTab({ session, t, toast }: {
     finally { setLoading(false); }
   }, [session.token]);
 
-  useEffect(() => { setOffset(0); load(query, 0); }, [query, load]);
+  useEffect(() => { setOffset(0); load(query, filterBy, 0); }, [query, filterBy, load]);
 
-  const reload = () => { setOffset(0); load(query, 0); };
+  const reload = () => { setOffset(0); load(query, filterBy, 0); };
 
   const togglePro = async (u: UserRow) => {
     setActing(u.id);
@@ -495,18 +578,47 @@ function UsersTab({ session, t, toast }: {
     finally { setActing(null); }
   };
 
-  const loadMore = () => { const next = offset + LIMIT; setOffset(next); load(query, next, true); };
+  const loadMore = () => { const next = offset + LIMIT; setOffset(next); load(query, filterBy, next, true); };
 
   const statusDot = (s: string) => {
     const map: Record<string, string> = { online: "bg-green-400", away: "bg-yellow-400", busy: "bg-red-400", suspended: "bg-red-600", offline: "bg-muted" };
     return <span className={`inline-block w-2 h-2 rounded-full ${map[s] ?? "bg-muted"}`} title={s} />;
   };
 
+  const FILTERS: { id: typeof filterBy; label: string; color?: string }[] = [
+    { id: "all",       label: t("users.filterAll") },
+    { id: "online",    label: t("users.filterOnline"),    color: "text-green-400 border-green-500/50" },
+    { id: "pro",       label: t("users.filterPro"),       color: "text-yellow-400 border-yellow-500/50" },
+    { id: "admin",     label: t("users.filterAdmin"),     color: "text-purple-400 border-purple-500/50" },
+    { id: "suspended", label: t("users.filterSuspended"), color: "text-red-400 border-red-500/50" },
+  ];
+
   return (
     <div className="space-y-3">
       <div className="relative">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("users.search")} className="font-mono rounded-none ps-9 text-sm" />
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilterBy(f.id)}
+            className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+              filterBy === f.id
+                ? `border-primary bg-primary/10 text-primary`
+                : `border-border text-muted-foreground hover:border-border/80 ${f.color ?? ""}`
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+        {total > 0 && (
+          <span className="font-mono text-[10px] text-muted-foreground ms-1">{total} {t("users.results")}</span>
+        )}
       </div>
 
       {users.length === 0 && !loading ? (

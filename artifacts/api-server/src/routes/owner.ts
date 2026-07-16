@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, like, or, desc, sql, gte } from "drizzle-orm";
-import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable } from "@workspace/db";
+import { eq, like, or, desc, sql, inArray, ne } from "drizzle-orm";
+import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable, messagesTable, partiesTable, notificationsTable } from "@workspace/db";
 import { requireOwner, signOwnerToken } from "../middlewares/owner";
 import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
@@ -153,31 +153,41 @@ router.get("/owner/stats", requireOwner, async (_req, res): Promise<void> => {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const week7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const h24   = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const min5  = new Date(Date.now() - 5 * 60 * 1000);
 
-  const [[userStats], [codeStats], [subStats], [lfgStats], recentSignups] = await Promise.all([
+  const [[userStats], [codeStats], [subStats], [lfgStats], [msgStats], [partyStats], recentSignups, topPlayers] = await Promise.all([
     db.select({
-      totalUsers: sql<number>`count(*)::int`,
-      proUsers:   sql<number>`count(*) filter (where is_pro = true)::int`,
-      adminUsers: sql<number>`count(*) filter (where is_admin = true)::int`,
-      newToday:   sql<number>`count(*) filter (where created_at >= ${today})::int`,
-      newWeek:    sql<number>`count(*) filter (where created_at >= ${week7})::int`,
-      activeToday:sql<number>`count(*) filter (where last_active_at >= ${h24})::int`,
-      suspended:  sql<number>`count(*) filter (where status = 'suspended')::int`,
+      totalUsers:  sql<number>`count(*)::int`,
+      proUsers:    sql<number>`count(*) filter (where is_pro = true)::int`,
+      adminUsers:  sql<number>`count(*) filter (where is_admin = true)::int`,
+      newToday:    sql<number>`count(*) filter (where created_at >= ${today})::int`,
+      newWeek:     sql<number>`count(*) filter (where created_at >= ${week7})::int`,
+      activeToday: sql<number>`count(*) filter (where last_active_at >= ${h24})::int`,
+      onlineNow:   sql<number>`count(*) filter (where last_active_at >= ${min5} and status != 'offline' and status != 'suspended')::int`,
+      suspended:   sql<number>`count(*) filter (where status = 'suspended')::int`,
     }).from(usersTable),
 
     db.select({ activeCodes: sql<number>`count(*) filter (where status = 'active')::int` }).from(activationCodesTable),
-
     db.select({ totalSubs: sql<number>`count(*)::int` }).from(proSubscriptionsTable),
-
     db.select({
       openPosts:  sql<number>`count(*) filter (where status = 'open')::int`,
       totalPosts: sql<number>`count(*)::int`,
     }).from(lfgPostsTable),
+    db.select({ totalMessages: sql<number>`count(*)::int` }).from(messagesTable),
+    db.select({ activeParties: sql<number>`count(*)::int` }).from(partiesTable),
 
     db.select({
       id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName,
       isPro: usersTable.isPro, isAdmin: usersTable.isAdmin, createdAt: usersTable.createdAt,
     }).from(usersTable).orderBy(desc(usersTable.createdAt)).limit(6),
+
+    db.select({
+      id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName,
+      isPro: usersTable.isPro, status: usersTable.status,
+      lfgCount: sql<number>`(select count(*)::int from lfg_posts where author_id = ${usersTable.id})`,
+    }).from(usersTable)
+      .orderBy(sql`(select count(*) from lfg_posts where author_id = ${usersTable.id}) desc`)
+      .limit(5),
   ]);
 
   res.json({
@@ -187,25 +197,45 @@ router.get("/owner/stats", requireOwner, async (_req, res): Promise<void> => {
     newToday:           userStats?.newToday     ?? 0,
     newWeek:            userStats?.newWeek      ?? 0,
     activeToday:        userStats?.activeToday  ?? 0,
+    onlineNow:          userStats?.onlineNow    ?? 0,
     suspended:          userStats?.suspended    ?? 0,
     activeCodes:        codeStats?.activeCodes  ?? 0,
     totalSubscriptions: subStats?.totalSubs     ?? 0,
     openLfgPosts:       lfgStats?.openPosts     ?? 0,
     totalLfgPosts:      lfgStats?.totalPosts    ?? 0,
+    totalMessages:      msgStats?.totalMessages ?? 0,
+    activeParties:      partyStats?.activeParties ?? 0,
     recentSignups: recentSignups.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() })),
+    topPlayers,
   });
 });
 
 /* ─── Users ──────────────────────────────────────────────────────────────── */
 
 router.get("/owner/users", requireOwner, async (req, res): Promise<void> => {
-  const q      = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
-  const limit  = Math.min(Number(req.query.limit) || 20, 100);
-  const offset = Number(req.query.offset) || 0;
+  const q        = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+  const filterBy = typeof req.query.filterBy === "string" ? req.query.filterBy : "all";
+  const limit    = Math.min(Number(req.query.limit) || 20, 100);
+  const offset   = Number(req.query.offset) || 0;
+  const min5     = new Date(Date.now() - 5 * 60 * 1000);
 
-  const where = q
+  const searchCond = q
     ? or(like(usersTable.username, `%${q}%`), like(usersTable.displayName, `%${q}%`), like(usersTable.email, `%${q}%`))
     : undefined;
+
+  const filterCond =
+    filterBy === "pro"       ? eq(usersTable.isPro, true) :
+    filterBy === "admin"     ? eq(usersTable.isAdmin, true) :
+    filterBy === "suspended" ? eq(usersTable.status, "suspended") :
+    filterBy === "online"    ? sql`${usersTable.lastActiveAt} >= ${min5} and ${usersTable.status} != 'offline'` :
+    undefined;
+
+  // combine search + filter manually
+  const where =
+    searchCond && filterCond ? sql`(${searchCond}) AND (${filterCond})` :
+    searchCond ? searchCond :
+    filterCond ? filterCond :
+    undefined;
 
   const [[{ total }], users] = await Promise.all([
     db.select({ total: sql<number>`count(*)::int` }).from(usersTable).where(where),
@@ -339,6 +369,45 @@ router.get("/owner/activity-log", requireOwner, async (req, res): Promise<void> 
       createdAt:  r.created_at,
     })),
   });
+});
+
+/* ─── Broadcast ──────────────────────────────────────────────────────────── */
+
+router.post("/owner/broadcast", requireOwner, async (req, res): Promise<void> => {
+  const { title, body } = req.body as { title?: string; body?: string };
+  if (!title || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "Title is required" }); return;
+  }
+
+  // Fetch all non-suspended user IDs
+  const users = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(sql`${usersTable.status} != 'suspended'`);
+
+  if (users.length === 0) { res.json({ ok: true, sent: 0 }); return; }
+
+  // Batch insert notifications (chunks of 200 to avoid query limits)
+  const CHUNK = 200;
+  let sent = 0;
+  for (let i = 0; i < users.length; i += CHUNK) {
+    const chunk = users.slice(i, i + CHUNK);
+    await db.insert(notificationsTable).values(
+      chunk.map((u) => ({
+        userId: u.id,
+        type: "announcement",
+        title: title.trim(),
+        body: body?.trim() ?? null,
+      })),
+    );
+    sent += chunk.length;
+  }
+
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "broadcast", {
+    detail: `"${title.trim()}" → ${sent} users`,
+  });
+  logger.info({ sent, by: req.owner!.ownerId }, "owner: broadcast sent");
+  res.json({ ok: true, sent });
 });
 
 /* ─── Activation Codes ───────────────────────────────────────────────────── */

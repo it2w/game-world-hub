@@ -1250,6 +1250,41 @@ export const ListConversationsResponseItem = zod.object({
   "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
   "createdAt": zod.string()
 }).optional(),
   "unreadCount": zod.number().optional(),
@@ -1316,6 +1351,41 @@ export const GetMessagesResponseItem = zod.object({
   "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
   "createdAt": zod.string()
 })
 export const GetMessagesResponse = zod.array(GetMessagesResponseItem)
@@ -1332,7 +1402,8 @@ export const SendMessageParams = zod.object({
 
 
 export const SendMessageBody = zod.object({
-  "content": zod.string().min(1)
+  "content": zod.string().min(1),
+  "replyToId": zod.number().optional()
 })
 
 export const SendMessageResponse = zod.object({
@@ -1362,6 +1433,122 @@ export const SendMessageResponse = zod.object({
   "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Edit your own message
+ */
+export const EditMessageParams = zod.object({
+  "conversationId": zod.coerce.number(),
+  "messageId": zod.coerce.number()
+})
+
+
+
+
+export const EditMessageBody = zod.object({
+  "content": zod.string().min(1)
+})
+
+export const EditMessageResponse = zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
   "createdAt": zod.string()
 })
 
@@ -1375,6 +1562,125 @@ export const DeleteMessageParams = zod.object({
 })
 
 export const DeleteMessageResponse = zod.void()
+
+
+/**
+ * @summary Pin or unpin a message
+ */
+export const PinMessageParams = zod.object({
+  "conversationId": zod.coerce.number(),
+  "messageId": zod.coerce.number()
+})
+
+export const PinMessageBody = zod.object({
+  "isPinned": zod.boolean()
+})
+
+export const PinMessageResponse = zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Add an emoji reaction to a message
+ */
+export const AddReactionParams = zod.object({
+  "conversationId": zod.coerce.number(),
+  "messageId": zod.coerce.number()
+})
+
+export const addReactionBodyEmojiMax = 10;
+
+
+
+export const AddReactionBody = zod.object({
+  "emoji": zod.string().min(1).max(addReactionBodyEmojiMax)
+})
+
+export const AddReactionResponseItem = zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})
+export const AddReactionResponse = zod.array(AddReactionResponseItem)
+
+
+/**
+ * @summary Remove your emoji reaction from a message
+ */
+export const RemoveReactionParams = zod.object({
+  "conversationId": zod.coerce.number(),
+  "messageId": zod.coerce.number(),
+  "emoji": zod.coerce.string()
+})
+
+export const RemoveReactionResponseItem = zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})
+export const RemoveReactionResponse = zod.array(RemoveReactionResponseItem)
 
 
 /**
@@ -1438,6 +1744,41 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpForNext": zod.number().nullish()
 }),
   "content": zod.string(),
+  "isPinned": zod.boolean(),
+  "editedAt": zod.string().nullish(),
+  "replyTo": zod.object({
+  "id": zod.number(),
+  "sender": zod.object({
+  "id": zod.number(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "bannerUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "rank": zod.string().nullish().describe('User\'s self-reported competitive rank (e.g. Gold, Platinum III)'),
+  "email": zod.string().nullish(),
+  "emailVerified": zod.boolean().optional(),
+  "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
+  "allowProfileComments": zod.boolean().optional(),
+  "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "currentGame": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
+  "isAdmin": zod.boolean().optional().describe('Whether the user has admin privileges'),
+  "tier": zod.enum(['INITIATE', 'SCOUT', 'OPERATIVE', 'HUNTER', 'WARRIOR', 'VETERAN', 'ELITE', 'CHAMPION', 'LEGEND', 'MYTHIC', 'CELESTIAL', 'TITAN', 'IMMORTAL', 'GODLIKE', 'TRANSCENDENT']).nullish().describe('Auto-computed platform tier when available'),
+  "tierLevel": zod.number().nullish(),
+  "totalXp": zod.number().nullish(),
+  "xpIntoLevel": zod.number().nullish(),
+  "xpForNext": zod.number().nullish()
+}),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}).optional(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string(),
+  "count": zod.number(),
+  "mine": zod.boolean()
+})),
   "createdAt": zod.string()
 }).optional(),
   "unreadCount": zod.number().optional(),

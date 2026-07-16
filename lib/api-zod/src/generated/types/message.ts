@@ -5,6 +5,8 @@
  * Game World Hub API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MessageReaction } from './messageReaction';
+import type { MessageReply } from './messageReply';
 import type { User } from './user';
 
 export interface Message {
@@ -12,5 +14,10 @@ export interface Message {
   conversationId: number;
   sender: User;
   content: string;
+  isPinned: boolean;
+  /** @nullable */
+  editedAt?: string | null;
+  replyTo?: MessageReply;
+  reactions: MessageReaction[];
   createdAt: string;
 }

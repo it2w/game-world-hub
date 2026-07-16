@@ -23,6 +23,7 @@ import type {
   ActivationCode,
   ActivationCodeList,
   AddLibraryGameInput,
+  AddReactionBody,
   AdminActivateProInput,
   AdminProSubscriptionList,
   AdminUserList,
@@ -32,6 +33,7 @@ import type {
   ContentLinkInput,
   Conversation,
   CreateActivationCodeInput,
+  EditMessageBody,
   ErrorResponse,
   FriendEntry,
   FriendRequest,
@@ -53,6 +55,7 @@ import type {
   LoginInput,
   Message,
   MessageInput,
+  MessageReaction,
   Notification,
   OnlineFriendsSummary,
   Party,
@@ -63,6 +66,7 @@ import type {
   PartyUpdate,
   PasswordResetConfirmInput,
   PasswordResetRequestInput,
+  PinMessageBody,
   PlatformLink,
   PlatformLinkInput,
   PlayerProgress,
@@ -3944,6 +3948,80 @@ export const useSendMessage = <TError = ErrorType<unknown>,
       return useMutation(getSendMessageMutationOptions(options));
     }
 
+export const getEditMessageUrl = (conversationId: number,
+    messageId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/messages/${messageId}`
+}
+
+/**
+ * @summary Edit your own message
+ */
+export const editMessage = async (conversationId: number,
+    messageId: number,
+    editMessageBody: EditMessageBody, options?: RequestInit): Promise<Message> => {
+
+  return customFetch<Message>(getEditMessageUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(editMessageBody)
+  }
+);}
+
+
+
+
+
+export const getEditMessageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<EditMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof editMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<EditMessageBody>}, TContext> => {
+
+const mutationKey = ['editMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof editMessage>>, {conversationId: number;messageId: number;data: BodyType<EditMessageBody>}> = (props) => {
+          const {conversationId,messageId,data} = props ?? {};
+
+          return  editMessage(conversationId,messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EditMessageMutationResult = NonNullable<Awaited<ReturnType<typeof editMessage>>>
+    export type EditMessageMutationBody = BodyType<EditMessageBody>
+    export type EditMessageMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit your own message
+ */
+export const useEditMessage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof editMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<EditMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof editMessage>>,
+        TError,
+        {conversationId: number;messageId: number;data: BodyType<EditMessageBody>},
+        TContext
+      > => {
+      return useMutation(getEditMessageMutationOptions(options));
+    }
+
 export const getDeleteMessageUrl = (conversationId: number,
     messageId: number,) => {
 
@@ -4015,6 +4093,229 @@ export const useDeleteMessage = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getDeleteMessageMutationOptions(options));
+    }
+
+export const getPinMessageUrl = (conversationId: number,
+    messageId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/messages/${messageId}/pin`
+}
+
+/**
+ * @summary Pin or unpin a message
+ */
+export const pinMessage = async (conversationId: number,
+    messageId: number,
+    pinMessageBody: PinMessageBody, options?: RequestInit): Promise<Message> => {
+
+  return customFetch<Message>(getPinMessageUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pinMessageBody)
+  }
+);}
+
+
+
+
+
+export const getPinMessageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pinMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<PinMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof pinMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<PinMessageBody>}, TContext> => {
+
+const mutationKey = ['pinMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof pinMessage>>, {conversationId: number;messageId: number;data: BodyType<PinMessageBody>}> = (props) => {
+          const {conversationId,messageId,data} = props ?? {};
+
+          return  pinMessage(conversationId,messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PinMessageMutationResult = NonNullable<Awaited<ReturnType<typeof pinMessage>>>
+    export type PinMessageMutationBody = BodyType<PinMessageBody>
+    export type PinMessageMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Pin or unpin a message
+ */
+export const usePinMessage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof pinMessage>>, TError,{conversationId: number;messageId: number;data: BodyType<PinMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof pinMessage>>,
+        TError,
+        {conversationId: number;messageId: number;data: BodyType<PinMessageBody>},
+        TContext
+      > => {
+      return useMutation(getPinMessageMutationOptions(options));
+    }
+
+export const getAddReactionUrl = (conversationId: number,
+    messageId: number,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/messages/${messageId}/reactions`
+}
+
+/**
+ * @summary Add an emoji reaction to a message
+ */
+export const addReaction = async (conversationId: number,
+    messageId: number,
+    addReactionBody: AddReactionBody, options?: RequestInit): Promise<MessageReaction[]> => {
+
+  return customFetch<MessageReaction[]>(getAddReactionUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addReactionBody)
+  }
+);}
+
+
+
+
+
+export const getAddReactionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addReaction>>, TError,{conversationId: number;messageId: number;data: BodyType<AddReactionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addReaction>>, TError,{conversationId: number;messageId: number;data: BodyType<AddReactionBody>}, TContext> => {
+
+const mutationKey = ['addReaction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addReaction>>, {conversationId: number;messageId: number;data: BodyType<AddReactionBody>}> = (props) => {
+          const {conversationId,messageId,data} = props ?? {};
+
+          return  addReaction(conversationId,messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddReactionMutationResult = NonNullable<Awaited<ReturnType<typeof addReaction>>>
+    export type AddReactionMutationBody = BodyType<AddReactionBody>
+    export type AddReactionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add an emoji reaction to a message
+ */
+export const useAddReaction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addReaction>>, TError,{conversationId: number;messageId: number;data: BodyType<AddReactionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addReaction>>,
+        TError,
+        {conversationId: number;messageId: number;data: BodyType<AddReactionBody>},
+        TContext
+      > => {
+      return useMutation(getAddReactionMutationOptions(options));
+    }
+
+export const getRemoveReactionUrl = (conversationId: number,
+    messageId: number,
+    emoji: string,) => {
+
+
+
+
+  return `/api/conversations/${conversationId}/messages/${messageId}/reactions/${emoji}`
+}
+
+/**
+ * @summary Remove your emoji reaction from a message
+ */
+export const removeReaction = async (conversationId: number,
+    messageId: number,
+    emoji: string, options?: RequestInit): Promise<MessageReaction[]> => {
+
+  return customFetch<MessageReaction[]>(getRemoveReactionUrl(conversationId,messageId,emoji),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveReactionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeReaction>>, TError,{conversationId: number;messageId: number;emoji: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeReaction>>, TError,{conversationId: number;messageId: number;emoji: string}, TContext> => {
+
+const mutationKey = ['removeReaction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeReaction>>, {conversationId: number;messageId: number;emoji: string}> = (props) => {
+          const {conversationId,messageId,emoji} = props ?? {};
+
+          return  removeReaction(conversationId,messageId,emoji,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveReactionMutationResult = NonNullable<Awaited<ReturnType<typeof removeReaction>>>
+
+    export type RemoveReactionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove your emoji reaction from a message
+ */
+export const useRemoveReaction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeReaction>>, TError,{conversationId: number;messageId: number;emoji: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeReaction>>,
+        TError,
+        {conversationId: number;messageId: number;emoji: string},
+        TContext
+      > => {
+      return useMutation(getRemoveReactionMutationOptions(options));
     }
 
 export const getGetOrCreateDirectConversationUrl = (userId: number,) => {

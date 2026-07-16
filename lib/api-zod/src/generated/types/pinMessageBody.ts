@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MessageInput {
-  /** @minLength 1 */
-  content: string;
-  replyToId?: number;
+export interface PinMessageBody {
+  isPinned: boolean;
 }

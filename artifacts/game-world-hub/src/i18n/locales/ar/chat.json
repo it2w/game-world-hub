@@ -1,31 +1,55 @@
 {
   "sidebar": {
-    "title": "قنوات الاتصال",
+    "title": "الرسائل المباشرة",
     "you": "أنت",
     "noMessages": "لا توجد رسائل بعد",
     "hideConversation": "إخفاء المحادثة",
     "deleteConversation": "حذف المحادثة للطرفين",
-    "confirmDelete": "تأكيد: حذف نهائي للطرفين",
+    "confirmDelete": "تأكيد الحذف النهائي",
     "cancel": "إلغاء"
   },
   "conversation": {
     "directMessage": "رسالة مباشرة",
     "groupChat": "دردشة جماعية",
     "loading": "جارٍ التحميل...",
-    "partyComms": "اتصال البارتي"
+    "partyComms": "اتصال البارتي",
+    "participants": "{{count}} أعضاء",
+    "pinnedMessages": "الرسائل المثبتة",
+    "noPinned": "لا توجد رسائل مثبتة"
   },
   "input": {
-    "placeholder": "أرسل رسالتك..."
+    "placeholder": "رسالة إلى {{name}}",
+    "placeholderGeneric": "اكتب رسالة…",
+    "send": "إرسال",
+    "replyingTo": "ردّ على {{name}}",
+    "cancelReply": "إلغاء الرد",
+    "editingMessage": "تعديل الرسالة",
+    "cancelEdit": "إلغاء التعديل",
+    "saveEdit": "حفظ"
   },
   "empty": {
-    "selectChannel": "اختر قناة لبدء الاتصال"
+    "selectChannel": "اختر محادثة لبدء الكتابة"
   },
   "msg": {
-    "copy": "نسخ الرسالة",
-    "delete": "حذف الرسالة"
+    "copy": "نسخ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "reply": "رد",
+    "pin": "تثبيت",
+    "unpin": "إلغاء التثبيت",
+    "edited": "معدّل",
+    "pinned": "ثبّت رسالة",
+    "deletedFallback": "تم حذف هذه الرسالة"
   },
   "typing": {
     "one": "{{name}} يكتب…",
     "multiple": "{{count}} أشخاص يكتبون…"
+  },
+  "search": {
+    "placeholder": "بحث في الرسائل",
+    "noResults": "لا توجد رسائل تطابق بحثك"
+  },
+  "reactions": {
+    "addReaction": "إضافة تفاعل"
   }
 }

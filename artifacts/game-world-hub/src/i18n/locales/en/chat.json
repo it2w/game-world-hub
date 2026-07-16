@@ -1,31 +1,55 @@
 {
   "sidebar": {
-    "title": "Comms_Channels",
+    "title": "Direct Messages",
     "you": "You",
     "noMessages": "No messages yet",
     "hideConversation": "Hide conversation",
     "deleteConversation": "Delete conversation for everyone",
-    "confirmDelete": "Confirm: permanently delete for both parties",
+    "confirmDelete": "Confirm permanent delete",
     "cancel": "Cancel"
   },
   "conversation": {
     "directMessage": "Direct Message",
     "groupChat": "Group Chat",
     "loading": "Loading...",
-    "partyComms": "Party Comms"
+    "partyComms": "Party Comms",
+    "participants": "{{count}} members",
+    "pinnedMessages": "Pinned Messages",
+    "noPinned": "No pinned messages"
   },
   "input": {
-    "placeholder": "TRANSMIT MESSAGE..."
+    "placeholder": "Message {{name}}",
+    "placeholderGeneric": "Write a message…",
+    "send": "Send",
+    "replyingTo": "Replying to {{name}}",
+    "cancelReply": "Cancel reply",
+    "editingMessage": "Editing message",
+    "cancelEdit": "Cancel edit",
+    "saveEdit": "Save"
   },
   "empty": {
-    "selectChannel": "Select a channel to begin transmission"
+    "selectChannel": "Select a conversation to start chatting"
   },
   "msg": {
-    "copy": "Copy message",
-    "delete": "Delete message"
+    "copy": "Copy",
+    "delete": "Delete",
+    "edit": "Edit",
+    "reply": "Reply",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "edited": "edited",
+    "pinned": "pinned a message",
+    "deletedFallback": "This message was deleted"
   },
   "typing": {
     "one": "{{name}} is typing…",
     "multiple": "{{count}} people are typing…"
+  },
+  "search": {
+    "placeholder": "Search messages",
+    "noResults": "No messages match your search"
+  },
+  "reactions": {
+    "addReaction": "Add reaction"
   }
 }

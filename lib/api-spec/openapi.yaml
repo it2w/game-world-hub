@@ -1193,6 +1193,36 @@ paths:
                 $ref: "#/components/schemas/Message"
 
   /conversations/{conversationId}/messages/{messageId}:
+    patch:
+      operationId: editMessage
+      tags: [messages]
+      summary: Edit your own message
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditMessageBody"
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "403":
+          description: Not your message
     delete:
       operationId: deleteMessage
       tags: [messages]
@@ -1217,6 +1247,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /conversations/{conversationId}/messages/{messageId}/pin:
+    patch:
+      operationId: pinMessage
+      tags: [messages]
+      summary: Pin or unpin a message
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinMessageBody"
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /conversations/{conversationId}/messages/{messageId}/reactions:
+    post:
+      operationId: addReaction
+      tags: [messages]
+      summary: Add an emoji reaction to a message
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddReactionBody"
+      responses:
+        "200":
+          description: Updated reactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageReaction"
+
+  /conversations/{conversationId}/messages/{messageId}/reactions/{emoji}:
+    delete:
+      operationId: removeReaction
+      tags: [messages]
+      summary: Remove your emoji reaction from a message
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: emoji
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated reactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageReaction"
 
   /conversations/direct/{userId}:
     get:
@@ -3033,7 +3156,7 @@ components:
 
     Message:
       type: object
-      required: [id, conversationId, sender, content, createdAt]
+      required: [id, conversationId, sender, content, isPinned, reactions, createdAt]
       properties:
         id:
           type: integer
@@ -3043,8 +3166,42 @@ components:
           $ref: "#/components/schemas/User"
         content:
           type: string
+        isPinned:
+          type: boolean
+        editedAt:
+          type: ["string", "null"]
+        replyTo:
+          $ref: "#/components/schemas/MessageReply"
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageReaction"
         createdAt:
           type: string
+
+    MessageReply:
+      type: object
+      required: [id, sender, content, createdAt]
+      properties:
+        id:
+          type: integer
+        sender:
+          $ref: "#/components/schemas/User"
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    MessageReaction:
+      type: object
+      required: [emoji, count, mine]
+      properties:
+        emoji:
+          type: string
+        count:
+          type: integer
+        mine:
+          type: boolean
 
     MessageInput:
       type: object
@@ -3053,6 +3210,32 @@ components:
         content:
           type: string
           minLength: 1
+        replyToId:
+          type: integer
+
+    EditMessageBody:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+
+    AddReactionBody:
+      type: object
+      required: [emoji]
+      properties:
+        emoji:
+          type: string
+          minLength: 1
+          maxLength: 10
+
+    PinMessageBody:
+      type: object
+      required: [isPinned]
+      properties:
+        isPinned:
+          type: boolean
 
     # ── Parties ──────────────────────────────────────────────────────────────
     Party:

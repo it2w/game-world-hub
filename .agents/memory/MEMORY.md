@@ -7,6 +7,7 @@
 - [User blocking](user-blocking.md) — blocking must be enforced at every interaction (friends + DMs, both directions) and hidden from the blocked user; reuse hasBlocked/isBlockedBetween helpers.
 - [Frontend voice testing](frontend-voice-testing.md) — web artifact uses vitest+jsdom; test the voice provider by mocking the whole webrtc/audio/ws stack, not browser primitives.
 - [Orval codegen quirks](orval-codegen-request-bodies.md) — named `$ref` bodies only; never `format: email` in the spec (orval emits zod-v4 `zod.email()`, breaks zod 3) — enforce format in route code.
+- [Orval zod index conflict](orval-zod-index.md) — api-zod/src/index.ts must only re-export `./generated/api` (zod schemas); adding `./generated/types` causes TS2308 name clashes. Also api-client-react/src/index.ts must explicitly export `customFetch`.
 - [Game library integrations](game-library-integrations.md) — only Steam has a public owned-games API; Epic/BattleNet/Xbox are manual; launch via allowlisted protocol deep links.
 - [Active-game presence](presence-current-game.md) — currentGame auto-clears via heartbeat+server sweep; offline must never coexist with a game; sweep must handle NULL last_active_at.
 - [2FA challenge tokens](twofa-challenge-tokens.md) — verifyToken must reject purpose-tagged JWTs (session shape check) or challenges become session tokens; jti single-use + attempt cap.

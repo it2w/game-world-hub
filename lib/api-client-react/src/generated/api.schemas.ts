@@ -758,11 +758,29 @@ export const ConversationType = {
   party: 'party',
 } as const;
 
+export interface MessageReply {
+  id: number;
+  sender: User;
+  content: string;
+  createdAt: string;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  mine: boolean;
+}
+
 export interface Message {
   id: number;
   conversationId: number;
   sender: User;
   content: string;
+  isPinned: boolean;
+  /** @nullable */
+  editedAt?: string | null;
+  replyTo?: MessageReply;
+  reactions: MessageReaction[];
   createdAt: string;
 }
 
@@ -780,6 +798,24 @@ export interface Conversation {
 export interface MessageInput {
   /** @minLength 1 */
   content: string;
+  replyToId?: number;
+}
+
+export interface EditMessageBody {
+  /** @minLength 1 */
+  content: string;
+}
+
+export interface AddReactionBody {
+  /**
+     * @minLength 1
+     * @maxLength 10
+     */
+  emoji: string;
+}
+
+export interface PinMessageBody {
+  isPinned: boolean;
 }
 
 export interface Party {

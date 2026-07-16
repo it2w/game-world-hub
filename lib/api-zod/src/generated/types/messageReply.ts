@@ -5,9 +5,11 @@
  * Game World Hub API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { User } from './user';
 
-export interface MessageInput {
-  /** @minLength 1 */
+export interface MessageReply {
+  id: number;
+  sender: User;
   content: string;
-  replyToId?: number;
+  createdAt: string;
 }

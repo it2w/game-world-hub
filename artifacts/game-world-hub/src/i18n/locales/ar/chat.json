@@ -1,13 +1,21 @@
 {
   "sidebar": {
-    "title": "الرسائل المباشرة",
+    "title": "الرسائل",
+    "hiddenTitle": "الرسائل المخفية",
     "you": "أنت",
     "noMessages": "لا توجد رسائل بعد",
+    "noConversations": "لا توجد محادثات",
+    "noHidden": "لا توجد محادثات مخفية",
     "hideConversation": "إخفاء من القائمة",
+    "restoreConversation": "استعادة إلى القائمة",
     "deleteConversation": "حذف المحادثة",
     "confirmDeletePrompt": "هل تريد حذف هذه المحادثة نهائياً للطرفين؟ لا يمكن التراجع.",
     "confirmDelete": "تأكيد الحذف النهائي",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "options": "خيارات",
+    "showHidden": "إظهار المخفية",
+    "showVisible": "العودة للرسائل",
+    "selectHiddenHint": "اختر محادثة مخفية لاستعادتها أو حذفها"
   },
   "conversation": {
     "directMessage": "رسالة مباشرة",

@@ -1,13 +1,21 @@
 {
   "sidebar": {
-    "title": "Direct Messages",
+    "title": "Messages",
+    "hiddenTitle": "Hidden Messages",
     "you": "You",
     "noMessages": "No messages yet",
+    "noConversations": "No conversations",
+    "noHidden": "No hidden conversations",
     "hideConversation": "Hide from list",
+    "restoreConversation": "Restore to list",
     "deleteConversation": "Delete conversation",
     "confirmDeletePrompt": "Delete this conversation permanently for both parties? This cannot be undone.",
     "confirmDelete": "Confirm permanent delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "options": "Options",
+    "showHidden": "Show hidden",
+    "showVisible": "Back to messages",
+    "selectHiddenHint": "Select a hidden conversation to restore or delete it"
   },
   "conversation": {
     "directMessage": "Direct Message",

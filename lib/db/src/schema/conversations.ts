@@ -13,6 +13,7 @@ export const conversationParticipantsTable = pgTable("conversation_participants"
   conversationId: integer("conversation_id").notNull().references(() => conversationsTable.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  isHidden: boolean("is_hidden").notNull().default(false),
 });
 
 export const messagesTable = pgTable("messages", {

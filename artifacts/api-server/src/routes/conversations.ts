@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -142,14 +142,22 @@ async function buildConversation(conv: typeof conversationsTable.$inferSelect, m
   };
 }
 
-// GET /conversations
+// GET /conversations  (?showHidden=true to include hidden ones)
 router.get("/conversations", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
+  const showHidden = req.query.showHidden === "true";
 
   const myConvRows = await db
     .select()
     .from(conversationParticipantsTable)
-    .where(eq(conversationParticipantsTable.userId, myId));
+    .where(
+      and(
+        eq(conversationParticipantsTable.userId, myId),
+        showHidden
+          ? eq(conversationParticipantsTable.isHidden, true)
+          : eq(conversationParticipantsTable.isHidden, false),
+      ),
+    );
 
   const convIds = myConvRows.map((r) => r.conversationId);
   if (convIds.length === 0) {
@@ -414,7 +422,7 @@ router.delete("/conversations/:conversationId/full", requireAuth, async (req, re
   res.json({ success: true });
 });
 
-// DELETE /conversations/:conversationId — hide
+// DELETE /conversations/:conversationId — hide (mark is_hidden = true, not remove)
 router.delete("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
@@ -427,7 +435,28 @@ router.delete("/conversations/:conversationId", requireAuth, async (req, res): P
   if (!membership) { res.status(403).json({ error: "Forbidden" }); return; }
 
   await db
-    .delete(conversationParticipantsTable)
+    .update(conversationParticipantsTable)
+    .set({ isHidden: true })
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+
+  res.json({ success: true });
+});
+
+// POST /conversations/:conversationId/restore — unhide
+router.post("/conversations/:conversationId/restore", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const conversationId = parseInt(raw, 10);
+
+  const [membership] = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+  if (!membership) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  await db
+    .update(conversationParticipantsTable)
+    .set({ isHidden: false })
     .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
 
   res.json({ success: true });

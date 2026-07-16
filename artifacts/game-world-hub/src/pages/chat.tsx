@@ -2,40 +2,37 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import {
-  useListConversations,
   useGetMessages,
   useSendMessage,
   useGetMe,
   useDeleteMessage,
-  useHideConversation,
   useDeleteConversationFull,
   getGetMessagesQueryKey,
-  getListConversationsQueryKey,
   getGetMeQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import {
-  Send, Users, Shield, Trash2, X, EyeOff,
+  Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
-import { customFetch } from "@workspace/api-client-react";
 
 // ─── ConvMenu — simple popover, no Radix dependency ──────────────────────────
 
 function ConvMenu({
   conv,
-  myId,
-  activeConvId,
+  isHidden,
   onHide,
+  onRestore,
   onDelete,
 }: {
   conv: any;
-  myId?: number;
-  activeConvId: number | null;
+  isHidden: boolean;
   onHide: () => void;
+  onRestore: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation("chat");
@@ -55,27 +52,37 @@ function ConvMenu({
     <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((s) => !s); }}
-        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Options"
+        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+        title={t("sidebar.options")}
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-card border border-border rounded-lg shadow-xl py-1 text-sm">
-          <button
-            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted transition-colors text-start"
-            onClick={() => { setOpen(false); onHide(); }}
-          >
-            <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" />
-            {t("sidebar.hideConversation")}
-          </button>
+        <div className="absolute end-0 top-full mt-1 z-[200] w-52 bg-popover border border-border rounded-xl shadow-2xl py-1.5 text-sm overflow-hidden">
+          {isHidden ? (
+            <button
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start font-medium"
+              onClick={() => { setOpen(false); onRestore(); }}
+            >
+              <Eye className="w-4 h-4 shrink-0 text-primary" />
+              <span>{t("sidebar.restoreConversation")}</span>
+            </button>
+          ) : (
+            <button
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start"
+              onClick={() => { setOpen(false); onHide(); }}
+            >
+              <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" />
+              <span>{t("sidebar.hideConversation")}</span>
+            </button>
+          )}
 
           {conv.type === "direct" && (
             <>
-              <div className="h-px bg-border mx-2 my-1" />
+              <div className="h-px bg-border mx-3 my-1" />
               <button
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
                 onClick={() => {
                   setOpen(false);
                   if (window.confirm(t("sidebar.confirmDeletePrompt"))) {
@@ -84,7 +91,7 @@ function ConvMenu({
                 }}
               >
                 <Trash2 className="w-4 h-4 shrink-0" />
-                {t("sidebar.deleteConversation")}
+                <span>{t("sidebar.deleteConversation")}</span>
               </button>
             </>
           )}
@@ -117,7 +124,6 @@ const EMOJI_PALETTE = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥",
 // ─── Markdown renderer ───────────────────────────────────────────────────────
 
 function renderMarkdown(text: string): React.ReactNode[] {
-  // Split by code spans first
   const segments = text.split(/(`[^`\n]+`)/g);
   return segments.flatMap((seg, si) => {
     if (seg.startsWith("`") && seg.endsWith("`") && seg.length > 2) {
@@ -127,19 +133,16 @@ function renderMarkdown(text: string): React.ReactNode[] {
         </code>,
       ];
     }
-    // Spoiler ||text||
     const spoilerParts = seg.split(/(\|\|[^|]+\|\|)/g);
     return spoilerParts.flatMap((sp, spi) => {
       if (sp.startsWith("||") && sp.endsWith("||") && sp.length > 4) {
         return [<Spoiler key={`${si}-${spi}`} text={sp.slice(2, -2)} />];
       }
-      // Bold **text**
       const boldParts = sp.split(/(\*\*[^*]+\*\*)/g);
       return boldParts.flatMap((bp, bpi) => {
         if (bp.startsWith("**") && bp.endsWith("**") && bp.length > 4) {
           return [<strong key={`${si}-${spi}-${bpi}`}>{bp.slice(2, -2)}</strong>];
         }
-        // Italic *text*
         const italicParts = bp.split(/(\*[^*]+\*)/g);
         return italicParts.map((ip, ipi) => {
           if (ip.startsWith("*") && ip.endsWith("*") && ip.length > 2) {
@@ -193,11 +196,11 @@ function ReactionBar({
     try {
       const url = `/api/conversations/${conversationId}/messages/${messageId}/reactions`;
       if (mine) {
-        const res = await customFetch(`${url}/${encodeURIComponent(emoji)}`, { method: "DELETE" });
-        if (res.ok) onUpdate(await res.json());
+        const updated = await customFetch<MessageReaction[]>(`${url}/${encodeURIComponent(emoji)}`, { method: "DELETE" });
+        onUpdate(updated);
       } else {
-        const res = await customFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emoji }) });
-        if (res.ok) onUpdate(await res.json());
+        const updated = await customFetch<MessageReaction[]>(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emoji }) });
+        onUpdate(updated);
       }
     } catch {}
   };
@@ -236,10 +239,7 @@ function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onC
   }, [onClose]);
 
   return (
-    <div
-      ref={ref}
-      className="absolute z-50 bottom-full mb-1 bg-card border border-border rounded-lg shadow-xl p-2 flex gap-1"
-    >
+    <div ref={ref} className="absolute z-50 bottom-full mb-1 bg-card border border-border rounded-lg shadow-xl p-2 flex gap-1">
       {EMOJI_PALETTE.map((e) => (
         <button
           key={e}
@@ -259,15 +259,9 @@ function MessageBubble({
   msg, isMe, showHeader, myId, conversationId,
   onReply, onStartEdit, onDelete, onPin, onReactionUpdate,
 }: {
-  msg: Message;
-  isMe: boolean;
-  showHeader: boolean;
-  myId: number;
-  conversationId: number;
-  onReply: (msg: Message) => void;
-  onStartEdit: (msg: Message) => void;
-  onDelete: (msgId: number) => void;
-  onPin: (msgId: number, isPinned: boolean) => void;
+  msg: Message; isMe: boolean; showHeader: boolean; myId: number; conversationId: number;
+  onReply: (msg: Message) => void; onStartEdit: (msg: Message) => void;
+  onDelete: (msgId: number) => void; onPin: (msgId: number, isPinned: boolean) => void;
   onReactionUpdate: (msgId: number, reactions: MessageReaction[]) => void;
 }) {
   const { t } = useTranslation("chat");
@@ -276,11 +270,11 @@ function MessageBubble({
 
   const addReaction = async (emoji: string) => {
     try {
-      const res = await customFetch(
+      const updated = await customFetch<MessageReaction[]>(
         `/api/conversations/${conversationId}/messages/${msg.id}/reactions`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emoji }) }
       );
-      if (res.ok) onReactionUpdate(msg.id, await res.json());
+      onReactionUpdate(msg.id, updated);
     } catch {}
   };
 
@@ -290,99 +284,49 @@ function MessageBubble({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setShowEmoji(false); }}
     >
-      {/* Avatar column */}
       <div className="w-9 shrink-0 pt-0.5">
         {showHeader && <Avatar src={msg.sender.avatarUrl} name={msg.sender.displayName} />}
       </div>
-
-      {/* Content column */}
       <div className="flex-1 min-w-0">
         {showHeader && (
           <div className="flex items-baseline gap-2 mb-0.5">
-            <span className="font-semibold text-sm text-foreground hover:underline cursor-pointer">
-              {msg.sender.displayName}
-            </span>
-            <span className="text-[11px] text-muted-foreground font-mono">
-              {formatTime(msg.createdAt)}
-            </span>
+            <span className="font-semibold text-sm text-foreground hover:underline cursor-pointer">{msg.sender.displayName}</span>
+            <span className="text-[11px] text-muted-foreground font-mono">{formatTime(msg.createdAt)}</span>
           </div>
         )}
-
-        {/* Reply quote */}
         {msg.replyTo && (
           <div className="flex items-start gap-2 mb-1 ms-1 border-l-2 border-primary/50 pl-2 text-xs text-muted-foreground">
             <span className="font-semibold text-primary/80 shrink-0">{msg.replyTo.sender.displayName}</span>
             <span className="truncate max-w-[300px]">{msg.replyTo.content}</span>
           </div>
         )}
-
-        {/* Message text */}
         <p className="text-sm leading-relaxed break-words">
           {renderMarkdown(msg.content)}
-          {msg.editedAt && (
-            <span className="text-[10px] text-muted-foreground ms-1.5 font-mono">({t("msg.edited")})</span>
-          )}
+          {msg.editedAt && <span className="text-[10px] text-muted-foreground ms-1.5 font-mono">({t("msg.edited")})</span>}
         </p>
-
-        {/* Reactions */}
-        <ReactionBar
-          reactions={msg.reactions}
-          messageId={msg.id}
-          conversationId={conversationId}
-          myId={myId}
-          onUpdate={(updated) => onReactionUpdate(msg.id, updated)}
-        />
+        <ReactionBar reactions={msg.reactions} messageId={msg.id} conversationId={conversationId} myId={myId} onUpdate={(u) => onReactionUpdate(msg.id, u)} />
       </div>
-
-      {/* Hover toolbar — Discord-style floating */}
       {hovered && (
-        <div className={`absolute right-4 top-0 -translate-y-1/2 flex items-center gap-0.5 bg-card border border-border rounded-lg shadow-lg px-1 py-0.5 z-10`}>
-          {/* Emoji quick add */}
+        <div className="absolute end-4 top-0 -translate-y-1/2 flex items-center gap-0.5 bg-card border border-border rounded-lg shadow-lg px-1 py-0.5 z-10">
           <div className="relative">
-            <button
-              onClick={() => setShowEmoji((s) => !s)}
-              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-              title={t("reactions.addReaction")}
-            >
+            <button onClick={() => setShowEmoji((s) => !s)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("reactions.addReaction")}>
               <Smile className="w-3.5 h-3.5" />
             </button>
-            {showEmoji && (
-              <EmojiPicker onPick={addReaction} onClose={() => setShowEmoji(false)} />
-            )}
+            {showEmoji && <EmojiPicker onPick={addReaction} onClose={() => setShowEmoji(false)} />}
           </div>
-
-          <button
-            onClick={() => onReply(msg)}
-            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-            title={t("msg.reply")}
-          >
+          <button onClick={() => onReply(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.reply")}>
             <Reply className="w-3.5 h-3.5" />
           </button>
-
           {isMe && (
-            <button
-              onClick={() => onStartEdit(msg)}
-              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-              title={t("msg.edit")}
-            >
+            <button onClick={() => onStartEdit(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.edit")}>
               <Pencil className="w-3.5 h-3.5" />
             </button>
           )}
-
-          <button
-            onClick={() => onPin(msg.id, !msg.isPinned)}
-            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-            title={msg.isPinned ? t("msg.unpin") : t("msg.pin")}
-          >
+          <button onClick={() => onPin(msg.id, !msg.isPinned)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={msg.isPinned ? t("msg.unpin") : t("msg.pin")}>
             {msg.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
-
           {isMe && (
-            <button
-              onClick={() => onDelete(msg.id)}
-              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded transition-colors"
-              title={t("msg.delete")}
-            >
+            <button onClick={() => onDelete(msg.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded transition-colors" title={t("msg.delete")}>
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -410,17 +354,14 @@ function formatDateDivider(iso: string) {
 
 function shouldShowDateDivider(prev: Message | undefined, cur: Message) {
   if (!prev) return true;
-  const a = new Date(prev.createdAt);
-  const b = new Date(cur.createdAt);
-  return a.toDateString() !== b.toDateString();
+  return new Date(prev.createdAt).toDateString() !== new Date(cur.createdAt).toDateString();
 }
 
 function shouldShowHeader(prev: Message | undefined, cur: Message) {
   if (!prev) return true;
   if (cur.replyTo) return true;
   if (prev.sender.id !== cur.sender.id) return true;
-  const diff = new Date(cur.createdAt).getTime() - new Date(prev.createdAt).getTime();
-  return diff > 5 * 60 * 1000; // 5 min gap
+  return new Date(cur.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60 * 1000;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -430,22 +371,29 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const { data: conversations } = useListConversations({
-    query: { refetchInterval: 8000, queryKey: getListConversationsQueryKey() },
+  const [showHidden, setShowHidden] = useState(false);
+
+  // Conversations query — supports showHidden toggle
+  const convQueryKey = ["conversations", showHidden ? "hidden" : "visible"] as const;
+  const { data: conversations } = useQuery({
+    queryKey: convQueryKey,
+    queryFn: () =>
+      customFetch<any[]>(`/api/conversations${showHidden ? "?showHidden=true" : ""}`),
+    refetchInterval: 8000,
   });
+
+  const invalidateConvs = () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations", "visible"] });
+    queryClient.invalidateQueries({ queryKey: ["conversations", "hidden"] });
+  };
 
   const conversationId = params.conversationId ? parseInt(params.conversationId) : null;
   const activeConversation = conversations?.find((c) => c.id === conversationId);
 
-  const { data: rawMessages, refetch: refetchMessages } = useGetMessages(conversationId!, {
-    query: {
-      enabled: !!conversationId,
-      refetchInterval: 3000,
-      queryKey: getGetMessagesQueryKey(conversationId!),
-    },
+  const { data: rawMessages } = useGetMessages(conversationId!, {
+    query: { enabled: !!conversationId, refetchInterval: 3000, queryKey: getGetMessagesQueryKey(conversationId!) },
   });
 
-  // Local messages state for optimistic reaction updates
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   useEffect(() => {
     if (rawMessages) setLocalMessages(rawMessages as unknown as Message[]);
@@ -453,7 +401,6 @@ export default function Chat({ params }: { params: { conversationId?: string } }
 
   const sendMessage = useSendMessage();
   const deleteMessage = useDeleteMessage();
-  const hideConversation = useHideConversation();
   const deleteConversationFull = useDeleteConversationFull();
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -467,7 +414,6 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const editRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Typing indicator
   useVoice();
   const [typingUsers, setTypingUsers] = useState<Map<number, { displayName: string; timer: ReturnType<typeof setTimeout> }>>(new Map());
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,9 +427,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
         const next = new Map(prev);
         const existing = next.get(userId);
         if (existing) clearTimeout(existing.timer);
-        const timer = setTimeout(() => {
-          setTypingUsers((cur) => { const m = new Map(cur); m.delete(userId); return m; });
-        }, 3000);
+        const timer = setTimeout(() => setTypingUsers((cur) => { const m = new Map(cur); m.delete(userId); return m; }), 3000);
         next.set(userId, { displayName, timer });
         return next;
       });
@@ -493,43 +437,24 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   }, [conversationId, me?.id]);
 
   useEffect(() => {
-    const handleSendTyping = (e: CustomEvent) => {
-      window.dispatchEvent(new CustomEvent("gwh:ws-send", { detail: { type: "typing", conversationId: e.detail.conversationId } }));
-    };
-    window.addEventListener("gwh:send-typing" as any, handleSendTyping as EventListener);
-    return () => window.removeEventListener("gwh:send-typing" as any, handleSendTyping as EventListener);
+    const handler = (e: CustomEvent) => window.dispatchEvent(new CustomEvent("gwh:ws-send", { detail: { type: "typing", conversationId: e.detail.conversationId } }));
+    window.addEventListener("gwh:send-typing" as any, handler as EventListener);
+    return () => window.removeEventListener("gwh:send-typing" as any, handler as EventListener);
   }, []);
 
-  // Auto-scroll
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [localMessages]);
-
-  // Focus edit input
   useEffect(() => { if (editingMsg) editRef.current?.focus(); }, [editingMsg]);
-
-  // Reset state on conversation change
-  useEffect(() => {
-    setReplyTo(null);
-    setEditingMsg(null);
-    setSearchQuery("");
-    setShowSearch(false);
-    setShowPinned(false);
-  }, [conversationId]);
+  useEffect(() => { setReplyTo(null); setEditingMsg(null); setSearchQuery(""); setShowSearch(false); setShowPinned(false); }, [conversationId]);
 
   const sendTyping = useCallback(() => {
     if (!conversationId) return;
     window.dispatchEvent(new CustomEvent("gwh:send-typing", { detail: { conversationId } }));
   }, [conversationId]);
 
-  const handleInputChange = () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    sendTyping();
-  };
-
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     const content = inputRef.current?.value.trim();
     if (!content || !conversationId) return;
-
     sendMessage.mutate(
       { conversationId, data: { content, replyToId: replyTo?.id } as any },
       {
@@ -537,7 +462,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
           if (inputRef.current) inputRef.current.value = "";
           setReplyTo(null);
           queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
-          queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+          invalidateConvs();
         },
       }
     );
@@ -548,7 +473,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
     deleteMessage.mutate({ conversationId, messageId: msgId }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
-        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+        invalidateConvs();
       },
     });
   };
@@ -556,14 +481,11 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const handleEdit = async () => {
     if (!editingMsg || !conversationId || !editContent.trim()) return;
     try {
-      const res = await customFetch(
+      const updated = await customFetch<Message>(
         `/api/conversations/${conversationId}/messages/${editingMsg.id}`,
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: editContent.trim() }) }
       );
-      if (res.ok) {
-        const updated: Message = await res.json();
-        setLocalMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      }
+      setLocalMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     } catch {}
     setEditingMsg(null);
     setEditContent("");
@@ -572,21 +494,39 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const handlePin = async (msgId: number, isPinned: boolean) => {
     if (!conversationId) return;
     try {
-      const res = await customFetch(
+      const updated = await customFetch<Message>(
         `/api/conversations/${conversationId}/messages/${msgId}/pin`,
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isPinned }) }
       );
-      if (res.ok) {
-        const updated: Message = await res.json();
-        setLocalMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      }
+      setLocalMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     } catch {}
   };
 
-  const handleReactionUpdate = (msgId: number, reactions: MessageReaction[]) => {
-    setLocalMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, reactions } : m))
-    );
+  const handleReactionUpdate = (msgId: number, reactions: MessageReaction[]) =>
+    setLocalMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, reactions } : m)));
+
+  const handleHide = async (convId: number) => {
+    try {
+      await customFetch(`/api/conversations/${convId}`, { method: "DELETE" });
+      invalidateConvs();
+      if (conversationId === convId) setLocation("/chat");
+    } catch {}
+  };
+
+  const handleRestore = async (convId: number) => {
+    try {
+      await customFetch(`/api/conversations/${convId}/restore`, { method: "POST" });
+      invalidateConvs();
+    } catch {}
+  };
+
+  const handleDeleteConv = (convId: number) => {
+    deleteConversationFull.mutate({ conversationId: convId }, {
+      onSuccess: () => {
+        invalidateConvs();
+        if (conversationId === convId) setLocation("/chat");
+      },
+    });
   };
 
   const pinnedMessages = useMemo(() => localMessages.filter((m) => m.isPinned), [localMessages]);
@@ -612,10 +552,20 @@ export default function Chat({ params }: { params: { conversationId?: string } }
     <div className="flex h-[calc(100vh-3.5rem)] bg-background">
       {/* ── Sidebar ── */}
       <div className="w-64 border-e border-border bg-card/60 flex flex-col shrink-0">
-        <div className="p-4 border-b border-border">
-          <h2 className="font-semibold text-sm text-foreground">{t("sidebar.title")}</h2>
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-sm text-foreground">
+            {showHidden ? t("sidebar.hiddenTitle") : t("sidebar.title")}
+          </h2>
         </div>
-        <div className="flex-1 overflow-auto">
+
+        {/* Conversation list */}
+        <div className="flex-1 overflow-auto py-1">
+          {conversations?.length === 0 && (
+            <div className="text-center text-muted-foreground text-xs py-8 px-4">
+              {showHidden ? t("sidebar.noHidden") : t("sidebar.noConversations")}
+            </div>
+          )}
           {conversations?.map((conv) => {
             const isActive = conv.id === conversationId;
             const name = getConversationName(conv);
@@ -625,8 +575,8 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 key={conv.id}
                 className={`group relative flex items-center gap-2.5 px-2 py-1.5 mx-2 my-0.5 rounded-md cursor-pointer transition-colors ${
                   isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                }`}
-                onClick={() => setLocation(`/chat/${conv.id}`)}
+                } ${showHidden ? "opacity-60 hover:opacity-100" : ""}`}
+                onClick={() => !showHidden && setLocation(`/chat/${conv.id}`)}
               >
                 <div className="relative shrink-0">
                   <Avatar src={(other as any)?.avatarUrl} name={name} size="sm" />
@@ -639,7 +589,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center gap-1">
                     <span className="text-sm font-medium truncate">{name}</span>
-                    {conv.unreadCount ? (
+                    {!showHidden && conv.unreadCount ? (
                       <span className="shrink-0 min-w-[1.125rem] bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center font-bold px-1 h-4">
                         {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
                       </span>
@@ -656,37 +606,39 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   </div>
                 </div>
 
-                {/* Conv actions — ⋯ menu */}
+                {/* ⋯ menu */}
                 <ConvMenu
                   conv={conv}
-                  myId={me?.id}
-                  activeConvId={conversationId}
-                  onHide={() => {
-                    hideConversation.mutate({ conversationId: conv.id }, {
-                      onSuccess: () => {
-                        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-                        if (conversationId === conv.id) setLocation("/chat");
-                      },
-                    });
-                  }}
-                  onDelete={() => {
-                    deleteConversationFull.mutate({ conversationId: conv.id }, {
-                      onSuccess: () => {
-                        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-                        if (conversationId === conv.id) setLocation("/chat");
-                      },
-                    });
-                  }}
+                  isHidden={showHidden}
+                  onHide={() => handleHide(conv.id)}
+                  onRestore={() => handleRestore(conv.id)}
+                  onDelete={() => handleDeleteConv(conv.id)}
                 />
               </div>
             );
           })}
         </div>
+
+        {/* Footer toggle — show hidden / show visible */}
+        <button
+          onClick={() => setShowHidden((s) => !s)}
+          className={`flex items-center gap-2 px-4 py-3 border-t border-border text-xs font-medium transition-colors w-full text-start ${
+            showHidden
+              ? "text-primary bg-primary/5 hover:bg-primary/10"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          {showHidden ? (
+            <><Eye className="w-3.5 h-3.5" />{t("sidebar.showVisible")}</>
+          ) : (
+            <><EyeOff className="w-3.5 h-3.5" />{t("sidebar.showHidden")}</>
+          )}
+        </button>
       </div>
 
       {/* ── Main area ── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {conversationId ? (
+        {conversationId && !showHidden ? (
           <>
             {/* Header */}
             <div className="h-12 border-b border-border bg-card/50 px-4 flex items-center justify-between shrink-0 backdrop-blur gap-3">
@@ -700,7 +652,6 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   </span>
                 )}
               </div>
-
               <div className="flex items-center gap-1 shrink-0">
                 {pinnedMessages.length > 0 && (
                   <button
@@ -728,8 +679,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             {showPinned && pinnedMessages.length > 0 && (
               <div className="border-b border-border bg-amber-500/5 px-4 py-2 max-h-40 overflow-auto">
                 <div className="text-xs font-semibold text-amber-500 mb-1.5 flex items-center gap-1">
-                  <Pin className="w-3 h-3" />
-                  {t("conversation.pinnedMessages")}
+                  <Pin className="w-3 h-3" /> {t("conversation.pinnedMessages")}
                 </div>
                 <div className="space-y-1">
                   {pinnedMessages.map((m) => (
@@ -745,13 +695,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             {/* Search bar */}
             {showSearch && (
               <div className="border-b border-border px-4 py-2 bg-card/30">
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t("search.placeholder")}
-                  className="h-8 text-sm"
-                  autoFocus
-                />
+                <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t("search.placeholder")} className="h-8 text-sm" autoFocus />
               </div>
             )}
 
@@ -798,23 +742,17 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                     <div key={msg.id}>
                       {showDivider && <DateDivider label={formatDateDivider(msg.createdAt)} />}
                       <MessageBubble
-                        msg={msg}
-                        isMe={isMe}
-                        showHeader={showHeader}
-                        myId={me?.id ?? 0}
-                        conversationId={conversationId}
+                        msg={msg} isMe={isMe} showHeader={showHeader}
+                        myId={me?.id ?? 0} conversationId={conversationId}
                         onReply={setReplyTo}
                         onStartEdit={(m) => { setEditingMsg(m); setEditContent(m.content); }}
-                        onDelete={handleDelete}
-                        onPin={handlePin}
-                        onReactionUpdate={handleReactionUpdate}
+                        onDelete={handleDelete} onPin={handlePin} onReactionUpdate={handleReactionUpdate}
                       />
                     </div>
                   );
                 })
               )}
 
-              {/* Typing indicator */}
               {typingNames.length > 0 && (
                 <div className="flex items-center gap-2 px-4 py-1 text-xs text-muted-foreground">
                   <span className="flex gap-0.5">
@@ -822,9 +760,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                       <span key={delay} className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
                     ))}
                   </span>
-                  {typingNames.length === 1
-                    ? t("typing.one", { name: typingNames[0] })
-                    : t("typing.multiple", { count: typingNames.length })}
+                  {typingNames.length === 1 ? t("typing.one", { name: typingNames[0] }) : t("typing.multiple", { count: typingNames.length })}
                 </div>
               )}
               <div ref={bottomRef} className="h-4" />
@@ -832,39 +768,32 @@ export default function Chat({ params }: { params: { conversationId?: string } }
 
             {/* Input area */}
             <div className="px-4 pb-4 pt-0 shrink-0">
-              {/* Reply banner */}
               {replyTo && (
                 <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-t-md px-3 py-1.5 text-xs mb-0 border-b-0">
                   <Reply className="w-3 h-3 text-primary shrink-0" />
-                  <span className="text-muted-foreground">
-                    {t("input.replyingTo", { name: replyTo.sender.displayName })}:
-                  </span>
+                  <span className="text-muted-foreground">{t("input.replyingTo", { name: replyTo.sender.displayName })}:</span>
                   <span className="truncate text-foreground/70">{replyTo.content}</span>
                   <button onClick={() => setReplyTo(null)} className="ms-auto shrink-0 text-muted-foreground hover:text-foreground">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
               )}
-              <form onSubmit={handleSend} className={`flex items-center gap-2 bg-muted/30 border border-border px-3 py-2 ${replyTo ? "rounded-b-md rounded-t-none" : "rounded-md"}`}>
+              <form
+                onSubmit={handleSend}
+                className={`flex items-center gap-2 bg-muted/30 border border-border px-3 py-2 ${replyTo ? "rounded-b-md rounded-t-none" : "rounded-md"}`}
+              >
                 <input
                   ref={inputRef}
-                  placeholder={
-                    activeConversation
-                      ? t("input.placeholder", { name: getConversationName(activeConversation) })
-                      : t("input.placeholderGeneric")
-                  }
+                  placeholder={activeConversation ? t("input.placeholder", { name: getConversationName(activeConversation) }) : t("input.placeholderGeneric")}
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   disabled={sendMessage.isPending}
-                  onChange={handleInputChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); }
+                  onChange={() => {
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                    sendTyping();
                   }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); } }}
                 />
-                <button
-                  type="submit"
-                  disabled={sendMessage.isPending}
-                  className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-                >
+                <button type="submit" disabled={sendMessage.isPending} className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
                   <Send className="w-4 h-4" />
                 </button>
               </form>
@@ -876,9 +805,11 @@ export default function Chat({ params }: { params: { conversationId?: string } }
         ) : (
           <div className="flex-1 flex items-center justify-center flex-col gap-3 text-muted-foreground">
             <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center">
-              <Send className="w-7 h-7 opacity-40" />
+              {showHidden ? <EyeOff className="w-7 h-7 opacity-40" /> : <Send className="w-7 h-7 opacity-40" />}
             </div>
-            <div className="text-sm font-medium">{t("empty.selectChannel")}</div>
+            <div className="text-sm font-medium">
+              {showHidden ? t("sidebar.selectHiddenHint") : t("empty.selectChannel")}
+            </div>
           </div>
         )}
       </div>

@@ -3,8 +3,9 @@
     "title": "Direct Messages",
     "you": "You",
     "noMessages": "No messages yet",
-    "hideConversation": "Hide conversation",
-    "deleteConversation": "Delete conversation for everyone",
+    "hideConversation": "Hide from list",
+    "deleteConversation": "Delete conversation",
+    "confirmDeletePrompt": "Delete this conversation permanently for both parties? This cannot be undone.",
     "confirmDelete": "Confirm permanent delete",
     "cancel": "Cancel"
   },

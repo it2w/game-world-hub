@@ -3,8 +3,9 @@
     "title": "الرسائل المباشرة",
     "you": "أنت",
     "noMessages": "لا توجد رسائل بعد",
-    "hideConversation": "إخفاء المحادثة",
-    "deleteConversation": "حذف المحادثة للطرفين",
+    "hideConversation": "إخفاء من القائمة",
+    "deleteConversation": "حذف المحادثة",
+    "confirmDeletePrompt": "هل تريد حذف هذه المحادثة نهائياً للطرفين؟ لا يمكن التراجع.",
     "confirmDelete": "تأكيد الحذف النهائي",
     "cancel": "إلغاء"
   },

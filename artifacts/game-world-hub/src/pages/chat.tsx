@@ -15,14 +15,84 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
-  Send, Users, Shield, Trash2, X, AlertTriangle,
-  Pin, PinOff, Search, Smile, Reply, Pencil, ChevronDown,
+  Send, Users, Shield, Trash2, X, EyeOff,
+  Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
 import { customFetch } from "@workspace/api-client-react";
+
+// ─── ConvMenu — simple popover, no Radix dependency ──────────────────────────
+
+function ConvMenu({
+  conv,
+  myId,
+  activeConvId,
+  onHide,
+  onDelete,
+}: {
+  conv: any;
+  myId?: number;
+  activeConvId: number | null;
+  onHide: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation("chat");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((s) => !s); }}
+        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Options"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-48 bg-card border border-border rounded-lg shadow-xl py-1 text-sm">
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted transition-colors text-start"
+            onClick={() => { setOpen(false); onHide(); }}
+          >
+            <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" />
+            {t("sidebar.hideConversation")}
+          </button>
+
+          {conv.type === "direct" && (
+            <>
+              <div className="h-px bg-border mx-2 my-1" />
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                onClick={() => {
+                  setOpen(false);
+                  if (window.confirm(t("sidebar.confirmDeletePrompt"))) {
+                    onDelete();
+                  }
+                }}
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                {t("sidebar.deleteConversation")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -386,7 +456,6 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const hideConversation = useHideConversation();
   const deleteConversationFull = useDeleteConversationFull();
 
-  const [confirmDeleteConvId, setConfirmDeleteConvId] = useState<number | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -568,10 +637,10 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center gap-1">
                     <span className="text-sm font-medium truncate">{name}</span>
                     {conv.unreadCount ? (
-                      <span className="shrink-0 w-4.5 h-4.5 min-w-[1.125rem] bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center font-bold px-1">
+                      <span className="shrink-0 min-w-[1.125rem] bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center font-bold px-1 h-4">
                         {conv.unreadCount > 9 ? "9+" : conv.unreadCount}
                       </span>
                     ) : conv.lastMessage ? (
@@ -587,36 +656,28 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   </div>
                 </div>
 
-                {/* Conv actions */}
-                {conv.type === "direct" && (
-                  <div className="opacity-0 group-hover:opacity-100 flex items-center shrink-0 transition-opacity">
-                    {confirmDeleteConvId === conv.id ? (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteConversationFull.mutate({ conversationId: conv.id }, {
-                              onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() }); setLocation("/chat"); setConfirmDeleteConvId(null); },
-                            });
-                          }}
-                          className="p-1 text-destructive hover:bg-destructive/10 rounded"
-                        >
-                          <AlertTriangle className="w-3 h-3" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(null); }} className="p-1 text-muted-foreground hover:text-foreground rounded">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(conv.id); }}
-                        className="p-1 text-muted-foreground hover:text-destructive rounded"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                )}
+                {/* Conv actions — ⋯ menu */}
+                <ConvMenu
+                  conv={conv}
+                  myId={me?.id}
+                  activeConvId={conversationId}
+                  onHide={() => {
+                    hideConversation.mutate({ conversationId: conv.id }, {
+                      onSuccess: () => {
+                        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+                        if (conversationId === conv.id) setLocation("/chat");
+                      },
+                    });
+                  }}
+                  onDelete={() => {
+                    deleteConversationFull.mutate({ conversationId: conv.id }, {
+                      onSuccess: () => {
+                        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+                        if (conversationId === conv.id) setLocation("/chat");
+                      },
+                    });
+                  }}
+                />
               </div>
             );
           })}

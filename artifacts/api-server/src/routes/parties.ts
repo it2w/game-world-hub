@@ -287,6 +287,14 @@ router.delete("/parties/:partyId", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  // Remove all conversation participants so the chat disappears from everyone's list
+  if (party.conversationId) {
+    await db
+      .delete(conversationParticipantsTable)
+      .where(eq(conversationParticipantsTable.conversationId, party.conversationId));
+  }
+
+  // Cascade in DB removes partyMembers / invites / activity rows automatically
   await db.delete(partiesTable).where(eq(partiesTable.id, partyId));
   res.json({ success: true });
 });

@@ -24,6 +24,17 @@ import { useTranslation } from "react-i18next";
 import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { AnimatedLogo } from "@/components/animated-logo";
 
 export default function PartyDetail({ params }: { params: { partyId: string } }) {
   const { t } = useTranslation("parties");
@@ -32,6 +43,15 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [inviteQuery, setInviteQuery] = useState("");
+
+  // ── Custom confirm dialog state ──
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    titleKey: string;
+    descKey: string;
+    onConfirm: () => void;
+    pending?: boolean;
+  }>({ open: false, titleKey: "", descKey: "", onConfirm: () => {} });
 
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: party, isLoading } = useGetParty(partyId, {
@@ -55,22 +75,37 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
 
   const handleJoin = () => {
     joinParty.mutate({ partyId }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPartyQueryKey(partyId) })
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPartyQueryKey(partyId) }),
+      onError: () => toast({ title: t("toasts.joinFailed"), variant: "destructive" }),
     });
   };
 
   const handleLeave = () => {
-    leaveParty.mutate({ partyId }, {
-      onSuccess: () => setLocation("/parties")
+    setConfirmDialog({
+      open: true,
+      titleKey: "confirm.leaveTitle",
+      descKey: "confirm.leave",
+      onConfirm: () => {
+        leaveParty.mutate({ partyId }, {
+          onSuccess: () => { setConfirmDialog(d => ({ ...d, open: false })); setLocation("/parties"); },
+          onError: () => { setConfirmDialog(d => ({ ...d, open: false })); toast({ title: t("toasts.leaveFailed"), variant: "destructive" }); },
+        });
+      },
     });
   };
 
   const handleDelete = () => {
-    if (confirm(t("confirm.disband"))) {
-      deleteParty.mutate({ partyId }, {
-        onSuccess: () => setLocation("/parties")
-      });
-    }
+    setConfirmDialog({
+      open: true,
+      titleKey: "confirm.disbandTitle",
+      descKey: "confirm.disband",
+      onConfirm: () => {
+        deleteParty.mutate({ partyId }, {
+          onSuccess: () => { setConfirmDialog(d => ({ ...d, open: false })); setLocation("/parties"); },
+          onError: () => { setConfirmDialog(d => ({ ...d, open: false })); toast({ title: t("toasts.disbandFailed"), variant: "destructive" }); },
+        });
+      },
+    });
   };
 
   const handleInvite = (userId: number, displayName: string) => {
@@ -274,6 +309,33 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
           ))}
         </div>
       </div>
+
+      {/* ── Confirm dialog ── */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && setConfirmDialog(d => ({ ...d, open: false }))}>
+        <AlertDialogContent className="max-w-sm text-center">
+          <AlertDialogHeader className="items-center gap-3">
+            <AnimatedLogo className="h-8 w-auto text-primary mx-auto" />
+            <AlertDialogTitle className="text-base font-mono uppercase tracking-wider">
+              {t(confirmDialog.titleKey as any)}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              {t(confirmDialog.descKey as any)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:gap-2 flex-row justify-center">
+            <AlertDialogCancel className="flex-1 font-mono">
+              {t("confirm.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDialog.onConfirm}
+              disabled={leaveParty.isPending || deleteParty.isPending}
+              className="flex-1 font-mono bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("confirm.proceed")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

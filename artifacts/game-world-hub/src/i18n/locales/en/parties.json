@@ -57,11 +57,19 @@
     "awaitingOperator": "AWAITING_OPERATOR"
   },
   "confirm": {
-    "disband": "Disband this squad? This action cannot be reversed."
+    "disbandTitle": "Disband Squad",
+    "disband": "Disband this squad? All members will be removed and the party chat will be deleted. This cannot be reversed.",
+    "leaveTitle": "Leave Squad",
+    "leave": "Leave this squad? You will lose access to the party chat.",
+    "cancel": "Cancel",
+    "proceed": "Confirm"
   },
   "toasts": {
     "inviteSent": "Invite sent",
     "inviteSentDesc": "{{name}} was invited to the squad.",
-    "inviteFailed": "Couldn't send invite"
+    "inviteFailed": "Couldn't send invite",
+    "joinFailed": "Couldn't join squad",
+    "leaveFailed": "Couldn't leave squad",
+    "disbandFailed": "Couldn't disband squad"
   }
 }

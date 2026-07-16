@@ -777,10 +777,22 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         screenShareEncoding: {
           maxBitrate: preset.maxBitrate,
           maxFramerate: preset.frameRate,
+          // "high" tells the browser's scheduler to prioritise this sender
+          // over other network traffic on the same connection.
           priority: "high",
         },
-        // Disable simulcast for screen share — simulcast downscaling blurs text.
+        // VP9 gives ~50 % better compression than VP8 at the same bitrate —
+        // critical for screen content where QP 104 was measured with VP8.
+        // It also has temporal scalability: under congestion it drops fps
+        // gracefully instead of freezing (VP8 freezes at 6 fps).
+        videoCodec: "vp9",
+        // Completely disable simulcast for screen share.
+        // Simulcast adds lower-resolution spatial layers that the SFU picks
+        // under congestion, causing the 960×540 @ 6 fps result we observed.
         simulcast: false,
+        // Belt-and-suspenders: clear the simulcast layer list so LiveKit
+        // cannot add default screen-share layers behind our back.
+        screenShareSimulcastLayers: [],
       };
 
       await room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);

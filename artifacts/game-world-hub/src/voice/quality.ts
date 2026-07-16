@@ -29,9 +29,12 @@ export const VOICE_PRESETS: Record<VoiceQuality, VoicePreset> = {
 };
 
 export const SCREEN_PRESETS: Record<ScreenQuality, ScreenPreset> = {
-  "480p": { label: "480p · 30fps", width: 854, height: 480, frameRate: 30, maxBitrate: 800_000 },
-  "720p": { label: "720p · 60fps", width: 1280, height: 720, frameRate: 60, maxBitrate: 2_500_000 },
-  "1080p": { label: "1080p · 60fps", width: 1920, height: 1080, frameRate: 60, maxBitrate: 5_000_000 },
+  // VP9 is used for all tiers — ~50% better compression than VP8.
+  // Bitrates are set high so GCC/REMB has room to converge upward,
+  // not downward (a too-low ceiling causes permanent quality degradation).
+  "480p":  { label: "480p · 30fps",  width:  854, height:  480, frameRate: 30, maxBitrate:  3_000_000 },
+  "720p":  { label: "720p · 60fps",  width: 1280, height:  720, frameRate: 60, maxBitrate:  6_000_000 },
+  "1080p": { label: "1080p · 60fps", width: 1920, height: 1080, frameRate: 60, maxBitrate: 12_000_000 },
 };
 
 export const VOICE_QUALITY_ORDER: VoiceQuality[] = ["low", "medium", "high"];

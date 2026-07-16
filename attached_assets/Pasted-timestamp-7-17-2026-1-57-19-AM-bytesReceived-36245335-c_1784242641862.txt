@@ -1,0 +1,63 @@
+timestamp	7/17/2026, 1:57:19 AM	
+bytesReceived	36245335	
+codecId	CIT01_96	🔗
+decoderImplementation	libvpx	
+firCount	0	
+frameHeight	540	
+frameWidth	960	
+framesAssembledFromMultiplePackets	4334	
+framesDecoded	4488	
+framesDropped	0	
+framesPerSecond	6	
+framesReceived	4488	
+freezeCount	79	
+headerBytesReceived	670740	
+jitter	0.079	
+jitterBufferDelay	854.9636929999999	
+jitterBufferEmittedCount	4488	
+jitterBufferMinimumDelay	1036.520079	
+jitterBufferTargetDelay	1036.520079	
+keyFramesDecoded	7	
+kind	video	
+lastPacketReceivedTimestamp	1784242638970.992	
+mid	3	
+minPlayoutDelay	0	
+nackCount	0	
+packetsLost	0	
+packetsReceived	33537	
+packetsReceivedWithCe	0	
+packetsReceivedWithEct1	0	
+pauseCount	0	
+pliCount	0	
+powerEfficientDecoder	false	
+qpSum	430835	
+remoteId	ROV1551687726	🔗
+rtxSsrc	4067642291	
+ssrc	1551687726	
+totalAssemblyTime	226.702325	
+totalDecodeTime	4.958762	
+totalFreezesDuration	36.993	
+totalInterFrameDelay	508.331	
+totalPausesDuration	0	
+totalProcessingDelay	860.098621	
+totalSquaredInterFrameDelay	96.932474999999	
+trackIdentifier	1717d6f9-ae37-4512-8dd0-088a87c205dc	
+transportId	T01	🔗
+type	inbound-rtp	
+[framesReceived-framesDecoded-framesDropped]	0	
+[codec]	VP8 (96)	
+[lastPacketReceivedTimestamp]	7/17/2026, 1:57:18 AM	
+[bytesReceived_in_bits/s]	591961	
+[headerBytesReceived_in_bits/s]	10868	
+[framesReceived/s]	5.906459902116578	
+[framesDecoded/s]	5.906459902116578	
+[keyFramesDecoded/s]	0	
+[totalDecodeTime/framesDecoded_in_ms]	1.4071666666667741	
+[totalInterFrameDelay/framesDecoded_in_ms]	177.00000000000196	
+[interFrameDelayStDev_in_ms]	85.496588625881	
+[qpSum/framesDecoded]	104.5	
+[jitterBufferDelay/jitterBufferEmittedCount_in_ms]	132.4244999999943	
+[jitterBufferTargetDelay/jitterBufferEmittedCount_in_ms]	72.42766666665072	
+[jitterBufferMinimumDelay/jitterBufferEmittedCount_in_ms]	72.42766666665072	
+[totalProcessingDelay/jitterBufferEmittedCount_in_ms]	133.84966666666287	
+[totalAssemblyTime/framesAssembledFromMultiplePackets_in_ms]	

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -11,6 +11,7 @@ import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatedLogo } from "@/components/animated-logo";
+import { XCircle, CheckCircle2 } from "lucide-react";
 
 type RegisterForm = {
   username: string;
@@ -18,6 +19,44 @@ type RegisterForm = {
   email: string;
   password: string;
 };
+
+// ── Password requirements checker ─────────────────────────────────────────────
+
+const CHECKS = [
+  { key: "chars",      test: (p: string) => p.length >= 12,                   labelKey: "register.validation.passwordReqChars"      },
+  { key: "upperLower", test: (p: string) => /[A-Z]/.test(p) && /[a-z]/.test(p), labelKey: "register.validation.passwordReqUpperLower" },
+  { key: "number",     test: (p: string) => /\d/.test(p),                     labelKey: "register.validation.passwordReqNumber"     },
+  { key: "special",    test: (p: string) => /[@#$%^&*)(_\-+=\\/؟!]/.test(p), labelKey: "register.validation.passwordReqSpecial"    },
+];
+
+function PasswordRequirements({ password }: { password: string }) {
+  const { t } = useTranslation("auth");
+  const hasAny = password.length > 0;
+  if (!hasAny) return null;
+  return (
+    <div className="border border-border bg-muted/30 p-3 space-y-1.5">
+      <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-2">
+        {t("register.validation.passwordReqTitle")}
+      </p>
+      {CHECKS.map(({ key, test, labelKey }) => {
+        const ok = test(password);
+        return (
+          <div key={key} className="flex items-center gap-2">
+            {ok
+              ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+              : <XCircle     className="w-4 h-4 text-destructive shrink-0" />
+            }
+            <span className={`text-xs font-mono ${ok ? "text-primary" : "text-muted-foreground"}`}>
+              {t(labelKey)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Register() {
   const { t } = useTranslation("auth");
@@ -38,7 +77,7 @@ export default function Register() {
           .max(255),
         password: z
           .string()
-          .min(16, t("register.validation.passwordMin"))
+          .min(12, t("register.validation.passwordMin"))
           .regex(
             /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&*)(_\-+=\\/؟!])/,
             t("register.validation.passwordComplexity"),
@@ -56,6 +95,8 @@ export default function Register() {
       password: "",
     },
   });
+
+  const passwordValue = useWatch({ control: form.control, name: "password" });
 
   const onSubmit = (data: RegisterForm) => {
     const payload = { ...data, email: data.email.trim() };
@@ -143,6 +184,7 @@ export default function Register() {
                   <FormControl>
                     <Input type="password" {...field} data-testid="input-password" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
+                  <PasswordRequirements password={passwordValue ?? ""} />
                   <FormMessage className="font-mono text-xs" />
                 </FormItem>
               )}

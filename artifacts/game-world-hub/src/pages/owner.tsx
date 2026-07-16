@@ -25,7 +25,9 @@ export default function Owner() {
     }
   });
 
-  const [mode, setMode] = useState<"login" | "reset" | "dashboard">("login");
+  const [mode, setMode] = useState<"login" | "reset" | "dashboard">(() =>
+    localStorage.getItem("gwh_owner_session") ? "dashboard" : "login"
+  );
   const [ownerInfo, setOwnerInfo] = useState<{ username: string; email: string | null; emailVerified: boolean } | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function Owner() {
     try {
       const res = await fetch(`${getApiUrl()}owner/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("session expired");
       const data = await res.json();

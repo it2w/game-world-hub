@@ -18,6 +18,7 @@ import storageRouter from "./storage";
 import proRouter from "./pro";
 import adminRouter from "./admin";
 import ownerRouter from "./owner";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(storageRouter);
 router.use(proRouter);
 router.use(adminRouter);
 router.use(ownerRouter);
+router.use(downloadRouter);
 
 export default router;

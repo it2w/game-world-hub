@@ -769,18 +769,20 @@ function DownloadSection() {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
-              size="lg" disabled
+              asChild size="lg"
               className="rounded-none font-mono uppercase tracking-widest"
               data-testid="button-download-windows"
             >
-              <Download className="w-4 h-4" />
-              {t("download.button")}
+              <a href="/api/download/windows" download>
+                <Download className="w-4 h-4" />
+                {t("download.button")}
+              </a>
             </Button>
             <span className="border border-primary/40 bg-primary/10 text-primary font-mono text-[10px] uppercase tracking-widest px-2 py-1">
-              {t("download.soon")}
+              {t("download.available")}
             </span>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.soonNote")}</p>
+          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.sizeNote")}</p>
 
           <div className="mt-8 border-t border-border pt-6">
             <p className="text-sm text-muted-foreground mb-3">{t("download.webNote")}</p>

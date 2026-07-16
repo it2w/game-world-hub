@@ -363,6 +363,7 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
 /* ─── Stats Tab ──────────────────────────────────────────────────────────── */
 
 function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
+  const { toast } = useToast();
   const [stats,   setStats]   = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 

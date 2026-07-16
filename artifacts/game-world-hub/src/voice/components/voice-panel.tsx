@@ -38,7 +38,6 @@ import {
   Monitor,
   MonitorOff,
   PhoneOff,
-  Users,
   ChevronDown,
   ChevronUp,
   Volume2,
@@ -51,12 +50,38 @@ import {
   Play,
   Video,
   VideoOff,
+  Radio,
 } from "lucide-react";
 
+/* ── Sound-bar keyframes injected once ──────────────────────────────────── */
+const STYLE = `
+@keyframes gwh-bar {
+  0%,100% { height: 3px; opacity:.5 }
+  50%      { height: 11px; opacity:1 }
+}
+.gwh-bar1 { animation: gwh-bar .75s ease-in-out infinite; }
+.gwh-bar2 { animation: gwh-bar .75s ease-in-out .18s infinite; }
+.gwh-bar3 { animation: gwh-bar .75s ease-in-out .36s infinite; }
+@keyframes gwh-speak-ring {
+  0%,100%{ box-shadow:0 0 0 0 rgba(34,197,94,.7) }
+  60%    { box-shadow:0 0 0 4px rgba(34,197,94,0) }
+}
+.gwh-speak-ring { animation: gwh-speak-ring 1s ease-out infinite; }
+`;
+
+function SoundBars() {
+  return (
+    <span className="flex items-end gap-[2.5px] h-3.5 shrink-0 px-0.5">
+      <span className="gwh-bar1 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
+      <span className="gwh-bar2 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
+      <span className="gwh-bar3 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
+    </span>
+  );
+}
+
 /**
- * Global, persistent voice/screen-share control panel. Docks to the bottom-left
- * whenever the user is in a party voice channel or a direct call, and survives
- * page navigation because it lives in the Shell.
+ * Global persistent voice/screen-share control panel.
+ * Docks to the bottom-left, survives page navigation (rendered in Shell).
  */
 export function VoicePanel() {
   const { t } = useTranslation("common");
@@ -133,32 +158,60 @@ export function VoicePanel() {
   const cameraViewers = peers.filter((p) => p.cameraEnabled && p.cameraStream);
   const anyScreens = screenSharers.length > 0 || (sharing && localScreenStream);
   const anyCameras = cameraViewers.length > 0 || (cameraEnabled && localCameraStream);
+  const totalInCall = peers.length + 1;
 
   return (
     <>
-      <div className="fixed bottom-4 start-4 z-[80] w-[300px] bg-card border border-border shadow-2xl font-mono">
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
-            <span className="text-xs uppercase tracking-widest truncate">
-              {activeRoom.kind === "party" ? t("voice.voice") : t("voice.call")} · {activeRoom.title}
+      <style>{STYLE}</style>
+
+      <div
+        className="fixed bottom-4 start-4 z-[80] w-[292px] font-mono shadow-2xl"
+        style={{ background: "#0c0c11", border: "1px solid #1e1e2a" }}
+      >
+        {/* ── Header ─────────────────────────────────────── */}
+        <div
+          className="flex items-center justify-between px-3 py-2.5"
+          style={{ borderBottom: "1px solid #1e1e2a", background: "#111118" }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* animated speaking/idle dot */}
+            <span className="relative shrink-0 flex items-center justify-center w-5 h-5">
+              <span className="absolute w-full h-full rounded-full bg-primary/20 animate-ping" style={{ animationDuration: "2s" }} />
+              <span className="relative w-2 h-2 rounded-full bg-primary" />
             </span>
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-none mb-0.5">
+                {activeRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
+              </div>
+              <div className="text-[12px] font-bold uppercase tracking-wide truncate text-foreground leading-none">
+                {activeRoom.title}
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            className="text-muted-foreground hover:text-foreground shrink-0"
-            aria-label={expanded ? t("voice.collapse") : t("voice.expand")}
-          >
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {totalInCall}
+            </span>
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={expanded ? t("voice.collapse") : t("voice.expand")}
+            >
+              {expanded ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Voice-level failure (e.g. a connection that couldn't be recovered). */}
+        {/* ── Error banner ───────────────────────────────── */}
         {error && (
           <div
             role="alert"
-            className="px-3 py-2 border-b border-border bg-destructive/10 space-y-2"
+            className="px-3 py-2 space-y-2"
+            style={{ borderBottom: "1px solid #1e1e2a", background: "rgba(239,68,68,.08)" }}
           >
             <p className="text-[11px] leading-snug text-destructive">{error}</p>
             {canRejoin && (
@@ -176,17 +229,20 @@ export function VoicePanel() {
 
         {expanded && (
           <>
-            {/* Participants */}
-            <div className="max-h-[220px] overflow-auto p-2 space-y-1">
+            {/* ── Participant list ────────────────────────── */}
+            <div className="max-h-[200px] overflow-auto py-1.5 px-2 space-y-0.5">
+              {/* Self row */}
               <ParticipantRow
                 name={t("voice.you")}
                 avatarUrl={null}
                 speaking={speaking && !muted}
                 muted={muted}
                 sharing={sharing}
+                cameraEnabled={cameraEnabled}
                 connectionState="connected"
                 self
               />
+              {/* Peers */}
               {peers.map((p) => (
                 <ParticipantRow
                   key={p.userId}
@@ -198,21 +254,33 @@ export function VoicePanel() {
                   cameraEnabled={p.cameraEnabled}
                   connectionState={p.connectionState}
                   isLeader={isLeader && !!partyId}
-                  onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
-                  onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                  onKick={() =>
+                    kickMutation.mutate({ partyId: partyId!, userId: p.userId })
+                  }
+                  onTransfer={() =>
+                    transferMutation.mutate({ partyId: partyId!, userId: p.userId })
+                  }
                   onMutePeer={() => remoteMute(p.userId)}
                 />
               ))}
+
+              {/* Empty state */}
               {peers.length === 0 && (
-                <div className="text-[10px] text-muted-foreground uppercase tracking-widest py-3 text-center">
-                  <Users className="w-3 h-3 inline me-1" /> {t("voice.waitingForOthers")}
+                <div className="flex items-center gap-2 px-2 py-3 text-muted-foreground">
+                  <Radio className="w-3.5 h-3.5 animate-pulse shrink-0" />
+                  <span className="text-[10px] uppercase tracking-[0.12em]">
+                    {t("voice.waitingForOthers")}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Screen share thumbnails */}
+            {/* ── Screen share thumbnails ─────────────────── */}
             {anyScreens && (
-              <div className="border-t border-border p-2 grid grid-cols-2 gap-2">
+              <div
+                className="p-2 grid grid-cols-2 gap-1.5"
+                style={{ borderTop: "1px solid #1e1e2a" }}
+              >
                 {sharing && localScreenStream && (
                   <ScreenThumb
                     stream={localScreenStream}
@@ -232,9 +300,12 @@ export function VoicePanel() {
               </div>
             )}
 
-            {/* Camera thumbnails */}
+            {/* ── Camera thumbnails ───────────────────────── */}
             {anyCameras && (
-              <div className="border-t border-border p-2 grid grid-cols-2 gap-2">
+              <div
+                className="p-2 grid grid-cols-2 gap-1.5"
+                style={{ borderTop: "1px solid #1e1e2a" }}
+              >
                 {cameraEnabled && localCameraStream && (
                   <ScreenThumb
                     stream={localCameraStream}
@@ -256,11 +327,17 @@ export function VoicePanel() {
               </div>
             )}
 
-            {/* Quality controls */}
-            <div className="border-t border-border p-2 space-y-2">
+            {/* ── Quality controls ────────────────────────── */}
+            <div className="px-3 py-2 space-y-1.5" style={{ borderTop: "1px solid #1e1e2a" }}>
               <QualityRow icon={<Volume2 className="w-3 h-3" />} label={t("voice.voiceLabel")}>
-                <Select value={voiceQuality} onValueChange={(v) => setVoiceQuality(v as VoiceQuality)}>
-                  <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
+                <Select
+                  value={voiceQuality}
+                  onValueChange={(v) => setVoiceQuality(v as VoiceQuality)}
+                >
+                  <SelectTrigger
+                    className="h-6 text-[11px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1"
+                    style={{ color: "#9b9baa" }}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -273,9 +350,18 @@ export function VoicePanel() {
                 </Select>
               </QualityRow>
               {sharing && (
-                <QualityRow icon={<Monitor className="w-3 h-3" />} label={t("voice.screenLabel")}>
-                  <Select value={screenQuality} onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}>
-                    <SelectTrigger className="h-7 text-[11px] rounded-none font-mono border-border">
+                <QualityRow
+                  icon={<Monitor className="w-3 h-3" />}
+                  label={t("voice.screenLabel")}
+                >
+                  <Select
+                    value={screenQuality}
+                    onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}
+                  >
+                    <SelectTrigger
+                      className="h-6 text-[11px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1"
+                      style={{ color: "#9b9baa" }}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -292,48 +378,68 @@ export function VoicePanel() {
           </>
         )}
 
-        {/* Controls */}
-        <div className="flex items-center gap-1 p-2 border-t border-border">
-          <Button
-            size="sm"
-            variant={muted ? "destructive" : "outline"}
-            className="flex-1 rounded-none h-8 px-0"
+        {/* ── Controls bar ────────────────────────────────── */}
+        <div
+          className="flex items-center gap-1 p-2"
+          style={{ borderTop: "1px solid #1e1e2a", background: "#0e0e14" }}
+        >
+          {/* Mute */}
+          <ControlBtn
+            active={muted}
+            activeColor="destructive"
             onClick={toggleMute}
             title={muted ? t("voice.unmute") : t("voice.mute")}
           >
             {muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-          </Button>
-          <Button
-            size="sm"
-            variant={cameraEnabled ? "default" : "outline"}
-            className="flex-1 rounded-none h-8 px-0"
+          </ControlBtn>
+
+          {/* Camera */}
+          <ControlBtn
+            active={cameraEnabled}
+            activeColor="primary"
             onClick={() => void toggleCamera()}
             title={cameraEnabled ? t("voice.cameraOff") : t("voice.cameraOn")}
           >
-            {cameraEnabled ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
-          </Button>
-          <Button
-            size="sm"
-            variant={sharing ? "default" : "outline"}
-            className="flex-1 rounded-none h-8 px-0"
+            {cameraEnabled ? (
+              <Video className="w-4 h-4" />
+            ) : (
+              <VideoOff className="w-4 h-4" />
+            )}
+          </ControlBtn>
+
+          {/* Screen share */}
+          <ControlBtn
+            active={sharing}
+            activeColor="primary"
             onClick={handleShareClick}
             title={sharing ? t("voice.stopSharing") : t("voice.shareScreen")}
           >
-            {sharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="flex-1 rounded-none h-8 px-0"
+            {sharing ? (
+              <MonitorOff className="w-4 h-4" />
+            ) : (
+              <Monitor className="w-4 h-4" />
+            )}
+          </ControlBtn>
+
+          {/* Leave — always destructive */}
+          <button
             onClick={leaveVoice}
             title={t("voice.leave")}
+            className="flex-1 flex items-center justify-center h-9 rounded-none transition-all font-mono text-white"
+            style={{ background: "#dc2626" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#b91c1c";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#dc2626";
+            }}
           >
             <PhoneOff className="w-4 h-4" />
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Screen share quality picker dialog */}
+      {/* ── Screen share quality picker dialog ─────────────── */}
       <Dialog open={qualityPickerOpen} onOpenChange={setQualityPickerOpen}>
         <DialogContent className="border-border bg-card rounded-none sm:max-w-[420px]">
           <DialogHeader>
@@ -385,34 +491,73 @@ export function VoicePanel() {
         </DialogContent>
       </Dialog>
 
-      {/* Theater view for a single screen share */}
+      {/* ── Theater view ────────────────────────────────────── */}
       {theater && (
         <div
-          className="fixed inset-0 z-[95] bg-background/90 backdrop-blur flex items-center justify-center p-8"
+          className="fixed inset-0 z-[95] flex items-center justify-center p-8"
+          style={{ background: "rgba(0,0,0,.88)", backdropFilter: "blur(6px)" }}
           onClick={() => setTheater(null)}
         >
           <button
-            className="absolute top-4 end-4 text-muted-foreground hover:text-foreground"
+            className="absolute top-5 end-5 text-muted-foreground hover:text-foreground bg-black/60 p-1.5"
             onClick={() => setTheater(null)}
             aria-label={t("voice.close")}
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
-          <VideoTile stream={theater} className="max-w-full max-h-full border border-border" />
+          <VideoTile
+            stream={theater}
+            className="max-w-full max-h-full"
+            style={{ border: "1px solid #1e1e2a" }}
+          />
         </div>
       )}
     </>
   );
 }
 
-/**
- * When a peer that was already connected drops to `disconnected`/`failed`, the
- * voice layer auto-heals the path with an ICE restart. We surface a
- * "Reconnecting…" state while that heal is in flight, and only escalate to the
- * terminal "unreachable" warning if it hasn't recovered within this window.
- */
+/* ── Control button helper ───────────────────────────────────────────────── */
+function ControlBtn({
+  children,
+  active,
+  activeColor,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  activeColor: "destructive" | "primary";
+  onClick: () => void;
+  title: string;
+}) {
+  const activeBg =
+    activeColor === "destructive"
+      ? { background: "rgba(239,68,68,.18)", color: "#f87171", border: "1px solid rgba(239,68,68,.35)" }
+      : { background: "rgba(34,197,94,.14)", color: "#4ade80", border: "1px solid rgba(34,197,94,.3)" };
+  const idleBg = { background: "#1a1a24", color: "#6b7280", border: "1px solid #2a2a38" };
+
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex-1 flex items-center justify-center h-9 rounded-none transition-all"
+      style={active ? activeBg : idleBg}
+      onMouseEnter={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = "#22222e";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) (e.currentTarget as HTMLElement).style.background = "#1a1a24";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ── Reconnect grace ─────────────────────────────────────────────────────── */
 const DISCONNECT_GRACE_MS = 6000;
 
+/* ── Participant row ─────────────────────────────────────────────────────── */
 function ParticipantRow({
   name,
   avatarUrl,
@@ -448,129 +593,139 @@ function ParticipantRow({
 
   const dropped =
     !self && (connectionState === "disconnected" || connectionState === "failed");
-
   const [graceElapsed, setGraceElapsed] = useState(false);
   useEffect(() => {
-    if (!dropped) {
-      setGraceElapsed(false);
-      return;
-    }
-    if (connectionState === "failed" && !everConnected) {
-      setGraceElapsed(true);
-      return;
-    }
+    if (!dropped) { setGraceElapsed(false); return; }
+    if (connectionState === "failed" && !everConnected) { setGraceElapsed(true); return; }
     const timer = setTimeout(() => setGraceElapsed(true), DISCONNECT_GRACE_MS);
     return () => clearTimeout(timer);
   }, [dropped, connectionState, everConnected]);
 
-  const unreachable = dropped && graceElapsed;
-  const reconnecting = dropped && everConnected && !graceElapsed;
-  const connecting =
-    !self &&
-    !everConnected &&
-    !unreachable &&
-    !reconnecting &&
-    connectionState !== "connected" &&
-    connectionState !== "failed";
+  const unreachable   = dropped && graceElapsed;
+  const reconnecting  = dropped && everConnected && !graceElapsed;
+  const connecting    =
+    !self && !everConnected && !unreachable && !reconnecting &&
+    connectionState !== "connected" && connectionState !== "failed";
 
   const [showActions, setShowActions] = useState(false);
 
+  /* avatar ring color */
+  const ringColor = unreachable
+    ? "#ef4444"
+    : reconnecting
+      ? "#f59e0b"
+      : speaking
+        ? "#22c55e"
+        : "transparent";
+
   return (
     <div
-      className={`rounded-none ${
-        unreachable ? "bg-destructive/10" : reconnecting ? "bg-amber-500/10" : ""
-      }`}
+      className="rounded-none relative flex items-center gap-2.5 px-2 py-1.5 group"
+      style={{
+        background: speaking ? "rgba(34,197,94,.05)" : unreachable ? "rgba(239,68,68,.07)" : reconnecting ? "rgba(245,158,11,.07)" : "transparent",
+        transition: "background .2s",
+      }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex items-center gap-2 px-1.5 py-1">
-        <div
-          className={`relative w-7 h-7 shrink-0 border ${
-            unreachable
-              ? "border-destructive"
-              : reconnecting
-                ? "border-amber-500"
-                : speaking
-                  ? "border-primary ring-2 ring-primary/60"
-                  : "border-border"
-          } transition-colors`}
-        >
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt=""
-              className={`w-full h-full object-cover ${unreachable ? "opacity-50" : ""}`}
-            />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center text-[11px]">
-              {name.charAt(0)}
-            </div>
-          )}
-        </div>
-        <span className={`flex-1 text-xs truncate ${unreachable ? "text-muted-foreground" : ""}`}>
-          {name}
-        </span>
-        {/* Leader action buttons */}
-        {!self && isLeader && showActions && !unreachable && (
-          <div className="flex items-center gap-0.5 shrink-0">
-            {!muted && (
-              <button
-                onClick={onMutePeer}
-                className="p-0.5 text-muted-foreground hover:text-amber-500 transition-colors"
-                title={t("voice.mutePeer")}
-              >
-                <MicOff className="w-3 h-3" />
-              </button>
-            )}
-            <button
-              onClick={onTransfer}
-              className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
-              title={t("voice.transferLeadership")}
-            >
-              <Crown className="w-3 h-3" />
-            </button>
-            <button
-              onClick={onKick}
-              className="p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-              title={t("voice.kick")}
-            >
-              <UserMinus className="w-3 h-3" />
-            </button>
+      {/* Speaking accent bar */}
+      {speaking && (
+        <span
+          className="absolute start-0 top-1 bottom-1 w-[2px] rounded-full"
+          style={{ background: "#22c55e" }}
+        />
+      )}
+
+      {/* Avatar */}
+      <div
+        className={`relative w-8 h-8 shrink-0 overflow-hidden ${speaking ? "gwh-speak-ring" : ""}`}
+        style={{
+          outline: `2px solid ${ringColor}`,
+          outlineOffset: "1px",
+          transition: "outline-color .2s",
+        }}
+      >
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className={`w-full h-full object-cover ${unreachable ? "opacity-40" : ""}`}
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center text-[12px] font-bold"
+            style={{ background: "#1e1e2a", color: "#9b9baa" }}
+          >
+            {name.charAt(0).toUpperCase()}
           </div>
         )}
+      </div>
+
+      {/* Name */}
+      <span
+        className={`flex-1 text-[12px] tracking-wide truncate ${unreachable ? "text-muted-foreground" : "text-foreground"}`}
+      >
+        {name}
+      </span>
+
+      {/* Leader actions (hover) */}
+      {!self && isLeader && showActions && !unreachable && (
+        <div className="flex items-center gap-0.5 shrink-0">
+          {!muted && (
+            <button
+              onClick={onMutePeer}
+              className="p-1 text-muted-foreground hover:text-amber-400 transition-colors"
+              title={t("voice.mutePeer")}
+            >
+              <MicOff className="w-3 h-3" />
+            </button>
+          )}
+          <button
+            onClick={onTransfer}
+            className="p-1 text-muted-foreground hover:text-primary transition-colors"
+            title={t("voice.transferLeadership")}
+          >
+            <Crown className="w-3 h-3" />
+          </button>
+          <button
+            onClick={onKick}
+            className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+            title={t("voice.kick")}
+          >
+            <UserMinus className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Status icons / indicators */}
+      <div className="flex items-center gap-1 shrink-0">
         {unreachable ? (
-          <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
+          <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
         ) : reconnecting ? (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-amber-500 shrink-0">
+          <span className="flex items-center gap-1 text-[10px] text-amber-400">
             <Loader2 className="w-3 h-3 animate-spin" />
             {t("voice.reconnecting")}
           </span>
         ) : (
           <>
-            {connecting && (
-              <Loader2 className="w-3 h-3 text-muted-foreground animate-spin shrink-0" />
-            )}
-            {cameraEnabled && <Video className="w-3 h-3 text-primary shrink-0" />}
-            {sharing && <Monitor className="w-3 h-3 text-primary shrink-0" />}
-            {muted ? (
-              <MicOff className="w-3 h-3 text-destructive shrink-0" />
+            {connecting && <Loader2 className="w-3 h-3 text-muted-foreground animate-spin" />}
+            {cameraEnabled && <Video className="w-3 h-3 text-primary" />}
+            {sharing && <Monitor className="w-3 h-3 text-primary" />}
+            {speaking && !muted ? (
+              <SoundBars />
+            ) : muted ? (
+              <MicOff className="w-3.5 h-3.5 text-destructive" />
             ) : (
-              <Mic
-                className={`w-3 h-3 shrink-0 ${speaking ? "text-primary" : "text-muted-foreground"}`}
-              />
+              <Mic className="w-3.5 h-3.5 text-muted-foreground/40" />
             )}
           </>
         )}
       </div>
-      {unreachable && (
-        <p className="px-1.5 pb-1.5 text-[10px] leading-tight text-destructive">
-          {t("voice.unreachable", { name })}
-        </p>
-      )}
     </div>
   );
 }
 
+/* ── Screen / camera thumbnail ───────────────────────────────────────────── */
 function ScreenThumb({
   stream,
   label,
@@ -587,22 +742,27 @@ function ScreenThumb({
   const { t } = useTranslation("common");
   return (
     <button
-      className="relative group border border-border overflow-hidden aspect-video bg-black"
+      className="relative group overflow-hidden aspect-video bg-black"
+      style={{ border: "1px solid #1e1e2a" }}
       onClick={onOpen}
       title={t("voice.openScreen", { label })}
     >
       <VideoTile stream={stream} className="w-full h-full object-contain" />
-      <span className="absolute bottom-0 start-0 end-0 bg-background/80 text-[9px] px-1 py-0.5 truncate text-start flex items-center gap-1">
+      <span
+        className="absolute bottom-0 start-0 end-0 text-[9px] px-1.5 py-0.5 truncate text-start flex items-center gap-1"
+        style={{ background: "rgba(0,0,0,.75)", color: "#9b9baa" }}
+      >
         {cameraLabel && <Video className="w-2.5 h-2.5 shrink-0" />}
         {label}{self ? t("voice.youSuffix") : ""}
       </span>
-      <span className="absolute inset-0 flex items-center justify-center bg-background/40 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Maximize2 className="w-4 h-4" />
+      <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Maximize2 className="w-4 h-4 text-white" />
       </span>
     </button>
   );
 }
 
+/* ── Quality row helper ──────────────────────────────────────────────────── */
 function QualityRow({
   icon,
   label,

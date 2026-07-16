@@ -17,6 +17,8 @@ import {
   type RemoteTrackPublication,
   type Participant,
   type RemoteAudioTrack,
+  type ScreenShareCaptureOptions,
+  type TrackPublishOptions,
 } from "livekit-client";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiBase, getSignalingUrl } from "./webrtc";
@@ -25,6 +27,7 @@ import {
   DEFAULT_SCREEN_QUALITY,
   DEFAULT_VOICE_QUALITY,
   VOICE_PRESETS,
+  SCREEN_PRESETS,
   type ScreenQuality,
   type VoiceQuality,
 } from "./quality";
@@ -194,9 +197,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const shouldConnectRef = useRef(false);
   const incomingCallRef = useRef<IncomingCall | null>(null);
   const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
+  const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
 
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
+  useEffect(() => { screenQualityRef.current = screenQuality; }, [screenQuality]);
 
   // ── Peer state helpers ─────────────────────────────────────────────────────
 
@@ -753,7 +758,32 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (!room || !activeRoomRef.current) return;
     setError(null);
     try {
-      await room.localParticipant.setScreenShareEnabled(true);
+      const preset = SCREEN_PRESETS[screenQualityRef.current];
+
+      // Pass capture constraints so getDisplayMedia requests the right resolution/fps.
+      const captureOptions: ScreenShareCaptureOptions = {
+        // 'detail' tells the encoder this is screen content (sharp text/UI),
+        // not motion video — uses intra-frame coding for sharpness over smoothness.
+        contentHint: "detail",
+        resolution: {
+          width: preset.width,
+          height: preset.height,
+          frameRate: preset.frameRate,
+        },
+      };
+
+      // Pass publish options so LiveKit caps the sender bitrate from the start.
+      const publishOptions: TrackPublishOptions = {
+        screenShareEncoding: {
+          maxBitrate: preset.maxBitrate,
+          maxFramerate: preset.frameRate,
+          priority: "high",
+        },
+        // Disable simulcast for screen share — simulcast downscaling blurs text.
+        simulcast: false,
+      };
+
+      await room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);
     } catch {
       setError("Screen share was cancelled");
     }
@@ -786,7 +816,25 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setScreenQuality = useCallback((q: ScreenQuality) => {
+    screenQualityRef.current = q;
     setScreenQualityState(q);
+
+    // Apply the new bitrate cap to the live screen-share sender without stopping.
+    const room = livekitRef.current;
+    if (!room) return;
+    const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+    const sender = (pub?.track as unknown as { sender?: RTCRtpSender } | undefined)?.sender;
+    if (!sender) return;
+    const preset = SCREEN_PRESETS[q];
+    const params = sender.getParameters();
+    if (params.encodings?.length) {
+      for (const enc of params.encodings) {
+        enc.maxBitrate = preset.maxBitrate;
+        enc.maxFramerate = preset.frameRate;
+        enc.priority = "high";
+      }
+      void sender.setParameters(params);
+    }
   }, []);
 
   const isInPartyVoice = useCallback(

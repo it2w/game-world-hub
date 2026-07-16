@@ -15,13 +15,24 @@ description: How the GWH Windows Electron app is packaged and distributed via Re
 
 `@google-cloud/storage`'s `file.getSignedUrl()` requires a service account key for HMAC signing. Replit's sidecar uses external_account credentials which can't sign URLs via the SDK. The sidecar at `/object-storage/signed-object-url` handles signing directly and returns a `signed_url` field.
 
-## NSIS installer
+## NSIS installer (working method)
 
-A ready-made NSIS script lives at `artifacts/game-world-hub-desktop/installer.nsi`. Run with `makensis installer.nsi` when makensis is available.
+Use the Linux makensis bundled by electron-builder itself — no Wine needed:
 
-**makensis is NOT in the Replit/NixOS binary cache** — `nix-env -iA nixpkgs.nsis` triggers a source compile (very slow / times out). Install locally or accept ZIP distribution.
+```bash
+NSIS_DIR="/home/runner/workspace/.cache/electron-builder/nsis/nsis-3.0.4.1"
+NSIS="$NSIS_DIR/linux/makensis"
+chmod +x "$NSIS"
+cd artifacts/game-world-hub-desktop
+NSISDIR="$NSIS_DIR" "$NSIS" -NOCD installer.nsi
+# Output: dist-electron/GameWorldHubSetup.exe (~92 MB, LZMA)
+```
 
-**Why electron-builder can't produce EXE on Linux**: it requires Wine for the ASAR integrity step (`signtool.exe`), even with `CSC_IDENTITY_AUTO_DISCOVERY=false`. The `win-unpacked/` dir is built fine; only the final packaging step fails.
+**Why electron-builder itself fails**: `app-builder-bin@5.0.0-alpha.10` always calls Wine for NSIS on Linux even though it downloads `linux/makensis`. Run makensis directly with `installer.nsi` to bypass this.
+
+**`signAndEditExecutable: false`** in the win build config skips the Wine signApp step — needed for `--dir` builds. Already set in package.json.
+
+**ASAR must contain all files**: when manually packing ASAR, include `dist/`, `assets/`, `package.json`, AND `node_modules/` (production). Packing only `dist/` causes silent launch failure (Electron can't find entry point). Let electron-builder's `--dir` fail → win-unpacked still has a correct ASAR.
 
 ## How to apply
 

@@ -14,7 +14,7 @@ import { objectStorageClient } from '../lib/objectStorage';
 
 const router: IRouter = Router();
 
-const RELEASE_FILENAME = 'GameWorldHub-1.0.0-win.zip';
+const RELEASE_FILENAME = 'GameWorldHubSetup.exe';
 const REPLIT_SIDECAR = 'http://127.0.0.1:1106';
 /** Signed URL valid for 10 min – enough for the slowest connection to start. */
 const SIGNED_TTL_MS = 10 * 60 * 1000;

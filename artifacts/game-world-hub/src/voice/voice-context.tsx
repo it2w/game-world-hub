@@ -19,6 +19,7 @@ import {
   type RemoteAudioTrack,
   type ScreenShareCaptureOptions,
   type TrackPublishOptions,
+  type VideoCodec,
 } from "livekit-client";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiBase, getSignalingUrl } from "./webrtc";
@@ -299,6 +300,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           // RED (redundant audio packets) recovers from up to 1 lost packet
           // per frame with no extra latency — a net win on lossy connections.
           red: true,
+          // Prefer VP9 for all published tracks — ~50 % better compression than VP8.
+          // Screen share especially benefits: VP9 uses intra-prediction that preserves
+          // text sharpness whereas VP8 smears pixels under QP pressure.
+          videoCodec: "vp9" as VideoCodec,
         },
       });
       livekitRef.current = room;
@@ -796,6 +801,38 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       };
 
       await room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);
+
+      // LiveKit sometimes ignores simulcast:false for screen share and still creates
+      // multiple RTP encodings (rid q/h/f). The SFU then picks the lowest layer (q).
+      // Fix: after publishing, set all-but-the-best encoding to active:false via
+      // RTCRtpSender.setParameters. This forces the SFU to use only the full-res layer.
+      const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+      const sender = (pub?.track as unknown as { sender?: RTCRtpSender } | undefined)?.sender;
+      if (sender) {
+        const params = sender.getParameters();
+        if (params.encodings && params.encodings.length > 0) {
+          // LiveKit screen-share rid order: q (worst) → h → f (best).
+          // Pick the best layer: prefer rid "f", else last index.
+          let bestIdx = params.encodings.length - 1;
+          for (let i = 0; i < params.encodings.length; i++) {
+            if (params.encodings[i].rid === "f") { bestIdx = i; break; }
+            if (params.encodings[i].rid === "h") bestIdx = i;
+          }
+          for (let i = 0; i < params.encodings.length; i++) {
+            const enc = params.encodings[i];
+            if (i === bestIdx) {
+              enc.active = true;
+              enc.maxBitrate = preset.maxBitrate;
+              enc.maxFramerate = preset.frameRate;
+              enc.priority = "high";
+            } else {
+              // Disable every lower-quality simulcast layer.
+              enc.active = false;
+            }
+          }
+          void sender.setParameters(params);
+        }
+      }
     } catch {
       setError("Screen share was cancelled");
     }

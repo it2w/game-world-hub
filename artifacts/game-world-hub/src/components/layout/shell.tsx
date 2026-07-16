@@ -47,7 +47,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <>{children}</>;
+    const preview = new URLSearchParams(window.location.search).get("voice") === "preview";
+    return <>{children}{preview && <VoicePanel />}</>;
   }
 
   return (

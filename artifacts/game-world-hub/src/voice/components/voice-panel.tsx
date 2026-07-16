@@ -152,13 +152,29 @@ export function VoicePanel() {
     void startScreenShare();
   }, [pendingQuality, setScreenQuality, startScreenShare]);
 
-  if (!activeRoom) return null;
+  /* ── demo / preview mode ─────────────────────────────────────── */
+  const isPreview = new URLSearchParams(window.location.search).get("voice") === "preview";
+  const demoRoom: typeof activeRoom = isPreview
+    ? { kind: "party", room: "demo", partyId: 0, title: "VALORANT RANKED RUN" }
+    : activeRoom;
+  const demoPeers = isPreview
+    ? [
+        { userId: 2, username: "player2", displayName: "Khalid", avatarUrl: null, muted: false, sharing: false, cameraEnabled: false, speaking: true, connectionState: "connected" as RTCPeerConnectionState, audioStream: null, screenStream: null, cameraStream: null },
+        { userId: 3, username: "player3", displayName: "Sara",   avatarUrl: null, muted: true,  sharing: false, cameraEnabled: false, speaking: false, connectionState: "connected" as RTCPeerConnectionState, audioStream: null, screenStream: null, cameraStream: null },
+      ]
+    : peers;
 
-  const screenSharers = peers.filter((p) => p.sharing && p.screenStream);
-  const cameraViewers = peers.filter((p) => p.cameraEnabled && p.cameraStream);
+  if (!demoRoom) return null;
+  const effectiveRoom  = demoRoom;
+  const effectivePeers = demoPeers;
+  const effectiveMuted = isPreview ? false : muted;
+  const effectiveSpeaking = isPreview ? true : speaking;
+
+  const screenSharers = effectivePeers.filter((p) => p.sharing && p.screenStream);
+  const cameraViewers = effectivePeers.filter((p) => p.cameraEnabled && p.cameraStream);
   const anyScreens = screenSharers.length > 0 || (sharing && localScreenStream);
   const anyCameras = cameraViewers.length > 0 || (cameraEnabled && localCameraStream);
-  const totalInCall = peers.length + 1;
+  const totalInCall = effectivePeers.length + 1;
 
   return (
     <>
@@ -181,10 +197,10 @@ export function VoicePanel() {
             </span>
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-none mb-0.5">
-                {activeRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
+                {effectiveRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
               </div>
               <div className="text-[12px] font-bold uppercase tracking-wide truncate text-foreground leading-none">
-                {activeRoom.title}
+                {effectiveRoom.title}
               </div>
             </div>
           </div>
@@ -235,15 +251,15 @@ export function VoicePanel() {
               <ParticipantRow
                 name={t("voice.you")}
                 avatarUrl={null}
-                speaking={speaking && !muted}
-                muted={muted}
+                speaking={effectiveSpeaking && !effectiveMuted}
+                muted={effectiveMuted}
                 sharing={sharing}
                 cameraEnabled={cameraEnabled}
                 connectionState="connected"
                 self
               />
               {/* Peers */}
-              {peers.map((p) => (
+              {effectivePeers.map((p) => (
                 <ParticipantRow
                   key={p.userId}
                   name={p.displayName}
@@ -253,7 +269,7 @@ export function VoicePanel() {
                   sharing={p.sharing}
                   cameraEnabled={p.cameraEnabled}
                   connectionState={p.connectionState}
-                  isLeader={isLeader && !!partyId}
+                  isLeader={!isPreview && isLeader && !!partyId}
                   onKick={() =>
                     kickMutation.mutate({ partyId: partyId!, userId: p.userId })
                   }
@@ -265,7 +281,7 @@ export function VoicePanel() {
               ))}
 
               {/* Empty state */}
-              {peers.length === 0 && (
+              {effectivePeers.length === 0 && (
                 <div className="flex items-center gap-2 px-2 py-3 text-muted-foreground">
                   <Radio className="w-3.5 h-3.5 animate-pulse shrink-0" />
                   <span className="text-[10px] uppercase tracking-[0.12em]">

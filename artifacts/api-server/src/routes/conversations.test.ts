@@ -215,7 +215,7 @@ describe("DELETE /conversations/:conversationId/messages/:messageId", () => {
 // ─── Hide-conversation tests ──────────────────────────────────────────────────
 
 describe("DELETE /conversations/:conversationId (hide)", () => {
-  test("hiding a conversation removes only the requester's participant row", async () => {
+  test("hiding a conversation marks only the requester's row as hidden", async () => {
     // Ensure both users are participants (they were added in `before`)
     const beforeRows = await db
       .select()
@@ -226,7 +226,7 @@ describe("DELETE /conversations/:conversationId (hide)", () => {
     assert.ok(senderPresent, "senderUser should be a participant before hiding");
     assert.ok(otherPresent, "otherUser should be a participant before hiding");
 
-    // senderUser hides the conversation
+    // senderUser hides the conversation (soft-hide: sets isHidden = true)
     const res = await request(
       "DELETE",
       `/conversations/${directConvId}`,
@@ -236,22 +236,28 @@ describe("DELETE /conversations/:conversationId (hide)", () => {
     assert.equal(res.status, 200, "hiding should succeed");
     assert.deepEqual((res.body as { success: boolean }).success, true);
 
-    // senderUser's row should be gone; otherUser's row should remain
+    // Both rows still exist; only senderUser's row should have isHidden = true
     const afterRows = await db
       .select()
       .from(conversationParticipantsTable)
       .where(eq(conversationParticipantsTable.conversationId, directConvId));
 
-    const senderStillPresent = afterRows.some((r) => r.userId === senderUser);
-    const otherStillPresent = afterRows.some((r) => r.userId === otherUser);
+    const senderRow = afterRows.find((r) => r.userId === senderUser);
+    const otherRow  = afterRows.find((r) => r.userId === otherUser);
 
-    assert.equal(senderStillPresent, false, "senderUser should no longer be a participant");
-    assert.equal(otherStillPresent, true, "otherUser should still be a participant");
+    assert.ok(senderRow,  "senderUser's participant row should still exist (soft-hide)");
+    assert.ok(otherRow,   "otherUser's participant row should still exist");
+    assert.equal(senderRow!.isHidden, true,  "senderUser's row should be marked hidden");
+    assert.equal(otherRow!.isHidden,  false, "otherUser's row should NOT be hidden");
 
-    // Restore sender's participation for subsequent tests
+    // Restore: un-hide sender's row for subsequent tests
     await db
-      .insert(conversationParticipantsTable)
-      .values({ conversationId: directConvId, userId: senderUser });
+      .update(conversationParticipantsTable)
+      .set({ isHidden: false })
+      .where(and(
+        eq(conversationParticipantsTable.conversationId, directConvId),
+        eq(conversationParticipantsTable.userId, senderUser),
+      ));
   });
 
   test("non-participant cannot hide a conversation", async () => {

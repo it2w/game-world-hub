@@ -59,13 +59,16 @@
     "mutePeer": "Mute this participant",
     "cameraLabel": "Camera",
     "deafen": "Deafen (mute all audio)",
-    "undeafen": "Undeafen"
+    "undeafen": "Undeafen",
+    "screenActive": "Screen Share Active"
   },
   "call": {
     "incoming": "Incoming Call",
+    "incomingLabel": "Incoming call",
     "decline": "DECLINE",
     "accept": "ACCEPT",
     "calling": "Calling <0>{{name}}</0>…",
-    "cancel": "CANCEL"
+    "cancel": "CANCEL",
+    "tapToCancel": "Tap to cancel"
   }
 }

@@ -1,16 +1,28 @@
 import { Trans, useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
-import { Button } from "@/components/ui/button";
-import { Phone, PhoneOff, PhoneOutgoing } from "lucide-react";
+import { Phone, PhoneOff, PhoneOutgoing, X, Check } from "lucide-react";
 
 const STYLE = `
-@keyframes gwh-ripple {
-  0%   { transform:scale(1);   opacity:.6 }
-  100% { transform:scale(2.4); opacity:0  }
+@keyframes gwh-call-sweep {
+  0%   { left: -40%; }
+  100% { left: 140%; }
 }
-.gwh-ripple-1 { animation: gwh-ripple 1.8s ease-out infinite; }
-.gwh-ripple-2 { animation: gwh-ripple 1.8s ease-out .6s infinite; }
-.gwh-ripple-3 { animation: gwh-ripple 1.8s ease-out 1.2s infinite; }
+@keyframes gwh-call-shrink {
+  0%   { width: 100%; }
+  100% { width: 0%; }
+}
+@keyframes gwh-call-ping {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0;   }
+}
+@keyframes gwh-call-blink {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.3; }
+}
+.gwh-call-sweep  { animation: gwh-call-sweep 2.4s linear infinite; }
+.gwh-call-shrink { animation: gwh-call-shrink 45s linear forwards; }
+.gwh-call-ping   { animation: gwh-call-ping 1.8s ease-out infinite; }
+.gwh-call-blink  { animation: gwh-call-blink 1.4s ease-in-out infinite; }
 `;
 
 /**
@@ -25,102 +37,138 @@ export function CallOverlays() {
     return (
       <>
         <style>{STYLE}</style>
+        {/* Full-screen dark backdrop */}
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ background: "rgba(5,5,10,.85)", backdropFilter: "blur(8px)" }}
+          style={{ background: "rgba(4,4,12,.88)", backdropFilter: "blur(10px)" }}
         >
+          {/* ── Incoming call card ──────────────────────────────── */}
           <div
-            className="w-[340px] font-mono"
-            style={{ background: "#0d0d14", border: "1px solid #2a2a3a", boxShadow: "0 25px 60px rgba(0,0,0,.8)" }}
+            className="w-[340px] overflow-hidden relative flex font-mono"
+            style={{
+              background: "linear-gradient(180deg, #0e0e1e, #080812)",
+              border: "1px solid rgba(var(--primary-rgb,0,255,65),0.2)",
+              boxShadow:
+                "0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(var(--primary-rgb,0,255,65),0.06)",
+            }}
           >
-            {/* Top accent bar */}
-            <div className="h-[3px] w-full" style={{ background: "linear-gradient(90deg,#22c55e,#16a34a)" }} />
+            {/* Left accent bar */}
+            <div
+              className="w-[3px] shrink-0"
+              style={{
+                background:
+                  "linear-gradient(180deg, hsl(var(--primary)), rgba(var(--primary-rgb,0,255,65),0.15))",
+              }}
+            />
 
-            <div className="p-8 flex flex-col items-center text-center gap-5">
-              {/* Avatar with ripple rings */}
-              <div className="relative flex items-center justify-center w-20 h-20">
-                {/* concentric ripple rings */}
-                <span
-                  className="gwh-ripple-3 absolute w-full h-full rounded-full"
-                  style={{ background: "rgba(34,197,94,.15)" }}
-                />
-                <span
-                  className="gwh-ripple-2 absolute w-full h-full rounded-full"
-                  style={{ background: "rgba(34,197,94,.2)" }}
-                />
-                <span
-                  className="gwh-ripple-1 absolute w-full h-full rounded-full"
-                  style={{ background: "rgba(34,197,94,.25)" }}
-                />
-                {/* Avatar */}
+            <div className="flex-1 flex flex-col">
+              {/* Scanning line */}
+              <div
+                className="h-[1px] w-full relative overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
                 <div
-                  className="relative w-20 h-20 overflow-hidden"
-                  style={{ outline: "2px solid #22c55e", outlineOffset: "2px" }}
-                >
-                  {incomingCall.from.avatarUrl ? (
-                    <img
-                      src={incomingCall.from.avatarUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
+                  className="gwh-call-sweep absolute top-0 w-1/4 h-full pointer-events-none"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, hsl(var(--primary)), transparent)",
+                  }}
+                />
+              </div>
+
+              <div className="p-5 flex items-center gap-4">
+                {/* Avatar with pulse ring */}
+                <div className="relative shrink-0">
+                  <div
+                    className="w-[62px] h-[62px] flex items-center justify-center text-2xl font-bold relative z-10"
+                    style={{
+                      background: "linear-gradient(135deg, #182818, #0f1220)",
+                      border: "1px solid rgba(var(--primary-rgb,0,255,65),0.45)",
+                      boxShadow: "0 0 24px rgba(var(--primary-rgb,0,255,65),0.22)",
+                      color: "hsl(var(--primary))",
+                    }}
+                  >
+                    {incomingCall.from.avatarUrl ? (
+                      <img
+                        src={incomingCall.from.avatarUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      incomingCall.from.displayName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  {/* Pulse ring */}
+                  <div
+                    className="gwh-call-ping absolute inset-[-8px] pointer-events-none"
+                    style={{ border: "1px solid rgba(var(--primary-rgb,0,255,65),0.3)" }}
+                  />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[9px] uppercase tracking-[0.2em] mb-1"
+                    style={{ color: "rgba(255,255,255,0.35)" }}
+                  >
+                    {t("call.incoming")}
+                  </div>
+                  <div className="text-[16px] font-bold tracking-wide text-white truncate mb-0.5">
+                    {incomingCall.from.displayName}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "hsl(var(--primary))" }}>
+                    <span
+                      className="gwh-call-blink w-1.5 h-1.5 shrink-0 inline-block"
+                      style={{ background: "hsl(var(--primary))" }}
                     />
-                  ) : (
-                    <div
-                      className="w-full h-full flex items-center justify-center text-3xl font-bold"
-                      style={{ background: "#1a1a24", color: "#9b9baa" }}
-                    >
-                      {incomingCall.from.displayName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                    {t("call.incomingLabel")}
+                  </div>
                 </div>
               </div>
 
-              {/* Caller info */}
-              <div>
-                <div className="text-lg font-bold tracking-wide text-foreground">
-                  {incomingCall.from.displayName}
-                </div>
+              {/* Countdown timer bar */}
+              <div className="h-[2px] w-full" style={{ background: "rgba(255,255,255,0.05)" }}>
                 <div
-                  className="text-[11px] uppercase tracking-[0.2em] mt-1.5 animate-pulse"
-                  style={{ color: "#22c55e" }}
-                >
-                  {t("call.incoming")}
-                </div>
+                  className="gwh-call-shrink h-full"
+                  style={{
+                    background: "hsl(var(--primary))",
+                    boxShadow: "0 0 6px hsl(var(--primary))",
+                  }}
+                />
               </div>
 
-              {/* Buttons */}
-              <div className="flex gap-3 w-full">
-                {/* Decline */}
+              {/* Action buttons */}
+              <div className="flex">
                 <button
                   onClick={declineCall}
-                  className="flex-1 flex items-center justify-center gap-2 h-11 font-mono text-sm uppercase tracking-widest transition-all"
+                  className="flex-1 h-12 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest transition-all"
                   style={{
-                    background: "rgba(239,68,68,.12)",
-                    color: "#f87171",
-                    border: "1px solid rgba(239,68,68,.3)",
+                    background: "rgba(239,68,68,0.08)",
+                    borderTop: "1px solid rgba(239,68,68,0.15)",
+                    borderRight: "1px solid rgba(239,68,68,0.1)",
+                    color: "#ef4444",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,.22)";
+                    (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.18)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,.12)";
+                    (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)";
                   }}
                 >
-                  <PhoneOff className="w-4 h-4" /> {t("call.decline")}
+                  <X className="w-4 h-4" /> {t("call.decline")}
                 </button>
 
-                {/* Accept */}
                 <button
                   onClick={() => void acceptCall()}
-                  className="flex-1 flex items-center justify-center gap-2 h-11 font-mono text-sm uppercase tracking-widest transition-all text-black font-bold"
-                  style={{ background: "#22c55e" }}
+                  className="flex-1 h-12 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest transition-all"
+                  style={{ background: "hsl(var(--primary))", color: "#000" }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "#16a34a";
+                    (e.currentTarget as HTMLElement).style.opacity = "0.88";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "#22c55e";
+                    (e.currentTarget as HTMLElement).style.opacity = "1";
                   }}
                 >
-                  <Phone className="w-4 h-4" /> {t("call.accept")}
+                  <Check className="w-4 h-4" /> {t("call.accept")}
                 </button>
               </div>
             </div>
@@ -132,50 +180,106 @@ export function CallOverlays() {
 
   if (outgoingCall) {
     return (
-      <div
-        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[90] flex items-center gap-4 px-5 py-3 font-mono"
-        style={{
-          background: "#0d0d14",
-          border: "1px solid #2a2a3a",
-          boxShadow: "0 10px 40px rgba(0,0,0,.6)",
-        }}
-      >
-        {/* Animated ring + icon */}
-        <span className="relative flex items-center justify-center w-7 h-7 shrink-0">
-          <span
-            className="absolute w-full h-full rounded-full animate-ping"
-            style={{ background: "rgba(34,197,94,.25)", animationDuration: "1.2s" }}
-          />
-          <PhoneOutgoing className="relative w-4 h-4" style={{ color: "#22c55e" }} />
-        </span>
-
-        <div className="text-[13px]">
-          <Trans
-            i18nKey="call.calling"
-            ns="common"
-            values={{ name: outgoingCall.to.displayName }}
-            components={[<span className="font-bold text-foreground" />]}
-          />
-        </div>
-
-        <button
-          onClick={cancelCall}
-          className="text-[11px] uppercase tracking-widest px-3 h-7 transition-all font-mono"
+      <>
+        <style>{STYLE}</style>
+        {/* ── Outgoing call banner ──────────────────────────────── */}
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[90] w-[440px] overflow-hidden font-mono"
           style={{
-            color: "#f87171",
-            border: "1px solid rgba(239,68,68,.3)",
-            background: "rgba(239,68,68,.08)",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,.18)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,.08)";
+            background: "linear-gradient(180deg, #0e0e1e, #080812)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
           }}
         >
-          {t("call.cancel")}
-        </button>
-      </div>
+          {/* Scanning line */}
+          <div
+            className="h-[1px] w-full relative overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            <div
+              className="gwh-call-sweep absolute top-0 w-1/4 h-full pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, rgba(var(--primary-rgb,0,255,65),0.8), transparent)",
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between px-4 py-3 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Callee avatar */}
+              <div className="relative w-9 h-9 shrink-0">
+                <div
+                  className="w-full h-full flex items-center justify-center text-[13px] font-bold"
+                  style={{
+                    background: "#111122",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "#aaaacc",
+                  }}
+                >
+                  {outgoingCall.to.avatarUrl ? (
+                    <img
+                      src={outgoingCall.to.avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    outgoingCall.to.displayName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                {/* Pulsing amber dot */}
+                <span
+                  className="absolute -bottom-[3px] -right-[3px] w-2 h-2 animate-pulse"
+                  style={{
+                    background: "#f59e0b",
+                    boxShadow: "0 0 6px #f59e0b",
+                  }}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-[12px] font-bold text-white/90 truncate">
+                  <Trans
+                    i18nKey="call.calling"
+                    ns="common"
+                    values={{ name: outgoingCall.to.displayName }}
+                    components={[<span className="text-foreground" />]}
+                  />
+                </div>
+                <div className="text-[10px] text-white/35 truncate">
+                  @{outgoingCall.to.username}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[9px] text-white/25 uppercase tracking-widest hidden sm:inline">
+                {t("call.tapToCancel")}
+              </span>
+              <button
+                onClick={cancelCall}
+                className="w-8 h-8 flex items-center justify-center transition-all"
+                style={{
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                  color: "#ef4444",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.22)";
+                  (e.currentTarget as HTMLElement).style.borderColor = "#ef4444";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)";
+                  (e.currentTarget as HTMLElement).style.borderColor = "rgba(239,68,68,0.3)";
+                }}
+                title={t("call.cancel")}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 

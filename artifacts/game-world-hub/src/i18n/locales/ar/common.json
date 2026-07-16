@@ -59,13 +59,16 @@
     "mutePeer": "كتم هذا المشارك",
     "cameraLabel": "كاميرا",
     "deafen": "دفن (كتم جميع الأصوات)",
-    "undeafen": "إلغاء الدفن"
+    "undeafen": "إلغاء الدفن",
+    "screenActive": "مشاركة الشاشة نشطة"
   },
   "call": {
     "incoming": "مكالمة واردة",
+    "incomingLabel": "مكالمة واردة",
     "decline": "رفض",
     "accept": "قبول",
     "calling": "جارٍ الاتصال بـ <0>{{name}}</0>…",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "tapToCancel": "اضغط للإلغاء"
   }
 }

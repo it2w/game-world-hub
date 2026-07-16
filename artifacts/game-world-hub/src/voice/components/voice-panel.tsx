@@ -50,33 +50,65 @@ import {
   Play,
   Video,
   VideoOff,
-  Radio,
   EarOff,
   Ear,
 } from "lucide-react";
 
-/* ── Sound-bar keyframes injected once ──────────────────────────────────── */
+/* ── HALO keyframes injected once ───────────────────────────────────────── */
 const STYLE = `
-@keyframes gwh-bar {
-  0%,100% { height: 3px; opacity:.5 }
-  50%      { height: 11px; opacity:1 }
+@keyframes gwh-ring-out {
+  0%   { transform: scale(1);    opacity: 1; }
+  100% { transform: scale(1.22); opacity: 0; }
 }
-.gwh-bar1 { animation: gwh-bar .75s ease-in-out infinite; }
-.gwh-bar2 { animation: gwh-bar .75s ease-in-out .18s infinite; }
-.gwh-bar3 { animation: gwh-bar .75s ease-in-out .36s infinite; }
-@keyframes gwh-speak-ring {
-  0%,100%{ box-shadow:0 0 0 0 rgba(34,197,94,.7) }
-  60%    { box-shadow:0 0 0 4px rgba(34,197,94,0) }
+@keyframes gwh-eq-bar {
+  0%, 100% { transform: scaleY(0.25); }
+  50%       { transform: scaleY(1); }
 }
-.gwh-speak-ring { animation: gwh-speak-ring 1s ease-out infinite; }
+@keyframes gwh-sweep {
+  0%   { left: -40%; }
+  100% { left: 140%; }
+}
+@keyframes gwh-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+@keyframes gwh-peer-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,65,0); }
+  50%       { box-shadow: 0 0 0 3px rgba(0,255,65,0.18); }
+}
+.gwh-ring-1 { animation: gwh-ring-out 2.2s cubic-bezier(0.4,0,0.6,1) infinite; }
+.gwh-ring-2 { animation: gwh-ring-out 2.2s cubic-bezier(0.4,0,0.6,1) 0.55s infinite; }
+.gwh-ring-3 { animation: gwh-ring-out 2.2s cubic-bezier(0.4,0,0.6,1) 1.1s infinite; }
+.gwh-eq1 { animation: gwh-eq-bar 0.9s ease-in-out infinite 0.00s; transform-origin: bottom; }
+.gwh-eq2 { animation: gwh-eq-bar 0.9s ease-in-out infinite 0.15s; transform-origin: bottom; }
+.gwh-eq3 { animation: gwh-eq-bar 0.9s ease-in-out infinite 0.30s; transform-origin: bottom; }
+.gwh-eq4 { animation: gwh-eq-bar 0.9s ease-in-out infinite 0.45s; transform-origin: bottom; }
+.gwh-eq5 { animation: gwh-eq-bar 0.9s ease-in-out infinite 0.60s; transform-origin: bottom; }
+.gwh-eq-sm1 { animation: gwh-eq-bar 0.8s ease-in-out infinite 0.00s; transform-origin: bottom; }
+.gwh-eq-sm2 { animation: gwh-eq-bar 0.8s ease-in-out infinite 0.18s; transform-origin: bottom; }
+.gwh-eq-sm3 { animation: gwh-eq-bar 0.8s ease-in-out infinite 0.36s; transform-origin: bottom; }
+.gwh-dot-blink { animation: gwh-dot-blink 1.4s ease-in-out infinite; }
+.gwh-peer-glow { animation: gwh-peer-glow 2s ease-in-out infinite; }
 `;
 
-function SoundBars() {
+/* ── EQ bars (large for self, small for peers) ───────────────────────────── */
+function EqBars({ size = "lg" }: { size?: "lg" | "sm" }) {
+  if (size === "sm") {
+    return (
+      <span className="flex items-end gap-[2px] h-3 shrink-0">
+        <span className="gwh-eq-sm1 w-[2px] h-3 bg-primary rounded-full" />
+        <span className="gwh-eq-sm2 w-[2px] h-3 bg-primary rounded-full" />
+        <span className="gwh-eq-sm3 w-[2px] h-3 bg-primary rounded-full" />
+      </span>
+    );
+  }
   return (
-    <span className="flex items-end gap-[2.5px] h-3.5 shrink-0 px-0.5">
-      <span className="gwh-bar1 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
-      <span className="gwh-bar2 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
-      <span className="gwh-bar3 w-[3px] bg-primary rounded-full" style={{ height: 3 }} />
+    <span className="flex items-end gap-[3px] h-4 shrink-0">
+      <span className="gwh-eq1 w-[3px] h-4 bg-primary rounded-full" />
+      <span className="gwh-eq2 w-[3px] h-4 bg-primary rounded-full" />
+      <span className="gwh-eq3 w-[3px] h-4 bg-primary rounded-full" />
+      <span className="gwh-eq4 w-[3px] h-4 bg-primary rounded-full" />
+      <span className="gwh-eq5 w-[3px] h-4 bg-primary rounded-full" />
     </span>
   );
 }
@@ -179,39 +211,58 @@ export function VoicePanel() {
   const cameraViewers = effectivePeers.filter((p) => p.cameraEnabled && p.cameraStream);
   const anyScreens = screenSharers.length > 0 || (sharing && localScreenStream);
   const anyCameras = cameraViewers.length > 0 || (cameraEnabled && localCameraStream);
-  const totalInCall = effectivePeers.length + 1;
+
+  /* active screen quality label */
+  const screenPreset = SCREEN_PRESETS[screenQuality];
 
   return (
     <>
       <style>{STYLE}</style>
 
+      {/* ── Panel ──────────────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-4 start-4 z-[80] w-[292px] font-mono shadow-2xl"
-        style={{ background: "#0c0c11", border: "1px solid #1e1e2a" }}
+        className="fixed bottom-4 start-4 z-[80] w-[300px] font-mono"
+        style={{
+          background: "linear-gradient(180deg, #0e0e1c 0%, #080812 100%)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 32px 64px rgba(0,0,0,0.9), inset 0 0 0 1px rgba(255,255,255,0.03)",
+        }}
       >
-        {/* ── Header ─────────────────────────────────────── */}
+        {/* Top gradient bar */}
         <div
-          className="flex items-center justify-between px-3 py-2.5"
-          style={{ borderBottom: "1px solid #1e1e2a", background: "#111118" }}
+          className="h-[2px] w-full shrink-0"
+          style={{ background: "linear-gradient(90deg,hsl(var(--primary)) 0%,#00bfff 55%,transparent 100%)" }}
+        />
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div
+          className="flex items-center justify-between px-4 py-2.5"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* animated speaking/idle dot */}
-            <span className="relative shrink-0 flex items-center justify-center w-5 h-5">
-              <span className="absolute w-full h-full rounded-full bg-primary/20 animate-ping" style={{ animationDuration: "2s" }} />
-              <span className="relative w-2 h-2 rounded-full bg-primary" />
+            <span className="relative flex shrink-0 w-2 h-2">
+              <span className="gwh-dot-blink absolute inset-0 rounded-full bg-primary" />
+              <span className="rounded-full w-2 h-2 bg-primary/30" />
             </span>
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground leading-none mb-0.5">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground leading-none mb-[3px]">
                 {effectiveRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
               </div>
-              <div className="text-[12px] font-bold uppercase tracking-wide truncate text-foreground leading-none">
+              <div className="text-[11px] font-bold uppercase tracking-widest truncate text-foreground leading-none">
                 {effectiveRoom.title}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] text-muted-foreground tabular-nums">
-              {totalInCall}
+            <span
+              className="text-[9px] px-1.5 py-0.5 font-bold tabular-nums"
+              style={{
+                background: "rgba(var(--primary-rgb,0,255,65),0.1)",
+                color: "hsl(var(--primary))",
+                border: "1px solid rgba(var(--primary-rgb,0,255,65),0.25)",
+              }}
+            >
+              {effectivePeers.length + 1}
             </span>
             <button
               onClick={() => setExpanded((e) => !e)}
@@ -227,12 +278,12 @@ export function VoicePanel() {
           </div>
         </div>
 
-        {/* ── Error banner ───────────────────────────────── */}
+        {/* ── Error banner ─────────────────────────────────────────────────── */}
         {error && (
           <div
             role="alert"
-            className="px-3 py-2 space-y-2"
-            style={{ borderBottom: "1px solid #1e1e2a", background: "rgba(239,68,68,.08)" }}
+            className="px-4 py-2.5 space-y-2"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(239,68,68,.07)" }}
           >
             <p className="text-[11px] leading-snug text-destructive">{error}</p>
             {canRejoin && (
@@ -250,57 +301,97 @@ export function VoicePanel() {
 
         {expanded && (
           <>
-            {/* ── Participant list ────────────────────────── */}
-            <div className="max-h-[200px] overflow-auto py-1.5 px-2 space-y-0.5">
-              {/* Self row */}
-              <ParticipantRow
-                name={t("voice.you")}
-                avatarUrl={null}
-                speaking={effectiveSpeaking && !effectiveMuted}
-                muted={effectiveMuted}
-                sharing={sharing}
-                cameraEnabled={cameraEnabled}
-                connectionState="connected"
-                self
+            {/* ── Self / HALO section ─────────────────────────────────────── */}
+            <div
+              className="flex flex-col items-center pt-7 pb-5 relative overflow-hidden"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              {/* Radial bg glow */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: "radial-gradient(ellipse 160px 100px at 50% 55%, rgba(var(--primary-rgb,0,255,65),0.07) 0%, transparent 70%)",
+                }}
               />
-              {/* Peers */}
-              {effectivePeers.map((p) => (
-                <ParticipantRow
-                  key={p.userId}
-                  name={p.displayName}
-                  avatarUrl={p.avatarUrl}
-                  speaking={p.speaking && !p.muted}
-                  muted={p.muted}
-                  sharing={p.sharing}
-                  cameraEnabled={p.cameraEnabled}
-                  connectionState={p.connectionState}
-                  isLeader={!isPreview && isLeader && !!partyId}
-                  onKick={() =>
-                    kickMutation.mutate({ partyId: partyId!, userId: p.userId })
-                  }
-                  onTransfer={() =>
-                    transferMutation.mutate({ partyId: partyId!, userId: p.userId })
-                  }
-                  onMutePeer={() => remoteMute(p.userId)}
-                />
-              ))}
 
-              {/* Empty state */}
-              {effectivePeers.length === 0 && (
-                <div className="flex items-center gap-2 px-2 py-3 text-muted-foreground">
-                  <Radio className="w-3.5 h-3.5 animate-pulse shrink-0" />
-                  <span className="text-[10px] uppercase tracking-[0.12em]">
-                    {t("voice.waitingForOthers")}
-                  </span>
+              {/* Halo rings + avatar */}
+              <div className="relative flex items-center justify-center w-[144px] h-[144px] mb-4">
+                <div
+                  className="gwh-ring-3 absolute w-[128px] h-[128px] pointer-events-none"
+                  style={{ border: "1px solid rgba(var(--primary-rgb,0,255,65),0.12)" }}
+                />
+                <div
+                  className="gwh-ring-2 absolute w-[108px] h-[108px] pointer-events-none"
+                  style={{ border: "1px solid rgba(var(--primary-rgb,0,255,65),0.28)" }}
+                />
+                <div
+                  className="gwh-ring-1 absolute w-[90px] h-[90px] pointer-events-none"
+                  style={{ border: "1px solid rgba(var(--primary-rgb,0,255,65),0.55)" }}
+                />
+                {/* Avatar */}
+                <div
+                  className="relative w-[72px] h-[72px] flex items-center justify-center z-10"
+                  style={{
+                    background: "linear-gradient(135deg, #182818, #0f1220)",
+                    border: "1px solid rgba(var(--primary-rgb,0,255,65),0.4)",
+                    boxShadow: "0 0 28px rgba(var(--primary-rgb,0,255,65),0.22), inset 0 0 12px rgba(var(--primary-rgb,0,255,65),0.08)",
+                    color: "hsl(var(--primary))",
+                  }}
+                >
+                  {/* If we have a local camera stream, we could render it here in future */}
+                  <span className="text-[26px] font-bold">Y</span>
                 </div>
-              )}
+              </div>
+
+              {/* Name + EQ */}
+              <div className="flex items-center gap-3 mb-2.5 z-10">
+                <span className="text-[13px] font-bold uppercase tracking-widest">{t("voice.you")}</span>
+                {effectiveSpeaking && !effectiveMuted && <EqBars />}
+                {effectiveMuted && <MicOff className="w-3.5 h-3.5 text-destructive" />}
+                {effectiveDeafened && <EarOff className="w-3.5 h-3.5 text-destructive ml-1" />}
+              </div>
+
+              {/* Status badges row */}
+              <div className="flex items-center gap-2 z-10 flex-wrap justify-center">
+                {sharing && (
+                  <div
+                    className="flex items-center gap-1.5 px-2 py-1"
+                    style={{
+                      background: "rgba(var(--primary-rgb,0,255,65),0.08)",
+                      border: "1px solid rgba(var(--primary-rgb,0,255,65),0.2)",
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 shrink-0 animate-pulse"
+                      style={{ background: "hsl(var(--primary))", boxShadow: "0 0 6px hsl(var(--primary))" }}
+                    />
+                    <span className="text-[9px] text-primary tracking-[0.18em] uppercase font-semibold">
+                      {t("voice.screenActive")}
+                    </span>
+                  </div>
+                )}
+                {cameraEnabled && (
+                  <div
+                    className="flex items-center gap-1.5 px-2 py-1"
+                    style={{
+                      background: "rgba(var(--primary-rgb,0,255,65),0.08)",
+                      border: "1px solid rgba(var(--primary-rgb,0,255,65),0.2)",
+                    }}
+                  >
+                    <Video className="w-2.5 h-2.5 text-primary shrink-0" />
+                    <span className="text-[9px] text-primary tracking-[0.18em] uppercase font-semibold">
+                      {t("voice.cameraOn")}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* ── Screen share thumbnails ─────────────────── */}
+            {/* ── Screen share thumbnails ─────────────────────────────────── */}
             {anyScreens && (
               <div
                 className="p-2 grid grid-cols-2 gap-1.5"
-                style={{ borderTop: "1px solid #1e1e2a" }}
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
               >
                 {sharing && localScreenStream && (
                   <ScreenThumb
@@ -308,6 +399,7 @@ export function VoicePanel() {
                     label={t("voice.you")}
                     self
                     onOpen={() => setTheater(localScreenStream)}
+                    fps={screenPreset.frameRate}
                   />
                 )}
                 {screenSharers.map((p) => (
@@ -321,11 +413,11 @@ export function VoicePanel() {
               </div>
             )}
 
-            {/* ── Camera thumbnails ───────────────────────── */}
+            {/* ── Camera thumbnails ───────────────────────────────────────── */}
             {anyCameras && (
               <div
                 className="p-2 grid grid-cols-2 gap-1.5"
-                style={{ borderTop: "1px solid #1e1e2a" }}
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
               >
                 {cameraEnabled && localCameraStream && (
                   <ScreenThumb
@@ -348,40 +440,54 @@ export function VoicePanel() {
               </div>
             )}
 
-            {/* ── Quality controls ────────────────────────── */}
-            <div className="px-3 py-2 space-y-1.5" style={{ borderTop: "1px solid #1e1e2a" }}>
-              <QualityRow icon={<Volume2 className="w-3 h-3" />} label={t("voice.voiceLabel")}>
-                <Select
-                  value={voiceQuality}
-                  onValueChange={(v) => setVoiceQuality(v as VoiceQuality)}
+            {/* ── Peer list ────────────────────────────────────────────────── */}
+            <div className="flex flex-col">
+              {effectivePeers.length === 0 ? (
+                <div
+                  className="flex items-center gap-2 px-4 py-3 text-muted-foreground"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                 >
-                  <SelectTrigger
-                    className="h-6 text-[11px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1"
-                    style={{ color: "#9b9baa" }}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOICE_QUALITY_ORDER.map((q) => (
-                      <SelectItem key={q} value={q} className="text-[11px] font-mono">
-                        {VOICE_PRESETS[q].label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </QualityRow>
-              {sharing && (
-                <QualityRow
-                  icon={<Monitor className="w-3 h-3" />}
-                  label={t("voice.screenLabel")}
-                >
+                  <span className="text-[10px] uppercase tracking-[0.12em] animate-pulse">
+                    {t("voice.waitingForOthers")}
+                  </span>
+                </div>
+              ) : (
+                effectivePeers.map((p) => (
+                  <ParticipantRow
+                    key={p.userId}
+                    name={p.displayName}
+                    avatarUrl={p.avatarUrl}
+                    speaking={p.speaking && !p.muted}
+                    muted={p.muted}
+                    sharing={p.sharing}
+                    cameraEnabled={p.cameraEnabled}
+                    connectionState={p.connectionState}
+                    isLeader={!isPreview && isLeader && !!partyId}
+                    onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                    onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                    onMutePeer={() => remoteMute(p.userId)}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* ── Quality footer (while sharing) ──────────────────────────── */}
+            {sharing && (
+              <div
+                className="flex items-center justify-between px-4 py-1.5"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-[0.2em]">
+                    {t("voice.screenLabel")}
+                  </span>
                   <Select
                     value={screenQuality}
                     onValueChange={(v) => void setScreenQuality(v as ScreenQuality)}
                   >
                     <SelectTrigger
-                      className="h-6 text-[11px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1"
-                      style={{ color: "#9b9baa" }}
+                      className="h-5 text-[9px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1"
+                      style={{ color: "hsl(var(--primary))", opacity: 0.7 }}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -393,16 +499,25 @@ export function VoicePanel() {
                       ))}
                     </SelectContent>
                   </Select>
-                </QualityRow>
-              )}
-            </div>
+                </div>
+                <div className="flex gap-0.5">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="w-[3px] h-[3px]"
+                      style={{ background: "rgba(var(--primary-rgb,0,255,65),0.5)" }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
-        {/* ── Controls bar ────────────────────────────────── */}
+        {/* ── Controls bar ─────────────────────────────────────────────────── */}
         <div
-          className="flex items-center gap-1 p-2"
-          style={{ borderTop: "1px solid #1e1e2a", background: "#0e0e14" }}
+          className="flex items-center gap-1.5 px-3 py-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.25)" }}
         >
           {/* Mute */}
           <ControlBtn
@@ -431,11 +546,7 @@ export function VoicePanel() {
             onClick={() => void toggleCamera()}
             title={cameraEnabled ? t("voice.cameraOff") : t("voice.cameraOn")}
           >
-            {cameraEnabled ? (
-              <Video className="w-4 h-4" />
-            ) : (
-              <VideoOff className="w-4 h-4" />
-            )}
+            {cameraEnabled ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
           </ControlBtn>
 
           {/* Screen share */}
@@ -445,32 +556,65 @@ export function VoicePanel() {
             onClick={handleShareClick}
             title={sharing ? t("voice.stopSharing") : t("voice.shareScreen")}
           >
-            {sharing ? (
-              <MonitorOff className="w-4 h-4" />
-            ) : (
-              <Monitor className="w-4 h-4" />
-            )}
+            {sharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
           </ControlBtn>
 
-          {/* Leave — always destructive */}
+          {/* Leave */}
           <button
             onClick={leaveVoice}
             title={t("voice.leave")}
-            className="flex-1 flex items-center justify-center h-9 rounded-none transition-all font-mono text-white"
-            style={{ background: "#dc2626" }}
+            className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-none transition-all font-mono text-[10px] uppercase tracking-wider"
+            style={{
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(239,68,68,0.5)",
+              color: "#ef4444",
+              boxShadow: "0 0 10px rgba(239,68,68,0.12)",
+            }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "#b91c1c";
+              (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.22)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "#dc2626";
+              (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.12)";
             }}
           >
             <PhoneOff className="w-4 h-4" />
+            <span>{t("voice.leave")}</span>
           </button>
         </div>
+
+        {/* Voice quality selector (collapsed) */}
+        {expanded && (
+          <div
+            className="flex items-center gap-2 px-4 py-1.5"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+          >
+            <Volume2 className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+            <span className="text-[8px] text-muted-foreground uppercase tracking-[0.15em]">
+              {t("voice.voiceLabel")}
+            </span>
+            <Select
+              value={voiceQuality}
+              onValueChange={(v) => setVoiceQuality(v as VoiceQuality)}
+            >
+              <SelectTrigger
+                className="h-5 text-[9px] rounded-none font-mono border-0 bg-transparent p-0 ps-0 focus:ring-0 gap-1 flex-1"
+                style={{ color: "rgba(155,155,170,0.7)" }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VOICE_QUALITY_ORDER.map((q) => (
+                  <SelectItem key={q} value={q} className="text-[11px] font-mono">
+                    {VOICE_PRESETS[q].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* ── Screen share quality picker dialog ─────────────── */}
+      {/* ── Screen share quality picker dialog ─────────────────────────────── */}
       <Dialog open={qualityPickerOpen} onOpenChange={setQualityPickerOpen}>
         <DialogContent className="border-border bg-card rounded-none sm:max-w-[420px]">
           <DialogHeader>
@@ -522,15 +666,16 @@ export function VoicePanel() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Theater view ────────────────────────────────────── */}
+      {/* ── Theater view ───────────────────────────────────────────────────── */}
       {theater && (
         <div
           className="fixed inset-0 z-[95] flex items-center justify-center p-8"
-          style={{ background: "rgba(0,0,0,.88)", backdropFilter: "blur(6px)" }}
+          style={{ background: "rgba(0,0,0,.9)", backdropFilter: "blur(8px)" }}
           onClick={() => setTheater(null)}
         >
           <button
-            className="absolute top-5 end-5 text-muted-foreground hover:text-foreground bg-black/60 p-1.5"
+            className="absolute top-5 end-5 text-muted-foreground hover:text-foreground p-2 transition-colors"
+            style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}
             onClick={() => setTheater(null)}
             aria-label={t("voice.close")}
           >
@@ -539,7 +684,7 @@ export function VoicePanel() {
           <VideoTile
             stream={theater}
             className="max-w-full max-h-full"
-            style={{ border: "1px solid #1e1e2a" }}
+            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
           />
         </div>
       )}
@@ -563,21 +708,41 @@ function ControlBtn({
 }) {
   const activeBg =
     activeColor === "destructive"
-      ? { background: "rgba(239,68,68,.18)", color: "#f87171", border: "1px solid rgba(239,68,68,.35)" }
-      : { background: "rgba(34,197,94,.14)", color: "#4ade80", border: "1px solid rgba(34,197,94,.3)" };
-  const idleBg = { background: "#1a1a24", color: "#6b7280", border: "1px solid #2a2a38" };
+      ? {
+          background: "rgba(239,68,68,0.12)",
+          color: "#ef4444",
+          border: "1px solid rgba(239,68,68,0.5)",
+          boxShadow: "0 0 10px rgba(239,68,68,0.12)",
+        }
+      : {
+          background: "rgba(var(--primary-rgb,0,255,65),0.12)",
+          color: "hsl(var(--primary))",
+          border: "1px solid rgba(var(--primary-rgb,0,255,65),0.55)",
+          boxShadow: "0 0 14px rgba(var(--primary-rgb,0,255,65),0.15)",
+        };
+  const idleBg = {
+    background: "#111120",
+    color: "#55556a",
+    border: "1px solid #232338",
+  };
 
   return (
     <button
       onClick={onClick}
       title={title}
-      className="flex-1 flex items-center justify-center h-9 rounded-none transition-all"
+      className="w-10 h-9 flex items-center justify-center rounded-none transition-all shrink-0"
       style={active ? activeBg : idleBg}
       onMouseEnter={(e) => {
-        if (!active) (e.currentTarget as HTMLElement).style.background = "#22222e";
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = "#16162a";
+          (e.currentTarget as HTMLElement).style.color = "#ffffff";
+        }
       }}
       onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLElement).style.background = "#1a1a24";
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = "#111120";
+          (e.currentTarget as HTMLElement).style.color = "#55556a";
+        }
       }}
     >
       {children}
@@ -588,7 +753,7 @@ function ControlBtn({
 /* ── Reconnect grace ─────────────────────────────────────────────────────── */
 const DISCONNECT_GRACE_MS = 6000;
 
-/* ── Participant row ─────────────────────────────────────────────────────── */
+/* ── Participant row (HALO style) ────────────────────────────────────────── */
 function ParticipantRow({
   name,
   avatarUrl,
@@ -597,7 +762,6 @@ function ParticipantRow({
   sharing,
   cameraEnabled,
   connectionState,
-  self,
   isLeader,
   onKick,
   onTransfer,
@@ -610,7 +774,6 @@ function ParticipantRow({
   sharing: boolean;
   cameraEnabled?: boolean;
   connectionState: RTCPeerConnectionState;
-  self?: boolean;
   isLeader?: boolean;
   onKick?: () => void;
   onTransfer?: () => void;
@@ -619,11 +782,11 @@ function ParticipantRow({
   const { t } = useTranslation("common");
   const [everConnected, setEverConnected] = useState(false);
   useEffect(() => {
-    if (!self && connectionState === "connected") setEverConnected(true);
-  }, [self, connectionState]);
+    if (connectionState === "connected") setEverConnected(true);
+  }, [connectionState]);
 
   const dropped =
-    !self && (connectionState === "disconnected" || connectionState === "failed");
+    connectionState === "disconnected" || connectionState === "failed";
   const [graceElapsed, setGraceElapsed] = useState(false);
   useEffect(() => {
     if (!dropped) { setGraceElapsed(false); return; }
@@ -632,75 +795,77 @@ function ParticipantRow({
     return () => clearTimeout(timer);
   }, [dropped, connectionState, everConnected]);
 
-  const unreachable   = dropped && graceElapsed;
-  const reconnecting  = dropped && everConnected && !graceElapsed;
-  const connecting    =
-    !self && !everConnected && !unreachable && !reconnecting &&
+  const unreachable  = dropped && graceElapsed;
+  const reconnecting = dropped && everConnected && !graceElapsed;
+  const connecting   =
+    !everConnected && !unreachable && !reconnecting &&
     connectionState !== "connected" && connectionState !== "failed";
 
   const [showActions, setShowActions] = useState(false);
 
-  /* avatar ring color */
-  const ringColor = unreachable
-    ? "#ef4444"
-    : reconnecting
-      ? "#f59e0b"
-      : speaking
-        ? "#22c55e"
-        : "transparent";
+  const isSpeaking = speaking && !muted;
 
   return (
     <div
-      className="rounded-none relative flex items-center gap-2.5 px-2 py-1.5 group"
+      className={`flex items-center gap-2.5 px-3 py-2 relative transition-colors ${isSpeaking ? "gwh-peer-glow" : ""}`}
       style={{
-        background: speaking ? "rgba(34,197,94,.05)" : unreachable ? "rgba(239,68,68,.07)" : reconnecting ? "rgba(245,158,11,.07)" : "transparent",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        borderLeft: isSpeaking
+          ? "2px solid hsl(var(--primary))"
+          : unreachable
+            ? "2px solid #ef4444"
+            : reconnecting
+              ? "2px solid #f59e0b"
+              : "2px solid transparent",
+        background: isSpeaking
+          ? "rgba(var(--primary-rgb,0,255,65),0.05)"
+          : unreachable
+            ? "rgba(239,68,68,0.05)"
+            : reconnecting
+              ? "rgba(245,158,11,0.05)"
+              : "transparent",
         transition: "background .2s",
       }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Speaking accent bar */}
-      {speaking && (
-        <span
-          className="absolute start-0 top-1 bottom-1 w-[2px] rounded-full"
-          style={{ background: "#22c55e" }}
-        />
-      )}
-
       {/* Avatar */}
       <div
-        className={`relative w-8 h-8 shrink-0 overflow-hidden ${speaking ? "gwh-speak-ring" : ""}`}
+        className="w-7 h-7 shrink-0 flex items-center justify-center text-[11px] font-bold overflow-hidden"
         style={{
-          outline: `2px solid ${ringColor}`,
-          outlineOffset: "1px",
-          transition: "outline-color .2s",
+          background: "#111122",
+          border: isSpeaking
+            ? "1px solid rgba(var(--primary-rgb,0,255,65),0.4)"
+            : unreachable
+              ? "1px solid rgba(239,68,68,0.3)"
+              : "1px solid rgba(255,255,255,0.08)",
+          color: isSpeaking ? "hsl(var(--primary))" : "#888899",
+          opacity: unreachable ? 0.5 : 1,
         }}
       >
         {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt=""
-            className={`w-full h-full object-cover ${unreachable ? "opacity-40" : ""}`}
-          />
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-[12px] font-bold"
-            style={{ background: "#1e1e2a", color: "#9b9baa" }}
-          >
-            {name.charAt(0).toUpperCase()}
-          </div>
+          name.charAt(0).toUpperCase()
         )}
       </div>
 
       {/* Name */}
       <span
-        className={`flex-1 text-[12px] tracking-wide truncate ${unreachable ? "text-muted-foreground" : "text-foreground"}`}
+        className="flex-1 text-[11px] tracking-wide truncate"
+        style={{
+          color: unreachable
+            ? "rgba(255,255,255,0.3)"
+            : isSpeaking
+              ? "rgba(255,255,255,0.95)"
+              : "rgba(255,255,255,0.75)",
+        }}
       >
         {name}
       </span>
 
       {/* Leader actions (hover) */}
-      {!self && isLeader && showActions && !unreachable && (
+      {isLeader && showActions && !unreachable && (
         <div className="flex items-center gap-0.5 shrink-0">
           {!muted && (
             <button
@@ -728,26 +893,25 @@ function ParticipantRow({
         </div>
       )}
 
-      {/* Status icons / indicators */}
+      {/* Status icons */}
       <div className="flex items-center gap-1 shrink-0">
         {unreachable ? (
           <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
         ) : reconnecting ? (
-          <span className="flex items-center gap-1 text-[10px] text-amber-400">
+          <span className="flex items-center gap-1 text-[9px] text-amber-400">
             <Loader2 className="w-3 h-3 animate-spin" />
-            {t("voice.reconnecting")}
           </span>
         ) : (
           <>
-            {connecting && <Loader2 className="w-3 h-3 text-muted-foreground animate-spin" />}
+            {connecting && <Loader2 className="w-3 h-3 text-muted-foreground/40 animate-spin" />}
             {cameraEnabled && <Video className="w-3 h-3 text-primary" />}
             {sharing && <Monitor className="w-3 h-3 text-primary" />}
-            {speaking && !muted ? (
-              <SoundBars />
+            {isSpeaking ? (
+              <EqBars size="sm" />
             ) : muted ? (
               <MicOff className="w-3.5 h-3.5 text-destructive" />
             ) : (
-              <Mic className="w-3.5 h-3.5 text-muted-foreground/40" />
+              <Mic className="w-3.5 h-3.5 text-muted-foreground/25" />
             )}
           </>
         )}
@@ -756,59 +920,57 @@ function ParticipantRow({
   );
 }
 
-/* ── Screen / camera thumbnail ───────────────────────────────────────────── */
+/* ── Screen / camera thumbnail (HALO style) ──────────────────────────────── */
 function ScreenThumb({
   stream,
   label,
   self,
   cameraLabel,
   onOpen,
+  fps,
 }: {
   stream: MediaStream | null;
   label: string;
   self?: boolean;
   cameraLabel?: boolean;
   onOpen: () => void;
+  fps?: number;
 }) {
   const { t } = useTranslation("common");
   return (
     <button
       className="relative group overflow-hidden aspect-video bg-black"
-      style={{ border: "1px solid #1e1e2a" }}
+      style={{ border: "1px solid rgba(255,255,255,0.06)" }}
       onClick={onOpen}
       title={t("voice.openScreen", { label })}
     >
       <VideoTile stream={stream} className="w-full h-full object-contain" />
+      {/* Label bar */}
       <span
         className="absolute bottom-0 start-0 end-0 text-[9px] px-1.5 py-0.5 truncate text-start flex items-center gap-1"
-        style={{ background: "rgba(0,0,0,.75)", color: "#9b9baa" }}
+        style={{ background: "rgba(0,0,0,.8)", color: "rgba(255,255,255,0.55)" }}
       >
-        {cameraLabel && <Video className="w-2.5 h-2.5 shrink-0" />}
+        {cameraLabel && <Video className="w-2.5 h-2.5 shrink-0 text-primary" />}
+        {!cameraLabel && <Monitor className="w-2.5 h-2.5 shrink-0" />}
         {label}{self ? t("voice.youSuffix") : ""}
       </span>
+      {/* FPS badge (top-right) */}
+      {fps && (
+        <span
+          className="absolute top-1 end-1 text-[8px] px-1 font-bold"
+          style={{
+            background: "rgba(var(--primary-rgb,0,255,65),0.15)",
+            color: "hsl(var(--primary))",
+            border: "1px solid rgba(var(--primary-rgb,0,255,65),0.3)",
+          }}
+        >
+          {fps}fps
+        </span>
+      )}
+      {/* Expand overlay */}
       <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
         <Maximize2 className="w-4 h-4 text-white" />
       </span>
     </button>
-  );
-}
-
-/* ── Quality row helper ──────────────────────────────────────────────────── */
-function QualityRow({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground w-14 shrink-0">
-        {icon} {label}
-      </span>
-      <div className="flex-1">{children}</div>
-    </div>
   );
 }

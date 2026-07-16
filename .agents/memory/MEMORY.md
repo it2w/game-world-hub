@@ -21,3 +21,4 @@
 - [Pro subscription via Salla](pro-subscription-salla.md) — users table mirrors `isPro` from `pro_subscriptions`; Salla webhook activates Pro via a custom username checkout field and HMAC signature.
 - [API server zod imports](api-server-zod-imports.md) — API routes must validate with `@workspace/api-zod` generated schemas; `zod` is not a direct dependency of the API server package.
 - [Desktop app distribution](desktop-app-distribution.md) — ZIP via sidecar presigned PUT → GCS public bucket; GET /api/download/windows uses sidecar signed GET URL (not GCS SDK signing); makensis not in binary cache.
+- [Post-migration DB sequence fix](post-migration-sequence-fix.md) — after importing data with explicit IDs, all serial sequences must be reset via setval or new inserts fail with PK collision.

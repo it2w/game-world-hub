@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, like, or, desc, sql } from "drizzle-orm";
-import { db, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable } from "@workspace/db";
-import { requireOwner, signOwnerToken, type OwnerPayload } from "../middlewares/owner";
-import { findOwnerByUsername, findOwnerById, verifyPassword, hashPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
+import { eq, like, or, desc, sql, gte } from "drizzle-orm";
+import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable } from "@workspace/db";
+import { requireOwner, signOwnerToken } from "../middlewares/owner";
+import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -11,26 +11,55 @@ import { randomInt } from "node:crypto";
 
 const router: IRouter = Router();
 
-const RESET_TTL_MS = 10 * 60 * 1000;
+/* ─── Activity log table (created once on startup) ──────────────────────── */
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS owner_activity_log (
+    id          SERIAL PRIMARY KEY,
+    action      TEXT NOT NULL,
+    target_id   INTEGER,
+    target_name TEXT,
+    detail      TEXT,
+    owner_id    INTEGER NOT NULL,
+    owner_name  TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  )
+`).catch((e) => logger.error(e, "owner_activity_log: migration failed"));
+
+async function logOwnerAction(
+  ownerId: number,
+  ownerName: string,
+  action: string,
+  opts?: { targetId?: number; targetName?: string; detail?: string },
+) {
+  await pool.query(
+    `INSERT INTO owner_activity_log (action, target_id, target_name, detail, owner_id, owner_name)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [action, opts?.targetId ?? null, opts?.targetName ?? null, opts?.detail ?? null, ownerId, ownerName],
+  ).catch(() => {/* non-fatal */});
+}
+
+/* ─── Reset helpers ──────────────────────────────────────────────────────── */
+
+const RESET_TTL_MS     = 10 * 60 * 1000;
 const MAX_RESET_ATTEMPTS = 5;
 
-function generateResetCode(): string {
-  return String(randomInt(100000, 1000000));
-}
+function generateResetCode(): string { return String(randomInt(100000, 1000000)); }
 
 async function issueOwnerResetCode(ownerId: number): Promise<string> {
   const code = generateResetCode();
   const codeHash = await bcrypt.hash(code, 10);
-  await db
-    .update(superAdminsTable)
-    .set({ passwordResetCodeHash: codeHash, passwordResetExpiresAt: new Date(Date.now() + RESET_TTL_MS), passwordResetAttempts: 0 })
-    .where(eq(superAdminsTable.id, ownerId));
+  await db.update(superAdminsTable).set({
+    passwordResetCodeHash: codeHash,
+    passwordResetExpiresAt: new Date(Date.now() + RESET_TTL_MS),
+    passwordResetAttempts: 0,
+  }).where(eq(superAdminsTable.id, ownerId));
   return code;
 }
 
 async function verifyOwnerResetCode(ownerId: number, code: string): Promise<boolean> {
   const [owner] = await db.select().from(superAdminsTable).where(eq(superAdminsTable.id, ownerId)).limit(1);
-  if (!owner || !owner.passwordResetCodeHash || !owner.passwordResetExpiresAt) return false;
+  if (!owner?.passwordResetCodeHash || !owner.passwordResetExpiresAt) return false;
   if (owner.passwordResetExpiresAt < new Date()) return false;
   if ((owner.passwordResetAttempts ?? 0) >= MAX_RESET_ATTEMPTS) return false;
   const ok = await bcrypt.compare(code, owner.passwordResetCodeHash);
@@ -120,28 +149,50 @@ router.post("/owner/reset-password", async (req, res): Promise<void> => {
 /* ─── Stats ──────────────────────────────────────────────────────────────── */
 
 router.get("/owner/stats", requireOwner, async (_req, res): Promise<void> => {
-  const [userStats] = await db
-    .select({
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const week7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const h24   = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [[userStats], [codeStats], [subStats], [lfgStats], recentSignups] = await Promise.all([
+    db.select({
       totalUsers: sql<number>`count(*)::int`,
       proUsers:   sql<number>`count(*) filter (where is_pro = true)::int`,
       adminUsers: sql<number>`count(*) filter (where is_admin = true)::int`,
-    })
-    .from(usersTable);
+      newToday:   sql<number>`count(*) filter (where created_at >= ${today})::int`,
+      newWeek:    sql<number>`count(*) filter (where created_at >= ${week7})::int`,
+      activeToday:sql<number>`count(*) filter (where last_active_at >= ${h24})::int`,
+      suspended:  sql<number>`count(*) filter (where status = 'suspended')::int`,
+    }).from(usersTable),
 
-  const [codeStats] = await db
-    .select({ activeCodes: sql<number>`count(*) filter (where status = 'active')::int` })
-    .from(activationCodesTable);
+    db.select({ activeCodes: sql<number>`count(*) filter (where status = 'active')::int` }).from(activationCodesTable),
 
-  const [subStats] = await db
-    .select({ totalSubs: sql<number>`count(*)::int` })
-    .from(proSubscriptionsTable);
+    db.select({ totalSubs: sql<number>`count(*)::int` }).from(proSubscriptionsTable),
+
+    db.select({
+      openPosts:  sql<number>`count(*) filter (where status = 'open')::int`,
+      totalPosts: sql<number>`count(*)::int`,
+    }).from(lfgPostsTable),
+
+    db.select({
+      id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName,
+      isPro: usersTable.isPro, isAdmin: usersTable.isAdmin, createdAt: usersTable.createdAt,
+    }).from(usersTable).orderBy(desc(usersTable.createdAt)).limit(6),
+  ]);
 
   res.json({
-    totalUsers:        userStats?.totalUsers  ?? 0,
-    proUsers:          userStats?.proUsers    ?? 0,
-    adminUsers:        userStats?.adminUsers  ?? 0,
-    activeCodes:       codeStats?.activeCodes ?? 0,
-    totalSubscriptions: subStats?.totalSubs   ?? 0,
+    totalUsers:         userStats?.totalUsers   ?? 0,
+    proUsers:           userStats?.proUsers     ?? 0,
+    adminUsers:         userStats?.adminUsers   ?? 0,
+    newToday:           userStats?.newToday     ?? 0,
+    newWeek:            userStats?.newWeek      ?? 0,
+    activeToday:        userStats?.activeToday  ?? 0,
+    suspended:          userStats?.suspended    ?? 0,
+    activeCodes:        codeStats?.activeCodes  ?? 0,
+    totalSubscriptions: subStats?.totalSubs     ?? 0,
+    openLfgPosts:       lfgStats?.openPosts     ?? 0,
+    totalLfgPosts:      lfgStats?.totalPosts    ?? 0,
+    recentSignups: recentSignups.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() })),
   });
 });
 
@@ -156,22 +207,15 @@ router.get("/owner/users", requireOwner, async (req, res): Promise<void> => {
     ? or(like(usersTable.username, `%${q}%`), like(usersTable.displayName, `%${q}%`), like(usersTable.email, `%${q}%`))
     : undefined;
 
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(usersTable)
-    .where(where);
-
-  const users = await db
-    .select({
+  const [[{ total }], users] = await Promise.all([
+    db.select({ total: sql<number>`count(*)::int` }).from(usersTable).where(where),
+    db.select({
       id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName,
       email: usersTable.email, isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt,
       isAdmin: usersTable.isAdmin, status: usersTable.status, createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .where(where)
-    .orderBy(desc(usersTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+      lastActiveAt: usersTable.lastActiveAt,
+    }).from(usersTable).where(where).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset),
+  ]);
 
   res.json({
     total,
@@ -179,6 +223,7 @@ router.get("/owner/users", requireOwner, async (req, res): Promise<void> => {
       ...u,
       proExpiresAt: u.proExpiresAt?.toISOString() ?? null,
       createdAt:    u.createdAt.toISOString(),
+      lastActiveAt: u.lastActiveAt?.toISOString() ?? null,
     })),
   });
 });
@@ -190,6 +235,7 @@ router.post("/owner/users/:id/pro", requireOwner, async (req, res): Promise<void
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   await activateProForUser(userId, { provider: "owner", durationDays });
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "activate_pro", { targetId: userId, targetName: user.username, detail: `${durationDays} days` });
   logger.info({ userId, durationDays, by: req.owner!.ownerId }, "owner: activated pro");
   res.json({ ok: true });
 });
@@ -197,7 +243,9 @@ router.post("/owner/users/:id/pro", requireOwner, async (req, res): Promise<void
 router.delete("/owner/users/:id/pro", requireOwner, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);
   if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   await deactivatePro(userId);
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "deactivate_pro", { targetId: userId, targetName: user?.username });
   logger.info({ userId, by: req.owner!.ownerId }, "owner: deactivated pro");
   res.json({ ok: true });
 });
@@ -209,8 +257,88 @@ router.post("/owner/users/:id/admin", requireOwner, async (req, res): Promise<vo
   const [user]  = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   await db.update(usersTable).set({ isAdmin }).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, isAdmin ? "grant_admin" : "revoke_admin", { targetId: userId, targetName: user.username });
   logger.info({ userId, isAdmin, by: req.owner!.ownerId }, "owner: toggled admin");
   res.json({ ok: true });
+});
+
+router.post("/owner/users/:id/suspend", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set({ status: "suspended" }).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "suspend_user", { targetId: userId, targetName: user.username });
+  logger.info({ userId, by: req.owner!.ownerId }, "owner: suspended user");
+  res.json({ ok: true });
+});
+
+router.delete("/owner/users/:id/suspend", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set({ status: "offline" }).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "unsuspend_user", { targetId: userId, targetName: user.username });
+  logger.info({ userId, by: req.owner!.ownerId }, "owner: unsuspended user");
+  res.json({ ok: true });
+});
+
+/* ─── Admins ─────────────────────────────────────────────────────────────── */
+
+router.get("/owner/admins", requireOwner, async (_req, res): Promise<void> => {
+  const admins = await db
+    .select({
+      id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName,
+      email: usersTable.email, status: usersTable.status, isPro: usersTable.isPro,
+      createdAt: usersTable.createdAt, lastActiveAt: usersTable.lastActiveAt,
+      lfgCount: sql<number>`(select count(*)::int from lfg_posts where author_id = ${usersTable.id})`,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.isAdmin, true))
+    .orderBy(desc(usersTable.createdAt));
+
+  res.json({
+    items: admins.map((a) => ({
+      ...a,
+      createdAt:    a.createdAt.toISOString(),
+      lastActiveAt: a.lastActiveAt?.toISOString() ?? null,
+    })),
+  });
+});
+
+/* ─── Activity Log ───────────────────────────────────────────────────────── */
+
+router.get("/owner/activity-log", requireOwner, async (req, res): Promise<void> => {
+  const limit  = Math.min(Number(req.query.limit) || 50, 200);
+  const offset = Number(req.query.offset) || 0;
+
+  const { rows } = await pool.query<{
+    id: number; action: string; target_id: number | null; target_name: string | null;
+    detail: string | null; owner_id: number; owner_name: string; created_at: string;
+  }>(
+    `SELECT id, action, target_id, target_name, detail, owner_id, owner_name, created_at
+     FROM owner_activity_log
+     ORDER BY created_at DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset],
+  );
+
+  const [{ total }] = (await pool.query<{ total: number }>("SELECT count(*)::int AS total FROM owner_activity_log")).rows;
+
+  res.json({
+    total,
+    items: rows.map((r) => ({
+      id: r.id,
+      action:     r.action,
+      targetId:   r.target_id,
+      targetName: r.target_name,
+      detail:     r.detail,
+      ownerId:    r.owner_id,
+      ownerName:  r.owner_name,
+      createdAt:  r.created_at,
+    })),
+  });
 });
 
 /* ─── Activation Codes ───────────────────────────────────────────────────── */
@@ -221,8 +349,8 @@ router.get("/owner/activation-codes", requireOwner, async (_req, res): Promise<v
     items: codes.map((c) => ({
       id: c.id, code: c.code, status: c.status, durationDays: c.durationDays,
       maxUses: c.maxUses, usedCount: c.usedCount,
-      expiresAt:  c.expiresAt?.toISOString()  ?? null,
-      createdAt:  c.createdAt.toISOString(),
+      expiresAt: c.expiresAt?.toISOString()  ?? null,
+      createdAt: c.createdAt.toISOString(),
     })),
   });
 });
@@ -243,6 +371,7 @@ router.post("/owner/activation-codes", requireOwner, async (req, res): Promise<v
     expiresAt:    expiresAt ? new Date(expiresAt) : null,
   }).returning();
 
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "create_code", { detail: `${finalCode} (${durationDays}d × ${maxUses})` });
   logger.info({ code: finalCode, by: req.owner!.ownerId }, "owner: created activation code");
   res.status(201).json({
     id: row.id, code: row.code, status: row.status, durationDays: row.durationDays,
@@ -255,7 +384,9 @@ router.post("/owner/activation-codes", requireOwner, async (req, res): Promise<v
 router.delete("/owner/activation-codes/:id", requireOwner, async (req, res): Promise<void> => {
   const codeId = Number(req.params.id);
   if (!codeId) { res.status(400).json({ error: "Invalid code id" }); return; }
+  const [code] = await db.select({ code: activationCodesTable.code }).from(activationCodesTable).where(eq(activationCodesTable.id, codeId)).limit(1);
   await db.update(activationCodesTable).set({ status: "inactive" }).where(eq(activationCodesTable.id, codeId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "disable_code", { detail: code?.code });
   logger.info({ codeId, by: req.owner!.ownerId }, "owner: disabled activation code");
   res.json({ ok: true });
 });

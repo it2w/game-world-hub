@@ -14,6 +14,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { AnimatedLogo } from "@/components/animated-logo";
+import {
   Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
 } from "lucide-react";
@@ -29,15 +40,14 @@ function ConvMenu({
   onHide,
   onRestore,
   onDelete,
-  onLeave,
 }: {
   conv: any;
   isHidden: boolean;
   isActive: boolean;
   onHide: () => void;
   onRestore: () => void;
+  /** onDelete fires only for direct conversations — caller shows confirm dialog */
   onDelete: () => void;
-  onLeave: () => void;
 }) {
   const { t } = useTranslation("chat");
   const [open, setOpen] = useState(false);
@@ -69,7 +79,7 @@ function ConvMenu({
       {open && (
         <div className="absolute end-0 top-full mt-1 z-[200] w-52 bg-popover border border-border rounded-xl shadow-2xl py-1.5 text-sm overflow-hidden">
           {isHidden ? (
-            /* ── Hidden mode: restore only ── */
+            /* ── Hidden mode: restore ── */
             <button
               className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start font-medium"
               onClick={() => { setOpen(false); onRestore(); }}
@@ -78,7 +88,7 @@ function ConvMenu({
               <span>{t("sidebar.restoreConversation")}</span>
             </button>
           ) : (
-            /* ── Normal mode: hide + delete/leave ── */
+            /* ── Normal mode ── */
             <>
               <button
                 className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start text-muted-foreground hover:text-foreground"
@@ -88,30 +98,18 @@ function ConvMenu({
                 <span>{t("sidebar.hideConversation")}</span>
               </button>
 
-              <div className="h-px bg-border mx-3 my-1" />
-
-              {conv.type === "direct" ? (
-                <button
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
-                  onClick={() => {
-                    setOpen(false);
-                    if (window.confirm(t("sidebar.confirmDeletePrompt"))) onDelete();
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 shrink-0" />
-                  <span>{t("sidebar.deleteConversation")}</span>
-                </button>
-              ) : (
-                <button
-                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
-                  onClick={() => {
-                    setOpen(false);
-                    if (window.confirm(t("sidebar.confirmLeavePrompt"))) onLeave();
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 shrink-0" />
-                  <span>{t("sidebar.leaveConversation")}</span>
-                </button>
+              {/* Delete only available for direct DMs — party chats are managed by the party */}
+              {conv.type === "direct" && (
+                <>
+                  <div className="h-px bg-border mx-3 my-1" />
+                  <button
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                    onClick={() => { setOpen(false); onDelete(); }}
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    <span>{t("sidebar.deleteConversation")}</span>
+                  </button>
+                </>
               )}
             </>
           )}
@@ -430,6 +428,17 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const [showSearch, setShowSearch] = useState(false);
   const [showPinned, setShowPinned] = useState(false);
 
+  // ── Custom confirm dialog (replaces window.confirm) ──
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    description: string;
+    onConfirm: () => void;
+  }>({ open: false, description: "", onConfirm: () => {} });
+
+  const openConfirm = (description: string, onConfirm: () => void) =>
+    setConfirmDialog({ open: true, description, onConfirm });
+  const closeConfirm = () => setConfirmDialog((d) => ({ ...d, open: false }));
+
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -541,20 +550,14 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   };
 
   const handleDeleteConv = (convId: number) => {
-    deleteConversationFull.mutate({ conversationId: convId }, {
-      onSuccess: () => {
-        invalidateConvs();
-        if (conversationId === convId) setLocation("/chat");
-      },
+    openConfirm(t("sidebar.confirmDeletePrompt"), () => {
+      deleteConversationFull.mutate({ conversationId: convId }, {
+        onSuccess: () => {
+          invalidateConvs();
+          if (conversationId === convId) setLocation("/chat");
+        },
+      });
     });
-  };
-
-  const handleLeaveConv = async (convId: number) => {
-    try {
-      await customFetch(`/api/conversations/${convId}/leave`, { method: "POST" });
-      invalidateConvs();
-      if (conversationId === convId) setLocation("/chat");
-    } catch {}
   };
 
   const pinnedMessages = useMemo(() => localMessages.filter((m) => m.isPinned), [localMessages]);
@@ -644,7 +647,6 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   onHide={() => handleHide(conv.id)}
                   onRestore={() => handleRestore(conv.id)}
                   onDelete={() => handleDeleteConv(conv.id)}
-                  onLeave={() => handleLeaveConv(conv.id)}
                 />
               </div>
             );
@@ -845,6 +847,30 @@ export default function Chat({ params }: { params: { conversationId?: string } }
           </div>
         )}
       </div>
+
+      {/* ── Custom confirm dialog ── */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && closeConfirm()}>
+        <AlertDialogContent className="max-w-sm text-center">
+          <AlertDialogHeader className="items-center gap-3">
+            <AnimatedLogo className="h-8 w-auto text-primary mx-auto" />
+            <AlertDialogTitle className="text-base">{t("sidebar.deleteConversation")}</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-2 gap-2 sm:gap-2 flex-row justify-center">
+            <AlertDialogCancel onClick={closeConfirm} className="flex-1">
+              {t("sidebar.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { confirmDialog.onConfirm(); closeConfirm(); }}
+              className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("sidebar.confirmDelete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

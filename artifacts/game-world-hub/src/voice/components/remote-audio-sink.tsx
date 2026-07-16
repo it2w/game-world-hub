@@ -5,18 +5,33 @@ import type { PeerUiState } from "../voice-context";
  * Renders a hidden <audio> element per remote peer so their microphone audio
  * actually plays. Mounted globally (inside the provider) so playback continues
  * regardless of which page is visible.
+ *
+ * `deafened` mutes ALL remote audio instantly without stopping the tracks,
+ * so the streams stay alive and resume cleanly when the user un-deafens.
  */
-export function RemoteAudioSink({ peers }: { peers: PeerUiState[] }) {
+export function RemoteAudioSink({
+  peers,
+  deafened,
+}: {
+  peers: PeerUiState[];
+  deafened: boolean;
+}) {
   return (
     <div aria-hidden className="sr-only">
       {peers.map((p) => (
-        <PeerAudio key={p.userId} stream={p.audioStream} />
+        <PeerAudio key={p.userId} stream={p.audioStream} deafened={deafened} />
       ))}
     </div>
   );
 }
 
-function PeerAudio({ stream }: { stream: MediaStream | null }) {
+function PeerAudio({
+  stream,
+  deafened,
+}: {
+  stream: MediaStream | null;
+  deafened: boolean;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -31,6 +46,14 @@ function PeerAudio({ stream }: { stream: MediaStream | null }) {
       });
     }
   }, [stream]);
+
+  // Apply deafen by toggling the `muted` attribute — the stream stays
+  // connected so audio resumes immediately when the user un-deafens.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.muted = deafened;
+  }, [deafened]);
 
   return <audio ref={ref} autoPlay playsInline />;
 }

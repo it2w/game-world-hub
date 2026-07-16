@@ -51,6 +51,8 @@ import {
   Video,
   VideoOff,
   Radio,
+  EarOff,
+  Ear,
 } from "lucide-react";
 
 /* ── Sound-bar keyframes injected once ──────────────────────────────────── */
@@ -89,6 +91,7 @@ export function VoicePanel() {
     activeRoom,
     peers,
     muted,
+    deafened,
     sharing,
     cameraEnabled,
     speaking,
@@ -97,6 +100,7 @@ export function VoicePanel() {
     voiceQuality,
     screenQuality,
     toggleMute,
+    toggleDeafen,
     toggleCamera,
     remoteMute,
     startScreenShare,
@@ -165,9 +169,10 @@ export function VoicePanel() {
     : peers;
 
   if (!demoRoom) return null;
-  const effectiveRoom  = demoRoom;
-  const effectivePeers = demoPeers;
-  const effectiveMuted = isPreview ? false : muted;
+  const effectiveRoom     = demoRoom;
+  const effectivePeers    = demoPeers;
+  const effectiveMuted    = isPreview ? false : muted;
+  const effectiveDeafened = isPreview ? false : deafened;
   const effectiveSpeaking = isPreview ? true : speaking;
 
   const screenSharers = effectivePeers.filter((p) => p.sharing && p.screenStream);
@@ -407,6 +412,16 @@ export function VoicePanel() {
             title={muted ? t("voice.unmute") : t("voice.mute")}
           >
             {muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </ControlBtn>
+
+          {/* Deafen */}
+          <ControlBtn
+            active={deafened}
+            activeColor="destructive"
+            onClick={toggleDeafen}
+            title={deafened ? t("voice.undeafen") : t("voice.deafen")}
+          >
+            {deafened ? <EarOff className="w-4 h-4" /> : <Ear className="w-4 h-4" />}
           </ControlBtn>
 
           {/* Camera */}

@@ -65,6 +65,7 @@ interface VoiceContextValue {
   activeRoom: ActiveRoom | null;
   peers: PeerUiState[];
   muted: boolean;
+  deafened: boolean;
   sharing: boolean;
   cameraEnabled: boolean;
   speaking: boolean;
@@ -85,6 +86,7 @@ interface VoiceContextValue {
   declineCall: () => void;
   cancelCall: () => void;
   toggleMute: () => void;
+  toggleDeafen: () => void;
   toggleCamera: () => Promise<void>;
   remoteMute: (userId: number) => void;
   startScreenShare: () => Promise<void>;
@@ -106,6 +108,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
   const [peersState, setPeersState] = useState<Record<number, PeerUiState>>({});
   const [muted, setMuted] = useState(false);
+  const [deafened, setDeafened] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [cameraEnabled, setCameraEnabledState] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -130,6 +133,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const activeRoomRef = useRef<ActiveRoom | null>(null);
   const mutedRef = useRef(false);
+  const deafenedRef = useRef(false);
+  // Track whether the user was already muted before deafening so we can
+  // restore the correct mic state when they un-deafen.
+  const mutedBeforeDeafenRef = useRef(false);
   const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
   const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
   const detectorRef = useRef<SpeakingDetector | null>(null);
@@ -750,6 +757,38 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     broadcastState();
   }, [broadcastState]);
 
+  /**
+   * Deafen: silence ALL incoming audio and force-mute the mic.
+   * Un-deafen: resume incoming audio; restore mic to the state it was in
+   * before deafening (staying muted if the user was already muted before).
+   */
+  const toggleDeafen = useCallback(() => {
+    const nextDeafened = !deafenedRef.current;
+    deafenedRef.current = nextDeafened;
+    setDeafened(nextDeafened);
+
+    if (nextDeafened) {
+      // Remember current mic state, then force-mute.
+      mutedBeforeDeafenRef.current = mutedRef.current;
+      if (!mutedRef.current) {
+        mutedRef.current = true;
+        setMuted(true);
+        const mic = micStreamRef.current;
+        if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = false));
+        broadcastState();
+      }
+    } else {
+      // Restore mic to pre-deafen state.
+      const wasMuted = mutedBeforeDeafenRef.current;
+      mutedRef.current = wasMuted;
+      setMuted(wasMuted);
+      const mic = micStreamRef.current;
+      if (mic) mic.getAudioTracks().forEach((t) => (t.enabled = !wasMuted));
+      broadcastState();
+    }
+    // RemoteAudioSink will react to the deafened state change automatically.
+  }, [broadcastState]);
+
   const stopCamera = useCallback(() => {
     const stream = cameraStreamRef.current;
     if (stream) stream.getTracks().forEach((t) => t.stop());
@@ -889,6 +928,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     activeRoom,
     peers,
     muted,
+    deafened,
     sharing,
     cameraEnabled,
     speaking,
@@ -908,6 +948,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     declineCall,
     cancelCall,
     toggleMute,
+    toggleDeafen,
     toggleCamera,
     remoteMute,
     startScreenShare,
@@ -920,7 +961,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   return (
     <VoiceContext.Provider value={value}>
       {children}
-      <RemoteAudioSink peers={peers} />
+      <RemoteAudioSink peers={peers} deafened={deafened} />
     </VoiceContext.Provider>
   );
 }

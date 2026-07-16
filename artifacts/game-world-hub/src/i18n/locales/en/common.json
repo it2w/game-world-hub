@@ -57,7 +57,9 @@
     "cameraOn": "Enable camera",
     "cameraOff": "Disable camera",
     "mutePeer": "Mute this participant",
-    "cameraLabel": "Camera"
+    "cameraLabel": "Camera",
+    "deafen": "Deafen (mute all audio)",
+    "undeafen": "Undeafen"
   },
   "call": {
     "incoming": "Incoming Call",

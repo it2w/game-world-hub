@@ -57,7 +57,9 @@
     "cameraOn": "تفعيل الكاميرا",
     "cameraOff": "إيقاف الكاميرا",
     "mutePeer": "كتم هذا المشارك",
-    "cameraLabel": "كاميرا"
+    "cameraLabel": "كاميرا",
+    "deafen": "دفن (كتم جميع الأصوات)",
+    "undeafen": "إلغاء الدفن"
   },
   "call": {
     "incoming": "مكالمة واردة",

@@ -16,6 +16,7 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
   type Participant,
+  type RemoteAudioTrack,
 } from "livekit-client";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiBase, getSignalingUrl } from "./webrtc";
@@ -23,6 +24,7 @@ import { RemoteAudioSink } from "./components/remote-audio-sink";
 import {
   DEFAULT_SCREEN_QUALITY,
   DEFAULT_VOICE_QUALITY,
+  VOICE_PRESETS,
   type ScreenQuality,
   type VoiceQuality,
 } from "./quality";
@@ -191,6 +193,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldConnectRef = useRef(false);
   const incomingCallRef = useRef<IncomingCall | null>(null);
+  const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
 
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
@@ -228,7 +231,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (!room) return;
     for (const p of room.remoteParticipants.values()) {
       for (const pub of p.audioTrackPublications.values()) {
-        pub.audioTrack?.setVolume(isDeafened ? 0 : 1);
+        // pub.audioTrack is RemoteAudioTrack here; TS union includes LocalAudioTrack, so cast.
+        (pub.audioTrack as RemoteAudioTrack | undefined)?.setVolume(isDeafened ? 0 : 1);
       }
     }
   }, []);
@@ -277,6 +281,19 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          // Explicit 48 kHz — Opus's native sample rate; avoids a resample step.
+          sampleRate: 48_000,
+          channelCount: 1,         // mono is optimal for voice
+        },
+        publishDefaults: {
+          // Honour the user's chosen quality tier from the moment of connection.
+          audioPreset: { maxBitrate: VOICE_PRESETS[voiceQualityRef.current].maxBitrate },
+          // DTX (Discontinuous Transmission) saves ~40 % bandwidth during silence
+          // but introduces compression artefacts on resume — off for gaming comms.
+          dtx: false,
+          // RED (redundant audio packets) recovers from up to 1 lost packet
+          // per frame with no extra latency — a net win on lossy connections.
+          red: true,
         },
       });
       livekitRef.current = room;
@@ -321,7 +338,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           const ms = track.mediaStream ?? null;
           if (track.kind === Track.Kind.Audio) {
             // Apply current deafen setting to newly subscribed tracks.
-            if (deafenedRef.current) pub.audioTrack?.setVolume(0);
+            if (deafenedRef.current) (pub.audioTrack as RemoteAudioTrack | undefined)?.setVolume(0);
             patchPeer(p.identity, { audioStream: ms, muted: false });
           } else if (track.kind === Track.Kind.Video) {
             if (pub.source === Track.Source.ScreenShare) {
@@ -749,8 +766,23 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setVoiceQuality = useCallback((q: VoiceQuality) => {
+    voiceQualityRef.current = q;
     setVoiceQualityState(q);
-    // LiveKit's adaptive stream / dynacast handles quality automatically.
+
+    // Apply the new bitrate cap to the live audio sender without re-connecting.
+    const room = livekitRef.current;
+    if (!room) return;
+    const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    // Access the underlying RTCRtpSender via the internal LiveKit track object.
+    const sender = (pub?.track as unknown as { sender?: RTCRtpSender } | undefined)?.sender;
+    if (!sender) return;
+    const params = sender.getParameters();
+    if (params.encodings?.length) {
+      for (const enc of params.encodings) {
+        enc.maxBitrate = VOICE_PRESETS[q].maxBitrate;
+      }
+      void sender.setParameters(params);
+    }
   }, []);
 
   const setScreenQuality = useCallback((q: ScreenQuality) => {

@@ -23,9 +23,9 @@ export interface ScreenPreset {
 }
 
 export const VOICE_PRESETS: Record<VoiceQuality, VoicePreset> = {
-  low: { label: "Low · 16 kbps", maxBitrate: 16_000 },
-  medium: { label: "Medium · 32 kbps", maxBitrate: 32_000 },
-  high: { label: "High · 64 kbps", maxBitrate: 64_000 },
+  low:    { label: "Low · 32 kbps",   maxBitrate:  32_000 },
+  medium: { label: "Medium · 64 kbps", maxBitrate:  64_000 },
+  high:   { label: "High · 128 kbps", maxBitrate: 128_000 },
 };
 
 export const SCREEN_PRESETS: Record<ScreenQuality, ScreenPreset> = {

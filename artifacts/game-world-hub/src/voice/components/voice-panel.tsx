@@ -51,7 +51,6 @@ import {
   Video,
   VideoOff,
   Headphones,
-  EarOff,
 } from "lucide-react";
 
 /* ── HALO keyframes injected once ───────────────────────────────────────── */
@@ -536,7 +535,7 @@ export function VoicePanel() {
             onClick={toggleDeafen}
             title={deafened ? t("voice.undeafen") : t("voice.deafen")}
           >
-            {deafened ? <EarOff className="w-4 h-4" /> : <Headphones className="w-4 h-4" />}
+            <Headphones className="w-4 h-4" />
           </ControlBtn>
 
           {/* Camera */}

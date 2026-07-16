@@ -104,7 +104,7 @@ curl -X PUT "$SIGNED" \
 
 ### Production URL
 
-By default the app connects to `https://game-world-hub.replit.app`.  
+By default the app connects to `https://gmes.app`.  
 Override at build time:
 
 ```bash

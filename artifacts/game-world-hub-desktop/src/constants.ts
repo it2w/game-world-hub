@@ -5,7 +5,7 @@
  *   GWH_HOSTED_URL=https://your-domain.com pnpm run build:win
  */
 export const HOSTED_URL: string =
-  process.env.GWH_HOSTED_URL ?? 'https://game-world-hub.replit.app';
+  process.env.GWH_HOSTED_URL ?? 'https://gmes.app';
 
 export const HOSTED_API_BASE: string = `${HOSTED_URL}`;
 

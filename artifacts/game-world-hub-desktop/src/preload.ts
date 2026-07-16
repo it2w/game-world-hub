@@ -20,7 +20,7 @@ export type ElectronAPI = {
   /** 'electron' — lets the web app detect it is running in the desktop shell */
   readonly platform: 'electron';
 
-  /** Production API base URL (e.g. https://game-world-hub.replit.app) */
+  /** Production API base URL (e.g. https://gmes.app) */
   readonly apiBaseUrl: string;
 
   // ── Auth ──────────────────────────────────────────────────────────────────

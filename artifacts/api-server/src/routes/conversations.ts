@@ -442,6 +442,25 @@ router.delete("/conversations/:conversationId", requireAuth, async (req, res): P
   res.json({ success: true });
 });
 
+// POST /conversations/:conversationId/leave — permanently remove self from conversation
+router.post("/conversations/:conversationId/leave", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const conversationId = parseInt(raw, 10);
+
+  const [membership] = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+  if (!membership) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  await db
+    .delete(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+
+  res.json({ success: true });
+});
+
 // POST /conversations/:conversationId/restore — unhide
 router.post("/conversations/:conversationId/restore", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;

@@ -25,15 +25,19 @@ import { useVoice } from "@/voice/voice-context";
 function ConvMenu({
   conv,
   isHidden,
+  isActive,
   onHide,
   onRestore,
   onDelete,
+  onLeave,
 }: {
   conv: any;
   isHidden: boolean;
+  isActive: boolean;
   onHide: () => void;
   onRestore: () => void;
   onDelete: () => void;
+  onLeave: () => void;
 }) {
   const { t } = useTranslation("chat");
   const [open, setOpen] = useState(false);
@@ -52,7 +56,11 @@ function ConvMenu({
     <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((s) => !s); }}
-        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+        className={`p-1.5 rounded-md hover:bg-black/20 transition-all ${
+          isActive
+            ? "text-foreground/60 hover:text-foreground opacity-100"
+            : "text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
+        }`}
         title={t("sidebar.options")}
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -61,6 +69,7 @@ function ConvMenu({
       {open && (
         <div className="absolute end-0 top-full mt-1 z-[200] w-52 bg-popover border border-border rounded-xl shadow-2xl py-1.5 text-sm overflow-hidden">
           {isHidden ? (
+            /* ── Hidden mode: restore only ── */
             <button
               className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start font-medium"
               onClick={() => { setOpen(false); onRestore(); }}
@@ -69,30 +78,41 @@ function ConvMenu({
               <span>{t("sidebar.restoreConversation")}</span>
             </button>
           ) : (
-            <button
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start"
-              onClick={() => { setOpen(false); onHide(); }}
-            >
-              <EyeOff className="w-4 h-4 shrink-0 text-muted-foreground" />
-              <span>{t("sidebar.hideConversation")}</span>
-            </button>
-          )}
-
-          {conv.type === "direct" && (
+            /* ── Normal mode: hide + delete/leave ── */
             <>
-              <div className="h-px bg-border mx-3 my-1" />
               <button
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
-                onClick={() => {
-                  setOpen(false);
-                  if (window.confirm(t("sidebar.confirmDeletePrompt"))) {
-                    onDelete();
-                  }
-                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-start text-muted-foreground hover:text-foreground"
+                onClick={() => { setOpen(false); onHide(); }}
               >
-                <Trash2 className="w-4 h-4 shrink-0" />
-                <span>{t("sidebar.deleteConversation")}</span>
+                <EyeOff className="w-4 h-4 shrink-0" />
+                <span>{t("sidebar.hideConversation")}</span>
               </button>
+
+              <div className="h-px bg-border mx-3 my-1" />
+
+              {conv.type === "direct" ? (
+                <button
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                  onClick={() => {
+                    setOpen(false);
+                    if (window.confirm(t("sidebar.confirmDeletePrompt"))) onDelete();
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>{t("sidebar.deleteConversation")}</span>
+                </button>
+              ) : (
+                <button
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                  onClick={() => {
+                    setOpen(false);
+                    if (window.confirm(t("sidebar.confirmLeavePrompt"))) onLeave();
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>{t("sidebar.leaveConversation")}</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -529,6 +549,14 @@ export default function Chat({ params }: { params: { conversationId?: string } }
     });
   };
 
+  const handleLeaveConv = async (convId: number) => {
+    try {
+      await customFetch(`/api/conversations/${convId}/leave`, { method: "POST" });
+      invalidateConvs();
+      if (conversationId === convId) setLocation("/chat");
+    } catch {}
+  };
+
   const pinnedMessages = useMemo(() => localMessages.filter((m) => m.isPinned), [localMessages]);
 
   const filteredMessages = useMemo(() => {
@@ -574,7 +602,9 @@ export default function Chat({ params }: { params: { conversationId?: string } }
               <div
                 key={conv.id}
                 className={`group relative flex items-center gap-2.5 px-2 py-1.5 mx-2 my-0.5 rounded-md cursor-pointer transition-colors ${
-                  isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  isActive
+                    ? "bg-foreground/[0.07] text-foreground ring-1 ring-border/40"
+                    : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
                 } ${showHidden ? "opacity-60 hover:opacity-100" : ""}`}
                 onClick={() => !showHidden && setLocation(`/chat/${conv.id}`)}
               >
@@ -610,9 +640,11 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 <ConvMenu
                   conv={conv}
                   isHidden={showHidden}
+                  isActive={isActive}
                   onHide={() => handleHide(conv.id)}
                   onRestore={() => handleRestore(conv.id)}
                   onDelete={() => handleDeleteConv(conv.id)}
+                  onLeave={() => handleLeaveConv(conv.id)}
                 />
               </div>
             );

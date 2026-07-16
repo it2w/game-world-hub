@@ -199,6 +199,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const incomingCallRef = useRef<IncomingCall | null>(null);
   const voiceQualityRef = useRef<VoiceQuality>(DEFAULT_VOICE_QUALITY);
   const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
+  // Holds the raw MediaStreamTrack we published — needed for unpublishTrack().
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
@@ -765,83 +767,74 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     try {
       const preset = SCREEN_PRESETS[screenQualityRef.current];
 
-      // Pass capture constraints so getDisplayMedia requests the right resolution/fps.
-      const captureOptions: ScreenShareCaptureOptions = {
-        // 'detail' tells the encoder this is screen content (sharp text/UI),
-        // not motion video — uses intra-frame coding for sharpness over smoothness.
-        contentHint: "detail",
-        resolution: {
-          width: preset.width,
-          height: preset.height,
-          frameRate: preset.frameRate,
+      // ── Step 1: capture the screen ourselves ─────────────────────────────────
+      // We bypass setScreenShareEnabled() because LiveKit v2 internally hardcodes
+      // simulcast for screen share (q + h layers) regardless of simulcast:false.
+      // Calling getDisplayMedia + publishTrack directly lets us publish a single
+      // encoding with no rid, so the SFU sees only one stream and must forward it.
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width:     { ideal: preset.width },
+          height:    { ideal: preset.height },
+          frameRate: { ideal: preset.frameRate },
         },
-      };
+        audio: false,
+      });
 
-      // Pass publish options so LiveKit caps the sender bitrate from the start.
-      const publishOptions: TrackPublishOptions = {
-        screenShareEncoding: {
-          maxBitrate: preset.maxBitrate,
-          maxFramerate: preset.frameRate,
-          // "high" tells the browser's scheduler to prioritise this sender
-          // over other network traffic on the same connection.
-          priority: "high",
-        },
-        // VP9 gives ~50 % better compression than VP8 at the same bitrate —
-        // critical for screen content where QP 104 was measured with VP8.
-        // It also has temporal scalability: under congestion it drops fps
-        // gracefully instead of freezing (VP8 freezes at 6 fps).
-        videoCodec: "vp9",
-        // Completely disable simulcast for screen share.
-        // Simulcast adds lower-resolution spatial layers that the SFU picks
-        // under congestion, causing the 960×540 @ 6 fps result we observed.
-        simulcast: false,
-        // Belt-and-suspenders: clear the simulcast layer list so LiveKit
-        // cannot add default screen-share layers behind our back.
-        screenShareSimulcastLayers: [],
-      };
-
-      await room.localParticipant.setScreenShareEnabled(true, captureOptions, publishOptions);
-
-      // LiveKit sometimes ignores simulcast:false for screen share and still creates
-      // multiple RTP encodings (rid q/h/f). The SFU then picks the lowest layer (q).
-      // Fix: after publishing, set all-but-the-best encoding to active:false via
-      // RTCRtpSender.setParameters. This forces the SFU to use only the full-res layer.
-      const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-      const sender = (pub?.track as unknown as { sender?: RTCRtpSender } | undefined)?.sender;
-      if (sender) {
-        const params = sender.getParameters();
-        if (params.encodings && params.encodings.length > 0) {
-          // LiveKit screen-share rid order: q (worst) → h → f (best).
-          // Pick the best layer: prefer rid "f", else last index.
-          let bestIdx = params.encodings.length - 1;
-          for (let i = 0; i < params.encodings.length; i++) {
-            if (params.encodings[i].rid === "f") { bestIdx = i; break; }
-            if (params.encodings[i].rid === "h") bestIdx = i;
-          }
-          for (let i = 0; i < params.encodings.length; i++) {
-            const enc = params.encodings[i];
-            if (i === bestIdx) {
-              enc.active = true;
-              enc.maxBitrate = preset.maxBitrate;
-              enc.maxFramerate = preset.frameRate;
-              enc.priority = "high";
-            } else {
-              // Disable every lower-quality simulcast layer.
-              enc.active = false;
-            }
-          }
-          void sender.setParameters(params);
-        }
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
       }
+
+      // 'detail' hint: encoder prioritises sharpness (intra prediction) over
+      // motion smoothness — exactly right for UI/text screen content.
+      videoTrack.contentHint = "detail";
+      screenTrackRef.current = videoTrack;
+
+      // Handle browser "Stop sharing" button — mirrors setScreenShareEnabled behaviour.
+      videoTrack.addEventListener("ended", () => {
+        const r = livekitRef.current;
+        if (r && screenTrackRef.current) {
+          void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
+          screenTrackRef.current = null;
+        }
+      });
+
+      // ── Step 2: publish with a single encoding — no rid, no simulcast ────────
+      // screenShareEncoding sets the RTCRtpEncodingParameters on the lone sender;
+      // simulcast:false + empty screenShareSimulcastLayers are belt-and-suspenders.
+      await room.localParticipant.publishTrack(videoTrack, {
+        source: Track.Source.ScreenShare,
+        videoCodec: "vp9" as VideoCodec,
+        simulcast: false,
+        screenShareSimulcastLayers: [],
+        screenShareEncoding: {
+          maxBitrate:   preset.maxBitrate,
+          maxFramerate: preset.frameRate,
+          priority:     "high",
+        },
+      } as TrackPublishOptions);
     } catch {
       setError("Screen share was cancelled");
+      if (screenTrackRef.current) {
+        screenTrackRef.current.stop();
+        screenTrackRef.current = null;
+      }
     }
   }, []);
 
   const stopScreenShare = useCallback(() => {
     const room = livekitRef.current;
     if (!room) return;
-    void room.localParticipant.setScreenShareEnabled(false);
+    const track = screenTrackRef.current;
+    if (track) {
+      void room.localParticipant.unpublishTrack(track, true);
+      screenTrackRef.current = null;
+    } else {
+      // Fallback for any edge case where we lose the track ref.
+      void room.localParticipant.setScreenShareEnabled(false);
+    }
   }, []);
 
   const setVoiceQuality = useCallback((q: VoiceQuality) => {

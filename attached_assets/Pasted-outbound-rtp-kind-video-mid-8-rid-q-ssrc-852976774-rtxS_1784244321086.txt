@@ -1,0 +1,96 @@
+outbound-rtp (kind=video, mid=8, rid=q, ssrc=852976774, rtxSsrc=740636372, contentType=screenshare, active=true, scalabilityMode=L1T3, encoderImplementation=libvpx, powerEfficientEncoder=false, [codec]=VP8 (96), id=OT01V852976774)
+Statistics OT01V852976774
+timestamp	7/17/2026, 2:25:17 AM	
+active	true	
+bytesSent	6283037	
+codecId	COT01_96	🔗
+contentType	screenshare	
+encoderImplementation	libvpx	
+encodingIndex	0	
+firCount	0	
+framesEncoded	11383	
+framesSent	11383	
+headerBytesSent	2636890	
+hugeFramesSent	0	
+keyFramesEncoded	10	
+kind	video	
+mediaSourceId	SV0	🔗
+mid	8	
+nackCount	0	
+packetsSent	20664	
+packetsSentWithEct1	0	
+pliCount	1	
+powerEfficientEncoder	false	
+psnrMeasurements	799	
+psnrSum	{ "u": 39088.840420471584, "v": 40126.64487601688, "y": 38704.204557918056 }	
+qpSum	178679	
+qualityLimitationDurations	{ "bandwidth": 4.903, "cpu": 0, "none": 922.512, "other": 0 }	
+qualityLimitationReason	none	
+qualityLimitationResolutionChanges	1	
+remoteId	RIV852976774	🔗
+retransmittedBytesSent	0	
+retransmittedPacketsSent	0	
+rid	q	
+rtxSsrc	740636372	
+scalabilityMode	L1T3	
+ssrc	852976774	
+targetBitrate	625000	
+totalEncodeTime	12.763	
+totalEncodedBytesTarget	0	
+totalPacketSendDelay	33.278124999999996	
+transportId	T01	🔗
+type	outbound-rtp	
+[codec]	VP8 (96)	
+[bytesSent_in_bits/s]	0	
+[headerBytesSent_in_bits/s]	0	
+[retransmittedBytesSent_in_bits/s]	0	
+[framesEncoded/s]	0	
+[framesSent/s]	0	
+[totalEncodedBytesTarget_in_bits/s]	0	
+outbound-rtp (kind=video, mid=8, rid=h, ssrc=3286575372, rtxSsrc=3938231225, contentType=screenshare, active=true, scalabilityMode=L1T3, encoderImplementation=libvpx, powerEfficientEncoder=false, [codec]=VP8 (96), id=OT01V3286575372)
+Statistics OT01V3286575372
+timestamp	7/17/2026, 2:25:17 AM	
+active	true	
+bytesSent	29454	
+codecId	COT01_96	🔗
+contentType	screenshare	
+encoderImplementation	libvpx	
+encodingIndex	1	
+firCount	0	
+framesEncoded	5	
+framesSent	5	
+headerBytesSent	1020	
+hugeFramesSent	0	
+keyFramesEncoded	1	
+kind	video	
+mediaSourceId	SV0	🔗
+mid	8	
+nackCount	0	
+packetsSent	29	
+packetsSentWithEct1	0	
+pliCount	5	
+powerEfficientEncoder	false	
+psnrMeasurements	1	
+psnrSum	{ "u": 42.99589502226692, "v": 41.967114240144774, "y": 34.94577631801552 }	
+qpSum	511	
+qualityLimitationDurations	{ "bandwidth": 4.903, "cpu": 0, "none": 922.512, "other": 0 }	
+qualityLimitationReason	none	
+qualityLimitationResolutionChanges	1	
+retransmittedBytesSent	0	
+retransmittedPacketsSent	0	
+rid	h	
+rtxSsrc	3938231225	
+scalabilityMode	L1T3	
+ssrc	3286575372	
+totalEncodeTime	0.035	
+totalEncodedBytesTarget	0	
+totalPacketSendDelay	0.000029999999999999997	
+transportId	T01	🔗
+type	outbound-rtp	
+[codec]	VP8 (96)	
+[bytesSent_in_bits/s]	0	
+[headerBytesSent_in_bits/s]	0	
+[retransmittedBytesSent_in_bits/s]	0	
+[framesEncoded/s]	0	
+[framesSent/s]	0	
+[totalEncodedBytesTarget_in_bits/s]	0	

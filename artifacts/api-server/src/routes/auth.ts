@@ -87,7 +87,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { username, password, displayName } = parsed.data;
+  const { username, password, displayName, region } = parsed.data;
   const email = parsed.data.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     res.status(400).json({ error: "Invalid email address" });
@@ -119,6 +119,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     displayName,
     status: "online",
     email,
+    ...(region ? { region } : {}),
   }).returning();
 
   // Best-effort: registration must not fail if the email cannot be sent.

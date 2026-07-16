@@ -12,13 +12,50 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { XCircle, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type RegisterForm = {
   username: string;
   displayName: string;
   email: string;
   password: string;
+  region?: string;
 };
+
+// ── Country list (ISO 3166-1 alpha-2) ─────────────────────────────────────────
+
+const COUNTRIES = [
+  { code: "SA", name: "Saudi Arabia" },
+  { code: "AE", name: "United Arab Emirates" },
+  { code: "KW", name: "Kuwait" },
+  { code: "BH", name: "Bahrain" },
+  { code: "QA", name: "Qatar" },
+  { code: "OM", name: "Oman" },
+  { code: "JO", name: "Jordan" },
+  { code: "EG", name: "Egypt" },
+  { code: "IQ", name: "Iraq" },
+  { code: "SY", name: "Syria" },
+  { code: "LB", name: "Lebanon" },
+  { code: "YE", name: "Yemen" },
+  { code: "LY", name: "Libya" },
+  { code: "TN", name: "Tunisia" },
+  { code: "DZ", name: "Algeria" },
+  { code: "MA", name: "Morocco" },
+  { code: "SD", name: "Sudan" },
+  { code: "PS", name: "Palestine" },
+  { code: "US", name: "United States" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "CA", name: "Canada" },
+  { code: "AU", name: "Australia" },
+  { code: "DE", name: "Germany" },
+  { code: "FR", name: "France" },
+  { code: "TR", name: "Turkey" },
+  { code: "PK", name: "Pakistan" },
+  { code: "IN", name: "India" },
+  { code: "NG", name: "Nigeria" },
+  { code: "BR", name: "Brazil" },
+  { code: "OTHER", name: "Other" },
+];
 
 // ── Password requirements checker ─────────────────────────────────────────────
 
@@ -82,6 +119,7 @@ export default function Register() {
             /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&*)(_\-+=\\/؟!])/,
             t("register.validation.passwordComplexity"),
           ),
+        region: z.string().optional(),
       }),
     [t],
   );
@@ -93,6 +131,7 @@ export default function Register() {
       displayName: "",
       email: "",
       password: "",
+      region: "",
     },
   });
 
@@ -185,6 +224,30 @@ export default function Register() {
                     <Input type="password" {...field} data-testid="input-password" className="font-mono bg-background border-border focus-visible:ring-primary rounded-none" />
                   </FormControl>
                   <PasswordRequirements password={passwordValue ?? ""} />
+                  <FormMessage className="font-mono text-xs" />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="region"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-mono text-xs uppercase tracking-wider">{t("register.form.region")}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="font-mono bg-background border-border focus:ring-primary rounded-none">
+                        <SelectValue placeholder={t("register.form.regionPlaceholder")} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="font-mono rounded-none max-h-60">
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c.code} value={c.code} className="font-mono">
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage className="font-mono text-xs" />
                 </FormItem>
               )}

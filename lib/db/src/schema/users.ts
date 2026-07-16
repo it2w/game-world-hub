@@ -33,6 +33,8 @@ export const usersTable = pgTable("users", {
   proExpiresAt: timestamp("pro_expires_at", { withTimezone: true }),
   proOrderId: text("pro_order_id"),
   proProvider: text("pro_provider").notNull().default("salla"),
+  // User's self-reported country / region (e.g. "SA", "US"). Optional, set at registration.
+  region: text("region"),
   // Admin flag. Bootstrapped via ADMIN_USERNAMES env var; can also be promoted from the admin dashboard.
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

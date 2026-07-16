@@ -2464,8 +2464,8 @@ components:
           maxLength: 30
         password:
           type: string
-          minLength: 16
-          description: Must be at least 16 characters and include uppercase, lowercase, number, and symbol.
+          minLength: 12
+          description: Must be at least 12 characters and include uppercase, lowercase, number, and symbol.
         displayName:
           type: string
           minLength: 1
@@ -2474,6 +2474,9 @@ components:
           type: string
           minLength: 3
           maxLength: 255
+        region:
+          type: string
+          description: ISO 3166-1 alpha-2 country code (e.g. "SA", "US"). Optional.
 
     LoginInput:
       type: object

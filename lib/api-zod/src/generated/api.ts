@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyUsernameMin = 3;
 export const registerBodyUsernameMax = 30;
 
-export const registerBodyPasswordMin = 16;
+export const registerBodyPasswordMin = 12;
 
 export const registerBodyDisplayNameMax = 50;
 
@@ -34,9 +34,10 @@ export const registerBodyEmailMax = 255;
 
 export const RegisterBody = zod.object({
   "username": zod.string().min(registerBodyUsernameMin).max(registerBodyUsernameMax),
-  "password": zod.string().min(registerBodyPasswordMin).describe('Must be at least 16 characters and include uppercase, lowercase, number, and symbol.'),
+  "password": zod.string().min(registerBodyPasswordMin).describe('Must be at least 12 characters and include uppercase, lowercase, number, and symbol.'),
   "displayName": zod.string().min(1).max(registerBodyDisplayNameMax),
-  "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax)
+  "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax),
+  "region": zod.string().optional()
 })
 
 export const RegisterResponse = zod.object({

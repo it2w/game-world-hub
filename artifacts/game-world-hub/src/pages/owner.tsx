@@ -264,11 +264,19 @@ function ResetForm({ onBack, t, toast }: {
   const [newPassword, setNewPassword] = useState("");
   const [step,        setStep]        = useState<"request" | "confirm">("request");
   const [loading,     setLoading]     = useState(false);
+  const [devCode,     setDevCode]     = useState<string | null>(null);
 
   const requestReset = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     try {
-      await ownerFetch("owner/reset-password-request", "", { method: "POST", body: JSON.stringify({ username: username.trim() }) });
+      const result = await ownerFetch<{ ok: boolean; devCode?: string }>(
+        "owner/reset-password-request", "",
+        { method: "POST", body: JSON.stringify({ username: username.trim() }) }
+      );
+      if (result.devCode) {
+        setDevCode(result.devCode);
+        setCode(result.devCode); // pre-fill the code field
+      }
       setStep("confirm"); toast({ title: t("codeSent") });
     } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
     finally { setLoading(false); }
@@ -295,6 +303,25 @@ function ResetForm({ onBack, t, toast }: {
         </form>
       ) : (
         <form onSubmit={confirmReset} className="space-y-3">
+          {/* Dev-mode code banner — only shown when the API returns devCode */}
+          {devCode && (
+            <div className="rounded-none border border-yellow-500/40 bg-yellow-500/10 p-3 space-y-1">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-yellow-400">
+                ⚠ DEV MODE — الكود ظاهر هنا بدلاً من الإيميل
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-lg font-bold text-yellow-300 tracking-widest">{devCode}</span>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(devCode); }}
+                  className="text-yellow-500 hover:text-yellow-300 transition-colors"
+                  title="نسخ"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
           <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("resetCode")} className="font-mono rounded-none" />
           <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t("newPassword")} autoComplete="new-password" className="font-mono rounded-none" />
           <Button type="submit" className="w-full rounded-none font-mono" disabled={loading}>

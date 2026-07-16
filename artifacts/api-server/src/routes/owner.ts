@@ -124,9 +124,36 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
   const { username } = req.body as { username?: string };
   if (!username || typeof username !== "string") { res.status(400).json({ error: "Username is required" }); return; }
   const owner = await findOwnerByUsername(username.trim());
-  if (!owner || !owner.email) { res.json({ ok: true }); return; }
+  if (!owner) { res.json({ ok: true }); return; }
+
+  const isProd = process.env.NODE_ENV === "production";
+
+  // No email configured — block in prod with a clear message; expose code in dev.
+  if (!owner.email) {
+    if (isProd) {
+      res.status(400).json({ error: "No email address is configured for this owner account. Please set an email from the Account tab while logged in, or contact your system administrator." });
+      return;
+    }
+    const code = await issueOwnerResetCode(owner.id);
+    logger.warn({ ownerId: owner.id, code }, "[DEV] owner reset code (no email configured)");
+    res.json({ ok: true, devCode: code, devNote: "No email configured — code shown in dev mode only" });
+    return;
+  }
+
   const code = await issueOwnerResetCode(owner.id);
-  await sendEmail({ to: owner.email, subject: "Owner panel password reset", text: `Your owner panel password reset code is: ${code}\n\nThis code expires in 10 minutes.` });
+  await sendEmail({
+    to: owner.email,
+    subject: "Owner panel password reset",
+    text: `Your owner panel password reset code is: ${code}\n\nThis code expires in 10 minutes.`,
+  });
+
+  // In dev, also return the code so the owner doesn't need to read the mailbox file.
+  if (!isProd) {
+    logger.warn({ ownerId: owner.id, code }, "[DEV] owner reset code (also sent to dev mailbox)");
+    res.json({ ok: true, devCode: code, devNote: "Dev mode — code shown on screen; email captured to /tmp/gwh-dev-emails.jsonl" });
+    return;
+  }
+
   res.json({ ok: true });
 });
 

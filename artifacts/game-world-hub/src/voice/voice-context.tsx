@@ -534,7 +534,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
 
         case "call-accepted": {
           setOutgoingCall((prev) => {
-            if (prev && prev.callId === msg.callId && !activeRoomRef.current) {
+            // Do NOT check prev.callId === msg.callId strictly: call-ringing may
+            // arrive *after* call-accepted on fast networks, leaving prev.callId
+            // as the temporary "pending-X" placeholder.  As long as we have an
+            // outgoing call and are not yet in a room, accept and connect.
+            if (prev && !activeRoomRef.current) {
               void (async () => {
                 const room: ActiveRoom = {
                   kind: "call",
@@ -662,6 +666,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const leaveVoice = useCallback(() => {
+    // Notify the server so it can clean up the callRooms entry for direct calls.
+    const room = activeRoomRef.current;
+    if (room?.kind === "call") {
+      wsSend({ type: "call-end", room: room.room });
+    }
     teardownLiveKit();
     setActiveRoom(null);
     activeRoomRef.current = null;
@@ -669,7 +678,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setMuted(false);
     setCanRejoin(false);
     setError(null);
-  }, [teardownLiveKit]);
+  }, [teardownLiveKit, wsSend]);
 
   const rejoin = useCallback(async () => {
     const room = activeRoomRef.current;
@@ -711,6 +720,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       if (activeRoomRef.current) {
         setError("Leave your current channel before starting a call");
+        return;
+      }
+      // Fail early if the signaling socket isn't open — the invite would be lost silently.
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setError("Not connected — please wait a moment and try again");
         return;
       }
       setOutgoingCall({ callId: `pending-${user.userId}`, room: "", to: user });

@@ -163,11 +163,25 @@ function handleCallCancel(caller: Client, callId: string): void {
   if (targets) for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
 }
 
+/**
+ * Clean up an active call room when a participant explicitly leaves.
+ * Both the caller and the callee may send this; first one wins (idempotent).
+ */
+function handleCallEnd(client: Client, room: string): void {
+  if (!room.startsWith("call:")) return;
+  const entry = callRooms.get(room);
+  if (!entry) return;
+  if (entry.callerId !== client.userId && entry.targetId !== client.userId) return;
+  callRooms.delete(room);
+  logger.info({ room, by: client.userId }, "voice: call room cleaned up");
+}
+
 function cleanupCallsFor(client: Client): void {
   const remaining = clientsByUser.get(client.userId);
   const stillOnline = !!remaining && Array.from(remaining).some((c) => c !== client);
   if (stillOnline) return;
 
+  // Clean up pending (unanswered) calls.
   for (const [callId, call] of pendingCalls) {
     if (call.callerId === client.userId) {
       pendingCalls.delete(callId);
@@ -179,6 +193,17 @@ function cleanupCallsFor(client: Client): void {
       callRooms.delete(call.room);
       const callers = clientsByUser.get(call.callerId);
       if (callers) for (const c of callers) send(c.ws, { type: "call-declined", callId, by: client.userId });
+    }
+  }
+
+  // Clean up active call rooms where this user was a participant.
+  // These entries are no longer in pendingCalls (they were removed on accept)
+  // but linger in callRooms until explicitly removed. Release them now so the
+  // map doesn't grow unboundedly across many calls.
+  for (const [room, entry] of callRooms) {
+    if (entry.callerId === client.userId || entry.targetId === client.userId) {
+      callRooms.delete(room);
+      logger.info({ room, userId: client.userId }, "voice: call room released on WS disconnect");
     }
   }
 }
@@ -266,6 +291,9 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
       break;
     case "call-cancel":
       if (typeof msg.callId === "string") handleCallCancel(client, msg.callId);
+      break;
+    case "call-end":
+      if (typeof msg.room === "string") handleCallEnd(client, msg.room);
       break;
     case "admin-mute":
       if (typeof msg.room === "string" && typeof msg.userId === "number") {

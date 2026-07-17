@@ -279,18 +279,25 @@ export default function Settings() {
 
   useEffect(() => {
     if (me) {
-      profileForm.reset({
-        displayName: me.displayName,
-        bio: me.bio || "",
-        avatarUrl: me.avatarUrl || "",
-        bannerUrl: me.bannerUrl || "",
-      });
-      statusForm.reset({
-        status: me.status,
-        currentGame: me.currentGame || ""
-      });
+      // Only reset if the user hasn't started editing (dirty check prevents
+      // a background refetch wiping out in-progress changes).
+      if (!profileForm.formState.isDirty) {
+        profileForm.reset({
+          displayName: me.displayName,
+          bio: me.bio || "",
+          avatarUrl: me.avatarUrl || "",
+          bannerUrl: me.bannerUrl || "",
+        });
+      }
+      if (!statusForm.formState.isDirty) {
+        statusForm.reset({
+          status: me.status,
+          currentGame: me.currentGame || ""
+        });
+      }
     }
-  }, [me, profileForm, statusForm]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me]);
 
   const onProfileSubmit = (data: z.infer<typeof profileSchema>) => {
     if (!me) return;
@@ -299,6 +306,10 @@ export default function Settings() {
       {
         onSuccess: () => {
           toast({ title: t("toasts.profileSaved") });
+          // Reset with the saved values so the form is no longer dirty,
+          // then refresh both queries so UI reflects the new data.
+          profileForm.reset(data);
+          refreshMe();
           queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
         }
       }

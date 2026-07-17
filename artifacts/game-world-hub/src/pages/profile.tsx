@@ -183,150 +183,187 @@ export default function Profile() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="bg-card border border-border relative overflow-hidden">
-        {user.bannerUrl ? (
-          <div className="h-44 relative border-b border-border group">
+      {/* ── PROFILE CARD ─────────────────────────────────────── */}
+      <div className="bg-card border border-border overflow-hidden">
+
+        {/* BANNER — tall, identity anchored to bottom */}
+        <div className="relative h-52 overflow-hidden group">
+          {user.bannerUrl ? (
             <img src={user.bannerUrl} alt="" className="w-full h-full object-cover" data-testid="img-profile-banner" />
-            <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/20 to-transparent" />
-            {isOwner && (
-              <button
-                onClick={handleDeleteBanner}
-                disabled={deleteBanner.isPending}
-                className="absolute top-2 end-2 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                title={t("deleteBanner")}
-                data-testid="button-delete-banner"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        ) : isOwner ? (
-          <div className="h-32 relative border-b border-border bg-gradient-to-br from-primary/10 via-muted/20 to-background flex items-center justify-center">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/50 select-none">
-              {t("noBanner")}
-            </span>
-          </div>
-        ) : null}
-        <div className="p-8 relative flex flex-col md:flex-row gap-8 items-center md:items-start">
-        <div className="absolute top-0 end-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-        
-        <div className="relative z-10 shrink-0">
-          <div className="w-32 h-32 border-2 border-border bg-muted flex items-center justify-center relative group">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="font-mono text-5xl text-muted-foreground">{user.displayName.charAt(0)}</span>
-            )}
-            <div className="absolute -bottom-2 -end-2 p-1 bg-card">
-              <StatusBadge status={user.status} className="w-5 h-5 border-[3px]" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-primary/10 via-muted/20 to-background" />
+          )}
+          {/* gradient layers */}
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-card/70 via-transparent to-transparent" />
+
+          {/* Delete banner (owner only, on hover) */}
+          {isOwner && user.bannerUrl && (
+            <button
+              onClick={handleDeleteBanner}
+              disabled={deleteBanner.isPending}
+              className="absolute top-2 end-2 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive z-10"
+              title={t("deleteBanner")}
+              data-testid="button-delete-banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Friend action buttons — top-right, non-owner only */}
+          {friendStatus && friendStatus.state !== "self" && (
+            <div className="absolute top-4 end-4 flex items-center gap-2 z-10">
+              {friendStatus.state === "blocked" ? (
+                <Button onClick={handleUnblock} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 bg-background/90">
+                  <ShieldOff className="w-4 h-4" /> {t("friend.unblock")}
+                </Button>
+              ) : (
+                <>
+                  {friendStatus.state === "none" && (
+                    <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2 shadow-lg">
+                      <UserPlus className="w-4 h-4" /> {t("friend.add")}
+                    </Button>
+                  )}
+                  {friendStatus.state === "request_sent" && (
+                    <Button variant="outline" disabled className="font-mono rounded-none gap-2 bg-background/90">
+                      <Clock className="w-4 h-4" /> {t("friend.requestSent")}
+                    </Button>
+                  )}
+                  {friendStatus.state === "request_received" && (
+                    <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2 shadow-lg">
+                      <Check className="w-4 h-4" /> {t("friend.acceptRequest")}
+                    </Button>
+                  )}
+                  {friendStatus.state === "friends" && (
+                    <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 bg-background/90 group/btn">
+                      <UserCheck className="w-4 h-4 group-hover/btn:hidden" />
+                      <UserX className="w-4 h-4 hidden group-hover/btn:block text-destructive" />
+                      <span className="group-hover/btn:hidden">{t("friend.friends")}</span>
+                      <span className="hidden group-hover/btn:inline text-destructive">{t("friend.remove")}</span>
+                    </Button>
+                  )}
+                  <Button onClick={handleBlock} disabled={friendBusy} variant="outline" size="icon" title={t("friend.blockUser")} className="text-muted-foreground hover:text-destructive rounded-none bg-background/90">
+                    <Ban className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
-            {isOwner && user.avatarUrl && (
-              <button
-                onClick={handleDeleteAvatar}
-                disabled={deleteAvatar.isPending}
-                className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-destructive"
-                title={t("deleteAvatar")}
-                data-testid="button-delete-avatar"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            )}
+          )}
+
+          {/* Identity — anchored to banner bottom, left-padded for avatar */}
+          <div className="absolute bottom-0 start-0 end-0 px-6 pb-5">
+            <div className="ps-[140px]">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase drop-shadow-md">
+                  {user.displayName}
+                </h1>
+                {user.isPro && <ProBadge size="lg" />}
+              </div>
+              <p className="text-primary font-mono text-sm mt-0.5">@{user.username}</p>
+            </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex-1 text-center md:text-start space-y-4">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
-              <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <p className="text-primary font-mono text-sm">@{user.username}</p>
-                {user.isPro && <ProBadge size="lg" />}
-              </div>
+        {/* AVATAR ROW — overlaps banner */}
+        <div className="px-6 -mt-14 relative z-10 flex items-start">
+          <div className="relative shrink-0 group">
+            {/* Avatar circle — simple border, no glow */}
+            <div className="w-28 h-28 rounded-full border-4 border-card bg-muted overflow-hidden flex items-center justify-center">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-mono text-4xl text-muted-foreground select-none">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </span>
+              )}
+              {/* Delete avatar (owner, on hover) */}
+              {isOwner && user.avatarUrl && (
+                <button
+                  onClick={handleDeleteAvatar}
+                  disabled={deleteAvatar.isPending}
+                  className="absolute inset-0 rounded-full bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-destructive"
+                  title={t("deleteAvatar")}
+                  data-testid="button-delete-avatar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
-
-            {friendStatus && friendStatus.state !== "self" && (
-              <div className="shrink-0 flex items-center gap-2">
-                {friendStatus.state === "blocked" ? (
-                  <Button onClick={handleUnblock} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2">
-                    <ShieldOff className="w-4 h-4" /> {t("friend.unblock")}
-                  </Button>
-                ) : (
-                  <>
-                    {friendStatus.state === "none" && (
-                      <Button onClick={handleAdd} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                        <UserPlus className="w-4 h-4" /> {t("friend.add")}
-                      </Button>
-                    )}
-                    {friendStatus.state === "request_sent" && (
-                      <Button variant="outline" disabled className="font-mono rounded-none gap-2">
-                        <Clock className="w-4 h-4" /> {t("friend.requestSent")}
-                      </Button>
-                    )}
-                    {friendStatus.state === "request_received" && (
-                      <Button onClick={handleAccept} disabled={friendBusy} className="font-mono rounded-none gap-2">
-                        <Check className="w-4 h-4" /> {t("friend.acceptRequest")}
-                      </Button>
-                    )}
-                    {friendStatus.state === "friends" && (
-                      <Button onClick={handleRemove} disabled={friendBusy} variant="outline" className="font-mono rounded-none gap-2 group">
-                        <UserCheck className="w-4 h-4 group-hover:hidden" />
-                        <UserX className="w-4 h-4 hidden group-hover:block text-destructive" />
-                        <span className="group-hover:hidden">{t("friend.friends")}</span>
-                        <span className="hidden group-hover:inline text-destructive">{t("friend.remove")}</span>
-                      </Button>
-                    )}
-                    <Button onClick={handleBlock} disabled={friendBusy} variant="ghost" size="icon" title={t("friend.blockUser")} className="text-muted-foreground hover:text-destructive rounded-none">
-                      <Ban className="w-4 h-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Status pill — fully OUTSIDE the avatar, below it */}
+            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-full whitespace-nowrap shadow-sm">
+              <StatusBadge status={user.status} className="w-2 h-2 shrink-0" />
+              <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
+                {user.status}
+              </span>
+            </div>
           </div>
-          
+        </div>
+
+        {/* BODY */}
+        <div className="px-6 pt-8 pb-6 space-y-4">
+
+          {/* Bio */}
           {user.bio && (
-            <p className="max-w-2xl text-muted-foreground border-s-2 border-border ps-4 italic">
+            <p className="text-muted-foreground border-s-2 border-border ps-4 italic font-mono text-sm leading-relaxed">
               "{user.bio}"
             </p>
           )}
 
-          {/* Auto-computed platform badges */}
+          {/* Rank + XP block */}
           {"tier" in user && user.tier && (
-            <div className="flex items-end gap-5 py-2 flex-wrap justify-center md:justify-start">
-              <TierBadge
-                tier={user.tier as TierName}
-                level={user.tierLevel ?? 1}
-                xpIntoLevel={user.xpIntoLevel ?? 0}
-                xpForNext={user.xpForNext ?? 400}
-                size="md"
-                showXpBar
-              />
-              <DivisionBadge
-                tier={user.tier as TierName}
-                level={user.tierLevel ?? 1}
-                size="md"
-              />
+            <div className="bg-background border border-border px-4 py-3 flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-4 shrink-0">
+                <TierBadge
+                  tier={user.tier as TierName}
+                  level={user.tierLevel ?? 1}
+                  xpIntoLevel={user.xpIntoLevel ?? 0}
+                  xpForNext={user.xpForNext ?? 400}
+                  size="sm"
+                />
+                <DivisionBadge
+                  tier={user.tier as TierName}
+                  level={user.tierLevel ?? 1}
+                  size="sm"
+                />
+              </div>
+              <div className="hidden sm:block w-px self-stretch bg-border shrink-0" />
+              <div className="flex-1 min-w-[120px] space-y-1.5">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>XP</span>
+                  <span className="text-primary">{user.xpIntoLevel ?? 0} / {user.xpForNext ?? 400}</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round(((user.xpIntoLevel ?? 0) / (user.xpForNext ?? 400)) * 100))}%` }}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-4 justify-center md:justify-start pt-2">
+          {/* Stats row */}
+          <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5">
-              <Gamepad2 className="w-4 h-4 text-primary" />
+              <Gamepad2 className="w-4 h-4 text-primary shrink-0" />
               <span className="text-muted-foreground uppercase tracking-widest">{t("activeProcess")}</span>
               {user.currentGame ? (
-                <span className="text-primary flex items-center gap-1"><Radio className="w-3 h-3 animate-pulse" />{user.currentGame}</span>
+                <span className="text-primary flex items-center gap-1">
+                  <Radio className="w-3 h-3 animate-pulse" />{user.currentGame}
+                </span>
               ) : (
                 <span className="text-muted-foreground">{t("none")}</span>
               )}
             </div>
             <div className="flex items-center gap-2 text-xs font-mono bg-background border border-border px-3 py-1.5 text-muted-foreground">
-              <Calendar className="w-4 h-4" /> 
+              <Calendar className="w-4 h-4 shrink-0" />
               {t("init", { date: format(new Date(user.createdAt), "yyyy.MM.dd") })}
             </div>
           </div>
 
+          {/* Content / social links */}
           {contentLinks && contentLinks.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center md:justify-start pt-1">
+            <div className="flex flex-wrap gap-2">
               {contentLinks.map(c => {
                 const meta = contentMeta(c.platform);
                 const Icon = meta?.icon ?? Radio;
@@ -348,7 +385,9 @@ export default function Profile() {
             </div>
           )}
         </div>
-        </div>
+
+        {/* Bottom accent line */}
+        <div className="h-0.5 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

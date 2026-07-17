@@ -20,6 +20,7 @@ function safeUser(
     username: u.username,
     displayName: u.displayName,
     avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
+    bannerUrl: toPublicImageUrl(u.bannerUrl ?? null),
     bio: u.bio ?? null,
     status: u.status,
     currentGame: u.currentGame ?? null,

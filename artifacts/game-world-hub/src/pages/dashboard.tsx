@@ -173,35 +173,54 @@ export default function Dashboard() {
                     return (
                       <div
                         key={entry.id}
-                        className="group relative flex flex-col border border-border bg-background hover:border-primary/40 hover:bg-muted/10 transition-all duration-200"
+                        className="group relative flex flex-col border border-border bg-background hover:border-primary/40 transition-all duration-200 overflow-hidden"
                       >
                         {/* profile link area */}
-                        <Link href={`/profile/${f.id}`} className="flex flex-col gap-3 p-3 flex-1">
-                          {/* avatar + status */}
-                          <div className="flex items-start gap-3">
-                            <div className="relative shrink-0">
+                        <Link href={`/profile/${f.id}`} className="flex flex-col flex-1">
+                          {/* banner */}
+                          <div className="relative h-[60px] overflow-hidden shrink-0">
+                            {(f as any).bannerUrl ? (
+                              <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div
+                                className="w-full h-full"
+                                style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
+                          </div>
+
+                          {/* avatar — overlaps banner */}
+                          <div className="px-3 -mt-5">
+                            <div className="relative inline-block">
                               {f.avatarUrl ? (
-                                <img src={f.avatarUrl} alt="" className="w-12 h-12 object-cover border border-border" />
+                                <img
+                                  src={f.avatarUrl}
+                                  alt=""
+                                  className="w-10 h-10 object-cover rounded-full ring-[3px] ring-background border border-border/50"
+                                />
                               ) : (
-                                <div className="w-12 h-12 bg-muted flex items-center justify-center font-mono font-bold text-lg border border-border">
+                                <div className="w-10 h-10 rounded-full ring-[3px] ring-background border border-border/50 bg-muted flex items-center justify-center font-mono font-bold text-sm">
                                   {f.displayName.charAt(0).toUpperCase()}
                                 </div>
                               )}
-                              <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
+                              <StatusBadge status={f.status} className="absolute -bottom-0.5 -end-0.5 scale-90" />
                             </div>
-                            <div className="min-w-0 flex-1 pt-0.5">
-                              <div className="font-bold text-sm truncate leading-tight">{f.displayName}</div>
-                              {f.currentGame ? (
-                                <div className="text-[10px] text-primary font-mono truncate flex items-center gap-1 mt-1">
-                                  <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
-                                  {f.currentGame}
-                                </div>
-                              ) : (
-                                <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">
-                                  {f.status}
-                                </div>
-                              )}
-                            </div>
+                          </div>
+
+                          {/* info */}
+                          <div className="px-3 pb-3 pt-1.5">
+                            <div className="font-bold text-sm truncate leading-tight">{f.displayName}</div>
+                            {f.currentGame ? (
+                              <div className="text-[10px] text-primary font-mono truncate flex items-center gap-1 mt-1">
+                                <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
+                                {f.currentGame}
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">
+                                {f.status}
+                              </div>
+                            )}
                           </div>
                         </Link>
 

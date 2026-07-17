@@ -202,33 +202,52 @@ export default function Friends() {
                   return (
                     <div
                       key={entry.id}
-                      className="group border border-border bg-card hover:border-primary/30 hover:bg-muted/5 transition-all duration-200 flex flex-col"
+                      className="group border border-border bg-card hover:border-primary/30 transition-all duration-200 flex flex-col overflow-hidden"
                     >
-                      {/* main content row */}
-                      <div className="flex items-center gap-4 p-4">
-                        {/* avatar */}
-                        <Link href={`/profile/${f.id}`} className="relative shrink-0">
-                          {f.avatarUrl ? (
-                            <img src={f.avatarUrl} alt="" className="w-14 h-14 object-cover border border-border" />
+                      {/* banner + avatar header */}
+                      <Link href={`/profile/${f.id}`} className="block">
+                        {/* banner */}
+                        <div className="relative h-[76px] overflow-hidden">
+                          {(f as any).bannerUrl ? (
+                            <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <div
-                              className="w-14 h-14 flex items-center justify-center font-mono font-bold text-xl border border-border"
-                              style={{ background: isOnline ? "hsl(var(--primary)/0.1)" : "hsl(var(--muted))" }}
-                            >
-                              {f.displayName.charAt(0).toUpperCase()}
-                            </div>
+                              className="w-full h-full"
+                              style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.16) 0%, hsl(var(--primary)/0.03) 100%)" }}
+                            />
                           )}
-                          <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
-                        </Link>
+                          <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/10 to-transparent" />
+                        </div>
 
-                        {/* info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Link href={`/profile/${f.id}`} className="font-bold text-base truncate hover:text-primary transition-colors">
-                              {f.displayName}
-                            </Link>
+                        {/* avatar + badges row */}
+                        <div className="px-4 -mt-7 flex items-end gap-3">
+                          <div className="relative shrink-0">
+                            {f.avatarUrl ? (
+                              <img
+                                src={f.avatarUrl}
+                                alt=""
+                                className="w-14 h-14 object-cover rounded-full ring-[3px] ring-card border border-border/40"
+                              />
+                            ) : (
+                              <div
+                                className="w-14 h-14 rounded-full ring-[3px] ring-card border border-border/40 flex items-center justify-center font-mono font-bold text-xl"
+                                style={{ background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))" }}
+                              >
+                                {f.displayName.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
+                          </div>
+                          <div className="flex items-center gap-1.5 pb-1.5">
                             {f.tier && <TierPip tier={f.tier} />}
                             {f.isPro && <ProBadge size="sm" />}
+                          </div>
+                        </div>
+
+                        {/* info */}
+                        <div className="px-4 pb-3 pt-2">
+                          <div className="font-bold text-base truncate leading-tight hover:text-primary transition-colors">
+                            {f.displayName}
                           </div>
                           <div className="text-[11px] text-muted-foreground font-mono mt-0.5">@{f.username}</div>
                           {f.currentGame ? (
@@ -242,7 +261,7 @@ export default function Friends() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </Link>
 
                       {/* action bar */}
                       {isConfirming ? (

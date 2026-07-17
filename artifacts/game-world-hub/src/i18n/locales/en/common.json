@@ -60,7 +60,9 @@
     "cameraLabel": "Camera",
     "deafen": "Deafen (mute all audio)",
     "undeafen": "Undeafen",
-    "screenActive": "Screen Share Active"
+    "screenActive": "Screen Share Active",
+    "screenAudio": "Screen Audio",
+    "mic": "Mic"
   },
   "call": {
     "incoming": "Incoming Call",

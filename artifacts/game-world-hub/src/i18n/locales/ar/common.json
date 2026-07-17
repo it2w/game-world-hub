@@ -60,7 +60,9 @@
     "cameraLabel": "كاميرا",
     "deafen": "دفن (كتم جميع الأصوات)",
     "undeafen": "إلغاء الدفن",
-    "screenActive": "مشاركة الشاشة نشطة"
+    "screenActive": "مشاركة الشاشة نشطة",
+    "screenAudio": "صوت الشاشة",
+    "mic": "مايك"
   },
   "call": {
     "incoming": "مكالمة واردة",

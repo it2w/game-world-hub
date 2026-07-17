@@ -23,7 +23,7 @@ export default function Dashboard() {
     if (openingDm) return;
     setOpeningDm(friendId);
     try {
-      const conv = await customFetch<{ id: number }>(`/api/conversations/direct/${friendId}`, { method: "POST" });
+      const conv = await customFetch<{ id: number }>(`/api/conversations/direct/${friendId}`);
       navigate(`/chat/${conv.id}`);
     } finally {
       setOpeningDm(null);

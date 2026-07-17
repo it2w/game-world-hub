@@ -30,12 +30,9 @@ const makeImageRefSchema = (msg: string) => z
     msg,
   );
 
-const profileSchema = z.object({
-  displayName: z.string().min(1).max(50),
-  bio: z.string().max(500).optional(),
-  avatarUrl: makeImageRefSchema("").optional(),
-  bannerUrl: makeImageRefSchema("").optional(),
-});
+const displayNameSchema = z.object({ displayName: z.string().min(1).max(50) });
+const bioSchema = z.object({ bio: z.string().max(500).optional() });
+// avatarUrl / bannerUrl forms are defined inside the component (need imageRefSchema)
 
 const statusSchema = z.object({
   status: z.enum(["online", "away", "busy", "offline"]),
@@ -242,24 +239,31 @@ export default function Settings() {
     }
   };
 
-  const profileResolverSchema = useMemo(() => {
-    const imageRefSchema = makeImageRefSchema(t("validation.imageRef"));
-    return z.object({
-      displayName: z.string().min(1).max(50),
-      bio: z.string().max(500).optional(),
-      avatarUrl: imageRefSchema.optional(),
-      bannerUrl: imageRefSchema.optional(),
-    });
-  }, [t]);
+  const imageRefResolverSchema = useMemo(() => makeImageRefSchema(t("validation.imageRef")), [t]);
+  const avatarSchema = useMemo(() => z.object({ avatarUrl: imageRefResolverSchema.optional() }), [imageRefResolverSchema]);
+  const bannerSchema = useMemo(() => z.object({ bannerUrl: imageRefResolverSchema.optional() }), [imageRefResolverSchema]);
 
   const contentResolverSchema = useMemo(() => z.object({
     platform: z.enum(["twitch", "youtube", "tiktok", "kick"]),
     handle: z.string().min(1, t("validation.required")).max(100)
   }), [t]);
 
-  const profileForm = useForm<z.infer<typeof profileSchema>>({
-    resolver: zodResolver(profileResolverSchema),
-    defaultValues: { displayName: "", bio: "", avatarUrl: "", bannerUrl: "" }
+  // Four independent identity forms
+  const displayNameForm = useForm<z.infer<typeof displayNameSchema>>({
+    resolver: zodResolver(displayNameSchema),
+    defaultValues: { displayName: "" }
+  });
+  const avatarForm = useForm<{ avatarUrl?: string }>({
+    resolver: zodResolver(avatarSchema),
+    defaultValues: { avatarUrl: "" }
+  });
+  const bannerForm = useForm<{ bannerUrl?: string }>({
+    resolver: zodResolver(bannerSchema),
+    defaultValues: { bannerUrl: "" }
+  });
+  const bioForm = useForm<z.infer<typeof bioSchema>>({
+    resolver: zodResolver(bioSchema),
+    defaultValues: { bio: "" }
   });
 
   const statusForm = useForm<z.infer<typeof statusSchema>>({
@@ -279,36 +283,23 @@ export default function Settings() {
 
   useEffect(() => {
     if (me) {
-      // Only reset if the user hasn't started editing (dirty check prevents
-      // a background refetch wiping out in-progress changes).
-      if (!profileForm.formState.isDirty) {
-        profileForm.reset({
-          displayName: me.displayName,
-          bio: me.bio || "",
-          avatarUrl: me.avatarUrl || "",
-          bannerUrl: me.bannerUrl || "",
-        });
-      }
-      if (!statusForm.formState.isDirty) {
-        statusForm.reset({
-          status: me.status,
-          currentGame: me.currentGame || ""
-        });
-      }
+      if (!displayNameForm.formState.isDirty) displayNameForm.reset({ displayName: me.displayName });
+      if (!avatarForm.formState.isDirty)     avatarForm.reset({ avatarUrl: me.avatarUrl || "" });
+      if (!bannerForm.formState.isDirty)     bannerForm.reset({ bannerUrl: me.bannerUrl || "" });
+      if (!bioForm.formState.isDirty)        bioForm.reset({ bio: me.bio || "" });
+      if (!statusForm.formState.isDirty)     statusForm.reset({ status: me.status, currentGame: me.currentGame || "" });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
-  const onProfileSubmit = (data: z.infer<typeof profileSchema>) => {
+  const saveField = (data: Record<string, unknown>, onReset: () => void) => {
     if (!me) return;
     updateProfile.mutate(
       { userId: me.id, data },
       {
         onSuccess: () => {
           toast({ title: t("toasts.profileSaved") });
-          // Reset with the saved values so the form is no longer dirty,
-          // then refresh both queries so UI reflects the new data.
-          profileForm.reset(data);
+          onReset();
           refreshMe();
           queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
         }
@@ -392,20 +383,32 @@ export default function Settings() {
           {/* Language */}
           <LanguageCard />
 
-          {/* Identity Config */}
-          <div className="bg-card border border-border p-6">
-            <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+          {/* Identity Config — each field is its own independent form */}
+          <div className="bg-card border border-border p-6 space-y-6">
+            <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
               <User className="w-4 h-4" /> {t("identity.title")}
             </h2>
-            <Form {...profileForm}>
-              <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                <FormField control={profileForm.control} name="displayName" render={({ field }) => (
+
+            {/* Display name */}
+            <Form {...displayNameForm}>
+              <form onSubmit={displayNameForm.handleSubmit((d) => saveField(d, () => displayNameForm.reset(d)))} className="space-y-2">
+                <FormField control={displayNameForm.control} name="displayName" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.displayName")}</FormLabel>
-                    <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                    <div className="flex gap-2">
+                      <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !displayNameForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
+                    </div>
+                    <FormMessage className="font-mono text-xs" />
                   </FormItem>
                 )} />
-                <FormField control={profileForm.control} name="avatarUrl" render={({ field }) => (
+              </form>
+            </Form>
+
+            {/* Avatar */}
+            <Form {...avatarForm}>
+              <form onSubmit={avatarForm.handleSubmit((d) => saveField(d, () => avatarForm.reset(d)))} className="space-y-2">
+                <FormField control={avatarForm.control} name="avatarUrl" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.avatar")}</FormLabel>
                     <div className="flex items-center gap-2">
@@ -416,22 +419,31 @@ export default function Settings() {
                           <span className="font-mono text-xs text-muted-foreground">--</span>
                         )}
                       </div>
-                      <FormControl><Input {...field} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <FormControl><Input {...field} value={field.value ?? ""} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
                       <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => avatarFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-avatar" title={t("identity.uploadImage")}>
                         <Upload className="w-4 h-4" />
                       </Button>
+                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !avatarForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
                     </div>
                     <FormMessage className="font-mono text-xs" />
                   </FormItem>
                 )} />
-                <FormField control={profileForm.control} name="bannerUrl" render={({ field }) => (
+              </form>
+            </Form>
+            <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "avatarUrl"); }} data-testid="input-avatar-file" />
+
+            {/* Banner */}
+            <Form {...bannerForm}>
+              <form onSubmit={bannerForm.handleSubmit((d) => saveField(d, () => bannerForm.reset(d)))} className="space-y-2">
+                <FormField control={bannerForm.control} name="bannerUrl" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.banner")}</FormLabel>
                     <div className="flex items-center gap-2">
-                      <FormControl><Input {...field} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
+                      <FormControl><Input {...field} value={field.value ?? ""} placeholder={t("identity.urlOrUpload")} className="font-mono rounded-none border-border bg-background" /></FormControl>
                       <Button type="button" variant="outline" size="icon" className="rounded-none shrink-0" onClick={() => bannerFileRef.current?.click()} disabled={isUploading} data-testid="button-upload-banner" title={t("identity.uploadImage")}>
                         <Upload className="w-4 h-4" />
                       </Button>
+                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !bannerForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
                     </div>
                     {field.value ? (
                       <div className="h-16 border border-border bg-background overflow-hidden">
@@ -441,15 +453,20 @@ export default function Settings() {
                     <FormMessage className="font-mono text-xs" />
                   </FormItem>
                 )} />
-                <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "avatarUrl"); }} data-testid="input-avatar-file" />
-                <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "bannerUrl"); }} data-testid="input-banner-file" />
-                <FormField control={profileForm.control} name="bio" render={({ field }) => (
+              </form>
+            </Form>
+            <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) handleImageUpload(f, "bannerUrl"); }} data-testid="input-banner-file" />
+
+            {/* Bio */}
+            <Form {...bioForm}>
+              <form onSubmit={bioForm.handleSubmit((d) => saveField(d, () => bioForm.reset(d)))} className="space-y-2">
+                <FormField control={bioForm.control} name="bio" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.biography")}</FormLabel>
-                    <FormControl><Textarea {...field} className="font-mono rounded-none border-border bg-background resize-none" rows={3} /></FormControl>
+                    <FormControl><Textarea {...field} value={field.value ?? ""} className="font-mono rounded-none border-border bg-background resize-none" rows={3} /></FormControl>
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending}>{t("identity.writeConfig")}</Button>
+                <Button type="submit" className="w-full font-mono rounded-none" disabled={updateProfile.isPending || !bioForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
               </form>
             </Form>
           </div>

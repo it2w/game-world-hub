@@ -232,6 +232,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
   // Holds the raw MediaStreamTrack we published — needed for unpublishTrack().
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  // Set to true during changeScreenShare() so the "ended" listener on the OLD
+  // track is suppressed and doesn't unpublish the still-live publication.
+  const screenShareChangingRef = useRef(false);
   /** Published screen-share audio track (null when not sharing or no audio granted). */
   const screenAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   /** Mirrors peerVolumes — stale-closure-safe access in callbacks. */
@@ -479,10 +482,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           const ms = pub.track.mediaStream ?? null;
           setLocalScreenStream(ms);
           setSharing(true);
-          // Handle browser "Stop sharing" button.
-          pub.track.mediaStreamTrack?.addEventListener("ended", () => {
-            void room.localParticipant.setScreenShareEnabled(false);
-          });
+          // NOTE: We intentionally do NOT attach an "ended" listener here.
+          // startScreenShare() attaches its own ended listener on the raw
+          // MediaStreamTrack via screenTrackRef.  Adding a second listener here
+          // causes changeScreenShare() to call setScreenShareEnabled(false) when
+          // the OLD track is stopped — killing the publication before replaceTrack
+          // can swap in the new track (black screen for sharer, freeze for viewers).
         } else if (pub.source === Track.Source.Camera) {
           setLocalCameraStream(pub.track.mediaStream ?? null);
           setCameraEnabled(true);
@@ -861,7 +866,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       if (audioTrack) screenAudioTrackRef.current = audioTrack;
 
       // Handle browser "Stop sharing" button — mirrors setScreenShareEnabled behaviour.
+      // Skip when changeScreenShare() is mid-swap; it will set the flag back to false
+      // after replaceTrack() completes and the old track is cleanly stopped.
       videoTrack.addEventListener("ended", () => {
+        if (screenShareChangingRef.current) return;
         const r = livekitRef.current;
         if (r && screenTrackRef.current) {
           void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
@@ -951,22 +959,36 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       const newAudioTrack = newStream.getAudioTracks()[0] ?? null;
       newVideoTrack.contentHint = "detail";
 
-      // Replace video track in-place on the existing publication.
+      // ── Video track swap ────────────────────────────────────────────────────
+      // Correct order: replaceTrack FIRST (keeps publication alive on the SFU),
+      // THEN stop the old raw track. Stopping first causes LiveKit to detect
+      // track.ended and unpublish the publication before replaceTrack can run,
+      // leaving the sharer with a black screen and the viewer with a frozen frame.
+      //
+      // screenShareChangingRef suppresses the "ended" listener that startScreenShare
+      // attached to the old track, preventing a second (redundant) unpublish call
+      // when we stop that track after the swap is complete.
       const videoPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
       if (videoPub?.track) {
-        // ⚠️ Clear the ref BEFORE stopping the old track so that any "ended"
-        // listener attached to the old track sees null and does NOT call
-        // unpublishTrack() — which would kill the whole publication and freeze
-        // the screen for viewers.
         const oldVideoTrack = screenTrackRef.current;
-        screenTrackRef.current = null;
+
+        // 1. Arm the suppressor so the old track's "ended" listener is a no-op.
+        screenShareChangingRef.current = true;
+        try {
+          // 2. Wire the new track into the live publication first.
+          screenTrackRef.current = newVideoTrack;
+          await videoPub.replaceTrack(newVideoTrack);
+        } finally {
+          screenShareChangingRef.current = false;
+        }
+
+        // 3. Now it is safe to stop the old raw track.
         oldVideoTrack?.stop();
 
-        await videoPub.replaceTrack(newVideoTrack);
-        screenTrackRef.current = newVideoTrack;
-
-        // Handle browser "Stop sharing" button on the new track.
+        // 4. Attach an "ended" listener for the browser's native "Stop sharing" button
+        //    on the newly captured track.
         newVideoTrack.addEventListener("ended", () => {
+          if (screenShareChangingRef.current) return;
           const r = livekitRef.current;
           if (r && screenTrackRef.current) {
             void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
@@ -974,24 +996,22 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        // Update local preview stream (new track → new MediaStream so VideoTile re-renders).
+        // 5. Update local preview so the sharer sees the new source immediately.
         setLocalScreenStream(new MediaStream([newVideoTrack]));
       }
 
-      // Replace audio track if we had one published and the new capture granted audio.
+      // ── Audio track swap ────────────────────────────────────────────────────
       const audioPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
       if (newAudioTrack && audioPub?.track) {
-        // Same pattern: clear ref before stop to disarm the old ended listener.
         const oldAudioTrack = screenAudioTrackRef.current;
-        screenAudioTrackRef.current = null;
-        oldAudioTrack?.stop();
-        await audioPub.replaceTrack(newAudioTrack);
         screenAudioTrackRef.current = newAudioTrack;
+        await audioPub.replaceTrack(newAudioTrack);
+        oldAudioTrack?.stop(); // stop after replace, not before
       } else if (!newAudioTrack && audioPub?.track) {
         // New capture didn't grant audio — unpublish the old audio publication.
-        screenAudioTrackRef.current?.stop();
-        void room.localParticipant.unpublishTrack(screenAudioTrackRef.current!, true);
+        const oldAudioTrack = screenAudioTrackRef.current;
         screenAudioTrackRef.current = null;
+        if (oldAudioTrack) void room.localParticipant.unpublishTrack(oldAudioTrack, true);
       }
     } catch {
       // User dismissed the picker — keep the current share running.

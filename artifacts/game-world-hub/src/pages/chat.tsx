@@ -376,11 +376,9 @@ function MessageBubble({
           <button onClick={() => onPin(msg.id, !msg.isPinned)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={msg.isPinned ? t("msg.unpin") : t("msg.pin")}>
             {msg.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
-          {isMe && (
-            <button onClick={() => onDelete(msg.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded transition-colors" title={t("msg.delete")}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button onClick={() => onDelete(msg.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded transition-colors" title={t("msg.delete")}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

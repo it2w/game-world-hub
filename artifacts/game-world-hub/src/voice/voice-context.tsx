@@ -232,9 +232,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const screenQualityRef = useRef<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
   // Holds the raw MediaStreamTrack we published — needed for unpublishTrack().
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
-  // Set to true during changeScreenShare() so the "ended" listener on the OLD
-  // track is suppressed and doesn't unpublish the still-live publication.
-  const screenShareChangingRef = useRef(false);
+  // Incremented each time a new screen capture is started (start or change).
+  // Each "ended" listener closes over the generation at the time it was attached
+  // and exits immediately if the generation has advanced — this prevents a
+  // superseded listener from unpublishing the still-live publication after
+  // changeScreenShare() stops the old raw track.
+  const screenShareGenerationRef = useRef(0);
   /** Published screen-share audio track (null when not sharing or no audio granted). */
   const screenAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   /** Mirrors peerVolumes — stale-closure-safe access in callbacks. */
@@ -865,11 +868,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       screenTrackRef.current = videoTrack;
       if (audioTrack) screenAudioTrackRef.current = audioTrack;
 
-      // Handle browser "Stop sharing" button — mirrors setScreenShareEnabled behaviour.
-      // Skip when changeScreenShare() is mid-swap; it will set the flag back to false
-      // after replaceTrack() completes and the old track is cleanly stopped.
+      // Stamp this capture session with a generation number.
+      // changeScreenShare() increments the generation before stopping the old
+      // track, so this listener becomes a no-op for that stop() call.
+      const captureGen = ++screenShareGenerationRef.current;
       videoTrack.addEventListener("ended", () => {
-        if (screenShareChangingRef.current) return;
+        if (screenShareGenerationRef.current !== captureGen) return; // superseded
         const r = livekitRef.current;
         if (r && screenTrackRef.current) {
           void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
@@ -960,43 +964,42 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       newVideoTrack.contentHint = "detail";
 
       // ── Video track swap ────────────────────────────────────────────────────
-      // Correct order: replaceTrack FIRST (keeps publication alive on the SFU),
-      // THEN stop the old raw track. Stopping first causes LiveKit to detect
-      // track.ended and unpublish the publication before replaceTrack can run,
-      // leaving the sharer with a black screen and the viewer with a frozen frame.
-      //
-      // screenShareChangingRef suppresses the "ended" listener that startScreenShare
-      // attached to the old track, preventing a second (redundant) unpublish call
-      // when we stop that track after the swap is complete.
+      // Strategy:
+      //   1. Advance the generation FIRST — this makes the "ended" listener on
+      //      the old track an instant no-op (it checks its captured generation).
+      //   2. replaceTrack() — keeps the publication alive on the SFU; viewers
+      //      receive new frames through the same MediaStream / RTCRtpReceiver.
+      //   3. stop() the old raw track — safe now; ended listener is silenced.
+      //   4. Attach a fresh "ended" listener for the new track's generation.
       const videoPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
       if (videoPub?.track) {
         const oldVideoTrack = screenTrackRef.current;
 
-        // 1. Arm the suppressor so the old track's "ended" listener is a no-op.
-        screenShareChangingRef.current = true;
-        try {
-          // 2. Wire the new track into the live publication first.
-          screenTrackRef.current = newVideoTrack;
-          await videoPub.replaceTrack(newVideoTrack);
-        } finally {
-          screenShareChangingRef.current = false;
-        }
+        // Step 1: advance generation → old "ended" listener becomes a no-op.
+        const newGen = ++screenShareGenerationRef.current;
 
-        // 3. Now it is safe to stop the old raw track.
+        // Step 2: wire new track into the live publication.
+        screenTrackRef.current = newVideoTrack;
+        await videoPub.replaceTrack(newVideoTrack);
+
+        // Step 3: now safe to stop the old track.
         oldVideoTrack?.stop();
 
-        // 4. Attach an "ended" listener for the browser's native "Stop sharing" button
-        //    on the newly captured track.
+        // Step 4: "ended" listener for the browser's native Stop-sharing button.
         newVideoTrack.addEventListener("ended", () => {
-          if (screenShareChangingRef.current) return;
+          if (screenShareGenerationRef.current !== newGen) return; // superseded
           const r = livekitRef.current;
           if (r && screenTrackRef.current) {
             void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
             screenTrackRef.current = null;
           }
+          if (r && screenAudioTrackRef.current) {
+            void r.localParticipant.unpublishTrack(screenAudioTrackRef.current, true);
+            screenAudioTrackRef.current = null;
+          }
         });
 
-        // 5. Update local preview so the sharer sees the new source immediately.
+        // Step 5: update local preview so the sharer sees the new source.
         setLocalScreenStream(new MediaStream([newVideoTrack]));
       }
 

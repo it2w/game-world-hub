@@ -231,6 +231,28 @@ router.get("/conversations/direct/:userId", requireAuth, async (req, res): Promi
         .from(conversationsTable)
         .where(and(eq(conversationsTable.id, tc.conversationId), eq(conversationsTable.type, "direct")));
       if (conv) {
+        // If the conversation was hidden for this user (soft-deleted), restore it:
+        // un-hide the conversation and clear the per-user message deletions so
+        // the full history is visible again.
+        const myParticipant = myConvs.find((p) => p.conversationId === conv.id);
+        if (myParticipant?.isHidden) {
+          await Promise.all([
+            db.update(conversationParticipantsTable)
+              .set({ isHidden: false })
+              .where(and(
+                eq(conversationParticipantsTable.conversationId, conv.id),
+                eq(conversationParticipantsTable.userId, myId),
+              )),
+            db.delete(messageDeletionsTable)
+              .where(and(
+                eq(messageDeletionsTable.userId, myId),
+                inArray(
+                  messageDeletionsTable.messageId,
+                  db.select({ id: messagesTable.id }).from(messagesTable).where(eq(messagesTable.conversationId, conv.id)),
+                ),
+              )),
+          ]);
+        }
         res.json(await buildConversation(conv, myId));
         return;
       }

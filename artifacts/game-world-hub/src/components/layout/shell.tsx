@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -105,6 +105,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 function TopBar() {
   const { t } = useTranslation("common");
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
   const { data: notifications } = useListNotifications({
     query: { refetchInterval: 10000, queryKey: getListNotificationsQueryKey() }
   });
@@ -121,6 +123,19 @@ function TopBar() {
     });
   };
 
+  const handleNotificationClick = async (n: { id: number; type: string; relatedId: number | null; isRead: boolean }) => {
+    // Mark as read if not already
+    if (!n.isRead) {
+      await customFetch(`/api/notifications/${n.id}/read`, { method: "POST" }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+    }
+    // Navigate to the relevant page
+    if (n.type === "message" && n.relatedId) {
+      navigate(`/chat/${n.relatedId}`);
+    }
+    setOpen(false);
+  };
+
   return (
     <header className="h-14 border-b border-border flex items-center justify-between px-6 shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
       <div className="font-mono text-xs text-muted-foreground flex items-center gap-2">
@@ -129,7 +144,7 @@ function TopBar() {
       </div>
       
       <div className="flex items-center gap-4">
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
               <Bell className="w-4 h-4" />
@@ -152,16 +167,23 @@ function TopBar() {
                 <div className="p-4 text-center text-sm text-muted-foreground font-mono">{t("topBar.noAlerts")}</div>
               ) : (
                 <div className="flex flex-col">
-                  {notifications.map(n => (
-                    <div key={n.id} className={`p-3 border-b border-border last:border-0 flex gap-3 ${!n.isRead ? 'bg-primary/5' : ''}`}>
-                      <div className="flex-1 flex flex-col gap-1">
-                        <span className="text-sm font-bold">{n.title}</span>
-                        {n.body && <span className="text-xs text-muted-foreground">{n.body}</span>}
-                        <span className="text-[10px] text-muted-foreground font-mono mt-1">{new Date(n.createdAt).toLocaleTimeString(i18n.language)}</span>
+                  {notifications.map(n => {
+                    const isClickable = n.type === "message" && n.relatedId;
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n as any)}
+                        className={`p-3 border-b border-border last:border-0 flex gap-3 transition-colors ${!n.isRead ? "bg-primary/5" : ""} ${isClickable ? "cursor-pointer hover:bg-muted/50" : ""}`}
+                      >
+                        <div className="flex-1 flex flex-col gap-1">
+                          <span className="text-sm font-bold">{n.title}</span>
+                          {n.body && <span className="text-xs text-muted-foreground">{n.body}</span>}
+                          <span className="text-[10px] text-muted-foreground font-mono mt-1">{new Date(n.createdAt).toLocaleTimeString(i18n.language)}</span>
+                        </div>
+                        {!n.isRead && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
                       </div>
-                      {!n.isRead && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

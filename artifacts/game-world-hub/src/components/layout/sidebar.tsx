@@ -33,7 +33,7 @@ export function AppSidebar() {
     query: { refetchInterval: 10000, queryKey: getListNotificationsQueryKey() }
   });
   
-  const unreadCount = notifications?.filter(n => !n.isRead).length || 0;
+  const unreadMessageCount = notifications?.filter(n => !n.isRead && n.type === "message").length || 0;
 
   const isActive = (path: string) => location === path || location.startsWith(`${path}/`);
 
@@ -70,6 +70,11 @@ export function AppSidebar() {
                   <Link href="/chat">
                     <MessageSquare className="w-4 h-4" />
                     <span>{t("sidebar.chat")}</span>
+                    {unreadMessageCount > 0 && (
+                      <span className="ms-auto min-w-[1.25rem] h-5 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center font-bold px-1">
+                        {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -23,3 +23,4 @@
 - [API server zod imports](api-server-zod-imports.md) — API routes must validate with `@workspace/api-zod` generated schemas; `zod` is not a direct dependency of the API server package.
 - [Desktop app distribution](desktop-app-distribution.md) — ZIP via sidecar presigned PUT → GCS public bucket; GET /api/download/windows uses sidecar signed GET URL (not GCS SDK signing); makensis not in binary cache.
 - [Post-migration DB sequence fix](post-migration-sequence-fix.md) — after importing data with explicit IDs, all serial sequences must be reset via setval or new inserts fail with PK collision.
+- [Stale published vs dev](stale-published-vs-dev.md) — "still old design" often = user is on the deployed app (fix: republish, not code); verify dev serves the change via curl of $REPLIT_DEV_DOMAIN/src/<module>; local prod build needs PORT+BASE_PATH set.

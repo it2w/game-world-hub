@@ -16,7 +16,15 @@
     "title": "ONLINE_NETWORK",
     "active": "{{count}} ACTIVE",
     "empty": "NO AGENTS ONLINE",
-    "openChat": "Open chat"
+    "openChat": "Open chat",
+    "call": "CALL",
+    "chat": "CHAT",
+    "block": "BLOCK",
+    "leaveFirst": "Leave your current channel first",
+    "blocked": "User blocked",
+    "confirmBlock": "Block this user?",
+    "blockConfirmYes": "Confirm block",
+    "blockConfirmNo": "Cancel"
   },
   "activity": {
     "title": "ACTIVITY_FEED",

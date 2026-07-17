@@ -3,30 +3,44 @@
     "title": "الشبكة",
     "roster": "القائمة",
     "requests": "الطلبات",
-    "search": "بحث"
+    "search": "بحث",
+    "online": "متصل",
+    "total": "إجمالي"
   },
   "roster": {
     "empty": "القائمة فارغة"
   },
   "requests": {
-    "empty": "لا توجد طلبات معلّقة",
+    "empty": "لا توجد طلبات معلقة",
     "accept": "قبول",
-    "reject": "رفض"
+    "reject": "رفض",
+    "wantsToConnect": "يريد التواصل معك"
   },
   "search": {
-    "placeholder": "ابحث باسم المستخدم (٣ أحرف على الأقل)...",
+    "placeholder": "ابحث باسم المستخدم (3 أحرف على الأقل)...",
     "searching": "جارٍ البحث...",
-    "noMatches": "لا توجد نتائج مطابقة",
-    "add": "إضافة"
+    "noMatches": "لا توجد نتائج",
+    "add": "إضافة",
+    "minChars": "اكتب 3 أحرف على الأقل للبحث"
   },
   "actions": {
-    "leaveChannelFirst": "غادر قناتك الحالية أولاً",
-    "startVoiceCall": "بدء مكالمة صوتية"
+    "leaveChannelFirst": "اترك القناة الحالية أولاً",
+    "startVoiceCall": "بدء مكالمة صوتية",
+    "call": "اتصال",
+    "chat": "دردشة",
+    "remove": "إزالة",
+    "block": "حظر",
+    "openChat": "فتح الدردشة الخاصة",
+    "removeFriend": "إزالة صديق",
+    "blockYes": "حظر",
+    "cancel": "إلغاء"
   },
   "confirm": {
-    "removeFriend": "هل أنت متأكد من رغبتك في إزالة هذا الصديق؟"
+    "removeFriend": "هل تريد إزالة هذا الصديق؟",
+    "blockFriend": "حظر هذا المستخدم؟ لن يتمكن من مراسلتك أو الاتصال بك."
   },
   "toasts": {
-    "requestSent": "تم إرسال الطلب"
+    "requestSent": "تم إرسال الطلب",
+    "blocked": "تم حظر المستخدم"
   }
 }

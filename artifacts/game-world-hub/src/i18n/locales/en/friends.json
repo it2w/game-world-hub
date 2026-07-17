@@ -3,7 +3,9 @@
     "title": "NETWORK",
     "roster": "ROSTER",
     "requests": "REQUESTS",
-    "search": "SEARCH"
+    "search": "SEARCH",
+    "online": "online",
+    "total": "total"
   },
   "roster": {
     "empty": "ROSTER EMPTY"
@@ -11,22 +13,34 @@
   "requests": {
     "empty": "NO PENDING REQUESTS",
     "accept": "ACCEPT",
-    "reject": "REJECT"
+    "reject": "REJECT",
+    "wantsToConnect": "Wants to connect"
   },
   "search": {
     "placeholder": "SEARCH BY USERNAME (MIN 3 CHARS)...",
     "searching": "SEARCHING...",
     "noMatches": "NO MATCHES FOUND",
-    "add": "ADD"
+    "add": "ADD",
+    "minChars": "Type at least 3 characters to search"
   },
   "actions": {
     "leaveChannelFirst": "Leave your current channel first",
-    "startVoiceCall": "Start voice call"
+    "startVoiceCall": "Start voice call",
+    "call": "CALL",
+    "chat": "CHAT",
+    "remove": "REMOVE",
+    "block": "BLOCK",
+    "openChat": "Open private chat",
+    "removeFriend": "Remove friend",
+    "blockYes": "BLOCK",
+    "cancel": "CANCEL"
   },
   "confirm": {
-    "removeFriend": "Are you sure you want to remove this friend?"
+    "removeFriend": "Are you sure you want to remove this friend?",
+    "blockFriend": "Block this user? They won't be able to message or call you."
   },
   "toasts": {
-    "requestSent": "Request sent"
+    "requestSent": "Request sent",
+    "blocked": "User blocked"
   }
 }

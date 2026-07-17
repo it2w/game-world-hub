@@ -1,6 +1,17 @@
-import { useGetOnlineFriendsSummary, useGetPartyActivityFeed, useListPartyInvites, useGetMe, getListPartyInvitesQueryKey, getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey, getGetMeQueryKey, customFetch } from "@workspace/api-client-react";
+import {
+  useGetOnlineFriendsSummary,
+  useGetPartyActivityFeed,
+  useListPartyInvites,
+  useGetMe,
+  getListPartyInvitesQueryKey,
+  getGetOnlineFriendsSummaryQueryKey,
+  getGetPartyActivityFeedQueryKey,
+  getGetMeQueryKey,
+  customFetch,
+  useBlockUser,
+} from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { Activity, Gamepad2, Users, ChevronRight, Play, MessageSquare, Loader2 } from "lucide-react";
+import { Activity, Users, Play, Phone, MessageSquare, ShieldOff, Loader2, Check, X } from "lucide-react";
 import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +21,21 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
+import { useVoice } from "@/voice/voice-context";
 
 export default function Dashboard() {
   const { t } = useTranslation("dashboard");
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const [, navigate] = useLocation();
+  const { callUser, activeRoom } = useVoice();
+
   const [openingDm, setOpeningDm] = useState<number | null>(null);
+  const [blocking, setBlocking] = useState<number | null>(null);
+  const [confirmBlock, setConfirmBlock] = useState<number | null>(null);
+
+  const blockUser = useBlockUser();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const openDm = async (e: React.MouseEvent, friendId: number) => {
     e.preventDefault();
@@ -29,23 +49,41 @@ export default function Dashboard() {
       setOpeningDm(null);
     }
   };
-  
+
+  const handleBlock = (e: React.MouseEvent, userId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirmBlock(userId);
+  };
+
+  const confirmBlockUser = (e: React.MouseEvent, userId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBlocking(userId);
+    setConfirmBlock(null);
+    blockUser.mutate({ userId }, {
+      onSuccess: () => {
+        toast({ title: t("network.blocked") });
+        queryClient.invalidateQueries({ queryKey: getGetOnlineFriendsSummaryQueryKey() });
+      },
+      onSettled: () => setBlocking(null),
+    });
+  };
+
   const { data: friendsSummary, isLoading: loadingFriends } = useGetOnlineFriendsSummary({
     query: { refetchInterval: 5000, queryKey: getGetOnlineFriendsSummaryQueryKey() }
   });
-  
+
   const { data: partyActivity, isLoading: loadingActivity } = useGetPartyActivityFeed({
     query: { refetchInterval: 10000, queryKey: getGetPartyActivityFeedQueryKey() }
   });
-  
+
   const { data: invites } = useListPartyInvites({
     query: { refetchInterval: 10000, queryKey: getListPartyInvitesQueryKey() }
   });
 
   const acceptInvite = useAcceptPartyInvite();
   const declineInvite = useDeclinePartyInvite();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const handleAcceptInvite = (inviteId: number) => {
     acceptInvite.mutate({ inviteId }, {
@@ -66,6 +104,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {/* header */}
       <div className="flex items-end justify-between border-b border-border pb-4">
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase">{t("header.title")}</h1>
@@ -81,6 +120,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* party invites */}
       {invites && invites.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 p-4">
           <h3 className="font-mono text-sm uppercase text-primary font-bold mb-3 flex items-center gap-2">
@@ -105,71 +145,137 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ONLINE NETWORK */}
         <div className="col-span-2 space-y-6">
           <div className="border border-border bg-card">
-            <div className="p-3 border-b border-border bg-muted/30 flex justify-between items-center">
+            {/* section header */}
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex justify-between items-center">
               <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" /> {t("network.title")}
               </h2>
               <span className="font-mono text-xs text-primary">{t("network.active", { count: friendsSummary?.onlineCount || 0 })}</span>
             </div>
+
             <div className="p-4">
               {loadingFriends ? (
-                <div className="flex gap-4">
-                  {[1,2,3].map(i => <Skeleton key={i} className="w-16 h-16 rounded-none bg-muted" />)}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-[140px] rounded-none bg-muted" />)}
                 </div>
               ) : friendsSummary?.friends.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                <div className="text-center py-10 text-muted-foreground font-mono text-sm">
                   {t("network.empty")}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {friendsSummary?.friends.map(entry => (
-                    <Link key={entry.id} href={`/profile/${entry.friend.id}`} className="group p-3 border border-transparent hover:border-border hover:bg-muted/20 transition-all flex flex-col gap-2">
-                      <div className="flex items-start justify-between">
-                        <div className="relative">
-                          {entry.friend.avatarUrl ? (
-                            <img src={entry.friend.avatarUrl} alt="" className="w-10 h-10 object-cover border border-border" />
-                          ) : (
-                            <div className="w-10 h-10 bg-muted flex items-center justify-center font-mono border border-border">
-                              {entry.friend.displayName.charAt(0)}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {friendsSummary?.friends.map(entry => {
+                    const f = entry.friend;
+                    const isConfirmingBlock = confirmBlock === f.id;
+                    return (
+                      <div
+                        key={entry.id}
+                        className="group relative flex flex-col border border-border bg-background hover:border-primary/40 hover:bg-muted/10 transition-all duration-200"
+                      >
+                        {/* profile link area */}
+                        <Link href={`/profile/${f.id}`} className="flex flex-col gap-3 p-3 flex-1">
+                          {/* avatar + status */}
+                          <div className="flex items-start gap-3">
+                            <div className="relative shrink-0">
+                              {f.avatarUrl ? (
+                                <img src={f.avatarUrl} alt="" className="w-12 h-12 object-cover border border-border" />
+                              ) : (
+                                <div className="w-12 h-12 bg-muted flex items-center justify-center font-mono font-bold text-lg border border-border">
+                                  {f.displayName.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
                             </div>
-                          )}
-                          <StatusBadge status={entry.friend.status} className="absolute -bottom-1 -end-1" />
-                        </div>
-                        {/* Chat button — visible on hover */}
-                        <button
-                          onClick={(e) => openDm(e, entry.friend.id)}
-                          disabled={openingDm === entry.friend.id}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 border border-border hover:border-primary hover:text-primary hover:bg-primary/10 text-muted-foreground rounded-none"
-                          title={t("network.openChat")}
-                        >
-                          {openingDm === entry.friend.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <MessageSquare className="w-3.5 h-3.5" />
-                          }
-                        </button>
-                      </div>
-                      <div>
-                        <div className="font-bold text-sm truncate">{entry.friend.displayName}</div>
-                        {entry.friend.currentGame ? (
-                          <div className="text-xs text-primary font-mono truncate flex items-center gap-1 mt-1">
-                            <Play className="w-3 h-3 fill-primary" /> {entry.friend.currentGame}
+                            <div className="min-w-0 flex-1 pt-0.5">
+                              <div className="font-bold text-sm truncate leading-tight">{f.displayName}</div>
+                              {f.currentGame ? (
+                                <div className="text-[10px] text-primary font-mono truncate flex items-center gap-1 mt-1">
+                                  <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
+                                  {f.currentGame}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">
+                                  {f.status}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+
+                        {/* action bar */}
+                        {isConfirmingBlock ? (
+                          /* block confirm */
+                          <div className="flex items-center border-t border-border bg-destructive/10">
+                            <span className="flex-1 text-[10px] text-destructive font-mono px-2 leading-tight">
+                              {t("network.confirmBlock")}
+                            </span>
+                            <button
+                              className="p-2 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors border-s border-border"
+                              onClick={(e) => confirmBlockUser(e, f.id)}
+                              title={t("network.blockConfirmYes")}
+                            >
+                              {blocking === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              className="p-2 text-muted-foreground hover:text-foreground transition-colors border-s border-border"
+                              onClick={(e) => { e.stopPropagation(); setConfirmBlock(null); }}
+                              title={t("network.blockConfirmNo")}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         ) : (
-                          <div className="text-xs text-muted-foreground font-mono truncate mt-1">
-                            {entry.friend.status}
+                          <div className="flex border-t border-border">
+                            {/* voice call */}
+                            <button
+                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-e border-border"
+                              title={activeRoom ? t("network.leaveFirst") : t("network.call")}
+                              disabled={!!activeRoom}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                callUser({ userId: f.id, username: f.username, displayName: f.displayName, avatarUrl: f.avatarUrl ?? null });
+                              }}
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.call")}</span>
+                            </button>
+                            {/* DM */}
+                            <button
+                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border"
+                              title={t("network.openChat")}
+                              onClick={(e) => openDm(e, f.id)}
+                              disabled={openingDm === f.id}
+                            >
+                              {openingDm === f.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <MessageSquare className="w-3.5 h-3.5" />
+                              }
+                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.chat")}</span>
+                            </button>
+                            {/* block */}
+                            <button
+                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
+                              title={t("network.block")}
+                              onClick={(e) => handleBlock(e, f.id)}
+                            >
+                              <ShieldOff className="w-3.5 h-3.5" />
+                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.block")}</span>
+                            </button>
                           </div>
                         )}
                       </div>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
         </div>
 
+        {/* activity feed */}
         <div className="space-y-6">
           <div className="border border-border bg-card">
             <div className="p-3 border-b border-border bg-muted/30">

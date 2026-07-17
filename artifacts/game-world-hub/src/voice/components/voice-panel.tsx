@@ -770,7 +770,7 @@ export function VoicePanel() {
             >
               <VideoTile
                 stream={theater.stream}
-                className="max-w-full max-h-full"
+                className="w-full h-full object-contain"
                 style={{
                   border: "1px solid rgba(255,255,255,0.07)",
                   boxShadow: "0 32px 80px rgba(0,0,0,0.9)",

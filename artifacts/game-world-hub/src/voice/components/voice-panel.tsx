@@ -953,39 +953,41 @@ function ScreenThumb({
 }) {
   const { t } = useTranslation("common");
   return (
-    <button
-      className="relative group overflow-hidden aspect-video bg-black"
-      style={{ border: "1px solid rgba(255,255,255,0.06)" }}
-      onClick={onOpen}
-      title={t("voice.openScreen", { label })}
-    >
-      <VideoTile stream={stream} className="w-full h-full object-contain" />
-      {/* Label bar */}
+    <div className="flex flex-col gap-1">
+      <button
+        className="relative group overflow-hidden aspect-video bg-black w-full"
+        style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+        onClick={onOpen}
+        title={t("voice.openScreen", { label })}
+      >
+        <VideoTile stream={stream} className="w-full h-full object-contain" />
+        {/* FPS badge (top-right) */}
+        {fps && (
+          <span
+            className="absolute top-1 end-1 text-[8px] px-1 font-bold"
+            style={{
+              background: "rgba(var(--primary-rgb,0,255,65),0.15)",
+              color: "hsl(var(--primary))",
+              border: "1px solid rgba(var(--primary-rgb,0,255,65),0.3)",
+            }}
+          >
+            {fps}fps
+          </span>
+        )}
+        {/* Expand overlay */}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Maximize2 className="w-4 h-4 text-white" />
+        </span>
+      </button>
+      {/* Username label — below the tile */}
       <span
-        className="absolute bottom-0 start-0 end-0 text-[9px] px-1.5 py-0.5 truncate text-start flex items-center gap-1"
-        style={{ background: "rgba(0,0,0,.8)", color: "rgba(255,255,255,0.55)" }}
+        className="text-[9px] px-0.5 truncate text-start flex items-center gap-1"
+        style={{ color: "rgba(255,255,255,0.6)" }}
       >
         {cameraLabel && <Video className="w-2.5 h-2.5 shrink-0 text-primary" />}
-        {!cameraLabel && <Monitor className="w-2.5 h-2.5 shrink-0" />}
-        {label}{self ? t("voice.youSuffix") : ""}
+        {!cameraLabel && <Monitor className="w-2.5 h-2.5 shrink-0 text-primary" />}
+        <span className="truncate">{label}{self ? t("voice.youSuffix") : ""}</span>
       </span>
-      {/* FPS badge (top-right) */}
-      {fps && (
-        <span
-          className="absolute top-1 end-1 text-[8px] px-1 font-bold"
-          style={{
-            background: "rgba(var(--primary-rgb,0,255,65),0.15)",
-            color: "hsl(var(--primary))",
-            border: "1px solid rgba(var(--primary-rgb,0,255,65),0.3)",
-          }}
-        >
-          {fps}fps
-        </span>
-      )}
-      {/* Expand overlay */}
-      <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Maximize2 className="w-4 h-4 text-white" />
-      </span>
-    </button>
+    </div>
   );
 }

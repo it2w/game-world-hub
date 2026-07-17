@@ -9,6 +9,7 @@ import {
   messageReadsTable,
   messageReactionsTable,
   notificationsTable,
+  profilePhotosTable,
 } from "@workspace/db";
 import { SendMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
@@ -17,17 +18,38 @@ import { toPublicImageUrl } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
-function safeUser(u: typeof usersTable.$inferSelect) {
+function safeUser(
+  u: typeof usersTable.$inferSelect,
+  photoFallbacks: Record<number, string | null> = {},
+) {
   return {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
-    avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
+    avatarUrl: toPublicImageUrl(u.avatarUrl ?? null) ?? photoFallbacks[u.id] ?? null,
     bio: u.bio ?? null,
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
   };
+}
+
+/**
+ * Batch-fetches the first profile photo for a set of users, returning a map
+ * userId → publicUrl. Used as avatar fallback when avatarUrl is null.
+ */
+async function batchPhotoFallbacks(userIds: number[]): Promise<Record<number, string | null>> {
+  if (userIds.length === 0) return {};
+  const photos = await db
+    .select()
+    .from(profilePhotosTable)
+    .where(inArray(profilePhotosTable.userId, userIds));
+  const map: Record<number, string | null> = {};
+  for (const p of photos) {
+    // keep only the earliest photo per user (lowest id)
+    if (!(p.userId in map)) map[p.userId] = toPublicImageUrl(p.objectPath);
+  }
+  return map;
 }
 
 /** Aggregate reactions for a list of messageIds, returning {emoji, count, mine} per message */
@@ -119,16 +141,25 @@ async function buildConversation(conv: typeof conversationsTable.$inferSelect, m
 
   const lastMsg = lastMessages[0];
 
+  // Batch-resolve photo fallbacks for all users we'll serialize
+  const allUserIds = [
+    ...participants.map((p) => p.user.id),
+    ...(lastMsg ? [lastMsg.sender.id] : []),
+  ];
+  const photoFallbacks = await batchPhotoFallbacks(
+    allUserIds.filter((id, i, a) => a.indexOf(id) === i),
+  );
+
   return {
     id: conv.id,
     type: conv.type,
     name: conv.name ?? null,
-    participants: participants.map((p) => safeUser(p.user)),
+    participants: participants.map((p) => safeUser(p.user, photoFallbacks)),
     lastMessage: lastMsg
       ? {
           id: lastMsg.msg.id,
           conversationId: lastMsg.msg.conversationId,
-          sender: safeUser(lastMsg.sender),
+          sender: safeUser(lastMsg.sender, photoFallbacks),
           content: lastMsg.msg.content,
           isPinned: lastMsg.msg.isPinned,
           editedAt: lastMsg.msg.editedAt?.toISOString() ?? null,
@@ -256,19 +287,30 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     return;
   }
 
-  // Batch-load reactions and replyTo messages
+  // Batch-load reactions, replyTo messages, and photo fallbacks
   const messageIds = messages.map((m) => m.msg.id);
-  const reactionsMap = await getReactionsForMessages(messageIds, myId);
-
   const replyToIds = messages.map((m) => m.msg.replyToId).filter(Boolean) as number[];
-  const replyMessages = replyToIds.length > 0
-    ? await db
-        .select({ msg: messagesTable, sender: usersTable })
-        .from(messagesTable)
-        .innerJoin(usersTable, eq(messagesTable.senderId, usersTable.id))
-        .where(inArray(messagesTable.id, replyToIds))
-    : [];
+
+  const [reactionsMap, replyMessages] = await Promise.all([
+    getReactionsForMessages(messageIds, myId),
+    replyToIds.length > 0
+      ? db
+          .select({ msg: messagesTable, sender: usersTable })
+          .from(messagesTable)
+          .innerJoin(usersTable, eq(messagesTable.senderId, usersTable.id))
+          .where(inArray(messagesTable.id, replyToIds))
+      : Promise.resolve([]),
+  ]);
   const replyMap = new Map(replyMessages.map((r) => [r.msg.id, r]));
+
+  // Collect all unique sender IDs (primary senders + reply senders)
+  const allSenderIds = [
+    ...new Set([
+      ...messages.map((m) => m.sender.id),
+      ...replyMessages.map((r) => r.sender.id),
+    ]),
+  ];
+  const photoFallbacks = await batchPhotoFallbacks(allSenderIds);
 
   res.json(
     messages.map((m) => {
@@ -276,12 +318,12 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       return {
         id: m.msg.id,
         conversationId: m.msg.conversationId,
-        sender: safeUser(m.sender),
+        sender: safeUser(m.sender, photoFallbacks),
         content: m.msg.content,
         isPinned: m.msg.isPinned,
         editedAt: m.msg.editedAt?.toISOString() ?? null,
         replyTo: reply
-          ? { id: reply.msg.id, sender: safeUser(reply.sender), content: reply.msg.content, createdAt: reply.msg.createdAt.toISOString() }
+          ? { id: reply.msg.id, sender: safeUser(reply.sender, photoFallbacks), content: reply.msg.content, createdAt: reply.msg.createdAt.toISOString() }
           : null,
         reactions: reactionsMap.get(m.msg.id) ?? [],
         createdAt: m.msg.createdAt.toISOString(),

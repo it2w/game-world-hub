@@ -189,14 +189,46 @@ function Spoiler({ text }: { text: string }) {
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
+/** Consistent distinct color per user, stable across renders. */
+const AVATAR_PALETTE = [
+  { bg: "#1a2e4a", border: "#2563eb44", text: "#60a5fa" }, // blue
+  { bg: "#2d1b4e", border: "#7c3aed44", text: "#a78bfa" }, // violet
+  { bg: "#1a3a2a", border: "#16a34a44", text: "#4ade80" }, // green
+  { bg: "#3d1f0a", border: "#ea580c44", text: "#fb923c" }, // orange
+  { bg: "#3a1a1a", border: "#dc262644", text: "#f87171" }, // red
+  { bg: "#0f3040", border: "#0891b244", text: "#22d3ee" }, // cyan
+  { bg: "#382a0a", border: "#d9770644", text: "#fbbf24" }, // amber
+  { bg: "#1a1f40", border: "#4f46e544", text: "#818cf8" }, // indigo
+  { bg: "#2d1435", border: "#a21caf44", text: "#e879f9" }, // pink
+  { bg: "#0f3030", border: "#0d948044", text: "#2dd4bf" }, // teal
+];
+
+function nameHash(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = Math.imul(31, h) + name.charCodeAt(i) | 0;
+  }
+  return Math.abs(h);
+}
+
+function nameInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0]?.[0] ?? "?").toUpperCase();
+}
+
 function Avatar({ src, name, size = "md" }: { src?: string | null; name: string; size?: "sm" | "md" }) {
   const sz = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
   if (src) {
     return <img src={src} alt={name} className={`${sz} rounded-full object-cover shrink-0`} />;
   }
+  const color = AVATAR_PALETTE[nameHash(name) % AVATAR_PALETTE.length];
   return (
-    <div className={`${sz} rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary shrink-0 uppercase`}>
-      {name.charAt(0)}
+    <div
+      className={`${sz} rounded-full flex items-center justify-center font-bold shrink-0`}
+      style={{ background: color.bg, color: color.text, border: `1px solid ${color.border}` }}
+    >
+      {nameInitials(name)}
     </div>
   );
 }

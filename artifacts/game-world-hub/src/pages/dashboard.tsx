@@ -1,6 +1,7 @@
-import { useGetOnlineFriendsSummary, useGetPartyActivityFeed, useListPartyInvites, useGetMe, getListPartyInvitesQueryKey, getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
-import { Link } from "wouter";
-import { Activity, Gamepad2, Users, ChevronRight, Play } from "lucide-react";
+import { useGetOnlineFriendsSummary, useGetPartyActivityFeed, useListPartyInvites, useGetMe, getListPartyInvitesQueryKey, getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey, getGetMeQueryKey, customFetch } from "@workspace/api-client-react";
+import { Link, useLocation } from "wouter";
+import { Activity, Gamepad2, Users, ChevronRight, Play, MessageSquare, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { useAcceptPartyInvite, useDeclinePartyInvite } from "@workspace/api-client-react";
@@ -13,6 +14,21 @@ import i18n from "@/i18n";
 export default function Dashboard() {
   const { t } = useTranslation("dashboard");
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const [, navigate] = useLocation();
+  const [openingDm, setOpeningDm] = useState<number | null>(null);
+
+  const openDm = async (e: React.MouseEvent, friendId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (openingDm) return;
+    setOpeningDm(friendId);
+    try {
+      const conv = await customFetch<{ id: number }>(`/api/conversations/direct/${friendId}`, { method: "POST" });
+      navigate(`/chat/${conv.id}`);
+    } finally {
+      setOpeningDm(null);
+    }
+  };
   
   const { data: friendsSummary, isLoading: loadingFriends } = useGetOnlineFriendsSummary({
     query: { refetchInterval: 5000, queryKey: getGetOnlineFriendsSummaryQueryKey() }
@@ -121,7 +137,18 @@ export default function Dashboard() {
                           )}
                           <StatusBadge status={entry.friend.status} className="absolute -bottom-1 -end-1" />
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity rtl:-scale-x-100" />
+                        {/* Chat button — visible on hover */}
+                        <button
+                          onClick={(e) => openDm(e, entry.friend.id)}
+                          disabled={openingDm === entry.friend.id}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 border border-border hover:border-primary hover:text-primary hover:bg-primary/10 text-muted-foreground rounded-none"
+                          title={t("network.openChat")}
+                        >
+                          {openingDm === entry.friend.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <MessageSquare className="w-3.5 h-3.5" />
+                          }
+                        </button>
                       </div>
                       <div>
                         <div className="font-bold text-sm truncate">{entry.friend.displayName}</div>

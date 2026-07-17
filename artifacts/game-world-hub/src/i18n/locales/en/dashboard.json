@@ -15,7 +15,8 @@
   "network": {
     "title": "ONLINE_NETWORK",
     "active": "{{count}} ACTIVE",
-    "empty": "NO AGENTS ONLINE"
+    "empty": "NO AGENTS ONLINE",
+    "openChat": "Open chat"
   },
   "activity": {
     "title": "ACTIVITY_FEED",

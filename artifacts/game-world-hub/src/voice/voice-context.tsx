@@ -954,7 +954,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       // Replace video track in-place on the existing publication.
       const videoPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
       if (videoPub?.track) {
-        screenTrackRef.current?.stop();
+        // ⚠️ Clear the ref BEFORE stopping the old track so that any "ended"
+        // listener attached to the old track sees null and does NOT call
+        // unpublishTrack() — which would kill the whole publication and freeze
+        // the screen for viewers.
+        const oldVideoTrack = screenTrackRef.current;
+        screenTrackRef.current = null;
+        oldVideoTrack?.stop();
+
         await videoPub.replaceTrack(newVideoTrack);
         screenTrackRef.current = newVideoTrack;
 
@@ -974,7 +981,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       // Replace audio track if we had one published and the new capture granted audio.
       const audioPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
       if (newAudioTrack && audioPub?.track) {
-        screenAudioTrackRef.current?.stop();
+        // Same pattern: clear ref before stop to disarm the old ended listener.
+        const oldAudioTrack = screenAudioTrackRef.current;
+        screenAudioTrackRef.current = null;
+        oldAudioTrack?.stop();
         await audioPub.replaceTrack(newAudioTrack);
         screenAudioTrackRef.current = newAudioTrack;
       } else if (!newAudioTrack && audioPub?.track) {

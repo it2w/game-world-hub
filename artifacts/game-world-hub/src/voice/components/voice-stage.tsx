@@ -97,7 +97,7 @@ export function VoiceStage() {
   const { t } = useTranslation("common");
   const voice = useVoice();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
-  const [theater, setTheater] = useState<MediaStream | null>(null);
+  const [theater, setTheater] = useState<{ stream: MediaStream; name: string } | null>(null);
 
   // Hide the floating panel while the inline stage is on screen.
   useEffect(() => acquireInlineStage(), []);
@@ -227,7 +227,7 @@ export function VoiceStage() {
             key={tile.key}
             tile={tile}
             t={t}
-            onOpen={tile.variant !== "avatar" ? () => setTheater(tile.stream ?? null) : undefined}
+            onOpen={tile.variant !== "avatar" && tile.stream ? () => setTheater({ stream: tile.stream!, name: tile.name }) : undefined}
           />
         ))}
       </div>
@@ -262,7 +262,7 @@ export function VoiceStage() {
       {/* theater */}
       {theater && (
         <div
-          className="fixed inset-0 z-[95] flex items-center justify-center p-8"
+          className="fixed inset-0 z-[95] flex flex-col items-center justify-center p-8 gap-3"
           style={{ background: "rgba(0,0,0,.9)", backdropFilter: "blur(8px)" }}
           onClick={() => setTheater(null)}
         >
@@ -274,7 +274,14 @@ export function VoiceStage() {
           >
             <X className="w-5 h-5" />
           </button>
-          <VideoTile stream={theater} className="max-w-full max-h-full" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+          <VideoTile stream={theater.stream} className="max-w-full max-h-full" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+          <span
+            className="text-sm font-semibold tracking-wide shrink-0"
+            style={{ color: "rgba(255,255,255,0.85)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {theater.name}
+          </span>
         </div>
       )}
     </div>

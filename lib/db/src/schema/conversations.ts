@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, boolean, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, boolean, unique, primaryKey } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const conversationsTable = pgTable("conversations", {
@@ -45,6 +45,17 @@ export const messageReactionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.messageId, t.userId, t.emoji)],
+);
+
+/** Soft-delete: tracks which users have deleted a message for themselves. */
+export const messageDeletionsTable = pgTable(
+  "message_deletions",
+  {
+    messageId: integer("message_id").notNull().references(() => messagesTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.userId] })],
 );
 
 export type Conversation = typeof conversationsTable.$inferSelect;

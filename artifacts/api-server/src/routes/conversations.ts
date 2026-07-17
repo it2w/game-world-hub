@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, inArray, desc, sql, notExists } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -8,6 +8,7 @@ import {
   messagesTable,
   messageReadsTable,
   messageReactionsTable,
+  messageDeletionsTable,
   notificationsTable,
   profilePhotosTable,
 } from "@workspace/db";
@@ -279,7 +280,18 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     .select({ msg: messagesTable, sender: usersTable })
     .from(messagesTable)
     .innerJoin(usersTable, eq(messagesTable.senderId, usersTable.id))
-    .where(eq(messagesTable.conversationId, conversationId))
+    .where(and(
+      eq(messagesTable.conversationId, conversationId),
+      // Exclude messages the current user has soft-deleted
+      notExists(
+        db.select().from(messageDeletionsTable).where(
+          and(
+            eq(messageDeletionsTable.messageId, messagesTable.id),
+            eq(messageDeletionsTable.userId, myId)
+          )
+        )
+      )
+    ))
     .orderBy(messagesTable.createdAt);
 
   if (messages.length === 0) {
@@ -524,6 +536,8 @@ router.post("/conversations/:conversationId/restore", requireAuth, async (req, r
 });
 
 // DELETE /conversations/:conversationId/messages/:messageId
+// Soft-delete: records the deletion for the requesting user only.
+// The message stays in the DB so other participants still see it.
 router.delete("/conversations/:conversationId/messages/:messageId", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const rawConv = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
@@ -531,11 +545,20 @@ router.delete("/conversations/:conversationId/messages/:messageId", requireAuth,
   const conversationId = parseInt(rawConv, 10);
   const messageId = parseInt(rawMsg, 10);
 
-  const [msg] = await db.select().from(messagesTable).where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)));
-  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
-  if (msg.senderId !== myId) { res.status(403).json({ error: "Cannot delete another user's message" }); return; }
+  // Must be a participant of the conversation
+  const [membership] = await db.select().from(conversationParticipantsTable)
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
+  if (!membership) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  await db.delete(messagesTable).where(eq(messagesTable.id, messageId));
+  const [msg] = await db.select().from(messagesTable)
+    .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+
+  // Record the per-user soft-delete (ignore duplicate if already deleted)
+  await db.insert(messageDeletionsTable)
+    .values({ messageId, userId: myId })
+    .onConflictDoNothing();
+
   res.status(204).end();
 });
 

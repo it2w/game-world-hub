@@ -16,7 +16,6 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
   type Participant,
-  type RemoteAudioTrack,
   type ScreenShareCaptureOptions,
   type TrackPublishOptions,
   type VideoCodec,
@@ -57,6 +56,8 @@ export interface PeerUiState {
   cameraStream: MediaStream | null;
   /** True when this peer is sharing screen WITH audio */
   hasScreenAudio: boolean;
+  /** MediaStream for the peer's screen-share audio (null when not sharing audio). */
+  screenAudioStream: MediaStream | null;
 }
 
 export type ActiveRoom =
@@ -149,18 +150,20 @@ function buildPeerState(p: RemoteParticipant): PeerUiState {
   let screenStream: MediaStream | null = null;
   let cameraStream: MediaStream | null = null;
   let hasScreenAudio = false;
+  let screenAudioStream: MediaStream | null = null;
 
-  // audioStream is intentionally left null: livekit-client auto-plays remote
-  // audio via its own internal HTMLAudioElement.  Deafen is applied via
-  // RemoteAudioTrack.setVolume(0) in applyDeafenVolume(), not via srcObject.
-  void audioStream;
   for (const pub of p.videoTrackPublications.values()) {
     if (!pub.track?.mediaStream) continue;
     if (pub.source === Track.Source.ScreenShare) screenStream = pub.track.mediaStream;
     else if (pub.source === Track.Source.Camera) cameraStream = pub.track.mediaStream;
   }
   for (const pub of p.audioTrackPublications.values()) {
-    if (pub.source === Track.Source.ScreenShareAudio && pub.isSubscribed) hasScreenAudio = true;
+    if (pub.source === Track.Source.ScreenShareAudio && pub.isSubscribed) {
+      hasScreenAudio = true;
+      screenAudioStream = pub.track?.mediaStream ?? null;
+    } else if (pub.source === Track.Source.Microphone && pub.isSubscribed) {
+      audioStream = pub.track?.mediaStream ?? null;
+    }
   }
 
   return {
@@ -177,6 +180,7 @@ function buildPeerState(p: RemoteParticipant): PeerUiState {
     screenStream,
     cameraStream,
     hasScreenAudio,
+    screenAudioStream,
   };
 }
 
@@ -259,28 +263,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // ── Deafen volume helper ────────────────────────────────────────────────────
-
-  /** Apply or lift deafen across all current remote audio tracks.
-   *  On un-deafen, individual volumes and screen-audio mutes are restored. */
-  const applyDeafenVolume = useCallback((isDeafened: boolean) => {
-    const room = livekitRef.current;
-    if (!room) return;
-    for (const p of room.remoteParticipants.values()) {
-      const uid = Number(p.identity);
-      for (const pub of p.audioTrackPublications.values()) {
-        const track = pub.audioTrack as RemoteAudioTrack | undefined;
-        if (!track) continue;
-        if (isDeafened) {
-          track.setVolume(0);
-        } else if (pub.source === Track.Source.ScreenShareAudio) {
-          track.setVolume(screenAudioMutesRef.current.has(uid) ? 0 : 1);
-        } else {
-          track.setVolume(peerVolumesRef.current[uid] ?? 1);
-        }
-      }
-    }
-  }, []);
+  // Deafen is handled reactively by RemoteAudioSink: el.muted = deafened.
+  // Per-peer volume is applied via el.volume = peerVolumes[uid].
+  // No imperative LiveKit setVolume() calls needed.
 
   // ── LiveKit room teardown ───────────────────────────────────────────────────
 
@@ -363,6 +348,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             muted: !p.isMicrophoneEnabled,
             sharing: false,
             hasScreenAudio: false,
+            screenAudioStream: null,
             cameraEnabled: false,
             speaking: false,
             connectionState: "new" as RTCPeerConnectionState,
@@ -388,20 +374,13 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           const ms = track.mediaStream ?? null;
           const uid = Number(p.identity);
           if (track.kind === Track.Kind.Audio) {
-            const audioTrack = pub.audioTrack as RemoteAudioTrack | undefined;
             if (pub.source === Track.Source.ScreenShareAudio) {
-              // Screen share audio — mute if deafened or user has it locally muted
-              if (deafenedRef.current || screenAudioMutesRef.current.has(uid)) {
-                audioTrack?.setVolume(0);
-              }
-              patchPeer(p.identity, { hasScreenAudio: true });
+              // Screen share audio — store the MediaStream; RemoteAudioSink
+              // handles muting/volume directly on the <audio> element.
+              patchPeer(p.identity, { hasScreenAudio: true, screenAudioStream: ms });
             } else {
-              // Mic audio — apply deafen or per-peer volume
-              if (deafenedRef.current) {
-                audioTrack?.setVolume(0);
-              } else {
-                audioTrack?.setVolume(peerVolumesRef.current[uid] ?? 1);
-              }
+              // Mic audio — store the MediaStream; RemoteAudioSink applies
+              // per-peer volume and deafen via el.volume / el.muted.
               patchPeer(p.identity, { audioStream: ms, muted: false });
             }
           } else if (track.kind === Track.Kind.Video) {
@@ -419,7 +398,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         (_track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) => {
           if (pub.kind === Track.Kind.Audio) {
             if (pub.source === Track.Source.ScreenShareAudio) {
-              patchPeer(p.identity, { hasScreenAudio: false });
+              patchPeer(p.identity, { hasScreenAudio: false, screenAudioStream: null });
             } else {
               patchPeer(p.identity, { audioStream: null });
             }
@@ -777,7 +756,6 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     const nextDeafened = !deafenedRef.current;
     deafenedRef.current = nextDeafened;
     setDeafened(nextDeafened);
-    applyDeafenVolume(nextDeafened);
 
     if (nextDeafened) {
       mutedBeforeDeafenRef.current = mutedRef.current;
@@ -794,7 +772,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         void livekitRef.current?.localParticipant.setMicrophoneEnabled(true);
       }
     }
-  }, [applyDeafenVolume]);
+  }, []);
 
   const toggleCamera = useCallback(async () => {
     const room = livekitRef.current;
@@ -918,39 +896,20 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  /** Set the local playback volume (0–1) for a specific peer's mic. */
+  /** Set the local playback volume (0–1) for a specific peer's mic.
+   *  RemoteAudioSink applies the value reactively via el.volume. */
   const setPeerVolume = useCallback((userId: number, volume: number) => {
     setPeerVolumes((prev) => ({ ...prev, [userId]: volume }));
-    const room = livekitRef.current;
-    if (!room || deafenedRef.current) return;
-    const rp = [...room.remoteParticipants.values()].find((p) => Number(p.identity) === userId);
-    if (!rp) return;
-    for (const pub of rp.audioTrackPublications.values()) {
-      if (pub.source !== Track.Source.ScreenShareAudio) {
-        (pub.audioTrack as RemoteAudioTrack | undefined)?.setVolume(volume);
-      }
-    }
   }, []);
 
-  /** Toggle local mute of a specific peer's screen-share audio. */
+  /** Toggle local mute of a specific peer's screen-share audio.
+   *  RemoteAudioSink applies el.muted reactively. */
   const togglePeerScreenAudio = useCallback((userId: number) => {
-    const currentlyMuted = screenAudioMutesRef.current.has(userId);
-    const newMuted = !currentlyMuted;
     setScreenAudioMutes((prev) => {
       const next = new Set(prev);
-      if (newMuted) next.add(userId); else next.delete(userId);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
       return next;
     });
-    if (deafenedRef.current) return; // applied on un-deafen via applyDeafenVolume
-    const room = livekitRef.current;
-    if (!room) return;
-    const rp = [...room.remoteParticipants.values()].find((p) => Number(p.identity) === userId);
-    if (!rp) return;
-    for (const pub of rp.audioTrackPublications.values()) {
-      if (pub.source === Track.Source.ScreenShareAudio) {
-        (pub.audioTrack as RemoteAudioTrack | undefined)?.setVolume(newMuted ? 0 : 1);
-      }
-    }
   }, []);
 
   const setVoiceQuality = useCallback((q: VoiceQuality) => {
@@ -1078,8 +1037,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   return (
     <VoiceContext.Provider value={value}>
       {children}
-      {/* LiveKit auto-plays audio; RemoteAudioSink handles deafen-while-absent edge cases */}
-      <RemoteAudioSink peers={peers} deafened={deafened} />
+      <RemoteAudioSink
+        peers={peers}
+        deafened={deafened}
+        peerVolumes={peerVolumes}
+        screenAudioMutes={screenAudioMutes}
+      />
     </VoiceContext.Provider>
   );
 }

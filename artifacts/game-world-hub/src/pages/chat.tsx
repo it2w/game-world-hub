@@ -100,19 +100,18 @@ function ConvMenu({
                 <span>{t("sidebar.hideConversation")}</span>
               </button>
 
-              {/* Delete only available for direct DMs — party chats are managed by the party */}
-              {conv.type === "direct" && (
-                <>
-                  <div className="h-px bg-border mx-3 my-1" />
-                  <button
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
-                    onClick={() => { setOpen(false); onDelete(); }}
-                  >
-                    <Trash2 className="w-4 h-4 shrink-0" />
-                    <span>{t("sidebar.deleteConversation")}</span>
-                  </button>
-                </>
-              )}
+              <div className="h-px bg-border mx-3 my-1" />
+              <button
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-destructive/10 text-destructive transition-colors text-start"
+                onClick={() => { setOpen(false); onDelete(); }}
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>
+                  {conv.type === "direct"
+                    ? t("sidebar.deleteConversation")
+                    : t("sidebar.leaveConversation")}
+                </span>
+              </button>
             </>
           )}
         </div>
@@ -584,14 +583,28 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   };
 
   const handleDeleteConv = (convId: number) => {
-    openConfirm(t("sidebar.confirmDeletePrompt"), () => {
-      deleteConversationFull.mutate({ conversationId: convId }, {
-        onSuccess: () => {
-          invalidateConvs();
-          if (conversationId === convId) setLocation("/chat");
-        },
-      });
-    });
+    const conv = conversations?.find((c: any) => c.id === convId);
+    const isDirect = conv?.type === "direct";
+    openConfirm(
+      isDirect ? t("sidebar.confirmDeletePrompt") : t("sidebar.confirmLeavePrompt"),
+      () => {
+        if (isDirect) {
+          deleteConversationFull.mutate({ conversationId: convId }, {
+            onSuccess: () => {
+              invalidateConvs();
+              if (conversationId === convId) setLocation("/chat");
+            },
+          });
+        } else {
+          customFetch(`/api/conversations/${convId}/leave`, { method: "POST" })
+            .then(() => {
+              invalidateConvs();
+              if (conversationId === convId) setLocation("/chat");
+            })
+            .catch(() => {});
+        }
+      }
+    );
   };
 
   const pinnedMessages = useMemo(() => localMessages.filter((m) => m.isPinned), [localMessages]);

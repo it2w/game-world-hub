@@ -43,6 +43,7 @@ import {
   ChevronDown,
   ChevronUp,
   Volume2,
+  VolumeX,
   Loader2,
   Maximize2,
   X,
@@ -55,6 +56,7 @@ import {
   Headphones,
   MessageSquare,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 
 /* ── HALO keyframes injected once ───────────────────────────────────────── */
 const STYLE = `
@@ -161,6 +163,10 @@ export function VoicePanel() {
     error,
     canRejoin,
     rejoin,
+    peerVolumes,
+    screenAudioMutes,
+    setPeerVolume,
+    togglePeerScreenAudio,
   } = useVoice();
 
   const [, navigate] = useLocation();
@@ -483,12 +489,17 @@ export function VoicePanel() {
                     speaking={p.speaking && !p.muted}
                     muted={p.muted}
                     sharing={p.sharing}
+                    hasScreenAudio={p.hasScreenAudio}
                     cameraEnabled={p.cameraEnabled}
                     connectionState={p.connectionState}
                     isLeader={isLeader && !!partyId}
                     onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
                     onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
                     onMutePeer={() => remoteMute(p.userId)}
+                    volume={peerVolumes[p.userId] ?? 1}
+                    onVolumeChange={(v) => setPeerVolume(p.userId, v)}
+                    screenAudioMuted={screenAudioMutes.has(p.userId)}
+                    onToggleScreenAudio={() => togglePeerScreenAudio(p.userId)}
                   />
                 ))
               )}
@@ -783,24 +794,34 @@ function ParticipantRow({
   speaking,
   muted,
   sharing,
+  hasScreenAudio,
   cameraEnabled,
   connectionState,
   isLeader,
   onKick,
   onTransfer,
   onMutePeer,
+  volume = 1,
+  onVolumeChange,
+  screenAudioMuted = false,
+  onToggleScreenAudio,
 }: {
   name: string;
   avatarUrl: string | null;
   speaking: boolean;
   muted: boolean;
   sharing: boolean;
+  hasScreenAudio?: boolean;
   cameraEnabled?: boolean;
   connectionState: RTCPeerConnectionState;
   isLeader?: boolean;
   onKick?: () => void;
   onTransfer?: () => void;
   onMutePeer?: () => void;
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
+  screenAudioMuted?: boolean;
+  onToggleScreenAudio?: () => void;
 }) {
   const { t } = useTranslation("common");
   const [everConnected, setEverConnected] = useState(false);
@@ -873,19 +894,34 @@ function ParticipantRow({
         )}
       </div>
 
-      {/* Name */}
-      <span
-        className="flex-1 text-[11px] tracking-wide truncate"
-        style={{
-          color: unreachable
-            ? "rgba(255,255,255,0.3)"
-            : isSpeaking
-              ? "rgba(255,255,255,0.95)"
-              : "rgba(255,255,255,0.75)",
-        }}
-      >
-        {name}
-      </span>
+      {/* Name / volume slider (hover swaps name for slider) */}
+      {showActions && !unreachable ? (
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <Volume2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+          <Slider
+            value={[Math.round(volume * 100)]}
+            onValueChange={([v]) => onVolumeChange?.(v / 100)}
+            min={0} max={100} step={1}
+            className="flex-1"
+          />
+          <span className="text-[9px] tabular-nums text-muted-foreground/50 shrink-0 w-6 text-right">
+            {Math.round(volume * 100)}%
+          </span>
+        </div>
+      ) : (
+        <span
+          className="flex-1 text-[11px] tracking-wide truncate"
+          style={{
+            color: unreachable
+              ? "rgba(255,255,255,0.3)"
+              : isSpeaking
+                ? "rgba(255,255,255,0.95)"
+                : "rgba(255,255,255,0.75)",
+          }}
+        >
+          {name}
+        </span>
+      )}
 
       {/* Leader actions (hover) */}
       {isLeader && showActions && !unreachable && (
@@ -929,6 +965,19 @@ function ParticipantRow({
             {connecting && <Loader2 className="w-3 h-3 text-muted-foreground/40 animate-spin" />}
             {cameraEnabled && <Video className="w-3 h-3 text-primary" />}
             {sharing && <Monitor className="w-3 h-3 text-primary" />}
+            {/* Screen-share audio mute toggle — only when peer is sharing with audio */}
+            {sharing && hasScreenAudio && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleScreenAudio?.(); }}
+                className="p-0.5 transition-colors"
+                title={screenAudioMuted ? "Unmute screen audio" : "Mute screen audio"}
+                style={{ color: screenAudioMuted ? "#ef4444" : "rgba(var(--primary-rgb,0,255,65),0.6)" }}
+              >
+                {screenAudioMuted
+                  ? <VolumeX className="w-3 h-3" />
+                  : <Volume2 className="w-3 h-3" />}
+              </button>
+            )}
             {isSpeaking ? (
               <EqBars size="sm" />
             ) : muted ? (

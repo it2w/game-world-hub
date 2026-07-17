@@ -57,6 +57,11 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
 /* ── HALO keyframes injected once ───────────────────────────────────────── */
 const STYLE = `
@@ -894,34 +899,19 @@ function ParticipantRow({
         )}
       </div>
 
-      {/* Name / volume slider (hover swaps name for slider) */}
-      {showActions && !unreachable ? (
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <Volume2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-          <Slider
-            value={[Math.round(volume * 100)]}
-            onValueChange={([v]) => onVolumeChange?.(v / 100)}
-            min={0} max={100} step={1}
-            className="flex-1"
-          />
-          <span className="text-[9px] tabular-nums text-muted-foreground/50 shrink-0 w-6 text-right">
-            {Math.round(volume * 100)}%
-          </span>
-        </div>
-      ) : (
-        <span
-          className="flex-1 text-[11px] tracking-wide truncate"
-          style={{
-            color: unreachable
-              ? "rgba(255,255,255,0.3)"
-              : isSpeaking
-                ? "rgba(255,255,255,0.95)"
-                : "rgba(255,255,255,0.75)",
-          }}
-        >
-          {name}
-        </span>
-      )}
+      {/* Name — always visible */}
+      <span
+        className="flex-1 text-[11px] tracking-wide truncate"
+        style={{
+          color: unreachable
+            ? "rgba(255,255,255,0.3)"
+            : isSpeaking
+              ? "rgba(255,255,255,0.95)"
+              : "rgba(255,255,255,0.75)",
+        }}
+      >
+        {name}
+      </span>
 
       {/* Leader actions (hover) */}
       {isLeader && showActions && !unreachable && (
@@ -965,19 +955,78 @@ function ParticipantRow({
             {connecting && <Loader2 className="w-3 h-3 text-muted-foreground/40 animate-spin" />}
             {cameraEnabled && <Video className="w-3 h-3 text-primary" />}
             {sharing && <Monitor className="w-3 h-3 text-primary" />}
-            {/* Screen-share audio mute toggle — only when peer is sharing with audio */}
-            {sharing && hasScreenAudio && (
+
+            {/* Screen-share audio mute — visible whenever sharing; grayed when no audio captured */}
+            {sharing && (
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleScreenAudio?.(); }}
+                onClick={(e) => { e.stopPropagation(); if (hasScreenAudio) onToggleScreenAudio?.(); }}
                 className="p-0.5 transition-colors"
-                title={screenAudioMuted ? "Unmute screen audio" : "Mute screen audio"}
-                style={{ color: screenAudioMuted ? "#ef4444" : "rgba(var(--primary-rgb,0,255,65),0.6)" }}
+                title={
+                  !hasScreenAudio
+                    ? "No screen audio shared"
+                    : screenAudioMuted
+                      ? "Unmute screen audio"
+                      : "Mute screen audio"
+                }
+                style={{
+                  color: !hasScreenAudio
+                    ? "rgba(255,255,255,0.15)"
+                    : screenAudioMuted
+                      ? "#ef4444"
+                      : "rgba(var(--primary-rgb,0,255,65),0.7)",
+                  cursor: !hasScreenAudio ? "default" : "pointer",
+                }}
               >
-                {screenAudioMuted
+                {screenAudioMuted && hasScreenAudio
                   ? <VolumeX className="w-3 h-3" />
                   : <Volume2 className="w-3 h-3" />}
               </button>
             )}
+
+            {/* Per-peer volume Popover — portal-rendered, never unmounts mid-drag */}
+            {!unreachable && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-0.5 transition-colors"
+                    title={`Volume: ${Math.round(volume * 100)}%`}
+                    style={{
+                      color: volume === 0
+                        ? "#ef4444"
+                        : "rgba(255,255,255,0.2)",
+                    }}
+                  >
+                    {volume === 0
+                      ? <VolumeX className="w-3 h-3" />
+                      : <Volume2 className="w-3 h-3" />}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="left"
+                  sideOffset={8}
+                  className="w-44 p-3 space-y-2"
+                  style={{ background: "#0e0e1a", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <p className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider truncate">
+                    {name}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                    <Slider
+                      value={[Math.round(volume * 100)]}
+                      onValueChange={([v]) => onVolumeChange?.(v / 100)}
+                      min={0} max={100} step={1}
+                      className="flex-1"
+                    />
+                    <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0 w-7 text-right">
+                      {Math.round(volume * 100)}%
+                    </span>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
             {isSpeaking ? (
               <EqBars size="sm" />
             ) : muted ? (

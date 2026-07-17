@@ -188,7 +188,7 @@ export function VoicePanel() {
 
   const [, navigate] = useLocation();
   const [expanded, setExpanded] = useState(true);
-  const [theater, setTheater] = useState<{ stream: MediaStream; label: string; avatarUrl?: string | null } | null>(null);
+  const [theater, setTheater] = useState<{ stream: MediaStream; label: string; avatarUrl?: string | null; self?: boolean } | null>(null);
   const [theaterHoveredId, setTheaterHoveredId] = useState<number | null>(null);
   const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
@@ -237,8 +237,9 @@ export function VoicePanel() {
     void startScreenShare();
   }, [pendingQuality, setScreenQuality, startScreenShare]);
 
-  // Close the theater view if the stream it's showing is no longer active
-  // (e.g. the sharer stopped sharing or left the call).
+  // Close (or update) the theater when active streams change.
+  // If we were showing our own local screen and changeScreenShare created a new
+  // MediaStream object, update the reference instead of closing the theater.
   useEffect(() => {
     if (!theater) return;
     const activeStreams = new Set<MediaStream>();
@@ -248,7 +249,13 @@ export function VoicePanel() {
       if (p.screenStream) activeStreams.add(p.screenStream);
       if (p.cameraStream) activeStreams.add(p.cameraStream);
     }
-    if (!activeStreams.has(theater.stream)) setTheater(null);
+    if (!activeStreams.has(theater.stream)) {
+      if (theater.self && sharing && localScreenStream) {
+        setTheater((prev) => prev ? { ...prev, stream: localScreenStream } : null);
+      } else {
+        setTheater(null);
+      }
+    }
   }, [theater, sharing, localScreenStream, cameraEnabled, localCameraStream, peers]);
 
   if (!activeRoom) return null;
@@ -459,7 +466,7 @@ export function VoicePanel() {
                     stream={localScreenStream}
                     label={t("voice.you")}
                     self
-                    onOpen={() => setTheater({ stream: localScreenStream, label: me?.displayName ?? t("voice.you"), avatarUrl: me?.avatarUrl ?? null })}
+                    onOpen={() => setTheater({ stream: localScreenStream, label: me?.displayName ?? t("voice.you"), avatarUrl: me?.avatarUrl ?? null, self: true })}
                     fps={screenPreset.frameRate}
                   />
                 )}

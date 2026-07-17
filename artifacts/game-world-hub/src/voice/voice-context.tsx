@@ -1112,7 +1112,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       enc.maxBitrate   = preset.maxBitrate;
       enc.maxFramerate = preset.frameRate;
       enc.priority     = "high";
-      void sender.setParameters(params);
+      // setParameters() can throw InvalidStateError if the WebRTC transaction
+      // is stale (e.g. LiveKit's refreshSenderEncodings ran concurrently).
+      // Catch silently — quality will be applied on the next successful cycle.
+      void sender.setParameters(params).catch(() => {});
     }
   }, []);
 

@@ -109,7 +109,7 @@ export function VoiceStage() {
   const { t } = useTranslation("common");
   const voice = useVoice();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
-  const [theater, setTheater] = useState<{ stream: MediaStream; name: string; avatarUrl?: string | null } | null>(null);
+  const [theater, setTheater] = useState<{ stream: MediaStream; name: string; avatarUrl?: string | null; self?: boolean } | null>(null);
   const [theaterHoveredId, setTheaterHoveredId] = useState<number | null>(null);
 
   // Hide the floating panel while the inline stage is on screen.
@@ -130,7 +130,9 @@ export function VoiceStage() {
   const setPeerVolume         = voice.setPeerVolume;
   const setScreenAudioVolume  = voice.setScreenAudioVolume;
 
-  // Close theater if the stream it's showing is no longer active.
+  // Close (or update) the theater when active streams change.
+  // If we were showing our own local screen and changeScreenShare created a new
+  // MediaStream object, update the reference instead of closing the theater.
   useEffect(() => {
     if (!theater) return;
     const activeStreams = new Set<MediaStream>();
@@ -140,7 +142,13 @@ export function VoiceStage() {
       if (p.screenStream) activeStreams.add(p.screenStream);
       if (p.cameraStream) activeStreams.add(p.cameraStream);
     }
-    if (!activeStreams.has(theater.stream)) setTheater(null);
+    if (!activeStreams.has(theater.stream)) {
+      if (theater.self && sharing && localScreenStream) {
+        setTheater((prev) => prev ? { ...prev, stream: localScreenStream } : null);
+      } else {
+        setTheater(null);
+      }
+    }
   }, [theater, sharing, localScreenStream, cameraEnabled, localCameraStream, peers]);
 
   if (!activeRoom) return null;
@@ -255,7 +263,7 @@ export function VoiceStage() {
             key={tile.key}
             tile={tile}
             t={t}
-            onOpen={tile.variant !== "avatar" && tile.stream ? () => setTheater({ stream: tile.stream!, name: tile.name, avatarUrl: tile.avatarUrl }) : undefined}
+            onOpen={tile.variant !== "avatar" && tile.stream ? () => setTheater({ stream: tile.stream!, name: tile.name, avatarUrl: tile.avatarUrl, self: tile.self }) : undefined}
           />
         ))}
       </div>

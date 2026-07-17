@@ -110,6 +110,7 @@ export function VoiceStage() {
   const voice = useVoice();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
   const [theater, setTheater] = useState<{ stream: MediaStream; name: string; avatarUrl?: string | null } | null>(null);
+  const [theaterHoveredId, setTheaterHoveredId] = useState<number | null>(null);
 
   // Hide the floating panel while the inline stage is on screen.
   useEffect(() => acquireInlineStage(), []);
@@ -275,11 +276,19 @@ export function VoiceStage() {
 
       {/* theater */}
       {theater && (() => {
-        const allPeople = [
-          { name: selfName, avatarUrl: selfAvatar, speaking: speaking && !muted, muted },
-          ...peers.map(p => ({ name: p.displayName, avatarUrl: p.avatarUrl ?? null, speaking: p.speaking && !p.muted, muted: p.muted })),
+        // Lookup presenting peer for screen-audio controls
+        const presenterPeer = peers.find(p => p.displayName === theater.name);
+        const presenterUserId = presenterPeer?.userId ?? null;
+        const presenterHasScreenAudio = presenterPeer?.hasScreenAudio ?? false;
+        const presenterScreenVol = presenterUserId ? (screenAudioVolumes[presenterUserId] ?? 1) : 1;
+
+        // Participants with userId for volume control (null = self)
+        const allPeople: Array<{ name: string; avatarUrl: string | null; speaking: boolean; muted: boolean; userId: number | null; isSelf: boolean }> = [
+          { name: selfName, avatarUrl: selfAvatar ?? null, speaking: speaking && !muted, muted, userId: null, isSelf: true },
+          ...peers.map(p => ({ name: p.displayName, avatarUrl: p.avatarUrl ?? null, speaking: p.speaking && !p.muted, muted: p.muted, userId: p.userId as number, isSelf: false })),
         ];
         const nonPresenters = allPeople.filter(p => p.name !== theater.name);
+
         return (
           <div
             className="fixed inset-0 z-[95] flex flex-col"
@@ -314,16 +323,16 @@ export function VoiceStage() {
 
             {/* presenter bar */}
             <div
-              className="shrink-0 px-8 py-5"
+              className="shrink-0 px-8 py-4"
               style={{
                 background: "linear-gradient(0deg,rgba(4,4,14,0.98) 0%,rgba(4,4,14,0.75) 100%)",
                 borderTop: "1px solid rgba(255,255,255,0.06)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-6 max-w-5xl mx-auto">
+              <div className="flex items-center gap-5 max-w-5xl mx-auto">
 
-                {/* presenter */}
+                {/* presenter info */}
                 <div className="flex items-center gap-4 shrink-0">
                   <div
                     className="relative w-14 h-14 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-base shrink-0"
@@ -348,15 +357,38 @@ export function VoiceStage() {
                     <p className="text-[15px] font-bold text-white tracking-tight leading-none mb-1.5">
                       {theater.name}
                     </p>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full animate-pulse"
-                        style={{ background: "hsl(var(--primary))" }}
-                      />
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(var(--primary))" }} />
                       <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">
                         {t("voice.screenLabel")}
                       </span>
                     </div>
+                    {/* Screen audio volume */}
+                    {presenterHasScreenAudio && presenterUserId && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                          onClick={() => setScreenAudioVolume(presenterUserId, presenterScreenVol < 0.01 ? 0.8 : 0)}
+                          title={presenterScreenVol < 0.01 ? "Unmute screen audio" : "Mute screen audio"}
+                        >
+                          {presenterScreenVol < 0.01
+                            ? <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                            : <Volume2 className="w-3.5 h-3.5 text-white" />
+                          }
+                        </button>
+                        <input
+                          type="range" min={0} max={1} step={0.05}
+                          value={presenterScreenVol}
+                          onChange={e => setScreenAudioVolume(presenterUserId, parseFloat(e.target.value))}
+                          className="w-20 cursor-pointer"
+                          style={{ accentColor: "hsl(var(--primary))", height: "3px" }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                        <span className="text-[9px] tabular-nums" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          {Math.round(presenterScreenVol * 100)}%
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -365,47 +397,89 @@ export function VoiceStage() {
                   <div className="w-px self-stretch shrink-0" style={{ background: "rgba(255,255,255,0.07)" }} />
                 )}
 
-                {/* other participants */}
-                {nonPresenters.length > 0 && (
-                  <div className="flex items-center gap-4 overflow-x-auto flex-1 py-1">
-                    {nonPresenters.map(p => (
-                      <div key={p.name} className="flex flex-col items-center gap-1.5 shrink-0">
-                        <div
-                          className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-bold"
-                          style={{
-                            background: p.avatarUrl ? undefined : nameColor(p.name),
-                            border: p.speaking
-                              ? "2px solid hsl(var(--primary))"
-                              : "2px solid rgba(255,255,255,0.1)",
-                            boxShadow: p.speaking
-                              ? "0 0 14px rgba(var(--primary-rgb,0,255,65),0.45)"
-                              : "none",
-                            transition: "border-color .2s, box-shadow .2s",
-                          }}
-                        >
-                          {p.avatarUrl
-                            ? <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
-                            : nameInitials(p.name)
-                          }
-                          {p.muted && (
-                            <span
-                              className="absolute bottom-0 end-0 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                              style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid rgba(4,4,14,0.9)" }}
-                            >
-                              <MicOff className="w-2 h-2 text-white" />
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className="text-[9px] font-medium tracking-wide truncate max-w-[60px] text-center leading-none"
-                          style={{ color: p.speaking ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)" }}
-                        >
-                          {p.name}
-                        </span>
+                {/* other participants + per-peer volume */}
+                <div className="flex items-start gap-4 overflow-x-auto flex-1 py-1">
+                  {nonPresenters.map(p => (
+                    <div
+                      key={p.userId}
+                      className="flex flex-col items-center gap-1 shrink-0"
+                      onMouseEnter={() => { if (p.userId !== null) setTheaterHoveredId(p.userId); }}
+                      onMouseLeave={() => setTheaterHoveredId(null)}
+                    >
+                      <div
+                        className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-bold"
+                        style={{
+                          background: p.avatarUrl ? undefined : nameColor(p.name),
+                          border: p.speaking ? "2px solid hsl(var(--primary))" : "2px solid rgba(255,255,255,0.1)",
+                          boxShadow: p.speaking ? "0 0 14px rgba(var(--primary-rgb,0,255,65),0.45)" : "none",
+                          transition: "border-color .2s, box-shadow .2s",
+                        }}
+                      >
+                        {p.avatarUrl
+                          ? <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          : nameInitials(p.name)
+                        }
+                        {p.muted && (
+                          <span
+                            className="absolute bottom-0 end-0 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                            style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid rgba(4,4,14,0.9)" }}
+                          >
+                            <MicOff className="w-2 h-2 text-white" />
+                          </span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <span
+                        className="text-[9px] font-medium tracking-wide truncate max-w-[68px] text-center leading-none"
+                        style={{ color: p.speaking ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)" }}
+                      >
+                        {p.name}
+                      </span>
+                      {/* Volume slider — hover, peers only */}
+                      {p.userId !== null && theaterHoveredId === p.userId && !p.isSelf && (
+                        <div className="flex items-center gap-1 mt-0.5" onClick={e => e.stopPropagation()}>
+                          <button
+                            className="opacity-60 hover:opacity-100 transition-opacity shrink-0"
+                            onClick={() => { if (p.userId !== null) setPeerVolume(p.userId, (peerVolumes[p.userId] ?? 1) < 0.01 ? 0.8 : 0); }}
+                          >
+                            {(peerVolumes[p.userId] ?? 1) < 0.01
+                              ? <VolumeX className="w-3 h-3 text-red-400" />
+                              : <Volume2 className="w-3 h-3 text-white" />
+                            }
+                          </button>
+                          <input
+                            type="range" min={0} max={1} step={0.05}
+                            value={peerVolumes[p.userId] ?? 1}
+                            onChange={e => { if (p.userId !== null) setPeerVolume(p.userId, parseFloat(e.target.value)); }}
+                            className="w-16 cursor-pointer"
+                            style={{ accentColor: "hsl(var(--primary))", height: "3px" }}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Self mic button */}
+                <div className="shrink-0 flex flex-col items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={voice.toggleMute}
+                    className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200"
+                    style={{
+                      background: muted ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.07)",
+                      border: muted ? "2px solid rgba(239,68,68,0.55)" : "2px solid rgba(255,255,255,0.12)",
+                    }}
+                    title={muted ? t("voice.unmute") : t("voice.mute")}
+                  >
+                    {muted
+                      ? <MicOff className="w-4.5 h-4.5 text-red-400" />
+                      : <Mic className="w-4.5 h-4.5" style={{ color: "rgba(255,255,255,0.65)" }} />
+                    }
+                  </button>
+                  <span className="text-[8px] font-semibold uppercase tracking-widest" style={{ color: muted ? "rgba(239,68,68,0.8)" : "rgba(255,255,255,0.35)" }}>
+                    {muted ? t("voice.muted") : t("voice.mic")}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

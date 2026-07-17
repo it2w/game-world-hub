@@ -8,24 +8,24 @@ import {
   X,
   GripVertical,
   Monitor,
-  Play,
+  RefreshCw,
+  ChevronRight,
+  ChevronLeft,
+  AlertCircle,
+  Check,
+  SquareX,
 } from "lucide-react";
 import {
   SCREEN_PRESETS,
   SCREEN_QUALITY_ORDER,
   type ScreenQuality,
 } from "../quality";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 
 /* ── constants ──────────────────────────────────────────────────────────── */
 const W = 320;
 const HANDLE_H = 32; // drag handle height in px
+
+type MenuView = "main" | "quality";
 
 /**
  * Floating, draggable picture-in-picture overlay shown while the local user
@@ -38,6 +38,7 @@ export function FloatingShareOverlay() {
     localScreenStream,
     peers,
     stopScreenShare,
+    startScreenShare,
     screenQuality,
     setScreenQuality,
     activeRoom,
@@ -45,8 +46,10 @@ export function FloatingShareOverlay() {
 
   /* ── position ─────────────────────────────────────────────────────────── */
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuView, setMenuView] = useState<MenuView>("main");
+  const [shareAudio, setShareAudio] = useState(true);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Initialise position once (bottom-right corner, 24 px from edges)
   useEffect(() => {
@@ -58,10 +61,27 @@ export function FloatingShareOverlay() {
     }
   }, [sharing, pos]);
 
-  // Reset when share stops so the next share starts fresh in the corner
+  // Reset when share stops
   useEffect(() => {
-    if (!sharing) setPos(null);
+    if (!sharing) {
+      setPos(null);
+      setMenuOpen(false);
+      setMenuView("main");
+    }
   }, [sharing]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setMenuView("main");
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [menuOpen]);
 
   /* ── dragging via pointer capture ─────────────────────────────────────── */
   const isDragging = useRef(false);
@@ -69,7 +89,6 @@ export function FloatingShareOverlay() {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      // only drag from handle, not from buttons inside it
       if ((e.target as HTMLElement).closest("button")) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       isDragging.current = true;
@@ -98,8 +117,32 @@ export function FloatingShareOverlay() {
     isDragging.current = false;
   }, []);
 
+  /* ── actions ──────────────────────────────────────────────────────────── */
+  const handleChangeStream = useCallback(async () => {
+    setMenuOpen(false);
+    setMenuView("main");
+    stopScreenShare();
+    // small delay to let unpublish complete before re-requesting display media
+    await new Promise((r) => setTimeout(r, 400));
+    await startScreenShare();
+  }, [stopScreenShare, startScreenShare]);
+
+  const handleStopStreaming = useCallback(() => {
+    setMenuOpen(false);
+    setMenuView("main");
+    stopScreenShare();
+  }, [stopScreenShare]);
+
+  const handleSelectQuality = useCallback(
+    (q: ScreenQuality) => {
+      setScreenQuality(q);
+      setMenuOpen(false);
+      setMenuView("main");
+    },
+    [setScreenQuality],
+  );
+
   /* ── viewer count ─────────────────────────────────────────────────────── */
-  // All peers currently connected to the room can see the screen share
   const viewerCount = peers.filter(
     (p) => p.connectionState === "connected",
   ).length;
@@ -107,26 +150,144 @@ export function FloatingShareOverlay() {
   /* ── room label ───────────────────────────────────────────────────────── */
   const roomTitle = activeRoom?.title ?? "";
 
-  /* ── quality save ─────────────────────────────────────────────────────── */
-  const handleSaveQuality = useCallback(() => {
-    setScreenQuality(pendingQuality);
-    setSettingsOpen(false);
-  }, [pendingQuality, setScreenQuality]);
-
   /* ── render guard ─────────────────────────────────────────────────────── */
   if (!sharing || !localScreenStream || pos === null) return null;
 
+  /* ── menu items ───────────────────────────────────────────────────────── */
+  const ITEM_BASE =
+    "flex items-center gap-3 w-full px-4 py-[10px] text-[13px] transition-colors text-start";
+  const ITEM_NORMAL = `${ITEM_BASE} text-white/90 hover:bg-white/[0.07]`;
+  const ITEM_DANGER = `${ITEM_BASE} text-[#ff6b8a] hover:bg-[#ff6b8a]/10`;
+
+  const menuContent =
+    menuView === "quality" ? (
+      /* ── Quality sub-panel ─────────────────────────────────────────── */
+      <>
+        {/* Back header */}
+        <button
+          className={`${ITEM_BASE} text-white/50 hover:bg-white/[0.07] border-b border-white/[0.08]`}
+          onClick={() => setMenuView("main")}
+        >
+          <ChevronLeft className="w-4 h-4 shrink-0" />
+          <span className="font-semibold">{t("voice.qualityPickerTitle", "Stream Quality")}</span>
+        </button>
+        {SCREEN_QUALITY_ORDER.map((q) => {
+          const preset = SCREEN_PRESETS[q];
+          const active = screenQuality === q;
+          return (
+            <button
+              key={q}
+              onClick={() => handleSelectQuality(q)}
+              className={`${ITEM_BASE} justify-between ${
+                active ? "text-white" : "text-white/70 hover:bg-white/[0.07]"
+              }`}
+              style={active ? { background: "rgba(255,255,255,0.07)" } : undefined}
+            >
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="font-bold font-mono text-[12px]">{q.toUpperCase()}</span>
+                <span className="text-[10px] text-white/40 font-mono">
+                  {preset.width}×{preset.height} · {preset.frameRate}fps ·{" "}
+                  {Math.round(preset.maxBitrate / 1000)}kbps
+                </span>
+              </div>
+              {active && (
+                <Check
+                  className="w-4 h-4 shrink-0"
+                  style={{ color: "hsl(var(--primary))" }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </>
+    ) : (
+      /* ── Main menu ─────────────────────────────────────────────────── */
+      <>
+        {/* Stop Streaming */}
+        <button className={ITEM_DANGER} onClick={handleStopStreaming}>
+          <SquareX className="w-4 h-4 shrink-0" />
+          <span>{t("voice.stopSharing", "Stop Streaming")}</span>
+        </button>
+
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "2px 0" }} />
+
+        {/* Change Stream */}
+        <button className={ITEM_NORMAL} onClick={handleChangeStream}>
+          <RefreshCw className="w-4 h-4 shrink-0 text-white/50" />
+          <span>{t("share.changeStream", "Change Stream")}</span>
+        </button>
+
+        {/* Stream Quality */}
+        <button
+          className={`${ITEM_NORMAL} justify-between`}
+          onClick={() => setMenuView("quality")}
+        >
+          <div className="flex items-center gap-3">
+            <Monitor className="w-4 h-4 shrink-0 text-white/50" />
+            <span>{t("share.streamQuality", "Stream Quality")}</span>
+          </div>
+          <div className="flex items-center gap-2 text-white/40">
+            <span className="text-[11px] font-mono">{screenQuality.toUpperCase()}</span>
+            <ChevronRight className="w-4 h-4" />
+          </div>
+        </button>
+
+        {/* Share Stream Audio */}
+        <button
+          className={`${ITEM_NORMAL} justify-between`}
+          onClick={() => setShareAudio((v) => !v)}
+        >
+          <div className="flex items-center gap-3">
+            <svg
+              className="w-4 h-4 shrink-0 text-white/50"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+            <span>{t("share.shareStreamAudio", "Share Stream Audio")}</span>
+          </div>
+          {/* Checkbox */}
+          <span
+            className="w-5 h-5 flex items-center justify-center shrink-0 transition-colors"
+            style={{
+              background: shareAudio ? "#5865f2" : "rgba(255,255,255,0.1)",
+              border: shareAudio ? "none" : "1px solid rgba(255,255,255,0.3)",
+            }}
+          >
+            {shareAudio && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+          </span>
+        </button>
+
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "2px 0" }} />
+
+        {/* Report Problem */}
+        <button className={ITEM_DANGER}>
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{t("share.reportProblem", "Report Problem")}</span>
+        </button>
+      </>
+    );
+
   return (
-    <>
+    <div
+      ref={menuRef}
+      className="fixed z-[85] select-none"
+      style={{ left: pos.x, top: pos.y, width: W }}
+    >
+      {/* ── Overlay card ─────────────────────────────────────────────────── */}
       <div
-        className="fixed z-[85] select-none"
         style={{
-          left: pos.x,
-          top: pos.y,
-          width: W,
           background: "linear-gradient(180deg,#0a0a18 0%,#06060f 100%)",
           border: "1px solid rgba(255,255,255,0.09)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.03)",
+          boxShadow:
+            "0 24px 60px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.03)",
         }}
       >
         {/* Top accent line */}
@@ -150,7 +311,10 @@ export function FloatingShareOverlay() {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          <GripVertical className="w-3 h-3 shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
+          <GripVertical
+            className="w-3 h-3 shrink-0"
+            style={{ color: "rgba(255,255,255,0.2)" }}
+          />
 
           {/* Live dot */}
           <span className="relative flex w-1.5 h-1.5 shrink-0">
@@ -158,7 +322,10 @@ export function FloatingShareOverlay() {
               className="absolute inset-0 rounded-full animate-ping opacity-75"
               style={{ background: "hsl(var(--primary))" }}
             />
-            <span className="rounded-full w-1.5 h-1.5" style={{ background: "hsl(var(--primary))" }} />
+            <span
+              className="rounded-full w-1.5 h-1.5"
+              style={{ background: "hsl(var(--primary))" }}
+            />
           </span>
 
           <span
@@ -181,7 +348,7 @@ export function FloatingShareOverlay() {
           </span>
         </div>
 
-        {/* ── Video preview ────────────────────────────────────────────── */}
+        {/* ── Video preview ─────────────────────────────────────────────── */}
         <div
           className="relative overflow-hidden"
           style={{ aspectRatio: "16/9", background: "#000" }}
@@ -203,7 +370,7 @@ export function FloatingShareOverlay() {
           </div>
         </div>
 
-        {/* ── Controls bar ─────────────────────────────────────────────── */}
+        {/* ── Controls bar ──────────────────────────────────────────────── */}
         <div
           className="flex items-center gap-2 px-3 py-2"
           style={{
@@ -216,35 +383,51 @@ export function FloatingShareOverlay() {
             className="flex items-center gap-1.5 flex-1"
             title={t("share.viewerCount", "Viewers")}
           >
-            <Eye className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+            <Eye
+              className="w-3.5 h-3.5"
+              style={{ color: "rgba(255,255,255,0.4)" }}
+            />
             <span
               className="text-[11px] font-bold tabular-nums font-mono"
-              style={{ color: viewerCount > 0 ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)" }}
+              style={{
+                color:
+                  viewerCount > 0
+                    ? "rgba(255,255,255,0.85)"
+                    : "rgba(255,255,255,0.3)",
+              }}
             >
               {viewerCount}
             </span>
           </div>
 
-          {/* Settings */}
+          {/* Settings — toggles dropdown */}
           <button
             onClick={() => {
-              setPendingQuality(screenQuality);
-              setSettingsOpen(true);
+              setMenuOpen((v) => !v);
+              setMenuView("main");
             }}
             className="w-8 h-8 flex items-center justify-center transition-all rounded-none"
-            title={t("share.settings", "Quality settings")}
+            title={t("share.settings", "Settings")}
             style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.5)",
+              background: menuOpen
+                ? "rgba(255,255,255,0.12)"
+                : "rgba(255,255,255,0.04)",
+              border: `1px solid ${menuOpen ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)"}`,
+              color: menuOpen ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.5)",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.09)";
-              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)";
+              if (menuOpen) return;
+              (e.currentTarget as HTMLElement).style.background =
+                "rgba(255,255,255,0.09)";
+              (e.currentTarget as HTMLElement).style.color =
+                "rgba(255,255,255,0.9)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
-              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+              if (menuOpen) return;
+              (e.currentTarget as HTMLElement).style.background =
+                "rgba(255,255,255,0.04)";
+              (e.currentTarget as HTMLElement).style.color =
+                "rgba(255,255,255,0.5)";
             }}
           >
             <Settings className="w-3.5 h-3.5" />
@@ -252,7 +435,7 @@ export function FloatingShareOverlay() {
 
           {/* Stop sharing */}
           <button
-            onClick={stopScreenShare}
+            onClick={handleStopStreaming}
             className="w-8 h-8 flex items-center justify-center transition-all rounded-none"
             title={t("voice.stopSharing", "Stop sharing")}
             style={{
@@ -261,10 +444,12 @@ export function FloatingShareOverlay() {
               color: "#ef4444",
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.22)";
+              (e.currentTarget as HTMLElement).style.background =
+                "rgba(239,68,68,0.22)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.12)";
+              (e.currentTarget as HTMLElement).style.background =
+                "rgba(239,68,68,0.12)";
             }}
           >
             <X className="w-3.5 h-3.5" />
@@ -272,58 +457,20 @@ export function FloatingShareOverlay() {
         </div>
       </div>
 
-      {/* ── Quality settings dialog ────────────────────────────────────── */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="border-border bg-card rounded-none sm:max-w-[380px]">
-          <DialogHeader>
-            <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
-              {t("voice.qualityPickerTitle", "Screen share quality")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 pt-2">
-            {SCREEN_QUALITY_ORDER.map((q) => {
-              const preset = SCREEN_PRESETS[q];
-              return (
-                <button
-                  key={q}
-                  onClick={() => setPendingQuality(q)}
-                  className={`w-full p-3 border text-start transition-colors font-mono ${
-                    pendingQuality === q
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-primary/50 hover:bg-muted/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">{q}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                      {preset.frameRate}fps · {Math.round(preset.maxBitrate / 1000)}kbps
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {preset.width}×{preset.height}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              className="flex-1 rounded-none font-mono"
-              onClick={() => setSettingsOpen(false)}
-            >
-              {t("voice.cancel", "Cancel")}
-            </Button>
-            <Button
-              className="flex-1 rounded-none font-mono gap-2"
-              onClick={handleSaveQuality}
-            >
-              <Play className="w-4 h-4" />
-              {t("share.applyQuality", "Apply")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      {/* ── Dropdown menu (appears ABOVE the card) ────────────────────────── */}
+      {menuOpen && (
+        <div
+          className="absolute bottom-[calc(100%+6px)] end-0 py-1 overflow-hidden"
+          style={{
+            width: 220,
+            background: "#1a1a2e",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
+          }}
+        >
+          {menuContent}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1082,13 +1082,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     // applyConstraints() asks the browser to change the capture resolution/fps
     // in-place. Chrome honours this for getDisplayMedia tracks; the OS picker
     // is not re-shown. On unsupported browsers it resolves silently.
+    // Only constrain frameRate — do NOT apply width/height so the capture
+    // dimensions (and therefore the visible video size) stay fixed. Bitrate
+    // is controlled via sender.setParameters below.
     const track = screenTrackRef.current;
     if (track && track.readyState === "live") {
       void track.applyConstraints({
-        width:     { ideal: preset.width },
-        height:    { ideal: preset.height },
         frameRate: { ideal: preset.frameRate },
-      });
+      }).catch(() => {});
     }
 
     // ── 2. Update the RTP sender's bitrate / framerate ceiling ──────────────

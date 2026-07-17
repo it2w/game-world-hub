@@ -180,13 +180,7 @@ export function FloatingShareOverlay() {
               }`}
               style={active ? { background: "rgba(255,255,255,0.07)" } : undefined}
             >
-              <div className="flex flex-col items-start gap-0.5">
-                <span className="font-bold font-mono text-[12px]">{q.toUpperCase()}</span>
-                <span className="text-[10px] text-white/40 font-mono">
-                  {preset.width}×{preset.height} · {preset.frameRate}fps ·{" "}
-                  {Math.round(preset.maxBitrate / 1000)}kbps
-                </span>
-              </div>
+              <span className="font-bold font-mono text-[12px]">{q.toUpperCase()}</span>
               {active && (
                 <Check
                   className="w-4 h-4 shrink-0"

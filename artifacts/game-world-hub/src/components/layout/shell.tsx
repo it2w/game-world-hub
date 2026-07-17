@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { VoicePanel } from "@/voice/components/voice-panel";
 import { useInlineStageActive } from "@/voice/inline-stage-store";
 import { CallOverlays } from "@/voice/components/incoming-call-dialog";
+import { FloatingShareOverlay } from "@/voice/components/floating-share-overlay";
 import { Bell } from "lucide-react";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {!inlineStageActive && <VoicePanel />}
+      <FloatingShareOverlay />
       <CallOverlays />
     </SidebarProvider>
   );

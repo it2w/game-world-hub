@@ -250,22 +250,10 @@ export default function Profile() {
             </div>
           )}
 
-          {/* Identity — anchored to banner bottom, left-padded for avatar */}
-          <div className="absolute bottom-0 start-0 end-0 px-6 pb-5">
-            <div className="ps-[140px]">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase drop-shadow-md">
-                  {user.displayName}
-                </h1>
-                {user.isPro && <ProBadge size="lg" />}
-              </div>
-              <p className="text-primary font-mono text-sm mt-0.5">@{user.username}</p>
-            </div>
-          </div>
         </div>
 
-        {/* AVATAR ROW — overlaps banner */}
-        <div className="px-6 -mt-14 relative z-10 flex items-start">
+        {/* AVATAR + IDENTITY ROW — overlaps banner */}
+        <div className="px-6 -mt-14 relative z-10 flex items-end gap-5">
           <div className="relative shrink-0 group">
             {/* Avatar circle — simple border, no glow */}
             <div className="w-28 h-28 rounded-full border-4 border-card bg-muted overflow-hidden flex items-center justify-center">
@@ -296,6 +284,17 @@ export default function Profile() {
                 {user.status}
               </span>
             </div>
+          </div>
+
+          {/* Identity — beside the avatar */}
+          <div className="flex-1 min-w-0 pb-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
+                {user.displayName}
+              </h1>
+              {user.isPro && <ProBadge size="lg" />}
+            </div>
+            <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
           </div>
         </div>
 

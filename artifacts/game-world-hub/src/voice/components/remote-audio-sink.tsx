@@ -6,24 +6,25 @@ import type { PeerUiState } from "../voice-context";
  * Mounted globally (inside the provider) so playback continues
  * regardless of which page is visible.
  *
- * Volume and muting are controlled directly on `el.volume` / `el.muted`
+ * Volume and muting are controlled directly on el.volume / el.muted
  * because we use our own <audio srcObject> elements (not LiveKit's internal
  * attachment), so RemoteAudioTrack.setVolume() would be a no-op here.
  *
  * Two elements per peer when they have screen-share audio:
- *   1. Mic audio  — volume from peerVolumes; muted when deafened
- *   2. Screen audio — volume 1; muted when deafened OR in screenAudioMutes
+ *   1. Mic audio    — volume from peerVolumes;         muted when deafened
+ *   2. Screen audio — volume from screenAudioVolumes;  muted when deafened
+ *                     (volume=0 in screenAudioVolumes acts as per-peer mute)
  */
 export function RemoteAudioSink({
   peers,
   deafened,
   peerVolumes,
-  screenAudioMutes,
+  screenAudioVolumes,
 }: {
   peers: PeerUiState[];
   deafened: boolean;
   peerVolumes: Record<number, number>;
-  screenAudioMutes: Set<number>;
+  screenAudioVolumes: Record<number, number>;
 }) {
   return (
     <div aria-hidden className="sr-only">
@@ -40,8 +41,8 @@ export function RemoteAudioSink({
           <PeerAudio
             key={`screen-${p.userId}`}
             stream={p.screenAudioStream}
-            volume={1}
-            muted={deafened || screenAudioMutes.has(p.userId)}
+            volume={screenAudioVolumes[p.userId] ?? 1}
+            muted={deafened}
           />
         ) : null,
       )}
@@ -74,15 +75,14 @@ function PeerAudio({
     }
   }, [stream]);
 
-  // Apply deafen / screen-audio-mute by toggling `muted` — the stream stays
-  // connected so audio resumes immediately when the state changes.
+  // Deafen: mute the element entirely; stream stays live so it resumes cleanly.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.muted = muted;
   }, [muted]);
 
-  // Apply per-peer volume directly on the element.
+  // Per-peer volume (0 = silent / muted, 1 = full).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

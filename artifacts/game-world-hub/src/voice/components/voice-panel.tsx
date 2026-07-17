@@ -169,9 +169,9 @@ export function VoicePanel() {
     canRejoin,
     rejoin,
     peerVolumes,
-    screenAudioMutes,
+    screenAudioVolumes,
     setPeerVolume,
-    togglePeerScreenAudio,
+    setScreenAudioVolume,
   } = useVoice();
 
   const [, navigate] = useLocation();
@@ -503,8 +503,8 @@ export function VoicePanel() {
                     onMutePeer={() => remoteMute(p.userId)}
                     volume={peerVolumes[p.userId] ?? 1}
                     onVolumeChange={(v) => setPeerVolume(p.userId, v)}
-                    screenAudioMuted={screenAudioMutes.has(p.userId)}
-                    onToggleScreenAudio={() => togglePeerScreenAudio(p.userId)}
+                    screenAudioVolume={screenAudioVolumes[p.userId] ?? 1}
+                    onScreenAudioVolumeChange={(v) => setScreenAudioVolume(p.userId, v)}
                   />
                 ))
               )}
@@ -808,8 +808,8 @@ function ParticipantRow({
   onMutePeer,
   volume = 1,
   onVolumeChange,
-  screenAudioMuted = false,
-  onToggleScreenAudio,
+  screenAudioVolume = 1,
+  onScreenAudioVolumeChange,
 }: {
   name: string;
   avatarUrl: string | null;
@@ -825,8 +825,8 @@ function ParticipantRow({
   onMutePeer?: () => void;
   volume?: number;
   onVolumeChange?: (v: number) => void;
-  screenAudioMuted?: boolean;
-  onToggleScreenAudio?: () => void;
+  screenAudioVolume?: number;
+  onScreenAudioVolumeChange?: (v: number) => void;
 }) {
   const { t } = useTranslation("common");
   const [everConnected, setEverConnected] = useState(false);
@@ -956,31 +956,58 @@ function ParticipantRow({
             {cameraEnabled && <Video className="w-3 h-3 text-primary" />}
             {sharing && <Monitor className="w-3 h-3 text-primary" />}
 
-            {/* Screen-share audio mute — visible whenever sharing; grayed when no audio captured */}
+            {/* Screen-share audio volume — visible whenever sharing */}
             {sharing && (
-              <button
-                onClick={(e) => { e.stopPropagation(); if (hasScreenAudio) onToggleScreenAudio?.(); }}
-                className="p-0.5 transition-colors"
-                title={
-                  !hasScreenAudio
-                    ? "No screen audio shared"
-                    : screenAudioMuted
-                      ? "Unmute screen audio"
-                      : "Mute screen audio"
-                }
-                style={{
-                  color: !hasScreenAudio
-                    ? "rgba(255,255,255,0.15)"
-                    : screenAudioMuted
-                      ? "#ef4444"
-                      : "rgba(var(--primary-rgb,0,255,65),0.7)",
-                  cursor: !hasScreenAudio ? "default" : "pointer",
-                }}
-              >
-                {screenAudioMuted && hasScreenAudio
-                  ? <VolumeX className="w-3 h-3" />
-                  : <Volume2 className="w-3 h-3" />}
-              </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-0.5 transition-colors"
+                    title={
+                      !hasScreenAudio
+                        ? "No screen audio shared"
+                        : `Screen audio: ${Math.round(screenAudioVolume * 100)}%`
+                    }
+                    style={{
+                      color: !hasScreenAudio
+                        ? "rgba(255,255,255,0.15)"
+                        : screenAudioVolume === 0
+                          ? "#ef4444"
+                          : "rgba(var(--primary-rgb,0,255,65),0.7)",
+                      cursor: !hasScreenAudio ? "default" : "pointer",
+                    }}
+                    disabled={!hasScreenAudio}
+                  >
+                    {hasScreenAudio && screenAudioVolume === 0
+                      ? <VolumeX className="w-3 h-3" />
+                      : <Volume2 className="w-3 h-3" />}
+                  </button>
+                </PopoverTrigger>
+                {hasScreenAudio && (
+                  <PopoverContent
+                    side="left"
+                    sideOffset={8}
+                    className="w-44 p-3 space-y-2"
+                    style={{ background: "#0e0e1a", border: "1px solid rgba(255,255,255,0.1)" }}
+                  >
+                    <p className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider truncate">
+                      screen audio
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                      <Slider
+                        value={[Math.round(screenAudioVolume * 100)]}
+                        onValueChange={([v]) => onScreenAudioVolumeChange?.(v / 100)}
+                        min={0} max={100} step={1}
+                        className="flex-1"
+                      />
+                      <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0 w-7 text-right">
+                        {Math.round(screenAudioVolume * 100)}%
+                      </span>
+                    </div>
+                  </PopoverContent>
+                )}
+              </Popover>
             )}
 
             {/* Per-peer volume Popover — portal-rendered, never unmounts mid-drag */}

@@ -96,8 +96,8 @@ interface VoiceContextValue {
 
   /** Per-peer mic volume: 0–1, default 1. Not affected by deafen. */
   peerVolumes: Record<number, number>;
-  /** Peers whose screen-share audio is locally muted. */
-  screenAudioMutes: Set<number>;
+  /** Per-peer screen-share audio volume: 0–1, default 1. 0 = muted. */
+  screenAudioVolumes: Record<number, number>;
 
   joinPartyVoice: (partyId: number, title: string) => Promise<void>;
   leaveVoice: () => void;
@@ -117,8 +117,8 @@ interface VoiceContextValue {
   isInPartyVoice: (partyId: number) => boolean;
   /** Set per-user mic volume (0–1). Persists across deafen. */
   setPeerVolume: (userId: number, volume: number) => void;
-  /** Toggle local mute of a peer's screen-share audio. */
-  togglePeerScreenAudio: (userId: number) => void;
+  /** Set per-user screen-share audio volume (0–1). 0 = muted. */
+  setScreenAudioVolume: (userId: number, volume: number) => void;
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -208,8 +208,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [canRejoin, setCanRejoin] = useState(false);
   /** Per-peer mic volume 0–1 (default 1). Persists across deafen. */
   const [peerVolumes, setPeerVolumes] = useState<Record<number, number>>({});
-  /** Peers whose screen-share audio the local user has muted. */
-  const [screenAudioMutes, setScreenAudioMutes] = useState<Set<number>>(new Set());
+  /** Per-peer screen-share audio volume 0–1 (default 1). 0 = muted. */
+  const [screenAudioVolumes, setScreenAudioVolumes] = useState<Record<number, number>>({});
 
   // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -229,14 +229,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const screenAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   /** Mirrors peerVolumes — stale-closure-safe access in callbacks. */
   const peerVolumesRef = useRef<Record<number, number>>({});
-  /** Mirrors screenAudioMutes — stale-closure-safe access in callbacks. */
-  const screenAudioMutesRef = useRef<Set<number>>(new Set());
+  /** Mirrors screenAudioVolumes — stale-closure-safe access in callbacks. */
+  const screenAudioVolumesRef = useRef<Record<number, number>>({});
 
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
   useEffect(() => { screenQualityRef.current = screenQuality; }, [screenQuality]);
   useEffect(() => { peerVolumesRef.current = peerVolumes; }, [peerVolumes]);
-  useEffect(() => { screenAudioMutesRef.current = screenAudioMutes; }, [screenAudioMutes]);
+  useEffect(() => { screenAudioVolumesRef.current = screenAudioVolumes; }, [screenAudioVolumes]);
 
   // ── Peer state helpers ─────────────────────────────────────────────────────
 
@@ -902,14 +902,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setPeerVolumes((prev) => ({ ...prev, [userId]: volume }));
   }, []);
 
-  /** Toggle local mute of a specific peer's screen-share audio.
-   *  RemoteAudioSink applies el.muted reactively. */
-  const togglePeerScreenAudio = useCallback((userId: number) => {
-    setScreenAudioMutes((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId); else next.add(userId);
-      return next;
-    });
+  /** Set per-user screen-share audio volume (0–1). 0 = muted.
+   *  RemoteAudioSink applies el.volume reactively. */
+  const setScreenAudioVolume = useCallback((userId: number, volume: number) => {
+    setScreenAudioVolumes((prev) => ({ ...prev, [userId]: volume }));
   }, []);
 
   const setVoiceQuality = useCallback((q: VoiceQuality) => {
@@ -1013,7 +1009,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     error,
     canRejoin,
     peerVolumes,
-    screenAudioMutes,
+    screenAudioVolumes,
     joinPartyVoice,
     leaveVoice,
     rejoin,
@@ -1031,7 +1027,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setScreenQuality,
     isInPartyVoice,
     setPeerVolume,
-    togglePeerScreenAudio,
+    setScreenAudioVolume,
   };
 
   return (
@@ -1041,7 +1037,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         peers={peers}
         deafened={deafened}
         peerVolumes={peerVolumes}
-        screenAudioMutes={screenAudioMutes}
+        screenAudioVolumes={screenAudioVolumes}
       />
     </VoiceContext.Provider>
   );

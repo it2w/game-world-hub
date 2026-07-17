@@ -79,13 +79,13 @@ type Tile = {
   muted?: boolean;
   avatarUrl?: string | null;
   fps?: number;
-  // Per-peer volume + screen-audio mute (remote peers only)
+  // Per-peer volume + screen-audio volume (remote peers only)
   userId?: number;
   volume?: number;
   onVolumeChange?: (v: number) => void;
   hasScreenAudio?: boolean;
-  screenAudioMuted?: boolean;
-  onToggleScreenAudio?: () => void;
+  screenAudioVolume?: number;
+  onScreenAudioVolumeChange?: (v: number) => void;
 };
 
 /**
@@ -112,10 +112,10 @@ export function VoiceStage() {
   const localScreenStream = voice.localScreenStream;
   const localCameraStream = voice.localCameraStream;
   const screenQuality     = voice.screenQuality;
-  const peerVolumes       = voice.peerVolumes;
-  const screenAudioMutes  = voice.screenAudioMutes;
-  const setPeerVolume     = voice.setPeerVolume;
-  const togglePeerScreenAudio = voice.togglePeerScreenAudio;
+  const peerVolumes           = voice.peerVolumes;
+  const screenAudioVolumes    = voice.screenAudioVolumes;
+  const setPeerVolume         = voice.setPeerVolume;
+  const setScreenAudioVolume  = voice.setScreenAudioVolume;
 
   if (!activeRoom) return null;
 
@@ -152,8 +152,8 @@ export function VoiceStage() {
       mediaTiles.push({
         key: `s-${p.userId}`, variant: "screen", name: p.displayName, stream: p.screenStream,
         hasScreenAudio: p.hasScreenAudio,
-        screenAudioMuted: screenAudioMutes.has(p.userId),
-        onToggleScreenAudio: () => togglePeerScreenAudio(p.userId),
+        screenAudioVolume: screenAudioVolumes[p.userId] ?? 1,
+        onScreenAudioVolumeChange: (v: number) => setScreenAudioVolume(p.userId, v),
       });
     if (p.cameraEnabled)
       mediaTiles.push({ key: `c-${p.userId}`, variant: "camera", name: p.displayName, stream: p.cameraStream });
@@ -428,33 +428,60 @@ function StageTile({
           <Maximize2 className="w-5 h-5 text-white" />
         </span>
       </button>
-      {/* Screen audio mute overlay — on screen-share tiles from remote peers */}
+      {/* Screen audio volume popover — on screen-share tiles from remote peers */}
       {tile.variant === "screen" && !tile.self && (
-        <button
-          onClick={(e) => { e.stopPropagation(); if (tile.hasScreenAudio) tile.onToggleScreenAudio?.(); }}
-          className="absolute top-2 start-2 w-7 h-7 rounded-lg flex items-center justify-center z-10 transition-all"
-          style={{
-            background: "rgba(0,0,0,0.7)",
-            color: !tile.hasScreenAudio
-              ? "rgba(255,255,255,0.2)"
-              : tile.screenAudioMuted
-                ? "#ef4444"
-                : "rgba(var(--primary-rgb,0,255,65),0.9)",
-            cursor: !tile.hasScreenAudio ? "default" : "pointer",
-            border: "1px solid rgba(255,255,255,0.12)",
-          }}
-          title={
-            !tile.hasScreenAudio
-              ? "No screen audio"
-              : tile.screenAudioMuted
-                ? "Unmute screen audio"
-                : "Mute screen audio"
-          }
-        >
-          {tile.screenAudioMuted && tile.hasScreenAudio
-            ? <VolumeX className="w-3.5 h-3.5" />
-            : <Volume2 className="w-3.5 h-3.5" />}
-        </button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-2 start-2 w-7 h-7 rounded-lg flex items-center justify-center z-10 transition-all"
+              style={{
+                background: "rgba(0,0,0,0.7)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: !tile.hasScreenAudio
+                  ? "rgba(255,255,255,0.2)"
+                  : (tile.screenAudioVolume ?? 1) === 0
+                    ? "#ef4444"
+                    : "rgba(var(--primary-rgb,0,255,65),0.9)",
+                cursor: !tile.hasScreenAudio ? "default" : "pointer",
+              }}
+              title={
+                !tile.hasScreenAudio
+                  ? "No screen audio"
+                  : `Screen audio: ${Math.round((tile.screenAudioVolume ?? 1) * 100)}%`
+              }
+              disabled={!tile.hasScreenAudio}
+            >
+              {tile.hasScreenAudio && (tile.screenAudioVolume ?? 1) === 0
+                ? <VolumeX className="w-3.5 h-3.5" />
+                : <Volume2 className="w-3.5 h-3.5" />}
+            </button>
+          </PopoverTrigger>
+          {tile.hasScreenAudio && (
+            <PopoverContent
+              side="right"
+              sideOffset={8}
+              className="w-44 p-3 space-y-2"
+              style={{ background: "#0e0e1a", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <p className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider truncate">
+                {tile.name} — screen audio
+              </p>
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                <Slider
+                  value={[Math.round((tile.screenAudioVolume ?? 1) * 100)]}
+                  onValueChange={([v]) => tile.onScreenAudioVolumeChange?.(v / 100)}
+                  min={0} max={100} step={1}
+                  className="flex-1"
+                />
+                <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0 w-7 text-right">
+                  {Math.round((tile.screenAudioVolume ?? 1) * 100)}%
+                </span>
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
       )}
       </div>{/* /relative wrapper */}
       <TileLabel tile={tile} t={t} icon={tile.variant === "camera" ? "camera" : "screen"} />

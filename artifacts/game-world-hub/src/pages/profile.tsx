@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X } from "lucide-react";
 import { TierBadge, DivisionBadge, TierPip, type TierName } from "@/components/tier-badge";
+import { ProBadge } from "@/components/pro-badge";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
@@ -236,7 +237,10 @@ export default function Profile() {
         <div className="relative z-10 flex-1 text-center md:text-start space-y-4">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
+                {user.isPro && <ProBadge size="md" />}
+              </div>
               <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
             </div>
 

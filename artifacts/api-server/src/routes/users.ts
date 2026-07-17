@@ -65,6 +65,10 @@ function safeUser(
  * external http(s) URLs are kept as-is.
  */
 async function normalizeStoredImagePath(userId: number, rawPath: string): Promise<string> {
+  // DB-backed images: already stored, just pass through.
+  if (rawPath.startsWith("/images/") || rawPath.startsWith("/api/images/")) {
+    return rawPath.startsWith("/api") ? rawPath.slice("/api".length) : rawPath;
+  }
   // Accept servable URLs (as the API returns them) and store the canonical /objects path.
   const path = rawPath.startsWith("/api/storage/objects/")
     ? rawPath.slice("/api/storage".length)

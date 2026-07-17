@@ -15,3 +15,4 @@ export * from "./profile-photos";
 export * from "./proSubscriptions";
 export * from "./activationCodes";
 export * from "./superAdmins";
+export * from "./stored-images";

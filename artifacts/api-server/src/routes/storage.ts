@@ -1,4 +1,5 @@
 import { Readable } from 'stream';
+import Busboy from 'busboy';
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -17,6 +18,82 @@ const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB — profile media only
+
+/**
+ * POST /storage/uploads
+ *
+ * Direct multipart/form-data upload. Receives the file on the server and
+ * writes it to GCS via the SDK (no sidecar signing required).
+ * Returns { objectPath } in the same shape as the presigned-URL flow.
+ */
+router.post(
+  '/storage/uploads',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    const contentType = req.headers['content-type'] ?? '';
+    if (!contentType.includes('multipart/form-data')) {
+      res.status(400).json({ error: 'Expected multipart/form-data' });
+      return;
+    }
+
+    try {
+      const objectPath = await new Promise<string>((resolve, reject) => {
+        const bb = Busboy({
+          headers: req.headers,
+          limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+        });
+
+        let handled = false;
+
+        bb.on('file', (_fieldname, fileStream, info) => {
+          const { mimeType } = info;
+          if (!mimeType.startsWith('image/')) {
+            fileStream.resume(); // drain
+            reject(new Error('Only image uploads are allowed'));
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          fileStream.on('data', (chunk) => chunks.push(chunk));
+          fileStream.on('limit', () => {
+            reject(new Error('Image is too large (max 8 MB)'));
+          });
+          fileStream.on('end', async () => {
+            if (handled) return;
+            handled = true;
+            try {
+              const buffer = Buffer.concat(chunks);
+              const path = await objectStorageService.uploadObjectEntityBuffer(
+                buffer,
+                mimeType,
+              );
+              resolve(path);
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        bb.on('error', reject);
+        req.pipe(bb);
+      });
+
+      res.json({ objectPath });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Upload failed';
+      if (
+        msg.includes('Only image') ||
+        msg.includes('too large') ||
+        msg.includes('multipart')
+      ) {
+        res.status(400).json({ error: msg });
+      } else {
+        logger.error({ err: error }, 'Error uploading file');
+        res.status(500).json({ error: 'Upload failed' });
+      }
+    }
+  },
+);
 
 /**
  * POST /storage/uploads/request-url

@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { useRequestUploadUrl } from "@workspace/api-client-react";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
 
 /**
- * Uploads an image straight to object storage:
- * asks the API for a presigned URL, PUTs the file to it, and returns the
- * stored object path to save on the profile/photo record.
+ * Uploads an image directly to the API server (stored in PostgreSQL).
+ * Returns the stored objectPath (e.g. "/images/<uuid>") to save on the
+ * profile / photo record.
  */
 export function useImageUpload() {
-  const requestUrl = useRequestUploadUrl();
   const [isUploading, setIsUploading] = useState(false);
 
   const upload = async (file: File): Promise<string> => {
@@ -21,18 +19,24 @@ export function useImageUpload() {
     }
     setIsUploading(true);
     try {
-      const resp = await requestUrl.mutateAsync({
-        data: { name: file.name, size: file.size, contentType: file.type },
+      const form = new FormData();
+      form.append("file", file, file.name);
+
+      const resp = await fetch("/api/images", {
+        method: "POST",
+        body: form,
+        credentials: "include",
       });
-      const put = await fetch(resp.uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-      if (!put.ok) {
-        throw new Error("Upload failed — try again");
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? `Upload failed (${resp.status})`
+        );
       }
-      return resp.objectPath;
+
+      const { objectPath } = (await resp.json()) as { objectPath: string };
+      return objectPath;
     } finally {
       setIsUploading(false);
     }

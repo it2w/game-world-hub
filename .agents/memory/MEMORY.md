@@ -26,3 +26,4 @@
 - [Desktop app distribution](desktop-app-distribution.md) — ZIP via sidecar presigned PUT → GCS public bucket; GET /api/download/windows uses sidecar signed GET URL (not GCS SDK signing); makensis not in binary cache.
 - [Post-migration DB sequence fix](post-migration-sequence-fix.md) — after importing data with explicit IDs, all serial sequences must be reset via setval or new inserts fail with PK collision.
 - [Stale view = client cache](stale-published-vs-dev.md) — "still old design" after a good publish is usually a stale client cache of index.html (no Cache-Control), not a code/deploy bug; prove deploy is live by matching Vite content hash + grepping live JS.
+- [GCS sidecar broken — DB image storage workaround](gcs-sidecar-broken.md) — sidecar returns empty JWT, all GCS ops fail; user images stored as BYTEA in `stored_images` table via `POST /api/images`.

@@ -180,6 +180,27 @@ export class ObjectStorageService {
     return `/objects/${entityId}`;
   }
 
+  /**
+   * Upload a buffer directly to GCS using the SDK (no sidecar signing needed).
+   * Returns the normalized objectPath e.g. "/objects/uploads/<uuid>".
+   */
+  async uploadObjectEntityBuffer(
+    buffer: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, {
+      metadata: { contentType },
+      resumable: false,
+    });
+    return `/objects/uploads/${objectId}`;
+  }
+
   async trySetObjectEntityAclPolicy(
     rawPath: string,
     aclPolicy: ObjectAclPolicy,
@@ -279,5 +300,6 @@ export function toPublicImageUrl(value: string): string;
 export function toPublicImageUrl(value: string | null): string | null;
 export function toPublicImageUrl(value: string | null): string | null {
   if (value && value.startsWith("/objects/")) return `/api/storage${value}`;
+  if (value && value.startsWith("/images/")) return `/api${value}`;
   return value;
 }

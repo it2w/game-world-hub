@@ -861,19 +861,46 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     screenQualityRef.current = q;
     setScreenQualityState(q);
 
-    // Apply the new bitrate cap to the live screen-share sender without stopping.
+    const preset = SCREEN_PRESETS[q];
+
+    // ── 1. Update capture constraints on the live track (no share restart) ──
+    // applyConstraints() asks the browser to change the capture resolution/fps
+    // in-place. Chrome honours this for getDisplayMedia tracks; the OS picker
+    // is not re-shown. On unsupported browsers it resolves silently.
+    const track = screenTrackRef.current;
+    if (track && track.readyState === "live") {
+      void track.applyConstraints({
+        width:     { ideal: preset.width },
+        height:    { ideal: preset.height },
+        frameRate: { ideal: preset.frameRate },
+      });
+    }
+
+    // ── 2. Update the RTP sender's bitrate / framerate ceiling ──────────────
     const room = livekitRef.current;
     if (!room) return;
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     const sender = (pub?.track as unknown as { sender?: RTCRtpSender } | undefined)?.sender;
     if (!sender) return;
-    const preset = SCREEN_PRESETS[q];
     const params = sender.getParameters();
     if (params.encodings?.length) {
-      for (const enc of params.encodings) {
-        enc.maxBitrate = preset.maxBitrate;
-        enc.maxFramerate = preset.frameRate;
-        enc.priority = "high";
+      // Keep only the active encoding (the one we set up in startScreenShare).
+      // Re-apply the single-layer fix in case the browser reset encodings.
+      let bestIdx = params.encodings.length - 1;
+      for (let i = 0; i < params.encodings.length; i++) {
+        if (params.encodings[i].rid === "f") { bestIdx = i; break; }
+        if (params.encodings[i].rid === "h") bestIdx = i;
+      }
+      for (let i = 0; i < params.encodings.length; i++) {
+        const enc = params.encodings[i];
+        if (i === bestIdx) {
+          enc.active       = true;
+          enc.maxBitrate   = preset.maxBitrate;
+          enc.maxFramerate = preset.frameRate;
+          enc.priority     = "high";
+        } else {
+          enc.active = false;
+        }
       }
       void sender.setParameters(params);
     }

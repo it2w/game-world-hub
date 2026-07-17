@@ -38,6 +38,18 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 
+/* ── Avatar helpers ──────────────────────────────────────────────────────── */
+const AVATAR_COLORS = ["#3b82f6","#8b5cf6","#ec4899","#f59e0b","#10b981","#06b6d4","#f97316","#84cc16","#e11d48","#7c3aed"];
+function nameColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function nameInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+}
+
 /* ── keyframes (scoped to the stage) ─────────────────────────────────────── */
 const STAGE_STYLE = `
 @keyframes gwh-stage-blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
@@ -97,7 +109,7 @@ export function VoiceStage() {
   const { t } = useTranslation("common");
   const voice = useVoice();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
-  const [theater, setTheater] = useState<{ stream: MediaStream; name: string } | null>(null);
+  const [theater, setTheater] = useState<{ stream: MediaStream; name: string; avatarUrl?: string | null } | null>(null);
 
   // Hide the floating panel while the inline stage is on screen.
   useEffect(() => acquireInlineStage(), []);
@@ -133,11 +145,12 @@ export function VoiceStage() {
     mediaTiles.push({
       key: "self-screen", variant: "screen", name: selfName, self: true,
       stream: localScreenStream, fps: SCREEN_PRESETS[screenQuality]?.frameRate,
+      avatarUrl: selfAvatar,
     });
   if (cameraEnabled)
     mediaTiles.push({
       key: "self-cam", variant: "camera", name: selfName, self: true,
-      stream: localCameraStream,
+      stream: localCameraStream, avatarUrl: selfAvatar,
     });
 
   for (const p of peers) {
@@ -151,12 +164,13 @@ export function VoiceStage() {
     if (p.sharing)
       mediaTiles.push({
         key: `s-${p.userId}`, variant: "screen", name: p.displayName, stream: p.screenStream,
+        avatarUrl: p.avatarUrl,
         hasScreenAudio: p.hasScreenAudio,
         screenAudioVolume: screenAudioVolumes[p.userId] ?? 1,
         onScreenAudioVolumeChange: (v: number) => setScreenAudioVolume(p.userId, v),
       });
     if (p.cameraEnabled)
-      mediaTiles.push({ key: `c-${p.userId}`, variant: "camera", name: p.displayName, stream: p.cameraStream });
+      mediaTiles.push({ key: `c-${p.userId}`, variant: "camera", name: p.displayName, stream: p.cameraStream, avatarUrl: p.avatarUrl });
   }
 
   const tiles = [...mediaTiles, ...avatarTiles];
@@ -227,7 +241,7 @@ export function VoiceStage() {
             key={tile.key}
             tile={tile}
             t={t}
-            onOpen={tile.variant !== "avatar" && tile.stream ? () => setTheater({ stream: tile.stream!, name: tile.name }) : undefined}
+            onOpen={tile.variant !== "avatar" && tile.stream ? () => setTheater({ stream: tile.stream!, name: tile.name, avatarUrl: tile.avatarUrl }) : undefined}
           />
         ))}
       </div>
@@ -260,30 +274,143 @@ export function VoiceStage() {
       </div>
 
       {/* theater */}
-      {theater && (
-        <div
-          className="fixed inset-0 z-[95] flex flex-col items-center justify-center p-8 gap-3"
-          style={{ background: "rgba(0,0,0,.9)", backdropFilter: "blur(8px)" }}
-          onClick={() => setTheater(null)}
-        >
-          <button
-            className="absolute top-5 end-5 text-muted-foreground hover:text-foreground p-2 transition-colors"
-            style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}
+      {theater && (() => {
+        const allPeople = [
+          { name: selfName, avatarUrl: selfAvatar, speaking: speaking && !muted, muted },
+          ...peers.map(p => ({ name: p.displayName, avatarUrl: p.avatarUrl ?? null, speaking: p.speaking && !p.muted, muted: p.muted })),
+        ];
+        const nonPresenters = allPeople.filter(p => p.name !== theater.name);
+        return (
+          <div
+            className="fixed inset-0 z-[95] flex flex-col"
+            style={{ background: "rgba(4,4,14,.95)", backdropFilter: "blur(18px)" }}
             onClick={() => setTheater(null)}
-            aria-label={t("voice.close")}
           >
-            <X className="w-5 h-5" />
-          </button>
-          <VideoTile stream={theater.stream} className="max-w-full max-h-full" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
-          <span
-            className="text-sm font-semibold tracking-wide shrink-0"
-            style={{ color: "rgba(255,255,255,0.85)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {theater.name}
-          </span>
-        </div>
-      )}
+            {/* close */}
+            <button
+              className="absolute top-5 end-5 z-10 p-2 transition-colors"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
+              onClick={(e) => { e.stopPropagation(); setTheater(null); }}
+              aria-label={t("voice.close")}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* video */}
+            <div
+              className="flex-1 flex items-center justify-center p-8 pb-4 min-h-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <VideoTile
+                stream={theater.stream}
+                className="max-w-full max-h-full"
+                style={{
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: "0 40px 100px rgba(0,0,0,0.95)",
+                  borderRadius: "4px",
+                }}
+              />
+            </div>
+
+            {/* presenter bar */}
+            <div
+              className="shrink-0 px-8 py-5"
+              style={{
+                background: "linear-gradient(0deg,rgba(4,4,14,0.98) 0%,rgba(4,4,14,0.75) 100%)",
+                borderTop: "1px solid rgba(255,255,255,0.06)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-6 max-w-5xl mx-auto">
+
+                {/* presenter */}
+                <div className="flex items-center gap-4 shrink-0">
+                  <div
+                    className="relative w-14 h-14 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-base shrink-0"
+                    style={{
+                      background: theater.avatarUrl ? undefined : nameColor(theater.name),
+                      border: "2px solid hsl(var(--primary))",
+                      boxShadow: "0 0 22px rgba(var(--primary-rgb,0,255,65),0.4)",
+                    }}
+                  >
+                    {theater.avatarUrl
+                      ? <img src={theater.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      : nameInitials(theater.name)
+                    }
+                    <span
+                      className="absolute bottom-0.5 end-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                      style={{ background: "hsl(var(--primary))", border: "1.5px solid rgba(4,4,14,0.9)" }}
+                    >
+                      <Monitor className="w-2.5 h-2.5 text-black" />
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-bold text-white tracking-tight leading-none mb-1.5">
+                      {theater.name}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full animate-pulse"
+                        style={{ background: "hsl(var(--primary))" }}
+                      />
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">
+                        {t("voice.screenLabel")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* divider */}
+                {nonPresenters.length > 0 && (
+                  <div className="w-px self-stretch shrink-0" style={{ background: "rgba(255,255,255,0.07)" }} />
+                )}
+
+                {/* other participants */}
+                {nonPresenters.length > 0 && (
+                  <div className="flex items-center gap-4 overflow-x-auto flex-1 py-1">
+                    {nonPresenters.map(p => (
+                      <div key={p.name} className="flex flex-col items-center gap-1.5 shrink-0">
+                        <div
+                          className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-bold"
+                          style={{
+                            background: p.avatarUrl ? undefined : nameColor(p.name),
+                            border: p.speaking
+                              ? "2px solid hsl(var(--primary))"
+                              : "2px solid rgba(255,255,255,0.1)",
+                            boxShadow: p.speaking
+                              ? "0 0 14px rgba(var(--primary-rgb,0,255,65),0.45)"
+                              : "none",
+                            transition: "border-color .2s, box-shadow .2s",
+                          }}
+                        >
+                          {p.avatarUrl
+                            ? <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
+                            : nameInitials(p.name)
+                          }
+                          {p.muted && (
+                            <span
+                              className="absolute bottom-0 end-0 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                              style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid rgba(4,4,14,0.9)" }}
+                            >
+                              <MicOff className="w-2 h-2 text-white" />
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className="text-[9px] font-medium tracking-wide truncate max-w-[60px] text-center leading-none"
+                          style={{ color: p.speaking ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.45)" }}
+                        >
+                          {p.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

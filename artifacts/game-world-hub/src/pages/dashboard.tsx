@@ -12,6 +12,8 @@ import {
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Activity, Users, Play, Phone, MessageSquare, ShieldOff, Loader2, Check, X } from "lucide-react";
+import { TierPip } from "@/components/tier-badge";
+import { ProBadge } from "@/components/pro-badge";
 import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -188,6 +190,11 @@ export default function Dashboard() {
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
+                            {f.isPro && (
+                              <div className="absolute top-1.5 end-1.5">
+                                <ProBadge size="sm" />
+                              </div>
+                            )}
                           </div>
 
                           {/* avatar — overlaps banner */}

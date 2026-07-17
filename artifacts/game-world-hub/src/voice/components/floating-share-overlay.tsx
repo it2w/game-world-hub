@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
 import { VideoTile } from "./video-tile";
+import { useGetMe } from "@workspace/api-client-react";
 import {
   Eye,
   Settings,
@@ -43,8 +44,8 @@ export function FloatingShareOverlay() {
     toggleScreenAudio,
     screenQuality,
     setScreenQuality,
-    activeRoom,
   } = useVoice();
+  const { data: me } = useGetMe();
 
   /* ── position ─────────────────────────────────────────────────────────── */
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -145,8 +146,8 @@ export function FloatingShareOverlay() {
     (p) => p.connectionState === "connected",
   ).length;
 
-  /* ── room label ───────────────────────────────────────────────────────── */
-  const roomTitle = activeRoom?.title ?? "";
+  /* ── sharer label: always show the local user's own name ─────────────── */
+  const sharerName = me?.displayName ?? "";
 
   /* ── render guard ─────────────────────────────────────────────────────── */
   if (!sharing || !localScreenStream || pos === null) return null;
@@ -330,7 +331,7 @@ export function FloatingShareOverlay() {
             className="text-[9px] font-bold uppercase tracking-[0.2em] flex-1 truncate"
             style={{ color: "hsl(var(--primary))" }}
           >
-            {t("share.liveLabel", "LIVE") + (roomTitle ? ` · ${roomTitle}` : "")}
+            {t("share.liveLabel", "LIVE") + (sharerName ? ` · ${sharerName}` : "")}
           </span>
 
           {/* Quality badge */}

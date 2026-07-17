@@ -237,6 +237,20 @@ export function VoicePanel() {
     void startScreenShare();
   }, [pendingQuality, setScreenQuality, startScreenShare]);
 
+  // Close the theater view if the stream it's showing is no longer active
+  // (e.g. the sharer stopped sharing or left the call).
+  useEffect(() => {
+    if (!theater) return;
+    const activeStreams = new Set<MediaStream>();
+    if (sharing && localScreenStream) activeStreams.add(localScreenStream);
+    if (cameraEnabled && localCameraStream) activeStreams.add(localCameraStream);
+    for (const p of peers) {
+      if (p.screenStream) activeStreams.add(p.screenStream);
+      if (p.cameraStream) activeStreams.add(p.cameraStream);
+    }
+    if (!activeStreams.has(theater.stream)) setTheater(null);
+  }, [theater, sharing, localScreenStream, cameraEnabled, localCameraStream, peers]);
+
   if (!activeRoom) return null;
   const effectiveRoom     = activeRoom;
   const effectivePeers    = peers;

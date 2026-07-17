@@ -422,13 +422,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         (pub: RemoteTrackPublication, p: Participant) => {
           // Ignore local participant — we track our own mute state separately.
           if (p.identity === room.localParticipant?.identity) return;
-          if (pub.kind === Track.Kind.Audio) {
+          if (pub.kind === Track.Kind.Audio && pub.source === Track.Source.Microphone) {
+            // Only treat microphone audio mute as "peer muted".
+            // ScreenShareAudio mute is handled separately (screen audio toggle).
             patchPeer(p.identity, { muted: true });
-          } else if (pub.source === Track.Source.ScreenShare) {
-            patchPeer(p.identity, { sharing: false, screenStream: null });
-          } else if (pub.source === Track.Source.Camera) {
-            patchPeer(p.identity, { cameraEnabled: false, cameraStream: null });
           }
+          // NOTE: do NOT set sharing:false on TrackMuted for ScreenShare — that event
+          // fires for AdaptiveStream bandwidth-saves (the track is paused, not stopped).
+          // Use TrackUnsubscribed as the authoritative "share stopped" signal instead.
         },
       );
 
@@ -436,9 +437,16 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         RoomEvent.TrackUnmuted,
         (pub: RemoteTrackPublication, p: Participant) => {
           if (p.identity === room.localParticipant?.identity) return;
-          if (pub.kind === Track.Kind.Audio) {
+          if (pub.kind === Track.Kind.Audio && pub.source === Track.Source.Microphone) {
             const ms = pub.track?.mediaStream ?? null;
             patchPeer(p.identity, { muted: false, audioStream: ms });
+          } else if (pub.source === Track.Source.ScreenShare) {
+            // AdaptiveStream resumed the screen share track — restore the stream ref.
+            const ms = pub.track?.mediaStream ?? null;
+            patchPeer(p.identity, { sharing: true, screenStream: ms });
+          } else if (pub.source === Track.Source.Camera) {
+            const ms = pub.track?.mediaStream ?? null;
+            patchPeer(p.identity, { cameraEnabled: true, cameraStream: ms });
           }
         },
       );

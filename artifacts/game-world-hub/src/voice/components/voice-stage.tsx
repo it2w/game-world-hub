@@ -130,6 +130,19 @@ export function VoiceStage() {
   const setPeerVolume         = voice.setPeerVolume;
   const setScreenAudioVolume  = voice.setScreenAudioVolume;
 
+  // Close theater if the stream it's showing is no longer active.
+  useEffect(() => {
+    if (!theater) return;
+    const activeStreams = new Set<MediaStream>();
+    if (sharing && localScreenStream) activeStreams.add(localScreenStream);
+    if (cameraEnabled && localCameraStream) activeStreams.add(localCameraStream);
+    for (const p of peers) {
+      if (p.screenStream) activeStreams.add(p.screenStream);
+      if (p.cameraStream) activeStreams.add(p.cameraStream);
+    }
+    if (!activeStreams.has(theater.stream)) setTheater(null);
+  }, [theater, sharing, localScreenStream, cameraEnabled, localCameraStream, peers]);
+
   if (!activeRoom) return null;
 
   const selfName = me?.displayName || t("voice.you");

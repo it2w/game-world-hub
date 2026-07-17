@@ -203,24 +203,12 @@ export function VoicePanel() {
     void startScreenShare();
   }, [pendingQuality, setScreenQuality, startScreenShare]);
 
-  /* ── demo / preview mode ─────────────────────────────────────── */
-  const isPreview = new URLSearchParams(window.location.search).get("voice") === "preview";
-  const demoRoom: typeof activeRoom = isPreview
-    ? { kind: "party", room: "demo", partyId: 0, title: "VALORANT RANKED RUN" }
-    : activeRoom;
-  const demoPeers = isPreview
-    ? [
-        { userId: 2, username: "player2", displayName: "Khalid", avatarUrl: null, muted: false, sharing: false, cameraEnabled: false, speaking: true, connectionState: "connected" as RTCPeerConnectionState, audioStream: null, screenStream: null, cameraStream: null },
-        { userId: 3, username: "player3", displayName: "Sara",   avatarUrl: null, muted: true,  sharing: false, cameraEnabled: false, speaking: false, connectionState: "connected" as RTCPeerConnectionState, audioStream: null, screenStream: null, cameraStream: null },
-      ]
-    : peers;
-
-  if (!demoRoom) return null;
-  const effectiveRoom     = demoRoom;
-  const effectivePeers    = demoPeers;
-  const effectiveMuted    = isPreview ? false : muted;
-  const effectiveDeafened = isPreview ? false : deafened;
-  const effectiveSpeaking = isPreview ? true : speaking;
+  if (!activeRoom) return null;
+  const effectiveRoom     = activeRoom;
+  const effectivePeers    = peers;
+  const effectiveMuted    = muted;
+  const effectiveDeafened = deafened;
+  const effectiveSpeaking = speaking;
 
   const screenSharers = effectivePeers.filter((p) => p.sharing && p.screenStream);
   const cameraViewers = effectivePeers.filter((p) => p.cameraEnabled && p.cameraStream);
@@ -477,7 +465,7 @@ export function VoicePanel() {
                     sharing={p.sharing}
                     cameraEnabled={p.cameraEnabled}
                     connectionState={p.connectionState}
-                    isLeader={!isPreview && isLeader && !!partyId}
+                    isLeader={isLeader && !!partyId}
                     onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
                     onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
                     onMutePeer={() => remoteMute(p.userId)}

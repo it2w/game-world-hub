@@ -26,7 +26,10 @@
     "partyComms": "Party Comms",
     "participants": "{{count}} members",
     "pinnedMessages": "Pinned Messages",
-    "noPinned": "No pinned messages"
+    "noPinned": "No pinned messages",
+    "startCall": "Start voice call",
+    "endCallFirst": "Leave your current call first",
+    "callActive": "Leave call"
   },
   "input": {
     "placeholder": "Message {{name}}",

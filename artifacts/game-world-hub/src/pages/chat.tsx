@@ -27,9 +27,11 @@ import { AnimatedLogo } from "@/components/animated-logo";
 import {
   Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
+  Phone, PhoneOff,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
+import { VoiceStage } from "@/voice/components/voice-stage";
 
 // ─── ConvMenu — simple popover, no Radix dependency ──────────────────────────
 
@@ -443,7 +445,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const editRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useVoice();
+  const voice = useVoice();
   const [typingUsers, setTypingUsers] = useState<Map<number, { displayName: string; timer: ReturnType<typeof setTimeout> }>>(new Map());
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -579,15 +581,33 @@ export default function Chat({ params }: { params: { conversationId?: string } }
 
   const typingNames = Array.from(typingUsers.values()).map((u) => u.displayName);
 
+  const activeOther =
+    activeConversation?.type === "direct" && me
+      ? activeConversation.participants.find((p: any) => p.id !== me.id)
+      : null;
+  const activeRoom = voice.activeRoom;
+  const callBelongsHere =
+    !!activeOther &&
+    activeRoom?.kind === "call" &&
+    activeRoom.peer.userId === activeOther.id;
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-background">
       {/* ── Sidebar ── */}
-      <div className="w-64 border-e border-border bg-card/60 flex flex-col shrink-0">
+      <div
+        className="w-64 border-e border-border flex flex-col shrink-0"
+        style={{ background: "linear-gradient(180deg, rgba(20,20,32,0.6) 0%, rgba(8,8,15,0.55) 100%)" }}
+      >
         {/* Header */}
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-foreground">
+          <h2 className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             {showHidden ? t("sidebar.hiddenTitle") : t("sidebar.title")}
           </h2>
+          {!showHidden && conversations?.length ? (
+            <span className="text-[10px] font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+              {conversations.length}
+            </span>
+          ) : null}
         </div>
 
         {/* Conversation list */}
@@ -606,11 +626,14 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 key={conv.id}
                 className={`group relative flex items-center gap-2.5 px-2 py-1.5 mx-2 my-0.5 rounded-md cursor-pointer transition-colors ${
                   isActive
-                    ? "bg-foreground/[0.07] text-foreground ring-1 ring-border/40"
+                    ? "bg-primary/[0.08] text-foreground ring-1 ring-primary/20"
                     : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
                 } ${showHidden ? "opacity-60 hover:opacity-100" : ""}`}
                 onClick={() => !showHidden && setLocation(`/chat/${conv.id}`)}
               >
+                {isActive && (
+                  <span className="absolute inset-y-1 start-0 w-[3px] rounded-full bg-primary" />
+                )}
                 <div className="relative shrink-0">
                   <Avatar src={(other as any)?.avatarUrl} name={name} size="sm" />
                   {conv.type === "party" && (
@@ -675,8 +698,18 @@ export default function Chat({ params }: { params: { conversationId?: string } }
         {conversationId && !showHidden ? (
           <>
             {/* Header */}
-            <div className="h-12 border-b border-border bg-card/50 px-4 flex items-center justify-between shrink-0 backdrop-blur gap-3">
-              <div className="flex items-center gap-2 min-w-0">
+            <div
+              className="h-14 border-b border-border px-4 flex items-center justify-between shrink-0 backdrop-blur gap-3"
+              style={{ background: "linear-gradient(180deg, rgba(20,20,32,0.7), rgba(8,8,15,0.4))" }}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {activeConversation && (
+                  <Avatar
+                    src={(activeOther as any)?.avatarUrl}
+                    name={getConversationName(activeConversation)}
+                    size="sm"
+                  />
+                )}
                 <span className="font-semibold truncate">
                   {activeConversation ? getConversationName(activeConversation) : "…"}
                 </span>
@@ -687,6 +720,36 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {activeConversation?.type === "direct" && activeOther && (
+                  callBelongsHere ? (
+                    <button
+                      onClick={voice.leaveVoice}
+                      title={t("conversation.callActive")}
+                      aria-label={t("conversation.callActive")}
+                      className="p-1.5 rounded transition-colors"
+                      style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.4)" }}
+                    >
+                      <PhoneOff className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        voice.callUser({
+                          userId: activeOther.id,
+                          username: (activeOther as any).username ?? activeOther.displayName,
+                          displayName: activeOther.displayName,
+                          avatarUrl: activeOther.avatarUrl ?? null,
+                        })
+                      }
+                      disabled={!!activeRoom}
+                      title={activeRoom ? t("conversation.endCallFirst") : t("conversation.startCall")}
+                      aria-label={activeRoom ? t("conversation.endCallFirst") : t("conversation.startCall")}
+                      className="p-1.5 rounded transition-colors text-muted-foreground hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </button>
+                  )
+                )}
                 {pinnedMessages.length > 0 && (
                   <button
                     onClick={() => setShowPinned((s) => !s)}
@@ -708,6 +771,8 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                 </div>
               </div>
             </div>
+
+            {callBelongsHere && <VoiceStage />}
 
             {/* Pinned panel */}
             {showPinned && pinnedMessages.length > 0 && (
@@ -803,7 +868,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             {/* Input area */}
             <div className="px-4 pb-4 pt-0 shrink-0">
               {replyTo && (
-                <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-t-md px-3 py-1.5 text-xs mb-0 border-b-0">
+                <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-t-2xl px-3 py-1.5 text-xs mb-0 border-b-0">
                   <Reply className="w-3 h-3 text-primary shrink-0" />
                   <span className="text-muted-foreground">{t("input.replyingTo", { name: replyTo.sender.displayName })}:</span>
                   <span className="truncate text-foreground/70">{replyTo.content}</span>
@@ -814,7 +879,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
               )}
               <form
                 onSubmit={handleSend}
-                className={`flex items-center gap-2 bg-muted/30 border border-border px-3 py-2 ${replyTo ? "rounded-b-md rounded-t-none" : "rounded-md"}`}
+                className={`flex items-center gap-2 bg-muted/40 border border-border px-4 py-2.5 transition-shadow focus-within:border-primary/40 ${replyTo ? "rounded-b-2xl rounded-t-none" : "rounded-full"}`}
               >
                 <input
                   ref={inputRef}

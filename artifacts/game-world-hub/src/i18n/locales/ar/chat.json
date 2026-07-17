@@ -26,7 +26,10 @@
     "partyComms": "اتصال البارتي",
     "participants": "{{count}} أعضاء",
     "pinnedMessages": "الرسائل المثبتة",
-    "noPinned": "لا توجد رسائل مثبتة"
+    "noPinned": "لا توجد رسائل مثبتة",
+    "startCall": "بدء مكالمة صوتية",
+    "endCallFirst": "غادر مكالمتك الحالية أولاً",
+    "callActive": "مغادرة المكالمة"
   },
   "input": {
     "placeholder": "رسالة إلى {{name}}",

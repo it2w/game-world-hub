@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { VoicePanel } from "@/voice/components/voice-panel";
+import { useInlineStageActive } from "@/voice/inline-stage-store";
 import { CallOverlays } from "@/voice/components/incoming-call-dialog";
 import { Bell } from "lucide-react";
 import { AnimatedLogo } from "@/components/animated-logo";
@@ -36,6 +37,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation("common");
   const { isAuthenticated, isLoading } = useAuth();
   useActivityHeartbeat(isAuthenticated);
+  const inlineStageActive = useInlineStageActive();
 
   if (isLoading) {
     return (
@@ -47,8 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    const preview = new URLSearchParams(window.location.search).get("voice") === "preview";
-    return <>{children}{preview && <VoicePanel />}</>;
+    return <>{children}</>;
   }
 
   return (
@@ -62,7 +63,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-      <VoicePanel />
+      {!inlineStageActive && <VoicePanel />}
       <CallOverlays />
     </SidebarProvider>
   );

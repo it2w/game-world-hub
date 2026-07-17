@@ -78,3 +78,9 @@ id = "88iEWFjcUshmHRNcukwqA"
 uri = "file://screenshots/pro-pricing.jpg"
 type = "image"
 title = "PRO pricing card on the landing page"
+
+[[outputs]]
+id = "Y6oiUQw0lPsU9wiOGL8du"
+uri = "file://screenshots/dm-premium-preview.jpg"
+type = "image"
+title = "Premium DM — voice & screen-share call stage"

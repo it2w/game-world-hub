@@ -42,32 +42,28 @@ function useActivityHeartbeat(enabled: boolean) {
  * Fires only once per call; does nothing again if the user navigates away.
  */
 function useCallAutoNavigate() {
-  const voice = useVoice();
+  const { activeRoom } = useVoice();
   const [, navigate] = useLocation();
   const handledPeerRef = useRef<number | null>(null);
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   useEffect(() => {
-    const room = voice.activeRoom;
-    if (room?.kind !== "call") {
+    if (activeRoom?.kind !== "call") {
       handledPeerRef.current = null;
       return;
     }
-    const peerId = room.peer.userId;
+    const peerId = activeRoom.peer.userId;
     if (handledPeerRef.current === peerId) return; // already navigated for this call
     handledPeerRef.current = peerId;
 
-    customFetch<any[]>("/api/conversations")
-      .then((convs) => {
-        const direct = convs.find(
-          (c: any) =>
-            c.type === "direct" &&
-            Array.isArray(c.participants) &&
-            c.participants.some((p: any) => p.id === peerId),
-        );
-        if (direct) navigate(`/chat/${direct.id}`);
+    // Use the dedicated endpoint — finds OR creates the direct conversation
+    customFetch<{ id: number }>(`/api/conversations/direct/${peerId}`)
+      .then((conv) => {
+        navigateRef.current(`/chat/${conv.id}`);
       })
       .catch(() => {});
-  }, [voice.activeRoom, navigate]);
+  }, [activeRoom]);
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {

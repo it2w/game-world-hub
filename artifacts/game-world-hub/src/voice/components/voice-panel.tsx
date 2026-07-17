@@ -170,16 +170,8 @@ export function VoicePanel() {
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
 
   const openCallChat = useCallback((peerId: number) => {
-    customFetch<any[]>("/api/conversations")
-      .then((convs) => {
-        const direct = convs.find(
-          (c: any) =>
-            c.type === "direct" &&
-            Array.isArray(c.participants) &&
-            c.participants.some((p: any) => p.id === peerId),
-        );
-        if (direct) navigate(`/chat/${direct.id}`);
-      })
+    customFetch<{ id: number }>(`/api/conversations/direct/${peerId}`)
+      .then((conv) => navigate(`/chat/${conv.id}`))
       .catch(() => {});
   }, [navigate]);
 

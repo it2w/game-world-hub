@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
 import { VideoTile } from "./video-tile";
@@ -30,6 +31,7 @@ import {
   useKickPartyMember,
   useTransferPartyLeadership,
   getGetPartyQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -51,6 +53,7 @@ import {
   Video,
   VideoOff,
   Headphones,
+  MessageSquare,
 } from "lucide-react";
 
 /* ── HALO keyframes injected once ───────────────────────────────────────── */
@@ -160,10 +163,25 @@ export function VoicePanel() {
     rejoin,
   } = useVoice();
 
+  const [, navigate] = useLocation();
   const [expanded, setExpanded] = useState(true);
   const [theater, setTheater] = useState<MediaStream | null>(null);
   const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
+
+  const openCallChat = useCallback((peerId: number) => {
+    customFetch<any[]>("/api/conversations")
+      .then((convs) => {
+        const direct = convs.find(
+          (c: any) =>
+            c.type === "direct" &&
+            Array.isArray(c.participants) &&
+            c.participants.some((p: any) => p.id === peerId),
+        );
+        if (direct) navigate(`/chat/${direct.id}`);
+      })
+      .catch(() => {});
+  }, [navigate]);
 
   const queryClient = useQueryClient();
   const { data: me } = useGetMe();
@@ -267,6 +285,16 @@ export function VoicePanel() {
             >
               {effectivePeers.length + 1}
             </span>
+            {effectiveRoom.kind === "call" && (
+              <button
+                onClick={() => openCallChat(effectiveRoom.peer.userId)}
+                title="Open chat"
+                aria-label="Open chat"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               onClick={() => setExpanded((e) => !e)}
               className="text-muted-foreground hover:text-foreground transition-colors"

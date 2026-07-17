@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -11,8 +11,10 @@ import { Bell } from "lucide-react";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey, useGetMe, getGetMeQueryKey, meHeartbeat } from "@workspace/api-client-react";
+import { useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey, useGetMe, getGetMeQueryKey, meHeartbeat, customFetch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { useVoice } from "@/voice/voice-context";
 
 // While a game is active, keep an open-tab heartbeat so the server's presence
 // sweep does not clear currentGame. When the tab closes, heartbeats stop and
@@ -33,11 +35,47 @@ function useActivityHeartbeat(enabled: boolean) {
   }, [hasActiveGame]);
 }
 
+/**
+ * When a direct call becomes active (outgoing accepted or incoming accepted),
+ * automatically navigate to the chat conversation for that peer so the full
+ * layout — sidebar, inline VoiceStage, and messages — all appear at once.
+ * Fires only once per call; does nothing again if the user navigates away.
+ */
+function useCallAutoNavigate() {
+  const voice = useVoice();
+  const [, navigate] = useLocation();
+  const handledPeerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const room = voice.activeRoom;
+    if (room?.kind !== "call") {
+      handledPeerRef.current = null;
+      return;
+    }
+    const peerId = room.peer.userId;
+    if (handledPeerRef.current === peerId) return; // already navigated for this call
+    handledPeerRef.current = peerId;
+
+    customFetch<any[]>("/api/conversations")
+      .then((convs) => {
+        const direct = convs.find(
+          (c: any) =>
+            c.type === "direct" &&
+            Array.isArray(c.participants) &&
+            c.participants.some((p: any) => p.id === peerId),
+        );
+        if (direct) navigate(`/chat/${direct.id}`);
+      })
+      .catch(() => {});
+  }, [voice.activeRoom, navigate]);
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation("common");
   const { isAuthenticated, isLoading } = useAuth();
   useActivityHeartbeat(isAuthenticated);
   const inlineStageActive = useInlineStageActive();
+  useCallAutoNavigate();
 
   if (isLoading) {
     return (

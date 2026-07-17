@@ -1,5 +1,6 @@
 - [Desktop bundled API server](desktop-bundled-api-server.md) — Electron forks the API bundle on a local port; DB is Postgres so the app still needs an external DATABASE_URL.
 - [LiveKit voice transport](livekit-voice.md) — LiveKit Cloud replaced custom P2P WebRTC; WS at /api/ws kept only for call-invite handshake, admin-mute relay, and typing events.
+- [VoicePanel vs inline VoiceStage](voice-panel-vs-chat-stage.md) — floating VoicePanel ≠ redesigned chat; useCallAutoNavigate in shell.tsx auto-opens /chat/:id on call start so the inline stage shows.
 - [WebRTC signaling (historical)](webrtc-signaling.md) — superseded by LiveKit; kept for historical context on authorization pattern.
 - [wouter v3 layout routing](wouter-routing.md) — wrap the shared authenticated Shell in a pathless `<Route>`, not `<Route path="/">`, or every sub-route 404s.
 - [GWH served at root](gwh-served-at-root.md) — Game World Hub's base is `/`; deep-link URLs are root-relative (`/lfg`, `/ranks`), NOT `/game-world-hub/...`.

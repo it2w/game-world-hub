@@ -237,11 +237,11 @@ export default function Profile() {
         <div className="relative z-10 flex-1 text-center md:text-start space-y-4">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
-                {user.isPro && <ProBadge size="md" />}
+              <h1 className="text-4xl font-bold font-mono tracking-tighter uppercase">{user.displayName}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <p className="text-primary font-mono text-sm">@{user.username}</p>
+                {user.isPro && <ProBadge size="lg" />}
               </div>
-              <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
             </div>
 
             {friendStatus && friendStatus.state !== "self" && (

@@ -38,7 +38,9 @@ export function FloatingShareOverlay() {
     localScreenStream,
     peers,
     stopScreenShare,
-    startScreenShare,
+    changeScreenShare,
+    screenAudioEnabled,
+    toggleScreenAudio,
     screenQuality,
     setScreenQuality,
     activeRoom,
@@ -48,7 +50,6 @@ export function FloatingShareOverlay() {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<MenuView>("main");
-  const [shareAudio, setShareAudio] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Initialise position once (bottom-right corner, 24 px from edges)
@@ -121,11 +122,8 @@ export function FloatingShareOverlay() {
   const handleChangeStream = useCallback(async () => {
     setMenuOpen(false);
     setMenuView("main");
-    stopScreenShare();
-    // small delay to let unpublish complete before re-requesting display media
-    await new Promise((r) => setTimeout(r, 400));
-    await startScreenShare();
-  }, [stopScreenShare, startScreenShare]);
+    await changeScreenShare();
+  }, [changeScreenShare]);
 
   const handleStopStreaming = useCallback(() => {
     setMenuOpen(false);
@@ -235,7 +233,7 @@ export function FloatingShareOverlay() {
         {/* Share Stream Audio */}
         <button
           className={`${ITEM_NORMAL} justify-between`}
-          onClick={() => setShareAudio((v) => !v)}
+          onClick={() => void toggleScreenAudio()}
         >
           <div className="flex items-center gap-3">
             <svg
@@ -253,15 +251,15 @@ export function FloatingShareOverlay() {
             </svg>
             <span>{t("share.shareStreamAudio", "Share Stream Audio")}</span>
           </div>
-          {/* Checkbox */}
+          {/* Checkbox — reflects real LiveKit mute state */}
           <span
             className="w-5 h-5 flex items-center justify-center shrink-0 transition-colors"
             style={{
-              background: shareAudio ? "#5865f2" : "rgba(255,255,255,0.1)",
-              border: shareAudio ? "none" : "1px solid rgba(255,255,255,0.3)",
+              background: screenAudioEnabled ? "#5865f2" : "rgba(255,255,255,0.1)",
+              border: screenAudioEnabled ? "none" : "1px solid rgba(255,255,255,0.3)",
             }}
           >
-            {shareAudio && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+            {screenAudioEnabled && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
           </span>
         </button>
 

@@ -112,6 +112,12 @@ interface VoiceContextValue {
   remoteMute: (userId: number) => void;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => void;
+  /** Swap to a new display source without dropping the publication (no viewer black-screen). */
+  changeScreenShare: () => Promise<void>;
+  /** True when the published screen-share audio track is NOT muted. */
+  screenAudioEnabled: boolean;
+  /** Mute / unmute the live ScreenShareAudio publication. No-op when no audio was granted. */
+  toggleScreenAudio: () => Promise<void>;
   setVoiceQuality: (q: VoiceQuality) => void;
   setScreenQuality: (q: ScreenQuality) => void;
   isInPartyVoice: (partyId: number) => boolean;
@@ -196,6 +202,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [screenAudioEnabled, setScreenAudioEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
@@ -894,6 +901,86 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       void room.localParticipant.unpublishTrack(audioTrack, true);
       screenAudioTrackRef.current = null;
     }
+    setScreenAudioEnabled(true); // reset for next share session
+  }, []);
+
+  /**
+   * Swap the captured source without dropping the LiveKit publication.
+   * Uses replaceTrack() so the remote SID stays the same — viewers see a
+   * seamless switch with no black screen or re-subscription needed.
+   */
+  const changeScreenShare = useCallback(async () => {
+    const room = livekitRef.current;
+    if (!room || !activeRoomRef.current) return;
+    const preset = SCREEN_PRESETS[screenQualityRef.current];
+    try {
+      const newStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width:     { ideal: preset.width },
+          height:    { ideal: preset.height },
+          frameRate: { ideal: preset.frameRate },
+        },
+        audio: true,
+      });
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) { newStream.getTracks().forEach((t) => t.stop()); return; }
+      const newAudioTrack = newStream.getAudioTracks()[0] ?? null;
+      newVideoTrack.contentHint = "detail";
+
+      // Replace video track in-place on the existing publication.
+      const videoPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+      if (videoPub?.track) {
+        screenTrackRef.current?.stop();
+        await videoPub.replaceTrack(newVideoTrack);
+        screenTrackRef.current = newVideoTrack;
+
+        // Handle browser "Stop sharing" button on the new track.
+        newVideoTrack.addEventListener("ended", () => {
+          const r = livekitRef.current;
+          if (r && screenTrackRef.current) {
+            void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
+            screenTrackRef.current = null;
+          }
+        });
+
+        // Update local preview stream (new track → new MediaStream so VideoTile re-renders).
+        setLocalScreenStream(new MediaStream([newVideoTrack]));
+      }
+
+      // Replace audio track if we had one published and the new capture granted audio.
+      const audioPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+      if (newAudioTrack && audioPub?.track) {
+        screenAudioTrackRef.current?.stop();
+        await audioPub.replaceTrack(newAudioTrack);
+        screenAudioTrackRef.current = newAudioTrack;
+      } else if (!newAudioTrack && audioPub?.track) {
+        // New capture didn't grant audio — unpublish the old audio publication.
+        screenAudioTrackRef.current?.stop();
+        void room.localParticipant.unpublishTrack(screenAudioTrackRef.current!, true);
+        screenAudioTrackRef.current = null;
+      }
+    } catch {
+      // User dismissed the picker — keep the current share running.
+    }
+  }, []);
+
+  /**
+   * Mute / unmute the published ScreenShareAudio track in-place.
+   * No-op when no audio track was granted by the OS at share-start time.
+   */
+  const toggleScreenAudio = useCallback(async () => {
+    const room = livekitRef.current;
+    if (!room) return;
+    const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+    if (!pub) return; // no audio track was granted — nothing to toggle
+    if (pub.isMuted) {
+      await pub.unmute();
+      setScreenAudioEnabled(true);
+    } else {
+      await pub.mute();
+      setScreenAudioEnabled(false);
+    }
   }, []);
 
   /** Set the local playback volume (0–1) for a specific peer's mic.
@@ -955,24 +1042,19 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (!sender) return;
     const params = sender.getParameters();
     if (params.encodings?.length) {
-      // Keep only the active encoding (the one we set up in startScreenShare).
-      // Re-apply the single-layer fix in case the browser reset encodings.
+      // Find the best (highest-quality) active encoding — prefer rid "f" (full),
+      // then "h" (half), then fall back to the last encoding.
+      // IMPORTANT: only update that one encoding's caps; never set others to
+      // active=false — deactivating the wrong layer causes a viewer black-screen.
       let bestIdx = params.encodings.length - 1;
       for (let i = 0; i < params.encodings.length; i++) {
         if (params.encodings[i].rid === "f") { bestIdx = i; break; }
         if (params.encodings[i].rid === "h") bestIdx = i;
       }
-      for (let i = 0; i < params.encodings.length; i++) {
-        const enc = params.encodings[i];
-        if (i === bestIdx) {
-          enc.active       = true;
-          enc.maxBitrate   = preset.maxBitrate;
-          enc.maxFramerate = preset.frameRate;
-          enc.priority     = "high";
-        } else {
-          enc.active = false;
-        }
-      }
+      const enc = params.encodings[bestIdx];
+      enc.maxBitrate   = preset.maxBitrate;
+      enc.maxFramerate = preset.frameRate;
+      enc.priority     = "high";
       void sender.setParameters(params);
     }
   }, []);
@@ -1023,6 +1105,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     remoteMute,
     startScreenShare,
     stopScreenShare,
+    changeScreenShare,
+    screenAudioEnabled,
+    toggleScreenAudio,
     setVoiceQuality,
     setScreenQuality,
     isInPartyVoice,

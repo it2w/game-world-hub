@@ -979,8 +979,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         const newGen = ++screenShareGenerationRef.current;
 
         // Step 2: wire new track into the live publication.
+        // replaceTrack() lives on LocalVideoTrack (.track), NOT on LocalTrackPublication.
         screenTrackRef.current = newVideoTrack;
-        await videoPub.replaceTrack(newVideoTrack);
+        await (videoPub.track as import("livekit-client").LocalVideoTrack).replaceTrack(newVideoTrack);
 
         // Step 3: now safe to stop the old track.
         oldVideoTrack?.stop();
@@ -1008,7 +1009,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       if (newAudioTrack && audioPub?.track) {
         const oldAudioTrack = screenAudioTrackRef.current;
         screenAudioTrackRef.current = newAudioTrack;
-        await audioPub.replaceTrack(newAudioTrack);
+        await (audioPub.track as import("livekit-client").LocalAudioTrack).replaceTrack(newAudioTrack);
         oldAudioTrack?.stop(); // stop after replace, not before
       } else if (!newAudioTrack && audioPub?.track) {
         // New capture didn't grant audio — unpublish the old audio publication.

@@ -141,10 +141,8 @@ export function FloatingShareOverlay() {
     [setScreenQuality],
   );
 
-  /* ── viewer count ─────────────────────────────────────────────────────── */
-  const viewerCount = peers.filter(
-    (p) => p.connectionState === "connected",
-  ).length;
+  /* ── viewer count — every peer in the room is a viewer ──────────────── */
+  const viewerCount = peers.length;
 
   /* ── sharer label: always show the local user's own name ─────────────── */
   const sharerName = me?.displayName ?? "";

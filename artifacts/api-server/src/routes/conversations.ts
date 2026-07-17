@@ -450,6 +450,9 @@ router.delete("/conversations/:conversationId/messages/:messageId/reactions/:emo
 });
 
 // DELETE /conversations/:conversationId/full
+// DELETE /conversations/:conversationId/full
+// Per-user soft-removal: hides the conversation and soft-deletes all its messages
+// for the requesting user only. The other participant's view is unaffected.
 router.delete("/conversations/:conversationId/full", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
@@ -461,17 +464,27 @@ router.delete("/conversations/:conversationId/full", requireAuth, async (req, re
     .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, myId)));
   if (!membership) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, conversationId));
-  if (!conv || conv.type !== "direct") {
-    res.status(400).json({ error: "Only direct conversations can be fully deleted" });
-    return;
+  // Soft-delete all messages in this conversation for the current user
+  const convMessages = await db
+    .select({ id: messagesTable.id })
+    .from(messagesTable)
+    .where(eq(messagesTable.conversationId, conversationId));
+
+  if (convMessages.length > 0) {
+    await db
+      .insert(messageDeletionsTable)
+      .values(convMessages.map((m) => ({ messageId: m.id, userId: myId })))
+      .onConflictDoNothing();
   }
 
-  await db.delete(notificationsTable).where(and(eq(notificationsTable.type, "message"), eq(notificationsTable.relatedId, conversationId)));
-  await db.delete(messagesTable).where(eq(messagesTable.conversationId, conversationId));
-  await db.delete(messageReadsTable).where(eq(messageReadsTable.conversationId, conversationId));
-  await db.delete(conversationParticipantsTable).where(eq(conversationParticipantsTable.conversationId, conversationId));
-  await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  // Hide the conversation for this user only
+  await db
+    .update(conversationParticipantsTable)
+    .set({ isHidden: true })
+    .where(and(
+      eq(conversationParticipantsTable.conversationId, conversationId),
+      eq(conversationParticipantsTable.userId, myId),
+    ));
 
   res.json({ success: true });
 });

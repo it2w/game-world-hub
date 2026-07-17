@@ -10,7 +10,7 @@
     "restoreConversation": "Restore to list",
     "deleteConversation": "Delete conversation",
     "leaveConversation": "Leave conversation",
-    "confirmDeletePrompt": "Delete this conversation permanently for both parties? This cannot be undone.",
+    "confirmDeletePrompt": "Remove this conversation from your side? The other person will still see it.",
     "confirmLeavePrompt": "Leave this conversation? You will no longer receive messages.",
     "confirmDelete": "Confirm permanent delete",
     "cancel": "Cancel",

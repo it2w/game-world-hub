@@ -10,7 +10,7 @@
     "restoreConversation": "استعادة إلى القائمة",
     "deleteConversation": "حذف المحادثة",
     "leaveConversation": "مغادرة المحادثة",
-    "confirmDeletePrompt": "هل تريد حذف هذه المحادثة نهائياً للطرفين؟ لا يمكن التراجع.",
+    "confirmDeletePrompt": "هل تريد إزالة هذه المحادثة من جانبك؟ سيظل الطرف الآخر يراها.",
     "confirmLeavePrompt": "هل تريد مغادرة هذه المحادثة؟ لن تستلم رسائل بعد الآن.",
     "confirmDelete": "تأكيد الحذف النهائي",
     "cancel": "إلغاء",

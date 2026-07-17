@@ -9,6 +9,7 @@ import {
   useDeleteConversationFull,
   getGetMessagesQueryKey,
   getGetMeQueryKey,
+  getListNotificationsQueryKey,
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -505,6 +506,18 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [localMessages]);
   useEffect(() => { if (editingMsg) editRef.current?.focus(); }, [editingMsg]);
   useEffect(() => { setReplyTo(null); setEditingMsg(null); setSearchQuery(""); setShowSearch(false); setShowPinned(false); }, [conversationId]);
+
+  // When the user opens a conversation, refresh both the conversations list (to clear
+  // the unread badge) and the notifications (to clear the bell indicator).
+  useEffect(() => {
+    if (!conversationId) return;
+    // Small delay so the GET messages request has time to mark things as read on the server
+    const t = setTimeout(() => {
+      invalidateConvs();
+      queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendTyping = useCallback(() => {
     if (!conversationId) return;

@@ -283,20 +283,27 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     return;
   }
 
-  // Mark as read
+  // Mark conversation as read (update lastReadAt) and clear bell notifications
   const [existing] = await db
     .select()
     .from(messageReadsTable)
     .where(and(eq(messageReadsTable.conversationId, conversationId), eq(messageReadsTable.userId, myId)));
 
-  if (existing) {
-    await db
-      .update(messageReadsTable)
-      .set({ lastReadAt: new Date() })
-      .where(and(eq(messageReadsTable.conversationId, conversationId), eq(messageReadsTable.userId, myId)));
-  } else {
-    await db.insert(messageReadsTable).values({ conversationId, userId: myId });
-  }
+  await Promise.all([
+    existing
+      ? db.update(messageReadsTable)
+          .set({ lastReadAt: new Date() })
+          .where(and(eq(messageReadsTable.conversationId, conversationId), eq(messageReadsTable.userId, myId)))
+      : db.insert(messageReadsTable).values({ conversationId, userId: myId }),
+    // Mark all "message" notifications for this conversation as read
+    db.update(notificationsTable)
+      .set({ isRead: true })
+      .where(and(
+        eq(notificationsTable.userId, myId),
+        eq(notificationsTable.type, "message"),
+        eq(notificationsTable.relatedId, conversationId),
+      )),
+  ]);
 
   const messages = await db
     .select({ msg: messagesTable, sender: usersTable })

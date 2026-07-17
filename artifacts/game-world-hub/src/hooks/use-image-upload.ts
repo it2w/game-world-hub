@@ -19,13 +19,16 @@ export function useImageUpload() {
     }
     setIsUploading(true);
     try {
+      const token = localStorage.getItem("gwh_token");
+      if (!token) throw new Error("Not authenticated");
+
       const form = new FormData();
       form.append("file", file, file.name);
 
       const resp = await fetch("/api/images", {
         method: "POST",
         body: form,
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!resp.ok) {

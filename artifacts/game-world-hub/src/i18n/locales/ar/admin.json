@@ -3,7 +3,8 @@
   "tabs": {
     "users": "المستخدمون",
     "codes": "الأكواد",
-    "subscriptions": "الاشتراكات"
+    "subscriptions": "الاشتراكات",
+    "analytics": "الإحصاءات"
   },
   "loading": "جارٍ التحميل...",
   "users": {
@@ -49,6 +50,16 @@
     "started": "بدأ",
     "expires": "ينتهي",
     "empty": "لا توجد اشتراكات Pro بعد."
+  },
+  "analytics": {
+    "newUsers": "مستخدمون جدد",
+    "dau": "المستخدمون النشطون يومياً",
+    "lfgPosts": "منشورات LFG",
+    "proActivations": "تفعيلات Pro",
+    "peakDau": "ذروة النشاط اليومي",
+    "proConvRate": "نسبة تحويل Pro",
+    "totalLfg": "إجمالي منشورات LFG",
+    "loadError": "تعذّر تحميل بيانات الإحصاءات."
   },
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",

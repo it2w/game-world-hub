@@ -3,7 +3,8 @@
   "tabs": {
     "users": "Users",
     "codes": "Codes",
-    "subscriptions": "Subscriptions"
+    "subscriptions": "Subscriptions",
+    "analytics": "Analytics"
   },
   "loading": "Loading...",
   "users": {
@@ -49,6 +50,16 @@
     "started": "Started",
     "expires": "Expires",
     "empty": "No Pro subscriptions yet."
+  },
+  "analytics": {
+    "newUsers": "New Users",
+    "dau": "Daily Active Users",
+    "lfgPosts": "LFG Posts",
+    "proActivations": "Pro Activations",
+    "peakDau": "Peak DAU",
+    "proConvRate": "Pro Conv. Rate",
+    "totalLfg": "Total LFG Posts",
+    "loadError": "Failed to load analytics data."
   },
   "toasts": {
     "proActivated": "Pro activated for user.",

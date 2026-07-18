@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, like, or, desc, sql } from "drizzle-orm";
-import { db, usersTable, proSubscriptionsTable, activationCodesTable } from "@workspace/db";
+import { db, pool, usersTable, proSubscriptionsTable, activationCodesTable } from "@workspace/db";
 import { requireAdmin, requireAdminPermission } from "../middlewares/admin";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { logger } from "../lib/logger";
@@ -166,6 +166,124 @@ router.delete("/admin/activation-codes/:codeId", requireAdminPermission("can_man
   const codeId = Number(req.params.codeId);
   await db.update(activationCodesTable).set({ status: "inactive" }).where(eq(activationCodesTable.id, codeId));
   res.status(200).json({ ok: true });
+});
+
+router.get("/admin/me", async (req, res): Promise<void> => {
+  const adminUser = req.adminUser!;
+
+  // Env-level admins (ADMIN_USERNAMES) are fully trusted — grant all permissions.
+  const envAdminUsernames = (process.env["ADMIN_USERNAMES"] || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const isEnvAdmin = envAdminUsernames.includes(adminUser.username.toLowerCase());
+
+  if (isEnvAdmin) {
+    res.json({
+      id: adminUser.id,
+      username: adminUser.username,
+      permissions: {
+        can_manage_pro: true, can_suspend_users: true, can_delete_content: true,
+        can_view_reports: true, can_manage_codes: true, can_broadcast: true,
+        can_view_analytics: true, can_manage_admins: true,
+      },
+    });
+    return;
+  }
+
+  try {
+    const { rows } = await pool.query<{
+      can_manage_pro: boolean; can_suspend_users: boolean; can_delete_content: boolean;
+      can_view_reports: boolean; can_manage_codes: boolean; can_broadcast: boolean;
+      can_view_analytics: boolean; can_manage_admins: boolean;
+    }>(
+      `SELECT can_manage_pro, can_suspend_users, can_delete_content,
+              can_view_reports, can_manage_codes, can_broadcast,
+              can_view_analytics, can_manage_admins
+       FROM admin_permissions WHERE user_id = $1`,
+      [adminUser.id],
+    );
+    const perms = rows[0] ?? {
+      can_manage_pro: false, can_suspend_users: false, can_delete_content: false,
+      can_view_reports: false, can_manage_codes: false, can_broadcast: false,
+      can_view_analytics: false, can_manage_admins: false,
+    };
+    res.json({
+      id: adminUser.id,
+      username: adminUser.username,
+      permissions: perms,
+    });
+  } catch {
+    // admin_permissions table not yet migrated — return empty perms
+    res.json({
+      id: adminUser.id,
+      username: adminUser.username,
+      permissions: {
+        can_manage_pro: false, can_suspend_users: false, can_delete_content: false,
+        can_view_reports: false, can_manage_codes: false, can_broadcast: false,
+        can_view_analytics: false, can_manage_admins: false,
+      },
+    });
+  }
+});
+
+router.get("/admin/analytics", requireAdminPermission("can_view_analytics"), async (req, res): Promise<void> => {
+  const range = Math.min(Math.max(Number(req.query.range) || 30, 7), 90);
+
+  const [nu, dau, lfg, pro] = await Promise.all([
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM users u WHERE date_trunc('day', u.created_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM users u WHERE date_trunc('day', u.last_active_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM lfg_posts p WHERE date_trunc('day', p.created_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM pro_subscriptions ps WHERE date_trunc('day', ps.created_at AT TIME ZONE 'UTC') = s AND ps.provider != 'manual-expiry'), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+  ]);
+
+  const peakDau = dau.rows.reduce((m, r) => Math.max(m, r.count), 0);
+  const [proR, usrR] = await Promise.all([
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE is_pro = true`),
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+  ]);
+  const proConvRate = usrR.rows[0]?.n ? +((proR.rows[0]?.n ?? 0) / usrR.rows[0].n * 100).toFixed(1) : 0;
+
+  res.json({
+    range,
+    newUsers: nu.rows,
+    dau: dau.rows,
+    lfgPosts: lfg.rows,
+    proActivations: pro.rows,
+    summary: { peakDau, proConvRate },
+  });
 });
 
 router.get("/admin/pro-subscriptions", async (req, res): Promise<void> => {

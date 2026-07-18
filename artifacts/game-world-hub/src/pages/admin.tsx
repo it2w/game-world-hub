@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,7 +33,10 @@ import {
   Check,
   Ban,
   CheckCircle,
+  TrendingUp,
+  Loader2,
 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   useListAdminUsers,
   useAdminActivatePro,
@@ -51,11 +54,42 @@ import {
 } from "@workspace/api-client-react";
 import { ProBadge } from "@/components/pro-badge";
 
+interface AdminMe {
+  id: number;
+  username: string;
+  permissions: {
+    can_manage_pro: boolean;
+    can_suspend_users: boolean;
+    can_delete_content: boolean;
+    can_view_reports: boolean;
+    can_manage_codes: boolean;
+    can_broadcast: boolean;
+    can_view_analytics: boolean;
+    can_manage_admins: boolean;
+  };
+}
+
+interface AnalyticsData {
+  range: number;
+  newUsers: { date: string; count: number }[];
+  dau: { date: string; count: number }[];
+  lfgPosts: { date: string; count: number }[];
+  proActivations: { date: string; count: number }[];
+  summary: { peakDau: number; proConvRate: number };
+}
+
 export default function Admin() {
   const { t } = useTranslation("admin");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("users");
+  const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
+
+  useEffect(() => {
+    customFetch<AdminMe>("/api/admin/me").then(setAdminMe).catch(() => null);
+  }, []);
+
+  const canViewAnalytics = adminMe?.permissions.can_view_analytics ?? false;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -76,6 +110,11 @@ export default function Admin() {
           <TabsTrigger value="subscriptions" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <CreditCard className="w-3.5 h-3.5 me-2" /> {t("tabs.subscriptions")}
           </TabsTrigger>
+          {canViewAnalytics && (
+            <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TrendingUp className="w-3.5 h-3.5 me-2" /> {t("tabs.analytics")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="users" className="mt-6">
@@ -87,6 +126,11 @@ export default function Admin() {
         <TabsContent value="subscriptions" className="mt-6">
           <SubscriptionsPanel />
         </TabsContent>
+        {canViewAnalytics && (
+          <TabsContent value="analytics" className="mt-6">
+            <AnalyticsPanel />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -245,7 +289,7 @@ function UsersPanel() {
                           <UserCog className="w-3 h-3 me-1" /> {t("users.makeAdmin")}
                         </Button>
                       )}
-                      {u.status === "suspended" ? (
+                      {(u.status as string) === "suspended" ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -449,6 +493,132 @@ function SubscriptionsPanel() {
           )}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+function AnalyticsPanel() {
+  const { t } = useTranslation("admin");
+  const [range, setRange] = useState<30 | 90>(30);
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async (r: number) => {
+    setLoading(true);
+    setError(false);
+    try {
+      const result = await customFetch<AnalyticsData>(`/api/admin/analytics?range=${r}`);
+      setData(result);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(range); }, [range, load]);
+
+  const CHARTS: { key: keyof Pick<AnalyticsData, "newUsers" | "dau" | "lfgPosts" | "proActivations">; label: string; color: string }[] = [
+    { key: "newUsers",       label: t("analytics.newUsers"),       color: "#4ade80" },
+    { key: "dau",            label: t("analytics.dau"),            color: "#60a5fa" },
+    { key: "lfgPosts",       label: t("analytics.lfgPosts"),       color: "#a78bfa" },
+    { key: "proActivations", label: t("analytics.proActivations"), color: "#facc15" },
+  ];
+
+  const Skel = () => <div className="h-36 bg-border/30 animate-pulse" />;
+
+  if (error) {
+    return (
+      <div className="border border-destructive/40 bg-destructive/5 p-6 text-center font-mono text-sm text-destructive">
+        {t("analytics.loadError")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Range selector */}
+      <div className="flex items-center gap-1.5">
+        {([30, 90] as const).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+              range === r
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-border/80"
+            }`}
+          >
+            {r}d
+          </button>
+        ))}
+        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground ms-2" />}
+      </div>
+
+      {/* Summary row */}
+      {data && !loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {[
+            { label: t("analytics.peakDau"),    value: data.summary.peakDau },
+            { label: t("analytics.proConvRate"), value: `${data.summary.proConvRate}%` },
+            { label: t("analytics.totalLfg"),    value: data.lfgPosts.reduce((s, r) => s + r.count, 0) },
+          ].map(({ label, value }) => (
+            <div key={label} className="border border-border bg-background px-3 py-2">
+              <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
+              <div className="font-mono text-xl font-bold">{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Charts grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {CHARTS.map(({ key, label, color }) => (
+          <div key={key} className="border border-border bg-card p-3 space-y-2">
+            <p className="font-mono text-[10px] uppercase text-muted-foreground">{label}</p>
+            {loading ? (
+              <Skel />
+            ) : (
+              <ResponsiveContainer width="100%" height={140}>
+                <AreaChart data={data?.[key] ?? []} margin={{ top: 2, right: 2, bottom: 0, left: -20 }}>
+                  <defs>
+                    <linearGradient id={`ag-${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 9, fontFamily: "monospace" }}
+                    tickFormatter={(v: string) => v.slice(5)}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis tick={{ fontSize: 9, fontFamily: "monospace" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      fontSize: 11,
+                      fontFamily: "monospace",
+                      borderRadius: 0,
+                    }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke={color}
+                    strokeWidth={1.5}
+                    fill={`url(#ag-${key})`}
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

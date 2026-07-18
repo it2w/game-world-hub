@@ -74,25 +74,35 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
   };
 }
 
-// GET /lfg/suggestions — up to 5 open posts matching the viewer's currentGame
+// GET /lfg/suggestions — up to 5 open posts; prefers currentGame match, falls back to any open posts
 router.get("/lfg/suggestions", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const [me] = await db.select({ currentGame: usersTable.currentGame }).from(usersTable).where(eq(usersTable.id, myId));
-  if (!me?.currentGame) { res.json([]); return; }
 
   const now = new Date();
-  const suggestions = await db
-    .select()
-    .from(lfgPostsTable)
-    .where(
-      and(
-        eq(lfgPostsTable.game, me.currentGame),
-        eq(lfgPostsTable.status, "open"),
-        or(isNull(lfgPostsTable.expiresAt), gt(lfgPostsTable.expiresAt, now)),
-      ),
-    )
-    .orderBy(desc(lfgPostsTable.createdAt))
-    .limit(5);
+  const baseWhere = and(
+    eq(lfgPostsTable.status, "open"),
+    or(isNull(lfgPostsTable.expiresAt), gt(lfgPostsTable.expiresAt, now)),
+  );
+
+  // Try to get posts matching currentGame first; fall back to any open posts
+  let suggestions = me?.currentGame
+    ? await db
+        .select()
+        .from(lfgPostsTable)
+        .where(and(baseWhere, eq(lfgPostsTable.game, me.currentGame)))
+        .orderBy(desc(lfgPostsTable.createdAt))
+        .limit(5)
+    : [];
+
+  if (suggestions.length === 0) {
+    suggestions = await db
+      .select()
+      .from(lfgPostsTable)
+      .where(baseWhere)
+      .orderBy(desc(lfgPostsTable.createdAt))
+      .limit(5);
+  }
 
   res.json(await Promise.all(suggestions.filter((p) => p.authorId !== myId).map((p) => buildPost(p, myId))));
 });

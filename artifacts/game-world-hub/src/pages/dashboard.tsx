@@ -289,12 +289,16 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
   ] as const;
   const [responded, setResponded] = useState<Set<number>>(new Set());
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const [, navHub] = useLocation();
 
   const respond = async (id:number) => {
     try {
       await customFetch(`/api/lfg/${id}/respond`,{method:"POST"});
       setResponded(p=>new Set([...p,id]));
-      toast({title:"تم الانضمام!"});
+      qc.invalidateQueries({ queryKey: ["lfg-suggestions"] });
+      toast({ title:"✓ تم إرسال الإشارة", description:"بانتظار رد المضيف — اذهب للـ LFG لمتابعة" });
+      setTimeout(()=>navHub("/lfg"), 1200);
     } catch { toast({title:"حدث خطأ",variant:"destructive"}); }
   };
 

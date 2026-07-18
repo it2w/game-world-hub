@@ -59,6 +59,7 @@ function safeUser(
     xpForNext: progress?.xpForNext ?? null,
     profileFrameColor: u.profileFrameColor ?? null,
     profileBgUrl: u.profileBgUrl ?? null,
+    usernameChangedAt: u.usernameChangedAt ? u.usernameChangedAt.toISOString() : null,
   };
 }
 

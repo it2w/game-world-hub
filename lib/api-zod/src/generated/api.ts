@@ -64,7 +64,8 @@ export const RegisterResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -105,7 +106,8 @@ export const LoginResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -148,7 +150,8 @@ export const GetMeResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -183,7 +186,8 @@ export const UpdateMyStatusResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -405,7 +409,8 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -485,7 +490,8 @@ export const SetMyEmailResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -524,7 +530,8 @@ export const VerifyMyEmailResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -578,7 +585,8 @@ export const EnableTwoFactorResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -612,7 +620,8 @@ export const DisableTwoFactorResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -762,7 +771,8 @@ export const SearchUsersResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
 
@@ -908,7 +918,8 @@ export const DeleteMyAvatarResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -938,7 +949,8 @@ export const DeleteMyBannerResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })
 
 
@@ -1020,7 +1032,8 @@ export const ListFriendsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "since": zod.string()
 })
@@ -1055,7 +1068,8 @@ export const ListFriendRequestsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1080,7 +1094,8 @@ export const ListFriendRequestsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1120,7 +1135,8 @@ export const SendFriendRequestResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1145,7 +1161,8 @@ export const SendFriendRequestResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1231,7 +1248,8 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "since": zod.string()
 }))
@@ -1268,7 +1286,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1296,7 +1315,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1326,7 +1346,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1401,7 +1422,8 @@ export const GetMessagesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1431,7 +1453,8 @@ export const GetMessagesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1487,7 +1510,8 @@ export const SendMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1517,7 +1541,8 @@ export const SendMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1572,7 +1597,8 @@ export const EditMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1602,7 +1628,8 @@ export const EditMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1665,7 +1692,8 @@ export const PinMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1695,7 +1723,8 @@ export const PinMessageResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1784,7 +1813,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1812,7 +1842,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1842,7 +1873,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1891,7 +1923,8 @@ export const ListPartiesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1916,7 +1949,8 @@ export const ListPartiesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1976,7 +2010,8 @@ export const CreatePartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2001,7 +2036,8 @@ export const CreatePartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2046,7 +2082,8 @@ export const GetPartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2071,7 +2108,8 @@ export const GetPartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2134,7 +2172,8 @@ export const UpdatePartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2159,7 +2198,8 @@ export const UpdatePartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2232,7 +2272,8 @@ export const JoinPartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2257,7 +2298,8 @@ export const JoinPartyResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2328,7 +2370,8 @@ export const TransferPartyLeadershipResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2353,7 +2396,8 @@ export const TransferPartyLeadershipResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2396,7 +2440,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2421,7 +2466,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2451,7 +2497,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "action": zod.enum(['created', 'joined', 'left', 'invited']),
   "createdAt": zod.string()
@@ -2493,7 +2540,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2518,7 +2566,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2548,7 +2597,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "createdAt": zod.string()
 })
@@ -2591,7 +2641,8 @@ export const AcceptPartyInviteResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2616,7 +2667,8 @@ export const AcceptPartyInviteResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2888,7 +2940,8 @@ export const ListBlockedUsersResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "createdAt": zod.string()
 })
@@ -3112,7 +3165,8 @@ export const ListLfgPostsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3145,7 +3199,8 @@ export const ListLfgPostsResponseItem = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3203,7 +3258,8 @@ export const CreateLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3236,7 +3292,8 @@ export const CreateLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3284,7 +3341,8 @@ export const RespondToLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3317,7 +3375,8 @@ export const RespondToLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3357,7 +3416,8 @@ export const CloseLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3390,7 +3450,8 @@ export const CloseLfgPostResponse = zod.object({
   "xpIntoLevel": zod.number().nullish(),
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
-  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),

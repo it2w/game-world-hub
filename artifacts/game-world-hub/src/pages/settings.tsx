@@ -187,6 +187,15 @@ export default function Settings() {
     }
   };
 
+  // Username cooldown: disabled for 30 days after last change
+  const USERNAME_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+  const usernameNextAllowed = useMemo(() => {
+    if (!me?.usernameChangedAt) return null;
+    const changed = new Date(me.usernameChangedAt);
+    const next = new Date(changed.getTime() + USERNAME_COOLDOWN_MS);
+    return next > new Date() ? next : null;
+  }, [me?.usernameChangedAt]);
+
   const wallEnabled = me?.allowProfileComments !== false;
   const handleToggleWall = () => {
     if (!me) return;
@@ -427,10 +436,16 @@ export default function Settings() {
                   <FormItem>
                     <FormLabel className="font-mono text-xs">{t("identity.username")}</FormLabel>
                     <div className="flex gap-2">
-                      <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" placeholder="username" /></FormControl>
-                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !usernameForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
+                      <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" placeholder="username" disabled={!!usernameNextAllowed} /></FormControl>
+                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !usernameForm.formState.isDirty || !!usernameNextAllowed}>{t("identity.writeConfig")}</Button>
                     </div>
-                    <FormMessage className="font-mono text-xs" />
+                    {usernameNextAllowed ? (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {t("identity.usernameCooldown", { date: usernameNextAllowed.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) })}
+                      </p>
+                    ) : (
+                      <FormMessage className="font-mono text-xs" />
+                    )}
                   </FormItem>
                 )} />
               </form>

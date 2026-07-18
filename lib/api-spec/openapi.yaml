@@ -2571,6 +2571,9 @@ components:
         profileBgUrl:
           type: ["string", "null"]
           description: Pro profile background image/GIF path or URL
+        usernameChangedAt:
+          type: ["string", "null"]
+          description: ISO timestamp of the last username change, used to compute the 30-day cooldown
 
     ProStatus:
       type: object

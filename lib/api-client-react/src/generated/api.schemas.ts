@@ -120,6 +120,11 @@ export interface User {
      * @nullable
      */
   profileBgUrl?: string | null;
+  /**
+     * ISO timestamp of the last username change, used to compute the 30-day cooldown
+     * @nullable
+     */
+  usernameChangedAt?: string | null;
 }
 
 export interface LfgPost {

@@ -1,108 +1,102 @@
-import { Crown, Star, Gem, Zap, Sparkles } from "lucide-react";
+import { Crown } from "lucide-react";
 
-const FRIEND_NAME = "ibr";
-const FRIEND_USERNAME = "ibr@";
+function Badge({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
 
-function MockCard({ badge, label }: { badge: React.ReactNode; label: string }) {
+function Card({ badge, label, letter }: { badge: React.ReactNode; label: string; letter: string }) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* card */}
+    <div className="flex flex-col items-center gap-4">
       <div
-        className="w-[130px] border rounded-sm bg-[#0f0f0f] overflow-hidden"
-        style={{ borderColor: "#2a2a2a" }}
+        className="w-[180px] rounded border overflow-hidden"
+        style={{ background: "#111", borderColor: "#333" }}
       >
-        {/* banner */}
-        <div
-          className="h-14 w-full"
-          style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #0f0f0f 100%)" }}
-        />
-        {/* avatar centered */}
-        <div className="flex justify-center -mt-6 mb-2">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-[#2a2a2a] border-2 border-[#fbbf24] ring-[3px] ring-[#0f0f0f] flex items-center justify-center font-mono font-bold text-lg text-white">
-              I
-            </div>
-            {/* status dot */}
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0f0f0f]" />
+        <div className="h-16 w-full" style={{ background: "linear-gradient(135deg,#1e1b4b,#111)" }} />
+        <div className="flex justify-center -mt-8 mb-3">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl text-white ring-4"
+            style={{ background: "#1e1b4b", borderColor: "#f59e0b", border: "2px solid #f59e0b", ringColor: "#111" }}
+          >
+            I
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-black" />
           </div>
         </div>
-        {/* name row */}
-        <div className="px-2 pb-3 text-center">
-          <div className="flex items-center justify-center gap-1 min-w-0">
-            <span className="font-bold text-sm text-white truncate leading-tight">{FRIEND_NAME}</span>
-            {badge}
+        <div className="text-center pb-4 px-3">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <span className="text-white font-bold text-base">ibr</span>
+            <Badge>{badge}</Badge>
           </div>
-          <div className="text-[10px] text-gray-500 font-mono">{FRIEND_USERNAME}</div>
-          <div className="text-[10px] text-gray-600 font-mono uppercase mt-1 tracking-wider">online</div>
-        </div>
-        {/* action bar */}
-        <div className="flex border-t" style={{ borderColor: "#2a2a2a" }}>
-          {["اتصال","دردشة","حظر"].map(a => (
-            <div key={a} className="flex-1 flex items-center justify-center py-1.5 text-gray-600 text-[9px] font-mono border-r last:border-r-0" style={{ borderColor: "#2a2a2a" }}>
-              {a}
-            </div>
-          ))}
+          <div className="text-gray-500 text-xs font-mono">@ibr</div>
+          <div className="text-green-500 text-[10px] font-mono uppercase tracking-widest mt-1">● online</div>
         </div>
       </div>
-      {/* label */}
-      <span className="text-xs font-mono text-gray-400 uppercase tracking-widest">{label}</span>
+
+      <div className="text-center">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg mb-1.5 mx-auto"
+          style={{ background: "#1a1a1a", border: "1px solid #333", color: "#f59e0b" }}
+        >
+          {letter}
+        </div>
+        <p className="text-gray-400 text-sm">{label}</p>
+      </div>
     </div>
   );
 }
 
 export function Variants() {
   return (
-    <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center p-10 gap-10">
-      <p className="text-gray-500 font-mono text-xs uppercase tracking-widest">اختر شكل بادج Pro</p>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-12 p-12"
+      style={{ background: "#080808" }}
+    >
+      <p className="text-gray-500 text-sm font-mono uppercase tracking-widest">اختر شكل بادج Pro</p>
 
-      <div className="grid grid-cols-3 gap-8">
+      <div className="grid grid-cols-3 gap-10">
 
-        {/* A — Crown icon only, gold, tiny */}
-        <MockCard label="A — أيقونة فقط" badge={
-          <Crown className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+        <Card letter="A" label="كراون ذهبي فقط" badge={
+          <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
         } />
 
-        {/* B — ◆ diamond text, no bg */}
-        <MockCard label="B — نجمة ذهبية" badge={
-          <span className="text-amber-400 text-[10px] leading-none">★</span>
+        <Card letter="B" label="نجمة ذهبية ★" badge={
+          <span style={{ color: "#f59e0b", fontSize: 14, lineHeight: 1 }}>★</span>
         } />
 
-        {/* C — tiny pill no icon */}
-        <MockCard label="C — بيل بدون أيقونة" badge={
-          <span
-            className="text-[8px] font-mono font-bold uppercase tracking-widest px-1 py-px rounded-sm"
-            style={{ background: "linear-gradient(90deg,#f59e0b,#fde68a)", color: "#000" }}
-          >
-            pro
+        <Card letter="C" label="بيل PRO بدون أيقونة" badge={
+          <span style={{
+            fontSize: 9, fontFamily: "monospace", fontWeight: "bold",
+            background: "linear-gradient(90deg,#f59e0b,#fde68a)",
+            color: "#000", padding: "1px 5px", letterSpacing: "0.1em",
+          }}>PRO</span>
+        } />
+
+        <Card letter="D" label="حدود ذهبية فقط" badge={
+          <span style={{
+            fontSize: 9, fontFamily: "monospace", fontWeight: "bold",
+            border: "1px solid #f59e0b", color: "#f59e0b",
+            padding: "1px 5px", letterSpacing: "0.1em",
+          }}>PRO</span>
+        } />
+
+        <Card letter="E" label="كراون + PRO خلفية شفافة" badge={
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 2,
+            fontSize: 8, fontFamily: "monospace", fontWeight: "bold",
+            background: "rgba(245,158,11,0.12)", color: "#f59e0b",
+            border: "1px solid rgba(245,158,11,0.35)",
+            padding: "1px 4px", letterSpacing: "0.08em",
+          }}>
+            <Crown size={9} fill="#f59e0b" color="#f59e0b" />PRO
           </span>
         } />
 
-        {/* D — outline only */}
-        <MockCard label="D — حدود فقط" badge={
-          <span
-            className="text-[8px] font-mono font-bold uppercase tracking-widest px-1 py-px rounded-sm border"
-            style={{ borderColor: "#f59e0b", color: "#f59e0b" }}
-          >
-            pro
-          </span>
-        } />
-
-        {/* E — crown + pro, ultra small, no rounding */}
-        <MockCard label="E — كراون + نص صغير" badge={
-          <span
-            className="inline-flex items-center gap-0.5 text-[7px] font-mono font-bold uppercase tracking-widest px-1 py-px"
-            style={{ background: "#f59e0b22", color: "#f59e0b", border: "1px solid #f59e0b55" }}
-          >
-            <Crown className="w-2 h-2 fill-amber-400" />pro
-          </span>
-        } />
-
-        {/* F — gradient dot */}
-        <MockCard label="F — نقطة ذهبية" badge={
-          <span
-            className="w-2 h-2 rounded-full shrink-0 inline-block"
-            style={{ background: "linear-gradient(135deg,#f59e0b,#fde68a)", boxShadow: "0 0 4px #f59e0b88" }}
-          />
+        <Card letter="F" label="نقطة ذهبية مضيئة" badge={
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: "linear-gradient(135deg,#f59e0b,#fde68a)",
+            boxShadow: "0 0 5px #f59e0baa",
+            display: "inline-block", flexShrink: 0,
+          }} />
         } />
 
       </div>

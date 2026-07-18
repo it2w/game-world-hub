@@ -76,15 +76,21 @@ async function verifyOwnerResetCode(ownerId: number, code: string): Promise<bool
 
 /* ─── Reset endpoint rate limiting ──────────────────────────────────────── */
 
-const RESET_RATE_MAX      = 5;
+const RESET_RATE_MAX       = 5;
 const RESET_RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-interface RateBucket { count: number; windowStart: number }
-const resetRateBuckets = new Map<string, RateBucket>();
+// Persist rate-limit buckets in the DB so they survive server restarts.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS owner_reset_rate_buckets (
+    key          TEXT PRIMARY KEY,
+    count        INTEGER NOT NULL DEFAULT 0,
+    window_start BIGINT  NOT NULL
+  )
+`).catch((e) => logger.error(e, "owner_reset_rate_buckets: migration failed"));
 
 /** Exposed for tests to reset state between runs. */
-export function _resetResetRateBucket(key: string): void {
-  resetRateBuckets.delete(key);
+export async function _resetResetRateBucket(key: string): Promise<void> {
+  await pool.query(`DELETE FROM owner_reset_rate_buckets WHERE key = $1`, [key]);
 }
 
 /* ─── Probe alert email deduplication ───────────────────────────────────── */
@@ -116,17 +122,38 @@ function claimProbeAlertSlot(ownerId: number): boolean {
 /**
  * Returns true if the request is within the allowed rate.
  * Always increments the counter — call on every request to these endpoints.
+ * Buckets are persisted in the database so they survive server restarts.
  */
-function checkResetRate(key: string): { allowed: boolean; retryAfterSecs: number } {
+async function checkResetRate(key: string): Promise<{ allowed: boolean; retryAfterSecs: number }> {
   const now = Date.now();
-  const bucket = resetRateBuckets.get(key);
-  if (!bucket || now - bucket.windowStart > RESET_RATE_WINDOW_MS) {
-    resetRateBuckets.set(key, { count: 1, windowStart: now });
-    return { allowed: true, retryAfterSecs: 0 };
-  }
-  bucket.count += 1;
-  if (bucket.count > RESET_RATE_MAX) {
-    const retryAfterSecs = Math.ceil((RESET_RATE_WINDOW_MS - (now - bucket.windowStart)) / 1000);
+  const windowCutoff = now - RESET_RATE_WINDOW_MS;
+
+  // Atomically upsert: reset the window if it has expired, otherwise increment.
+  const { rows } = await pool.query<{ count: number; window_start: string }>(`
+    INSERT INTO owner_reset_rate_buckets (key, count, window_start)
+    VALUES ($1, 1, $2)
+    ON CONFLICT (key) DO UPDATE SET
+      count        = CASE
+                       WHEN owner_reset_rate_buckets.window_start < $3
+                       THEN 1
+                       ELSE owner_reset_rate_buckets.count + 1
+                     END,
+      window_start = CASE
+                       WHEN owner_reset_rate_buckets.window_start < $3
+                       THEN $2
+                       ELSE owner_reset_rate_buckets.window_start
+                     END
+    RETURNING count, window_start
+  `, [key, now, windowCutoff]);
+
+  const row = rows[0];
+  if (!row) return { allowed: true, retryAfterSecs: 0 };
+
+  const count = row.count;
+  const windowStart = Number(row.window_start);
+
+  if (count > RESET_RATE_MAX) {
+    const retryAfterSecs = Math.ceil((RESET_RATE_WINDOW_MS - (now - windowStart)) / 1000);
     return { allowed: false, retryAfterSecs };
   }
   return { allowed: true, retryAfterSecs: 0 };
@@ -233,7 +260,7 @@ router.post("/owner/set-email", requireOwner, async (req, res): Promise<void> =>
 
 router.post("/owner/reset-password-request", async (req, res): Promise<void> => {
   const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown");
-  const { allowed, retryAfterSecs } = checkResetRate(`reset-req:${ip}`);
+  const { allowed, retryAfterSecs } = await checkResetRate(`reset-req:${ip}`);
   if (!allowed) {
     res.setHeader("Retry-After", String(retryAfterSecs));
     res.status(429).json({ error: "Too many reset requests. Please try again later." });
@@ -305,7 +332,7 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
 
 router.post("/owner/reset-password", async (req, res): Promise<void> => {
   const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown");
-  const { allowed, retryAfterSecs } = checkResetRate(`reset:${ip}`);
+  const { allowed, retryAfterSecs } = await checkResetRate(`reset:${ip}`);
   if (!allowed) {
     res.setHeader("Retry-After", String(retryAfterSecs));
     res.status(429).json({ error: "Too many reset requests. Please try again later." });

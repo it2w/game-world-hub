@@ -580,7 +580,7 @@ describe("Owner reset-password brute-force lockout", () => {
 
     // Clear the per-IP rate-limit buckets so this helper never hits the
     // IP-level throttle regardless of how many times it is called per suite.
-    clearResetBuckets();
+    await clearResetBuckets();
 
     const r = await post("/owner/reset-password-request", { username: resetOwnerUsername });
     assert.strictEqual(r.status, 200, `reset-password-request failed: ${JSON.stringify(r.body)}`);
@@ -590,11 +590,11 @@ describe("Owner reset-password brute-force lockout", () => {
   }
 
   /** Clear the per-IP rate-limit buckets used by this test suite. */
-  function clearResetBuckets() {
+  async function clearResetBuckets() {
     for (const prefix of ["reset-req", "reset"]) {
-      _resetResetRateBucket(`${prefix}:::1`);
-      _resetResetRateBucket(`${prefix}:127.0.0.1`);
-      _resetResetRateBucket(`${prefix}:::ffff:127.0.0.1`);
+      await _resetResetRateBucket(`${prefix}:::1`);
+      await _resetResetRateBucket(`${prefix}:127.0.0.1`);
+      await _resetResetRateBucket(`${prefix}:::ffff:127.0.0.1`);
     }
   }
 
@@ -605,12 +605,12 @@ describe("Owner reset-password brute-force lockout", () => {
       .returning({ id: superAdminsTable.id });
     resetOwnerId = row.id;
     resetOwnerUsername = `owner_bf_${SUFFIX}`;
-    clearResetBuckets();
+    await clearResetBuckets();
   });
 
   after(async () => {
     await db.delete(superAdminsTable).where(eq(superAdminsTable.id, resetOwnerId)).catch(() => {});
-    clearResetBuckets();
+    await clearResetBuckets();
   });
 
   // ── 1. Brute-force lockout ──────────────────────────────────────────────
@@ -1099,12 +1099,12 @@ describe("POST /owner/reset-password-request — rate limiting", () => {
   // Use a unique IP-like key per test run so parallel suites don't collide.
   const fakeIp = `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 
-  before(() => {
-    _resetResetRateBucket(`reset-req:${fakeIp}`);
+  before(async () => {
+    await _resetResetRateBucket(`reset-req:${fakeIp}`);
   });
 
-  after(() => {
-    _resetResetRateBucket(`reset-req:${fakeIp}`);
+  after(async () => {
+    await _resetResetRateBucket(`reset-req:${fakeIp}`);
   });
 
   async function resetReq(username = "any_user") {
@@ -1123,13 +1123,13 @@ describe("POST /owner/reset-password-request — rate limiting", () => {
 
   test("first 5 requests are allowed (200 or 400)", async () => {
     // Reset bucket so this sub-suite starts clean regardless of order.
-    _resetResetRateBucket(`reset-req:${fakeIp}`);
+    await _resetResetRateBucket(`reset-req:${fakeIp}`);
     // We can't control the real IP in tests, so we drive against localhost
     // which shares the bucket. Reset it and fire 5 fresh requests against
     // the loopback address used by the test server.
-    _resetResetRateBucket("reset-req:::1");
-    _resetResetRateBucket("reset-req:127.0.0.1");
-    _resetResetRateBucket("reset-req:::ffff:127.0.0.1");
+    await _resetResetRateBucket("reset-req:::1");
+    await _resetResetRateBucket("reset-req:127.0.0.1");
+    await _resetResetRateBucket("reset-req:::ffff:127.0.0.1");
 
     for (let i = 0; i < 5; i++) {
       const res = await post("/owner/reset-password-request", { username: `no_such_user_rl_${SUFFIX}_${i}` });
@@ -1154,17 +1154,17 @@ describe("POST /owner/reset-password-request — rate limiting", () => {
 });
 
 describe("POST /owner/reset-password — rate limiting", () => {
-  before(() => {
+  before(async () => {
     // Pre-clear the loopback bucket so the reset-password limiter starts fresh.
-    _resetResetRateBucket("reset:::1");
-    _resetResetRateBucket("reset:127.0.0.1");
-    _resetResetRateBucket("reset:::ffff:127.0.0.1");
+    await _resetResetRateBucket("reset:::1");
+    await _resetResetRateBucket("reset:127.0.0.1");
+    await _resetResetRateBucket("reset:::ffff:127.0.0.1");
   });
 
-  after(() => {
-    _resetResetRateBucket("reset:::1");
-    _resetResetRateBucket("reset:127.0.0.1");
-    _resetResetRateBucket("reset:::ffff:127.0.0.1");
+  after(async () => {
+    await _resetResetRateBucket("reset:::1");
+    await _resetResetRateBucket("reset:127.0.0.1");
+    await _resetResetRateBucket("reset:::ffff:127.0.0.1");
   });
 
   test("first 5 requests return non-429 (validation / bad code errors are fine)", async () => {
@@ -1211,14 +1211,14 @@ describe("Reset rate limit — IP isolation via X-Forwarded-For", () => {
 
   function bucketKey(prefix: string, ip: string) { return `${prefix}:${ip}`; }
 
-  before(() => {
-    _resetResetRateBucket(bucketKey("reset-req", ipA));
-    _resetResetRateBucket(bucketKey("reset-req", ipB));
+  before(async () => {
+    await _resetResetRateBucket(bucketKey("reset-req", ipA));
+    await _resetResetRateBucket(bucketKey("reset-req", ipB));
   });
 
-  after(() => {
-    _resetResetRateBucket(bucketKey("reset-req", ipA));
-    _resetResetRateBucket(bucketKey("reset-req", ipB));
+  after(async () => {
+    await _resetResetRateBucket(bucketKey("reset-req", ipA));
+    await _resetResetRateBucket(bucketKey("reset-req", ipB));
   });
 
   async function resetReqFrom(ip: string) {
@@ -1261,5 +1261,65 @@ describe("Reset rate limit — IP isolation via X-Forwarded-For", () => {
       429,
       `IP-B must not be blocked by IP-A's exhausted bucket; got ${res.status}`,
     );
+  });
+});
+
+/* ── Reset rate-limit persistence across restarts ───────────────────────── */
+
+describe("Reset rate-limit bucket persistence (survives server restart)", () => {
+  /**
+   * A unique key that won't collide with other test runs.
+   * We inject it directly into the DB to simulate a bucket that was populated
+   * before the server restarted (i.e. the in-memory Map is gone but the DB row
+   * is still there).
+   */
+  const persistKey = `reset-req:persist-test-${SUFFIX}`;
+  const RESET_RATE_WINDOW_MS = 15 * 60 * 1000;
+
+  before(async () => {
+    // Seed the DB with a bucket that has already consumed all allowed requests.
+    // This mimics state written before a restart — the in-memory Map would have
+    // been cleared, but the DB row survives.
+    await pool.query(
+      `INSERT INTO owner_reset_rate_buckets (key, count, window_start)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET count = $2, window_start = $3`,
+      [persistKey, 6 /* > RESET_RATE_MAX (5) */, Date.now() - 1000 /* still inside window */],
+    );
+  });
+
+  after(async () => {
+    await pool.query(`DELETE FROM owner_reset_rate_buckets WHERE key = $1`, [persistKey]);
+  });
+
+  test("bucket seeded into DB blocks the next request (simulates post-restart throttle)", async () => {
+    // Seed ALL loopback variants at count > RESET_RATE_MAX so we don't need to
+    // know which exact IP the test server sees for this connection.
+    const loopbackVariants = ["reset-req:::1", "reset-req:127.0.0.1", "reset-req:::ffff:127.0.0.1"];
+    const windowStart = Date.now() - 1000; // 1 s ago — well inside the 15-min window
+
+    for (const k of loopbackVariants) {
+      await pool.query(
+        `INSERT INTO owner_reset_rate_buckets (key, count, window_start)
+         VALUES ($1, 6, $2)
+         ON CONFLICT (key) DO UPDATE SET count = 6, window_start = $2`,
+        [k, windowStart],
+      );
+    }
+
+    // Now make a request. The server reads from DB, sees count (6) > RESET_RATE_MAX (5),
+    // and must return 429 — even though the in-memory Map has no record of it
+    // (simulating what happens after a process restart clears in-process state).
+    const res = await post("/owner/reset-password-request", { username: `persist_test_user_${SUFFIX}` });
+    assert.strictEqual(
+      res.status,
+      429,
+      `expected 429 from DB-persisted bucket (simulating post-restart state), got ${res.status}: ${JSON.stringify(res.body)}`,
+    );
+
+    // Cleanup the loopback keys we injected.
+    for (const k of loopbackVariants) {
+      await _resetResetRateBucket(k);
+    }
   });
 });

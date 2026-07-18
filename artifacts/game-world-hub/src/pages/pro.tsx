@@ -94,8 +94,6 @@ function ActivationCard({ isPro }: { isPro: boolean }) {
     },
   });
 
-  if (isPro) return null;
-
   return (
     <div className="bg-card border border-primary/30 p-6">
       <div className="flex items-center gap-2 mb-3">

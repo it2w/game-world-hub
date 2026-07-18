@@ -119,6 +119,22 @@ function claimProbeAlertSlot(ownerId: number): boolean {
   return true;
 }
 
+/** Remove stale entries from both rate-limit maps (entries whose window has expired). */
+export function sweepRateBuckets(): void {
+  const now = Date.now();
+  for (const [key, bucket] of resetRateBuckets) {
+    if (now - bucket.windowStart > RESET_RATE_WINDOW_MS) resetRateBuckets.delete(key);
+  }
+  for (const [key, bucket] of loginBuckets) {
+    if (now - bucket.windowStart > LOGIN_WINDOW_MS) loginBuckets.delete(key);
+  }
+}
+
+/** Interval handle — exported so tests can cancel it and avoid timer leaks. */
+export const rateBucketSweepInterval = setInterval(sweepRateBuckets, 5 * 60 * 1000);
+// Allow Node.js to exit even if this interval is still running (e.g. in tests).
+rateBucketSweepInterval.unref();
+
 /**
  * Returns true if the request is within the allowed rate.
  * Always increments the counter — call on every request to these endpoints.

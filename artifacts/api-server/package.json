@@ -7,7 +7,7 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "test": "node --import tsx --test --test-force-exit src/ws/signaling.test.ts src/routes/parties.test.ts src/routes/conversations.test.ts src/routes/lfg.test.ts src/routes/users.test.ts src/middlewares/admin.test.ts src/routes/reports.test.ts src/routes/admin.test.ts",
+    "test": "node --import tsx --test --test-force-exit src/ws/signaling.test.ts src/routes/parties.test.ts src/routes/conversations.test.ts src/routes/lfg.test.ts src/routes/users.test.ts src/middlewares/admin.test.ts src/routes/reports.test.ts src/routes/admin.test.ts src/routes/owner.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

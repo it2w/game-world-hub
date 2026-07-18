@@ -123,7 +123,17 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   }
 
   if (!party) {
-    return <div className="p-12 text-center font-mono text-destructive">{t("detail.notFound")}</div>;
+    return (
+      <div className="p-12 text-center space-y-4">
+        <p className="font-mono text-destructive">{t("detail.notFound")}</p>
+        <button
+          className="font-mono text-xs text-primary underline"
+          onClick={() => setLocation("/parties")}
+        >
+          {t("detail.backToParties")}
+        </button>
+      </div>
+    );
   }
 
   const isMember = party.members.some(m => m.id === me?.id);

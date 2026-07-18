@@ -33,6 +33,7 @@
   "detail": {
     "establishing": "جارٍ إنشاء الاتصال...",
     "notFound": "البارتي غير موجود أو فُقدت الإشارة",
+    "backToParties": "← العودة إلى البارتيات",
     "privateLabel": "خاص",
     "operators": "{{current}}/{{max}} لاعبين",
     "anyGame": "أي لعبة",

@@ -348,31 +348,17 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  // Clear any stale party_invite notifications for prior invites to the same party+user
-  // so the recipient's inbox doesn't accumulate redundant entries across re-invite cycles.
-  const priorInvites = await db
-    .select({ id: partyInvitesTable.id })
-    .from(partyInvitesTable)
+  // Clear any stale party_invite notifications for this party+user pair.
+  // relatedId stores the partyId, so we can match directly without a join.
+  await db
+    .delete(notificationsTable)
     .where(
       and(
-        eq(partyInvitesTable.partyId, partyId),
-        eq(partyInvitesTable.invitedUserId, parsed.data.userId)
+        eq(notificationsTable.userId, parsed.data.userId),
+        eq(notificationsTable.type, "party_invite"),
+        eq(notificationsTable.relatedId, partyId)
       )
     );
-  if (priorInvites.length > 0) {
-    await db
-      .delete(notificationsTable)
-      .where(
-        and(
-          eq(notificationsTable.userId, parsed.data.userId),
-          eq(notificationsTable.type, "party_invite"),
-          inArray(
-            notificationsTable.relatedId,
-            priorInvites.map((r) => r.id)
-          )
-        )
-      );
-  }
 
   // Use ON CONFLICT DO NOTHING so concurrent requests that race past the
   // pending-invite check above are handled atomically — no error is thrown,
@@ -394,7 +380,7 @@ router.post("/parties/:partyId/invite", requireAuth, async (req, res): Promise<v
     userId: parsed.data.userId,
     type: "party_invite",
     title: `${invitedBy.displayName} invited you to a party`,
-    relatedId: inv.id,
+    relatedId: partyId,   // store partyId so the frontend can navigate directly to /party/:partyId
   });
 
   await db.insert(partyActivityTable).values({ partyId, actorId: myId, action: "invited" });

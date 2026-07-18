@@ -33,6 +33,7 @@
   "detail": {
     "establishing": "ESTABLISHING CONNECTION...",
     "notFound": "PARTY NOT FOUND OR SIGNAL LOST",
+    "backToParties": "← BACK TO PARTIES",
     "privateLabel": "Private",
     "operators": "{{current}}/{{max}} OPERATORS",
     "anyGame": "ANY_GAME",

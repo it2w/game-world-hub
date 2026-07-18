@@ -208,13 +208,18 @@ export default function Friends() {
                       <Link href={`/profile/${f.id}`} className="block">
                         {/* banner */}
                         <div className="relative h-[76px] overflow-hidden">
+                          {(f as any).profileBgUrl && (
+                            <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                          )}
                           {(f as any).bannerUrl ? (
-                            <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
                           ) : (
-                            <div
-                              className="w-full h-full"
-                              style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.16) 0%, hsl(var(--primary)/0.03) 100%)" }}
-                            />
+                            !((f as any).profileBgUrl) && (
+                              <div
+                                className="w-full h-full"
+                                style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.16) 0%, hsl(var(--primary)/0.03) 100%)" }}
+                              />
+                            )
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/10 to-transparent" />
                         </div>
@@ -226,12 +231,16 @@ export default function Friends() {
                               <img
                                 src={f.avatarUrl}
                                 alt=""
-                                className="w-14 h-14 object-cover rounded-full ring-[3px] ring-card border border-border/40"
+                                className="w-14 h-14 object-cover rounded-full ring-[3px] ring-card border-2"
+                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.4)" }}
                               />
                             ) : (
                               <div
-                                className="w-14 h-14 rounded-full ring-[3px] ring-card border border-border/40 flex items-center justify-center font-mono font-bold text-xl"
-                                style={{ background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))" }}
+                                className="w-14 h-14 rounded-full ring-[3px] ring-card border-2 flex items-center justify-center font-mono font-bold text-xl"
+                                style={{
+                                  borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.4)",
+                                  background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))",
+                                }}
                               >
                                 {f.displayName.charAt(0).toUpperCase()}
                               </div>

@@ -181,13 +181,18 @@ export default function Dashboard() {
                         <Link href={`/profile/${f.id}`} className="flex flex-col flex-1">
                           {/* banner */}
                           <div className="relative h-[60px] overflow-hidden shrink-0">
+                            {(f as any).profileBgUrl && (
+                              <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            )}
                             {(f as any).bannerUrl ? (
-                              <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
+                              <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
                             ) : (
-                              <div
-                                className="w-full h-full"
-                                style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
-                              />
+                              !((f as any).profileBgUrl) && (
+                                <div
+                                  className="w-full h-full"
+                                  style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
+                                />
+                              )
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
                             {f.isPro && (
@@ -204,10 +209,14 @@ export default function Dashboard() {
                                 <img
                                   src={f.avatarUrl}
                                   alt=""
-                                  className="w-10 h-10 object-cover rounded-full ring-[3px] ring-background border border-border/50"
+                                  className="w-10 h-10 object-cover rounded-full ring-[3px] ring-background border-2"
+                                  style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
                                 />
                               ) : (
-                                <div className="w-10 h-10 rounded-full ring-[3px] ring-background border border-border/50 bg-muted flex items-center justify-center font-mono font-bold text-sm">
+                                <div
+                                  className="w-10 h-10 rounded-full ring-[3px] ring-background border-2 bg-muted flex items-center justify-center font-mono font-bold text-sm"
+                                  style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
+                                >
                                   {f.displayName.charAt(0).toUpperCase()}
                                 </div>
                               )}

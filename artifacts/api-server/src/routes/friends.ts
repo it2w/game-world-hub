@@ -31,6 +31,8 @@ function safeUser(
     totalXp: progress?.totalXp ?? null,
     xpIntoLevel: progress?.xpIntoLevel ?? null,
     xpForNext: progress?.xpForNext ?? null,
+    profileFrameColor: u.profileFrameColor ?? null,
+    profileBgUrl: u.profileBgUrl ?? null,
   };
 }
 

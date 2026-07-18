@@ -163,9 +163,17 @@ export function AppSidebar() {
             <Link href={`/profile/${user.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="relative">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.displayName} className="w-8 h-8 rounded-sm object-cover border border-border" />
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.displayName}
+                    className="w-8 h-8 rounded-sm object-cover border-2"
+                    style={{ borderColor: (user as any).profileFrameColor ?? "hsl(var(--border))" }}
+                  />
                 ) : (
-                  <div className="w-8 h-8 rounded-sm bg-muted flex items-center justify-center border border-border font-mono text-xs">
+                  <div
+                    className="w-8 h-8 rounded-sm bg-muted flex items-center justify-center border-2 font-mono text-xs"
+                    style={{ borderColor: (user as any).profileFrameColor ?? "hsl(var(--border))" }}
+                  >
                     {user.displayName.charAt(0).toUpperCase()}
                   </div>
                 )}

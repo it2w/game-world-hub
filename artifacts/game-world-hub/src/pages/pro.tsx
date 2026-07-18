@@ -64,8 +64,8 @@ function ProStatusBanner({ isPro, expiresAt }: { isPro: boolean; expiresAt: stri
         <div>
           <p className="font-mono font-black text-sm uppercase tracking-widest text-primary">اشتراك Pro نشط</p>
           {expiresAt && (
-            <p className="font-mono text-[10px] text-muted-foreground mt-0.5">
-              ينتهي {new Date(expiresAt).toLocaleDateString("ar-SA")}
+            <p className="font-mono text-sm font-bold text-foreground mt-1">
+              ينتهي في {new Date(expiresAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })}
             </p>
           )}
         </div>

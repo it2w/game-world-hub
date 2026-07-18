@@ -27,6 +27,7 @@ const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 let server: Server;
 let baseUrl: string;
 let ownerToken = "";
+let userToken = "";
 let ownerId = 0;
 
 /* IDs to clean up after all tests */
@@ -54,6 +55,7 @@ before(async () => {
     .returning({ id: usersTable.id });
   testUserId = user.id;
   createdUserIds.push(testUserId);
+  userToken = signToken({ userId: testUserId, username: `own_subj_${SUFFIX}` });
 
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -487,6 +489,16 @@ describe("GET /owner/export/users", () => {
     const firstLine = r.text.split("\n")[0];
     assert.ok(firstLine.includes("username"), "CSV must contain username column");
   });
+
+  test("401 when a regular user Bearer token is used", async () => {
+    const r = await get("/owner/export/users", userToken);
+    assert.strictEqual(r.status, 401);
+  });
+
+  test("401 when a regular user token is used as ?token= query param", async () => {
+    const r = await get("/owner/export/users", undefined, userToken);
+    assert.strictEqual(r.status, 401);
+  });
 });
 
 describe("GET /owner/export/log", () => {
@@ -514,5 +526,15 @@ describe("GET /owner/export/log", () => {
     const r = await get("/owner/export/log", undefined, ownerToken);
     assert.strictEqual(r.status, 200);
     assert.ok(r.text.split("\n")[0].includes("action"), "CSV must contain action column");
+  });
+
+  test("401 when a regular user Bearer token is used", async () => {
+    const r = await get("/owner/export/log", userToken);
+    assert.strictEqual(r.status, 401);
+  });
+
+  test("401 when a regular user token is used as ?token= query param", async () => {
+    const r = await get("/owner/export/log", undefined, userToken);
+    assert.strictEqual(r.status, 401);
   });
 });

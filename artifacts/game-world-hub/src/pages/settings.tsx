@@ -1143,14 +1143,13 @@ function MyRoomSection() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Populate form when room loads
-  const populated = !!myRoom;
-  useState(() => {
+  // Populate form when room data first loads
+  useEffect(() => {
     if (myRoom) {
       setName(myRoom.name ?? "");
       setDescription(myRoom.description ?? "");
     }
-  });
+  }, [myRoom?.id]);
 
   const saveRoom = async () => {
     if (!name.trim()) return;

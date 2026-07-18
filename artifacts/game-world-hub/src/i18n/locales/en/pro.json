@@ -1,0 +1,73 @@
+{
+  "page": {
+    "title": "Pro",
+    "subtitle": "Exclusive Pro subscription features"
+  },
+  "lock": "Requires Pro subscription",
+  "banner": {
+    "active": "Pro Active",
+    "expires": "Expires"
+  },
+  "activation": {
+    "title": "Activation Code",
+    "description": "Have a Pro activation code? Enter it here to activate your subscription.",
+    "placeholder": "XXXX-XXXX-XXXX-XXXX",
+    "submit": "Activate",
+    "success": "✅ Subscription activated successfully!",
+    "invalid": "Invalid or expired code"
+  },
+  "profile": {
+    "title": "Custom Pro Profile",
+    "frameColor": "Avatar Frame Color",
+    "background": "Profile Background",
+    "bgPlaceholder": "Link https://... or upload from device",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "preview": "Preview",
+    "save": "Save Customization",
+    "saving": "Saving...",
+    "uploadSuccess": "Image uploaded — press Save to apply",
+    "uploadFail": "Image upload failed",
+    "saveSuccess": "Customization saved",
+    "saveFail": "Save failed"
+  },
+  "room": {
+    "clearPassword": "Clear",
+    "passwordWillClear": "Password will be removed on save",
+    "confirmDeleteBtn": "✓ Confirm Delete"
+  },
+  "lfg": {
+    "title": "Auto LFG Bot",
+    "description": "LFG Bot automatically posts on your behalf at regular intervals.",
+    "game": "Game",
+    "platform": "Platform",
+    "descriptionField": "Description",
+    "interval": "Post Interval",
+    "30min": "30m",
+    "1hour": "1h",
+    "2hours": "2h",
+    "4hours": "4h",
+    "save": "Save Settings",
+    "saving": "Saving...",
+    "disable": "Disable Bot",
+    "required": "Game and description are required",
+    "enabled": "LFG Bot activated",
+    "saved": "Bot settings saved",
+    "saveFail": "Save failed",
+    "disabled": "Bot disabled"
+  },
+  "gift": {
+    "title": "Gift Pro",
+    "description": "Gift a friend one month of Pro for free — once every 90 days.",
+    "lastGift": "Last gift:",
+    "availableIn": "Available in {{days}} days",
+    "button": "Gift a Pro month to a friend",
+    "choose": "Choose a friend",
+    "chooseOption": "-- Select --",
+    "confirm": "Confirm Gift 🎁",
+    "gifting": "Gifting...",
+    "cancel": "Cancel",
+    "success": "Pro gifted to {{name}} 🎁",
+    "fail": "Gift failed"
+  }
+}

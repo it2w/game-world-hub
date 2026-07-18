@@ -1,0 +1,73 @@
+{
+  "page": {
+    "title": "Pro",
+    "subtitle": "مميزات اشتراك Pro الحصرية"
+  },
+  "lock": "يتطلب اشتراك Pro",
+  "banner": {
+    "active": "اشتراك Pro نشط",
+    "expires": "ينتهي"
+  },
+  "activation": {
+    "title": "كود التفعيل",
+    "description": "لديك كود تفعيل Pro؟ أدخله هنا لتفعيل اشتراكك.",
+    "placeholder": "XXXX-XXXX-XXXX-XXXX",
+    "submit": "تفعيل",
+    "success": "✅ تم تفعيل الاشتراك بنجاح!",
+    "invalid": "كود غير صحيح أو منتهي الصلاحية"
+  },
+  "profile": {
+    "title": "ملف Pro المخصص",
+    "frameColor": "لون إطار الصورة",
+    "background": "خلفية الملف الشخصي",
+    "bgPlaceholder": "رابط https://... أو ارفع من الجهاز",
+    "upload": "رفع",
+    "uploading": "جاري...",
+    "preview": "معاينة",
+    "save": "حفظ التخصيص",
+    "saving": "جاري الحفظ...",
+    "uploadSuccess": "تم رفع الصورة — اضغط حفظ لتطبيقها",
+    "uploadFail": "فشل رفع الصورة",
+    "saveSuccess": "تم حفظ التخصيص",
+    "saveFail": "فشل الحفظ"
+  },
+  "room": {
+    "clearPassword": "حذف",
+    "passwordWillClear": "كلمة المرور ستُحذف عند الحفظ",
+    "confirmDeleteBtn": "✓ تأكيد الحذف"
+  },
+  "lfg": {
+    "title": "بوت LFG التلقائي",
+    "description": "ينشر بوت LFG منشورًا تلقائيًا بشكل دوري نيابةً عنك.",
+    "game": "اللعبة",
+    "platform": "المنصة",
+    "descriptionField": "الوصف",
+    "interval": "فترة النشر",
+    "30min": "30د",
+    "1hour": "ساعة",
+    "2hours": "ساعتين",
+    "4hours": "4 ساعات",
+    "save": "حفظ الإعدادات",
+    "saving": "جاري...",
+    "disable": "تعطيل البوت",
+    "required": "اللعبة والوصف مطلوبان",
+    "enabled": "تم تفعيل بوت LFG",
+    "saved": "تم حفظ إعدادات البوت",
+    "saveFail": "فشل الحفظ",
+    "disabled": "تم تعطيل البوت"
+  },
+  "gift": {
+    "title": "إهداء Pro",
+    "description": "أهدِ صديقًا شهرًا من Pro مجانًا — مرة واحدة كل 90 يومًا.",
+    "lastGift": "آخر إهداء:",
+    "availableIn": "متاح بعد {{days}} يوم",
+    "button": "إهداء شهر Pro لصديق",
+    "choose": "اختر صديقًا",
+    "chooseOption": "-- اختر --",
+    "confirm": "تأكيد الإهداء 🎁",
+    "gifting": "جاري الإهداء...",
+    "cancel": "إلغاء",
+    "success": "تم إهداء Pro لـ {{name}} 🎁",
+    "fail": "فشل الإهداء"
+  }
+}

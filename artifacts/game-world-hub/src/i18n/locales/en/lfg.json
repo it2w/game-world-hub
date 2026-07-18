@@ -54,7 +54,13 @@
     "close": "CLOSE",
     "closed": "CLOSED",
     "signalSent": "SIGNAL SENT",
-    "respond": "RESPOND"
+    "respond": "RESPOND",
+    "manageResponders": "RESPONDERS"
+  },
+  "manageDialog": {
+    "title": "Responders",
+    "subtitle": "These players responded to your {{game}} signal. Invite them to your party or view their profiles.",
+    "done": "DONE"
   },
   "toasts": {
     "signalSentSuccess": "✓ Signal sent — waiting for the host to respond",

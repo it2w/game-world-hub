@@ -58,7 +58,13 @@
     "close": "إغلاق",
     "closed": "مغلق",
     "signalSent": "تم إرسال الإشارة",
-    "respond": "استجابة"
+    "respond": "استجابة",
+    "manageResponders": "المستجيبون"
+  },
+  "manageDialog": {
+    "title": "المستجيبون",
+    "subtitle": "هؤلاء اللاعبون استجابوا لإشارتك في {{game}}. ادعُهم إلى فريقك أو تفقّد ملفاتهم.",
+    "done": "تم"
   },
   "toasts": {
     "signalSentSuccess": "✓ تم إرسال الإشارة — بانتظار رد المضيف",

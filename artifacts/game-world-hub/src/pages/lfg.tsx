@@ -112,6 +112,8 @@ export default function Lfg() {
 
   type LfgPost = NonNullable<typeof posts>[number];
   const [closeConfirmPost, setCloseConfirmPost] = useState<LfgPost | null>(null);
+  // "manage" = view/invite responders without closing; "close" = confirm close signal
+  const [dialogMode, setDialogMode] = useState<"manage" | "close">("close");
   // Track which responder IDs have already been invited in this session
   const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
 
@@ -119,6 +121,17 @@ export default function Lfg() {
   const closeConfirmDialog = () => {
     setCloseConfirmPost(null);
     setInvitedIds(new Set());
+    setDialogMode("close");
+  };
+
+  const openManageDialog = (post: LfgPost) => {
+    setCloseConfirmPost(post);
+    setDialogMode("manage");
+  };
+
+  const openCloseDialog = (post: LfgPost) => {
+    setCloseConfirmPost(post);
+    setDialogMode("close");
   };
 
   const handleCreatePartyAndInvite = (userId: number, displayName: string, partyName: string, maxSize: number) => {
@@ -579,10 +592,12 @@ export default function Lfg() {
         <DialogContent className="border-border bg-card rounded-none sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest text-primary border-b border-border pb-4">
-              {t("closeConfirm.title")}
+              {dialogMode === "manage" ? t("manageDialog.title") : t("closeConfirm.title")}
             </DialogTitle>
             <DialogDescription className="font-mono text-xs text-muted-foreground pt-2">
-              {t("closeConfirm.subtitle", { game: closeConfirmPost?.game })}
+              {dialogMode === "manage"
+                ? t("manageDialog.subtitle", { game: closeConfirmPost?.game })
+                : t("closeConfirm.subtitle", { game: closeConfirmPost?.game })}
             </DialogDescription>
           </DialogHeader>
 
@@ -718,29 +733,53 @@ export default function Lfg() {
           </div>
 
           <DialogFooter className="gap-2 border-t border-border pt-4">
-            <Button
-              variant="outline"
-              className="font-mono rounded-none text-xs flex-1"
-              onClick={closeConfirmDialog}
-            >
-              {t("closeConfirm.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              className="font-mono rounded-none text-xs flex-1"
-              disabled={close.isPending}
-              onClick={() => {
-                if (!closeConfirmPost) return;
-                close.mutate({ postId: closeConfirmPost.id }, {
-                  onSuccess: () => {
-                    closeConfirmDialog();
-                    invalidate();
-                  },
-                });
-              }}
-            >
-              {close.isPending ? t("closeConfirm.closing") : t("closeConfirm.confirm")}
-            </Button>
+            {dialogMode === "manage" ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="font-mono rounded-none text-xs flex-1"
+                  onClick={closeConfirmDialog}
+                >
+                  {t("manageDialog.done")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="font-mono rounded-none text-xs flex-1"
+                  disabled={close.isPending}
+                  onClick={() => {
+                    if (!closeConfirmPost) return;
+                    close.mutate({ postId: closeConfirmPost.id }, {
+                      onSuccess: () => { closeConfirmDialog(); invalidate(); },
+                    });
+                  }}
+                >
+                  {close.isPending ? t("closeConfirm.closing") : t("closeConfirm.confirm")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="font-mono rounded-none text-xs flex-1"
+                  onClick={closeConfirmDialog}
+                >
+                  {t("closeConfirm.cancel")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="font-mono rounded-none text-xs flex-1"
+                  disabled={close.isPending}
+                  onClick={() => {
+                    if (!closeConfirmPost) return;
+                    close.mutate({ postId: closeConfirmPost.id }, {
+                      onSuccess: () => { closeConfirmDialog(); invalidate(); },
+                    });
+                  }}
+                >
+                  {close.isPending ? t("closeConfirm.closing") : t("closeConfirm.confirm")}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

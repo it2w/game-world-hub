@@ -143,12 +143,10 @@ function claimProbeAlertSlot(ownerId: number): boolean {
   return true;
 }
 
-/** Remove stale entries from both rate-limit maps (entries whose window has expired). */
+/** Remove stale entries from the in-memory login rate-limit map.
+ *  Reset-code rate limits are DB-backed (purgeExpiredResetRateBuckets). */
 export function sweepRateBuckets(): void {
   const now = Date.now();
-  for (const [key, bucket] of resetRateBuckets) {
-    if (now - bucket.windowStart > RESET_RATE_WINDOW_MS) resetRateBuckets.delete(key);
-  }
   for (const [key, bucket] of loginBuckets) {
     if (now - bucket.windowStart > LOGIN_WINDOW_MS) loginBuckets.delete(key);
   }

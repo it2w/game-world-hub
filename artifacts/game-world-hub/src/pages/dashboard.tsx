@@ -146,7 +146,7 @@ function QuickDock({ inviteCount, streak }: { inviteCount:number; streak:number 
     { icon:"👥", label:"الأصدقاء",   href:"/friends", color:"#06B6D4", badge:null },
     { icon:"💬", label:"الرسائل",    href:"/chat",    color:"#A855F7", badge:null },
     { icon:"🏆", label:"التحديات",   href:"/challenges",color:"#FFD700",badge:null },
-    { icon:"⭐", label:"الإنجازات",  href:"/achievements",color:"#F97316",badge:null },
+    { icon:"⭐", label:"الإنجازات",  href:"/ranks",color:"#F97316",badge:null },
   ];
   const [hov, setHov] = useState<string|null>(null);
   return (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
 import { customFetch, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Swords, Plus, Trophy, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,7 @@ export default function ChallengesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState<Challenge | null>(null);
 
+  const [, navigate] = useLocation();
   const [friendId, setFriendId] = useState<number>(0);
   const [type, setType] = useState<"most_hours" | "first_rank">("most_hours");
   const [detail, setDetail] = useState("");
@@ -181,6 +183,8 @@ export default function ChallengesPage() {
       toast({ title: t("toasts.sent") });
       setNewOpen(false);
       setFriendId(0); setType("most_hours"); setDetail(""); setEndsAt("");
+      setTab("pending");
+      navigate("/challenges");
     } catch (e: any) {
       toast({ title: t("toasts.error"), description: e?.data?.error ?? t("toasts.failedSend"), variant: "destructive" });
     } finally {

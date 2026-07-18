@@ -13,6 +13,8 @@ const JWT_SECRET: string = _jwtSecretRaw;
 export interface AuthPayload {
   userId: number;
   username: string;
+  /** JWT issued-at (Unix seconds). Present after verifyToken; used for force-logout check. */
+  iat?: number;
 }
 
 declare global {
@@ -23,12 +25,12 @@ declare global {
   }
 }
 
-export function signToken(payload: AuthPayload): string {
+export function signToken(payload: { userId: number; username: string }): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
 }
 
 export function verifyToken(token: string): AuthPayload {
-  const payload = jwt.verify(token, JWT_SECRET) as Partial<AuthPayload> & { purpose?: unknown };
+  const payload = jwt.verify(token, JWT_SECRET) as Partial<AuthPayload> & { purpose?: unknown; iat?: number };
   // Session tokens only: reject special-purpose tokens (e.g. 2FA login
   // challenges) and anything without the exact session shape. Without this
   // check a 2FA challenge token could be used as a full session token.
@@ -39,7 +41,7 @@ export function verifyToken(token: string): AuthPayload {
   ) {
     throw new Error("Not a session token");
   }
-  return { userId: payload.userId, username: payload.username };
+  return { userId: payload.userId, username: payload.username, iat: payload.iat };
 }
 
 // ── Two-factor login challenge tokens ────────────────────────────────────────
@@ -106,11 +108,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  // Check suspension and existence via a lightweight primary-key lookup.
+  // Check suspension, existence, and force-logout via a lightweight primary-key lookup.
   // Fail CLOSED on any error: a suspended user must never slip through.
   try {
     const [user] = await db
-      .select({ status: usersTable.status })
+      .select({ status: usersTable.status, sessionsInvalidatedBefore: usersTable.sessionsInvalidatedBefore })
       .from(usersTable)
       .where(eq(usersTable.id, auth.userId))
       .limit(1);
@@ -122,6 +124,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (user.status === "suspended") {
       res.status(403).json({ error: "suspended" });
       return;
+    }
+    // Force-logout check: reject JWTs issued before the invalidation timestamp.
+    if (user.sessionsInvalidatedBefore && auth.iat !== undefined) {
+      const invalidatedMs = user.sessionsInvalidatedBefore.getTime();
+      const issuedMs = auth.iat * 1000;
+      if (issuedMs < invalidatedMs) {
+        res.status(401).json({ error: "Session invalidated — please sign in again" });
+        return;
+      }
     }
   } catch {
     // DB failure — fail closed so a transient error cannot bypass suspension.

@@ -44,6 +44,9 @@ export const usersTable = pgTable("users", {
   friendOnlineWatchlist: text("friend_online_watchlist"),
   // Username change cooldown tracking. Null means the username has never been changed.
   usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
+  // Force-logout: any JWT whose iat (Unix seconds) is before this timestamp is rejected.
+  // Set by POST /owner/users/:id/force-logout to instantly invalidate all active sessions.
+  sessionsInvalidatedBefore: timestamp("sessions_invalidated_before", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

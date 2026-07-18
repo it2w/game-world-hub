@@ -520,4 +520,249 @@ router.get("/owner/pro-subscriptions", requireOwner, async (_req, res): Promise<
   });
 });
 
+/* ─── DB migrations for new security tables (run once at startup) ────────── */
+
+Promise.allSettled([
+  pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_invalidated_before TIMESTAMPTZ`),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_permissions (
+      user_id            INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      can_manage_pro     BOOLEAN NOT NULL DEFAULT false,
+      can_suspend_users  BOOLEAN NOT NULL DEFAULT false,
+      can_delete_content BOOLEAN NOT NULL DEFAULT false,
+      can_view_reports   BOOLEAN NOT NULL DEFAULT false,
+      can_manage_codes   BOOLEAN NOT NULL DEFAULT false,
+      can_broadcast      BOOLEAN NOT NULL DEFAULT false,
+      can_view_analytics BOOLEAN NOT NULL DEFAULT false,
+      can_manage_admins  BOOLEAN NOT NULL DEFAULT false,
+      updated_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `),
+  // Add can_manage_admins to tables that already existed before this column was introduced.
+  pool.query(`ALTER TABLE admin_permissions ADD COLUMN IF NOT EXISTS can_manage_admins BOOLEAN NOT NULL DEFAULT false`).catch(() => {/* table may not exist yet */}),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL DEFAULT '',
+      updated_by INTEGER,
+      updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id          SERIAL PRIMARY KEY,
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL CHECK (target_type IN ('user','lfg','party')),
+      target_id   INTEGER NOT NULL,
+      target_name TEXT,
+      reason      TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','reviewed','actioned')),
+      reviewed_by INTEGER,
+      reviewed_at TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS denylist (
+      id         SERIAL PRIMARY KEY,
+      type       TEXT NOT NULL CHECK (type IN ('email','domain','username')),
+      value      TEXT NOT NULL,
+      added_by   INTEGER,
+      reason     TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      UNIQUE (type, value)
+    )
+  `),
+]).then(async () => {
+  await pool.query(`
+    INSERT INTO platform_settings (key, value) VALUES
+      ('registrations_enabled', 'true'),
+      ('maintenance_mode',      'false'),
+      ('maintenance_message',   'The platform is currently under maintenance. Please try again later.')
+    ON CONFLICT (key) DO NOTHING
+  `).catch(() => {/* non-fatal */});
+}).catch((e) => logger.error(e, "owner: security tables migration failed"));
+
+/* ─── Force Logout ───────────────────────────────────────────────────────── */
+
+router.post("/owner/users/:id/force-logout", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set({ sessionsInvalidatedBefore: new Date() }).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "force_logout", { targetId: userId, targetName: user.username });
+  logger.info({ userId, by: req.owner!.ownerId }, "owner: force logout");
+  res.json({ ok: true });
+});
+
+/* ─── Admin Permissions ──────────────────────────────────────────────────── */
+
+type AdminPermsRow = {
+  user_id: number;
+  can_manage_pro: boolean; can_suspend_users: boolean; can_delete_content: boolean;
+  can_view_reports: boolean; can_manage_codes: boolean; can_broadcast: boolean;
+  can_view_analytics: boolean; can_manage_admins: boolean;
+};
+
+const defaultPerms = (userId: number): AdminPermsRow => ({
+  user_id: userId,
+  can_manage_pro: false, can_suspend_users: false, can_delete_content: false,
+  can_view_reports: false, can_manage_codes: false, can_broadcast: false,
+  can_view_analytics: false, can_manage_admins: false,
+});
+
+router.get("/owner/admins/:id/permissions", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { rows } = await pool.query<AdminPermsRow>(`SELECT * FROM admin_permissions WHERE user_id = $1`, [userId]);
+  res.json(rows[0] ?? defaultPerms(userId));
+});
+
+router.put("/owner/admins/:id/permissions", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const body = req.body as Record<string, boolean | undefined>;
+  const p = {
+    canManagePro:     Boolean(body.canManagePro),
+    canSuspendUsers:  Boolean(body.canSuspendUsers),
+    canDeleteContent: Boolean(body.canDeleteContent),
+    canViewReports:   Boolean(body.canViewReports),
+    canManageCodes:   Boolean(body.canManageCodes),
+    canBroadcast:     Boolean(body.canBroadcast),
+    canViewAnalytics: Boolean(body.canViewAnalytics),
+    canManageAdmins:  Boolean(body.canManageAdmins),
+  };
+  await pool.query(`
+    INSERT INTO admin_permissions
+      (user_id, can_manage_pro, can_suspend_users, can_delete_content,
+       can_view_reports, can_manage_codes, can_broadcast, can_view_analytics,
+       can_manage_admins, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+    ON CONFLICT (user_id) DO UPDATE SET
+      can_manage_pro=$2, can_suspend_users=$3, can_delete_content=$4,
+      can_view_reports=$5, can_manage_codes=$6, can_broadcast=$7,
+      can_view_analytics=$8, can_manage_admins=$9, updated_at=NOW()
+  `, [userId, p.canManagePro, p.canSuspendUsers, p.canDeleteContent,
+      p.canViewReports, p.canManageCodes, p.canBroadcast, p.canViewAnalytics, p.canManageAdmins]);
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "set_permissions", { targetId: userId });
+  res.json({ ok: true });
+});
+
+/* ─── Reports (owner view) ───────────────────────────────────────────────── */
+
+router.get("/owner/reports", requireOwner, async (req, res): Promise<void> => {
+  const status  = typeof req.query.status === "string" ? req.query.status : "pending";
+  const limit   = Math.min(Number(req.query.limit) || 50, 200);
+  const offset  = Number(req.query.offset) || 0;
+  const VALID   = new Set(["pending", "reviewed", "actioned", "all"]);
+  if (!VALID.has(status)) { res.status(400).json({ error: "Invalid status filter" }); return; }
+
+  const [{ rows }, { rows: countRows }] = await Promise.all([
+    pool.query<{
+      id: number; reporter_id: number; reporter_username: string | null; reporter_name: string | null;
+      target_type: string; target_id: number; target_name: string | null;
+      reason: string; status: string; reviewed_by: number | null; reviewed_at: string | null; created_at: string;
+    }>(`
+      SELECT r.*, u.username AS reporter_username, u.display_name AS reporter_name
+      FROM reports r
+      LEFT JOIN users u ON u.id = r.reporter_id
+      ${status !== "all" ? "WHERE r.status = $3" : ""}
+      ORDER BY r.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, status !== "all" ? [limit, offset, status] : [limit, offset]),
+    pool.query<{ total: number }>(
+      `SELECT count(*)::int AS total FROM reports ${status !== "all" ? "WHERE status = $1" : ""}`,
+      status !== "all" ? [status] : [],
+    ),
+  ]);
+
+  res.json({ total: countRows[0]?.total ?? 0, items: rows });
+});
+
+router.put("/owner/reports/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid report id" }); return; }
+  const { status = "reviewed" } = req.body as { status?: string };
+  if (!["reviewed", "actioned"].includes(status)) { res.status(400).json({ error: "Invalid status" }); return; }
+  const { rowCount } = await pool.query(
+    `UPDATE reports SET status=$1, reviewed_by=$2, reviewed_at=NOW() WHERE id=$3`,
+    [status, req.owner!.ownerId, id],
+  );
+  if (!rowCount) { res.status(404).json({ error: "Report not found" }); return; }
+  res.json({ ok: true });
+});
+
+/* ─── Denylist ───────────────────────────────────────────────────────────── */
+
+router.get("/owner/denylist", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; type: string; value: string; reason: string | null; added_by: number | null; created_at: string;
+  }>(`SELECT id, type, value, reason, added_by, created_at FROM denylist ORDER BY created_at DESC`);
+  res.json({ items: rows });
+});
+
+router.post("/owner/denylist", requireOwner, async (req, res): Promise<void> => {
+  const { type, value, reason } = req.body as { type?: string; value?: string; reason?: string };
+  if (!type || !value || !["email", "domain", "username"].includes(type)) {
+    res.status(400).json({ error: "type (email|domain|username) and value are required" }); return;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) { res.status(400).json({ error: "Value cannot be empty" }); return; }
+  try {
+    const { rows } = await pool.query<{ id: number; type: string; value: string }>(
+      `INSERT INTO denylist (type, value, added_by, reason) VALUES ($1,$2,$3,$4) RETURNING id, type, value`,
+      [type, normalized, req.owner!.ownerId, reason?.trim() || null],
+    );
+    await logOwnerAction(req.owner!.ownerId, req.owner!.username, "denylist_add", { detail: `${type}:${normalized}` });
+    res.status(201).json(rows[0]);
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === "23505") { res.status(409).json({ error: "Entry already exists" }); return; }
+    throw e;
+  }
+});
+
+router.delete("/owner/denylist/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rows } = await pool.query<{ type: string; value: string }>(
+    `DELETE FROM denylist WHERE id=$1 RETURNING type, value`, [id],
+  );
+  if (!rows[0]) { res.status(404).json({ error: "Not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "denylist_remove", { detail: `${rows[0].type}:${rows[0].value}` });
+  res.json({ ok: true });
+});
+
+/* ─── Platform Settings ──────────────────────────────────────────────────── */
+
+router.get("/owner/settings", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{ key: string; value: string }>(`SELECT key, value FROM platform_settings`);
+  const settings: Record<string, string> = {};
+  for (const r of rows) settings[r.key] = r.value;
+  res.json(settings);
+});
+
+const ALLOWED_SETTINGS = new Set(["registrations_enabled", "maintenance_mode", "maintenance_message"]);
+
+router.put("/owner/settings", requireOwner, async (req, res): Promise<void> => {
+  const updates = req.body as Record<string, string | boolean>;
+  const entries = Object.entries(updates)
+    .filter(([k]) => ALLOWED_SETTINGS.has(k))
+    .map(([k, v]) => [k, String(v)] as [string, string]);
+  if (!entries.length) { res.status(400).json({ error: "No valid settings provided" }); return; }
+
+  await Promise.all(entries.map(([key, value]) =>
+    pool.query(
+      `INSERT INTO platform_settings (key, value, updated_by, updated_at) VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (key) DO UPDATE SET value=$2, updated_by=$3, updated_at=NOW()`,
+      [key, value, req.owner!.ownerId],
+    ),
+  ));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "update_settings", {
+    detail: entries.map(([k, v]) => `${k}=${v}`).join(", "),
+  });
+  res.json({ ok: true });
+});
+
 export default router;
+

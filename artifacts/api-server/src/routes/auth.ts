@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { generateSecret, generateURI, verify as verifyTotp } from "otplib";
 import { toPublicImageUrl } from "../lib/objectStorage";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, pool } from "@workspace/db";
 import {
   RegisterBody,
   LoginBody,
@@ -118,6 +118,40 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     });
     return;
   }
+
+  // Platform settings: check if registrations are enabled and maintenance mode
+  try {
+    const { rows: settingsRows } = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM platform_settings WHERE key IN ('registrations_enabled', 'maintenance_mode', 'maintenance_message')`,
+    );
+    const settings: Record<string, string> = {};
+    for (const r of settingsRows) settings[r.key] = r.value;
+    if (settings.maintenance_mode === "true") {
+      res.status(503).json({ error: settings.maintenance_message || "Platform is under maintenance" });
+      return;
+    }
+    if (settings.registrations_enabled === "false") {
+      res.status(503).json({ error: "New registrations are currently disabled" });
+      return;
+    }
+  } catch { /* table may not exist on first deploy — non-fatal */ }
+
+  // Denylist check: block by email, domain, or username
+  try {
+    const emailDomain = email.split("@")[1] ?? "";
+    const { rows: denied } = await pool.query<{ id: number }>(
+      `SELECT id FROM denylist
+       WHERE (type = 'email'    AND value = $1)
+          OR (type = 'domain'   AND value = $2)
+          OR (type = 'username' AND value = $3)
+       LIMIT 1`,
+      [email, emailDomain, username.toLowerCase()],
+    );
+    if (denied.length > 0) {
+      res.status(403).json({ error: "Registration is not allowed for this account" });
+      return;
+    }
+  } catch { /* table may not exist on first deploy — non-fatal */ }
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.username, username));
   if (existing.length > 0) {

@@ -11,7 +11,7 @@ import {
   XCircle, RefreshCw, Plus, Search,
   Activity, UserX, UserCheck, TrendingUp, Clock,
   FileText, Zap, MessageSquare, Swords, Megaphone,
-  Trophy, Filter,
+  Trophy, Filter, Flag, Lock, Power, SlidersHorizontal, Trash2, Check,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
@@ -61,7 +61,7 @@ interface LogRow {
   detail: string | null; ownerId: number; ownerName: string; createdAt: string;
 }
 
-type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "account";
+type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "reports" | "denylist" | "settings" | "account";
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -104,25 +104,37 @@ function timeAgo(iso: string | null): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  activate_pro:   "Activated Pro",
-  deactivate_pro: "Deactivated Pro",
-  grant_admin:    "Granted Admin",
-  revoke_admin:   "Revoked Admin",
-  suspend_user:   "Suspended User",
-  unsuspend_user: "Unsuspended User",
-  create_code:    "Created Code",
-  disable_code:   "Disabled Code",
+  activate_pro:    "Activated Pro",
+  deactivate_pro:  "Deactivated Pro",
+  grant_admin:     "Granted Admin",
+  revoke_admin:    "Revoked Admin",
+  suspend_user:    "Suspended User",
+  unsuspend_user:  "Unsuspended User",
+  create_code:     "Created Code",
+  disable_code:    "Disabled Code",
+  force_logout:    "Force Logout",
+  set_permissions: "Set Permissions",
+  denylist_add:    "Denylist — Added",
+  denylist_remove: "Denylist — Removed",
+  update_settings: "Updated Settings",
+  broadcast:       "Broadcast",
 };
 
 const ACTION_COLOR: Record<string, string> = {
-  activate_pro:   "text-yellow-400",
-  deactivate_pro: "text-orange-400",
-  grant_admin:    "text-purple-400",
-  revoke_admin:   "text-red-400",
-  suspend_user:   "text-red-400",
-  unsuspend_user: "text-green-400",
-  create_code:    "text-blue-400",
-  disable_code:   "text-muted-foreground",
+  activate_pro:    "text-yellow-400",
+  deactivate_pro:  "text-orange-400",
+  grant_admin:     "text-purple-400",
+  revoke_admin:    "text-red-400",
+  suspend_user:    "text-red-400",
+  unsuspend_user:  "text-green-400",
+  create_code:     "text-blue-400",
+  disable_code:    "text-muted-foreground",
+  force_logout:    "text-orange-400",
+  set_permissions: "text-violet-400",
+  denylist_add:    "text-red-400",
+  denylist_remove: "text-green-400",
+  update_settings: "text-cyan-400",
+  broadcast:       "text-primary",
 };
 
 /* ─── Root ───────────────────────────────────────────────────────────────── */
@@ -337,13 +349,16 @@ function ResetForm({ onBack, t, toast }: {
 /* ─── Dashboard ──────────────────────────────────────────────────────────── */
 
 const TABS: { id: Tab; icon: React.ReactNode; key: string }[] = [
-  { id: "stats",   icon: <BarChart3  className="w-4 h-4" />, key: "tabs.stats"   },
-  { id: "users",   icon: <Users      className="w-4 h-4" />, key: "tabs.users"   },
-  { id: "admins",  icon: <Shield     className="w-4 h-4" />, key: "tabs.admins"  },
-  { id: "codes",   icon: <Tag        className="w-4 h-4" />, key: "tabs.codes"   },
-  { id: "subs",    icon: <CreditCard className="w-4 h-4" />, key: "tabs.subs"    },
-  { id: "log",     icon: <Activity   className="w-4 h-4" />, key: "tabs.log"     },
-  { id: "account", icon: <Settings   className="w-4 h-4" />, key: "tabs.account" },
+  { id: "stats",    icon: <BarChart3        className="w-4 h-4" />, key: "tabs.stats"    },
+  { id: "users",    icon: <Users            className="w-4 h-4" />, key: "tabs.users"    },
+  { id: "admins",   icon: <Shield           className="w-4 h-4" />, key: "tabs.admins"   },
+  { id: "codes",    icon: <Tag              className="w-4 h-4" />, key: "tabs.codes"    },
+  { id: "subs",     icon: <CreditCard       className="w-4 h-4" />, key: "tabs.subs"     },
+  { id: "log",      icon: <Activity         className="w-4 h-4" />, key: "tabs.log"      },
+  { id: "reports",  icon: <Flag             className="w-4 h-4" />, key: "tabs.reports"  },
+  { id: "denylist", icon: <Ban              className="w-4 h-4" />, key: "tabs.denylist" },
+  { id: "settings", icon: <SlidersHorizontal className="w-4 h-4" />, key: "tabs.settings" },
+  { id: "account",  icon: <Settings         className="w-4 h-4" />, key: "tabs.account"  },
 ];
 
 function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
@@ -376,13 +391,16 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
         ))}
       </div>
 
-      {tab === "stats"   && <StatsTab   session={session} t={t} />}
-      {tab === "users"   && <UsersTab   session={session} t={t} toast={toast} />}
-      {tab === "admins"  && <AdminsTab  session={session} t={t} toast={toast} />}
-      {tab === "codes"   && <CodesTab   session={session} t={t} toast={toast} />}
-      {tab === "subs"    && <SubsTab    session={session} t={t} />}
-      {tab === "log"     && <LogTab     session={session} t={t} />}
-      {tab === "account" && <AccountTab session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
+      {tab === "stats"    && <StatsTab    session={session} t={t} />}
+      {tab === "users"    && <UsersTab    session={session} t={t} toast={toast} />}
+      {tab === "admins"   && <AdminsTab   session={session} t={t} toast={toast} />}
+      {tab === "codes"    && <CodesTab    session={session} t={t} toast={toast} />}
+      {tab === "subs"     && <SubsTab     session={session} t={t} />}
+      {tab === "log"      && <LogTab      session={session} t={t} />}
+      {tab === "reports"  && <ReportsTab  session={session} t={t} toast={toast} />}
+      {tab === "denylist" && <DenylistTab session={session} t={t} toast={toast} />}
+      {tab === "settings" && <SettingsTab session={session} t={t} toast={toast} />}
+      {tab === "account"  && <AccountTab  session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
     </div>
   );
 }
@@ -569,6 +587,16 @@ function UsersTab({ session, t, toast }: {
 
   const reload = () => { setOffset(0); load(query, filterBy, 0); };
 
+  const forceLogout = async (u: UserRow) => {
+    if (!confirm(t("users.forceLogoutConfirm"))) return;
+    setActing(u.id);
+    try {
+      await ownerFetch(`owner/users/${u.id}/force-logout`, session.token, { method: "POST" });
+      toast({ title: t("users.forceLoggedOut") });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setActing(null); }
+  };
+
   const togglePro = async (u: UserRow) => {
     setActing(u.id);
     try {
@@ -694,6 +722,9 @@ function UsersTab({ session, t, toast }: {
                   <Button size="sm" variant={u.status === "suspended" ? "outline" : "destructive"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => toggleSuspend(u)} disabled={acting === u.id}>
                     {u.status === "suspended" ? <><UserCheck className="w-3 h-3 me-1" />{t("users.unsuspend")}</> : <><UserX className="w-3 h-3 me-1" />{t("users.suspend")}</>}
                   </Button>
+                  <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-orange-500/50 text-orange-400 hover:bg-orange-500/10" onClick={() => forceLogout(u)} disabled={acting === u.id} title={t("users.forceLogout")}>
+                    <Power className="w-3 h-3 me-1" />{t("users.forceLogout")}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -712,12 +743,45 @@ function UsersTab({ session, t, toast }: {
 
 /* ─── Admins Tab ─────────────────────────────────────────────────────────── */
 
+type AdminPermsRow = {
+  user_id: number;
+  can_manage_pro: boolean; can_suspend_users: boolean; can_delete_content: boolean;
+  can_view_reports: boolean; can_manage_codes: boolean; can_broadcast: boolean;
+  can_view_analytics: boolean; can_manage_admins: boolean;
+};
+
+const PERM_FLAGS: (keyof Omit<AdminPermsRow, "user_id">)[] = [
+  "can_manage_pro", "can_suspend_users", "can_delete_content",
+  "can_view_reports", "can_manage_codes", "can_broadcast",
+  "can_view_analytics", "can_manage_admins",
+];
+
+const PERM_I18N: Record<keyof Omit<AdminPermsRow, "user_id">, string> = {
+  can_manage_pro:     "admins.perms.canManagePro",
+  can_suspend_users:  "admins.perms.canSuspendUsers",
+  can_delete_content: "admins.perms.canDeleteContent",
+  can_view_reports:   "admins.perms.canViewReports",
+  can_manage_codes:   "admins.perms.canManageCodes",
+  can_broadcast:      "admins.perms.canBroadcast",
+  can_view_analytics: "admins.perms.canViewAnalytics",
+  can_manage_admins:  "admins.perms.canManageAdmins",
+};
+
+const EMPTY_PERMS = (userId: number): AdminPermsRow => ({
+  user_id: userId, can_manage_pro: false, can_suspend_users: false, can_delete_content: false,
+  can_view_reports: false, can_manage_codes: false, can_broadcast: false,
+  can_view_analytics: false, can_manage_admins: false,
+});
+
 function AdminsTab({ session, t, toast }: {
   session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [admins,  setAdmins]  = useState<AdminRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [acting,  setActing]  = useState<number | null>(null);
+  const [admins,      setAdmins]      = useState<AdminRow[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [acting,      setActing]      = useState<number | null>(null);
+  const [permsOpen,   setPermsOpen]   = useState<Set<number>>(new Set());
+  const [permsData,   setPermsData]   = useState<Record<number, AdminPermsRow>>({});
+  const [savingPerms, setSavingPerms] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -736,6 +800,44 @@ function AdminsTab({ session, t, toast }: {
       await load();
     } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
     finally { setActing(null); }
+  };
+
+  const togglePerms = async (adminId: number) => {
+    const next = new Set(permsOpen);
+    if (next.has(adminId)) { next.delete(adminId); setPermsOpen(next); return; }
+    next.add(adminId); setPermsOpen(next);
+    if (!permsData[adminId]) {
+      try {
+        const data = await ownerFetch<AdminPermsRow>(`owner/admins/${adminId}/permissions`, session.token);
+        setPermsData((p) => ({ ...p, [adminId]: data }));
+      } catch { setPermsData((p) => ({ ...p, [adminId]: EMPTY_PERMS(adminId) })); }
+    }
+  };
+
+  const toggleFlag = (adminId: number, flag: keyof Omit<AdminPermsRow, "user_id">) => {
+    setPermsData((p) => {
+      const curr = p[adminId] ?? EMPTY_PERMS(adminId);
+      return { ...p, [adminId]: { ...curr, [flag]: !curr[flag] } };
+    });
+  };
+
+  const savePerms = async (adminId: number) => {
+    const perms = permsData[adminId]; if (!perms) return;
+    setSavingPerms(adminId);
+    try {
+      await ownerFetch(`owner/admins/${adminId}/permissions`, session.token, {
+        method: "PUT",
+        body: JSON.stringify({
+          canManagePro: perms.can_manage_pro, canSuspendUsers: perms.can_suspend_users,
+          canDeleteContent: perms.can_delete_content, canViewReports: perms.can_view_reports,
+          canManageCodes: perms.can_manage_codes, canBroadcast: perms.can_broadcast,
+          canViewAnalytics: perms.can_view_analytics,
+          canManageAdmins:  perms.can_manage_admins,
+        }),
+      });
+      toast({ title: t("admins.permsSaved") });
+    } catch { toast({ title: t("admins.permsSaveFailed"), variant: "destructive" }); }
+    finally { setSavingPerms(null); }
   };
 
   const statusBadge = (s: string) => {
@@ -759,28 +861,66 @@ function AdminsTab({ session, t, toast }: {
       ) : (
         <div className="space-y-2">
           {admins.map((a) => (
-            <div key={a.id} className="border border-border bg-background p-4">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                {/* Left: identity */}
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sm font-bold">{a.displayName || a.username}</span>
-                    {statusBadge(a.status)}
-                    {a.isPro && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-yellow-500/60 text-yellow-400">PRO</Badge>}
+            <div key={a.id} className="border border-border bg-background">
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  {/* Left: identity */}
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-bold">{a.displayName || a.username}</span>
+                      {statusBadge(a.status)}
+                      {a.isPro && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-yellow-500/60 text-yellow-400">PRO</Badge>}
+                    </div>
+                    <div className="font-mono text-[11px] text-muted-foreground">@{a.username}{a.email ? ` · ${a.email}` : ""}</div>
+                    <div className="font-mono text-[10px] text-muted-foreground flex items-center gap-3 flex-wrap pt-0.5">
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {t("admins.joined")}: {fmtDate(a.createdAt)}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {t("admins.lastSeen")}: {timeAgo(a.lastActiveAt)}</span>
+                      <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {t("admins.lfgPosts")}: <strong className="text-foreground">{a.lfgCount}</strong></span>
+                    </div>
                   </div>
-                  <div className="font-mono text-[11px] text-muted-foreground">@{a.username}{a.email ? ` · ${a.email}` : ""}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground flex items-center gap-3 flex-wrap pt-0.5">
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {t("admins.joined")}: {fmtDate(a.createdAt)}</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {t("admins.lastSeen")}: {timeAgo(a.lastActiveAt)}</span>
-                    <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> {t("admins.lfgPosts")}: <strong className="text-foreground">{a.lfgCount}</strong></span>
+                  {/* Right: actions */}
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                    <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-violet-500/50 text-violet-400 hover:bg-violet-500/10" onClick={() => togglePerms(a.id)}>
+                      <Lock className="w-3 h-3 me-1" />{t("admins.permissions")}
+                      {permsOpen.has(a.id) ? <ChevronUp className="w-3 h-3 ms-1" /> : <ChevronDown className="w-3 h-3 ms-1" />}
+                    </Button>
+                    <Button size="sm" variant="destructive" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => removeAdmin(a)} disabled={acting === a.id}>
+                      {acting === a.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 me-1" />}
+                      {t("admins.remove")}
+                    </Button>
                   </div>
                 </div>
-                {/* Right: actions */}
-                <Button size="sm" variant="destructive" className="h-7 px-2 font-mono text-xs rounded-none shrink-0" onClick={() => removeAdmin(a)} disabled={acting === a.id}>
-                  {acting === a.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 me-1" />}
-                  {t("admins.remove")}
-                </Button>
               </div>
+              {/* Permissions panel */}
+              {permsOpen.has(a.id) && (
+                <div className="border-t border-border/60 bg-muted/20 px-4 py-3">
+                  {!permsData[a.id] ? (
+                    <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin" /></div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                        {PERM_FLAGS.map((flag) => {
+                          const isOn = permsData[a.id]?.[flag] ?? false;
+                          return (
+                            <button key={flag} onClick={() => toggleFlag(a.id, flag)}
+                              className={`flex items-center gap-2 px-2.5 py-1.5 border font-mono text-[11px] transition-colors text-start ${
+                                isOn ? "border-violet-500/60 bg-violet-500/10 text-violet-300" : "border-border text-muted-foreground hover:border-muted-foreground/60"
+                              }`}
+                            >
+                              {isOn ? <Check className="w-3 h-3 shrink-0" /> : <span className="w-3 h-3 shrink-0 border border-current/40 rounded-sm inline-block" />}
+                              {t(PERM_I18N[flag])}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Button size="sm" className="h-7 px-3 font-mono text-xs rounded-none" onClick={() => savePerms(a.id)} disabled={savingPerms === a.id}>
+                        {savingPerms === a.id ? <Loader2 className="w-3 h-3 me-1.5 animate-spin" /> : <Check className="w-3 h-3 me-1.5" />}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1114,6 +1254,315 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Reports Tab ────────────────────────────────────────────────────────── */
+
+type ReportItem = {
+  id: number; reporter_id: number; reporter_username: string | null; reporter_name: string | null;
+  target_type: string; target_id: number; target_name: string | null;
+  reason: string; status: string; reviewed_by: number | null; reviewed_at: string | null; created_at: string;
+};
+
+function ReportsTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [items,   setItems]   = useState<ReportItem[]>([]);
+  const [total,   setTotal]   = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [acting,  setActing]  = useState<number | null>(null);
+  const [filter,  setFilter]  = useState("pending");
+
+  const load = useCallback(async (f = filter) => {
+    setLoading(true);
+    try {
+      const data = await ownerFetch<{ total: number; items: ReportItem[] }>(`owner/reports?status=${f}&limit=50`, session.token);
+      setItems(data.items); setTotal(data.total);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token, filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const applyFilter = (f: string) => { setFilter(f); load(f); };
+
+  const act = async (id: number, status: "reviewed" | "actioned") => {
+    setActing(id);
+    try {
+      await ownerFetch(`owner/reports/${id}`, session.token, { method: "PUT", body: JSON.stringify({ status }) });
+      toast({ title: status === "reviewed" ? t("reports.dismissed") : t("reports.markedActioned") });
+      load(filter);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setActing(null); }
+  };
+
+  const TYPE_LABEL: Record<string, string> = { user: t("reports.typeUser"), lfg: t("reports.typeLfg"), party: t("reports.typeParty") };
+  const STATUS_COLOR: Record<string, string> = { pending: "border-yellow-500/60 text-yellow-400", reviewed: "border-green-500/60 text-green-400", actioned: "border-blue-500/60 text-blue-400" };
+
+  const FILTERS = [
+    { id: "pending",  label: t("reports.filterPending") },
+    { id: "reviewed", label: t("reports.filterReviewed") },
+    { id: "actioned", label: t("reports.filterActioned") },
+    { id: "all",      label: t("reports.filterAll") },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTERS.map((f) => (
+            <button key={f.id} onClick={() => applyFilter(f.id)}
+              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+                filter === f.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-muted-foreground/60"
+              }`}
+            >{f.label}</button>
+          ))}
+          <span className="font-mono text-[10px] text-muted-foreground self-center ms-1">{total}</span>
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={() => load()}>
+          <RefreshCw className={`w-3.5 h-3.5 me-1 ${loading ? "animate-spin" : ""}`} />{t("refresh")}
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center font-mono text-xs text-muted-foreground py-8">{t("reports.noResults")}</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((r) => (
+            <div key={r.id} className="border border-border bg-background p-3 space-y-2">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-muted-foreground/40 text-muted-foreground">
+                      {TYPE_LABEL[r.target_type] ?? r.target_type}
+                    </Badge>
+                    <Badge variant="outline" className={`text-[10px] h-4 px-1.5 ${STATUS_COLOR[r.status] ?? "border-border"}`}>
+                      {r.status.toUpperCase()}
+                    </Badge>
+                    <span className="font-mono text-[10px] text-muted-foreground">{timeAgo(r.created_at)}</span>
+                  </div>
+                  <div className="font-mono text-xs">
+                    <span className="text-muted-foreground">{t("reports.reporter")}: </span>
+                    <span>@{r.reporter_username ?? r.reporter_id}</span>
+                    <span className="text-muted-foreground mx-2">→</span>
+                    <span className="text-muted-foreground">{t("reports.target")}: </span>
+                    <span>{r.target_name ?? `#${r.target_id}`}</span>
+                  </div>
+                  <p className="font-mono text-[11px] text-foreground/80 line-clamp-2">{r.reason}</p>
+                </div>
+                {r.status === "pending" && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => act(r.id, "reviewed")} disabled={acting === r.id}>
+                      {acting === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 me-1" />}{t("reports.dismiss")}
+                    </Button>
+                    <Button size="sm" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => act(r.id, "actioned")} disabled={acting === r.id}>
+                      {acting === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3 me-1" />}{t("reports.actioned")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Denylist Tab ───────────────────────────────────────────────────────── */
+
+type DenylistItem = { id: number; type: string; value: string; reason: string | null; added_by: number | null; created_at: string };
+
+function DenylistTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [items,   setItems]   = useState<DenylistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [acting,  setActing]  = useState<number | null>(null);
+  const [type,    setType]    = useState<"email" | "domain" | "username">("email");
+  const [value,   setValue]   = useState("");
+  const [reason,  setReason]  = useState("");
+  const [adding,  setAdding]  = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setItems((await ownerFetch<{ items: DenylistItem[] }>("owner/denylist", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const addEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!value.trim()) return;
+    setAdding(true);
+    try {
+      await ownerFetch("owner/denylist", session.token, { method: "POST", body: JSON.stringify({ type, value: value.trim(), reason: reason.trim() || undefined }) });
+      toast({ title: t("denylist.added") });
+      setValue(""); setReason(""); await load();
+    } catch (err) {
+      const msg = (err as Error).message;
+      toast({ title: msg.includes("already exists") ? t("denylist.duplicate") : t("denylist.addFailed"), variant: "destructive" });
+    }
+    finally { setAdding(false); }
+  };
+
+  const remove = async (id: number) => {
+    setActing(id);
+    try {
+      await ownerFetch(`owner/denylist/${id}`, session.token, { method: "DELETE" });
+      toast({ title: t("denylist.removed") });
+      setItems((p) => p.filter((i) => i.id !== id));
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setActing(null); }
+  };
+
+  const TYPE_OPTS: { value: "email" | "domain" | "username"; label: string }[] = [
+    { value: "email",    label: t("denylist.typeEmail") },
+    { value: "domain",   label: t("denylist.typeDomain") },
+    { value: "username", label: t("denylist.typeUsername") },
+  ];
+  const TYPE_COLOR: Record<string, string> = { email: "border-blue-500/60 text-blue-400", domain: "border-orange-500/60 text-orange-400", username: "border-red-500/60 text-red-400" };
+
+  const PLACEHOLDER: Record<string, string> = {
+    email:    t("denylist.valuePlaceholder.email"),
+    domain:   t("denylist.valuePlaceholder.domain"),
+    username: t("denylist.valuePlaceholder.username"),
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="font-mono text-xs text-muted-foreground">{t("denylist.desc")}</p>
+
+      {/* Add form */}
+      <form onSubmit={addEntry} className="border border-border bg-background p-4 space-y-2">
+        <p className="font-mono text-xs font-semibold uppercase text-muted-foreground mb-2">{t("denylist.add")}</p>
+        <div className="flex gap-1.5">
+          {TYPE_OPTS.map((o) => (
+            <button key={o.value} type="button" onClick={() => setType(o.value)}
+              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+                type === o.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-muted-foreground/60"
+              }`}
+            >{o.label}</button>
+          ))}
+        </div>
+        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder={PLACEHOLDER[type]} className="font-mono rounded-none text-sm" required />
+        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("denylist.reason")} className="font-mono rounded-none text-sm" />
+        <Button type="submit" size="sm" className="rounded-none font-mono text-xs" disabled={adding}>
+          {adding ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}{t("denylist.add")}
+        </Button>
+      </form>
+
+      {/* List */}
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-muted-foreground">{items.length} entries</span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={load}>
+          <RefreshCw className={`w-3.5 h-3.5 me-1 ${loading ? "animate-spin" : ""}`} />{t("refresh")}
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center font-mono text-xs text-muted-foreground py-6">{t("denylist.noResults")}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-3 border border-border bg-background px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Badge variant="outline" className={`text-[10px] h-4 px-1.5 shrink-0 ${TYPE_COLOR[item.type] ?? "border-border"}`}>{item.type.toUpperCase()}</Badge>
+                <span className="font-mono text-xs truncate">{item.value}</span>
+                {item.reason && <span className="font-mono text-[10px] text-muted-foreground truncate hidden sm:block">— {item.reason}</span>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-mono text-[10px] text-muted-foreground hidden sm:block">{timeAgo(item.created_at)}</span>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => remove(item.id)} disabled={acting === item.id}>
+                  {acting === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Settings Tab ───────────────────────────────────────────────────────── */
+
+type PlatformSettings = { registrations_enabled: string; maintenance_mode: string; maintenance_message: string };
+
+function SettingsTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [settings,  setSettings]  = useState<PlatformSettings>({ registrations_enabled: "true", maintenance_mode: "false", maintenance_message: "" });
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setSettings(await ownerFetch<PlatformSettings>("owner/settings", session.token)); }
+    catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await ownerFetch("owner/settings", session.token, { method: "PUT", body: JSON.stringify(settings) });
+      toast({ title: t("settings.saved") });
+    } catch { toast({ title: t("settings.saveFailed"), variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const toggle = (key: "registrations_enabled" | "maintenance_mode") => {
+    setSettings((p) => ({ ...p, [key]: p[key] === "true" ? "false" : "true" }));
+  };
+
+  if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+
+  const ToggleRow = ({ k, labelKey, descKey }: { k: "registrations_enabled" | "maintenance_mode"; labelKey: string; descKey: string }) => {
+    const isOn = settings[k] === "true";
+    return (
+      <div className="flex items-center justify-between gap-4 border border-border bg-background px-4 py-3">
+        <div>
+          <p className="font-mono text-sm">{t(labelKey)}</p>
+          <p className="font-mono text-[11px] text-muted-foreground mt-0.5">{t(descKey)}</p>
+        </div>
+        <button onClick={() => toggle(k)} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${isOn ? "bg-primary" : "bg-muted"}`}>
+          <span className={`inline-block h-5 w-5 rounded-full bg-background shadow ring-0 transition-transform ${isOn ? "translate-x-5" : "translate-x-0"}`} />
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <ToggleRow k="registrations_enabled"  labelKey="settings.registrationsEnabled" descKey="settings.registrationsDesc" />
+      <ToggleRow k="maintenance_mode"        labelKey="settings.maintenanceMode"       descKey="settings.maintenanceDesc" />
+
+      <div className="border border-border bg-background px-4 py-3 space-y-1.5">
+        <p className="font-mono text-sm">{t("settings.maintenanceMessage")}</p>
+        <p className="font-mono text-[11px] text-muted-foreground">{t("settings.maintenanceMessageDesc")}</p>
+        <textarea
+          value={settings.maintenance_message}
+          onChange={(e) => setSettings((p) => ({ ...p, maintenance_message: e.target.value }))}
+          rows={2}
+          className="w-full mt-1 bg-transparent border border-border rounded-none px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      <Button onClick={save} className="rounded-none font-mono text-xs" disabled={saving}>
+        {saving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Check className="w-4 h-4 me-2" />}
+        {t("settings.save")}
+      </Button>
     </div>
   );
 }

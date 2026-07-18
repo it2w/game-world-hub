@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, like, or, desc, sql } from "drizzle-orm";
 import { db, usersTable, proSubscriptionsTable, activationCodesTable } from "@workspace/db";
-import { requireAdmin } from "../middlewares/admin";
+import { requireAdmin, requireAdminPermission } from "../middlewares/admin";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { logger } from "../lib/logger";
 import { getUserProgress } from "../lib/xp";
@@ -66,7 +66,7 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   res.json({ total, limit, offset, items });
 });
 
-router.post("/admin/users/:userId/pro", async (req, res): Promise<void> => {
+router.post("/admin/users/:userId/pro", requireAdminPermission("can_manage_pro"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   const { durationDays } = AdminActivateProBody.parse(req.body);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -78,13 +78,13 @@ router.post("/admin/users/:userId/pro", async (req, res): Promise<void> => {
   res.status(200).json({ ok: true });
 });
 
-router.delete("/admin/users/:userId/pro", async (req, res): Promise<void> => {
+router.delete("/admin/users/:userId/pro", requireAdminPermission("can_manage_pro"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   await deactivatePro(userId);
   res.status(200).json({ ok: true });
 });
 
-router.post("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
+router.post("/admin/users/:userId/suspend", requireAdminPermission("can_suspend_users"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
@@ -93,7 +93,7 @@ router.post("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
   res.status(200).json({ ok: true });
 });
 
-router.delete("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
+router.delete("/admin/users/:userId/suspend", requireAdminPermission("can_suspend_users"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
@@ -102,7 +102,7 @@ router.delete("/admin/users/:userId/suspend", async (req, res): Promise<void> =>
   res.status(200).json({ ok: true });
 });
 
-router.post("/admin/users/:userId/admin", async (req, res): Promise<void> => {
+router.post("/admin/users/:userId/admin", requireAdminPermission("can_manage_admins"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) {
@@ -114,7 +114,7 @@ router.post("/admin/users/:userId/admin", async (req, res): Promise<void> => {
   res.status(200).json({ ok: true });
 });
 
-router.post("/admin/activation-codes", async (req, res): Promise<void> => {
+router.post("/admin/activation-codes", requireAdminPermission("can_manage_codes"), async (req, res): Promise<void> => {
   const body = CreateActivationCodeBody.parse(req.body);
   const code = (body.code || generateActivationCode()).toUpperCase().trim();
   const [existing] = await db.select().from(activationCodesTable).where(eq(activationCodesTable.code, code)).limit(1);
@@ -162,7 +162,7 @@ router.get("/admin/activation-codes", async (req, res): Promise<void> => {
   });
 });
 
-router.delete("/admin/activation-codes/:codeId", async (req, res): Promise<void> => {
+router.delete("/admin/activation-codes/:codeId", requireAdminPermission("can_manage_codes"), async (req, res): Promise<void> => {
   const codeId = Number(req.params.codeId);
   await db.update(activationCodesTable).set({ status: "inactive" }).where(eq(activationCodesTable.id, codeId));
   res.status(200).json({ ok: true });

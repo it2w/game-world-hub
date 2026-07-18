@@ -776,6 +776,164 @@ describe("Owner reset-password brute-force lockout", () => {
   });
 });
 
+/* ── Reset probe alert (activity log + email) ───────────────────────────── */
+
+describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
+  /**
+   * Three dedicated super_admin rows:
+   *  - probeOwnerWithEmail    — has an email address; used to verify the alert email is sent
+   *  - probeOwnerNoEmail      — has no email; used to verify no crash and no email
+   *  - probeOwnerLogOnly      — used to verify the activity log entry in isolation
+   */
+  let probeOwnerWithEmailId = 0;
+  let probeOwnerWithEmailUsername = "";
+  let probeOwnerWithEmailAddress = "";
+  let probeOwnerNoEmailId = 0;
+  let probeOwnerNoEmailUsername = "";
+  let probeOwnerLogOnlyId = 0;
+  let probeOwnerLogOnlyUsername = "";
+
+  /** Set a live reset code on an owner so the next request triggers the bypass path. */
+  async function setActiveResetCode(ownerId: number): Promise<void> {
+    await db
+      .update(superAdminsTable)
+      .set({
+        passwordResetCodeHash: "dummyhash",
+        passwordResetExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        passwordResetAttempts: 0,
+      })
+      .where(eq(superAdminsTable.id, ownerId));
+  }
+
+  before(async () => {
+    probeOwnerWithEmailUsername   = `probe_em_${SUFFIX}`;
+    probeOwnerWithEmailAddress    = `probe_${SUFFIX}@example.test`;
+    probeOwnerNoEmailUsername     = `probe_ne_${SUFFIX}`;
+    probeOwnerLogOnlyUsername     = `probe_lo_${SUFFIX}`;
+
+    const [rowWithEmail] = await db
+      .insert(superAdminsTable)
+      .values({ username: probeOwnerWithEmailUsername, passwordHash: "x", email: probeOwnerWithEmailAddress })
+      .returning({ id: superAdminsTable.id });
+    probeOwnerWithEmailId = rowWithEmail.id;
+
+    const [rowNoEmail] = await db
+      .insert(superAdminsTable)
+      .values({ username: probeOwnerNoEmailUsername, passwordHash: "x" })
+      .returning({ id: superAdminsTable.id });
+    probeOwnerNoEmailId = rowNoEmail.id;
+
+    const [rowLogOnly] = await db
+      .insert(superAdminsTable)
+      .values({ username: probeOwnerLogOnlyUsername, passwordHash: "x" })
+      .returning({ id: superAdminsTable.id });
+    probeOwnerLogOnlyId = rowLogOnly.id;
+  });
+
+  after(async () => {
+    for (const id of [probeOwnerWithEmailId, probeOwnerNoEmailId, probeOwnerLogOnlyId]) {
+      await db.delete(superAdminsTable).where(eq(superAdminsTable.id, id)).catch(() => {});
+    }
+  });
+
+  test("reset_bypass_attempt is written to owner_activity_log when a second request arrives within TTL", async () => {
+    await setActiveResetCode(probeOwnerLogOnlyId);
+
+    // Clear any pre-existing entries for this owner so the assertion is unambiguous.
+    await pool.query(
+      `DELETE FROM owner_activity_log WHERE owner_id = $1 AND action = 'reset_bypass_attempt'`,
+      [probeOwnerLogOnlyId],
+    );
+
+    // Second request while a non-expired code is active — must silently return ok.
+    const r = await post("/owner/reset-password-request", { username: probeOwnerLogOnlyUsername });
+    assert.strictEqual(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+    assert.strictEqual((r.body as { ok: boolean }).ok, true);
+
+    // Give the async logOwnerAction a moment to complete (it is fire-and-forget with catch).
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const { rows } = await pool.query<{ action: string; owner_id: number }>(
+      `SELECT action, owner_id FROM owner_activity_log
+       WHERE owner_id = $1 AND action = 'reset_bypass_attempt'
+       ORDER BY created_at DESC LIMIT 1`,
+      [probeOwnerLogOnlyId],
+    );
+    assert.ok(rows.length > 0, "owner_activity_log must contain a reset_bypass_attempt entry");
+    assert.strictEqual(rows[0].action, "reset_bypass_attempt");
+    assert.strictEqual(rows[0].owner_id, probeOwnerLogOnlyId);
+  });
+
+  test("alert email is sent to the owner's inbox when an email address is configured", async () => {
+    await setActiveResetCode(probeOwnerWithEmailId);
+
+    // Record current byte offset of the dev mailbox so we can detect new lines.
+    const { readFileSync, existsSync } = await import("node:fs");
+    const mailboxPath = "/tmp/gwh-dev-emails.jsonl";
+    const bytesBefore = existsSync(mailboxPath) ? readFileSync(mailboxPath).length : 0;
+
+    const r = await post("/owner/reset-password-request", { username: probeOwnerWithEmailUsername });
+    assert.strictEqual(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+
+    // sendEmail is called with .catch() so we allow a small async window.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    if (!existsSync(mailboxPath)) {
+      assert.fail("Dev mailbox file not found — sendEmail must have never been called");
+    }
+    const newContent = readFileSync(mailboxPath).slice(bytesBefore).toString("utf8");
+    const newLines = newContent.split("\n").filter(Boolean);
+    const alertLine = newLines.find((line) => {
+      try {
+        const entry = JSON.parse(line) as { to?: string; subject?: string };
+        return entry.to === probeOwnerWithEmailAddress && typeof entry.subject === "string" &&
+          entry.subject.toLowerCase().includes("reset");
+      } catch {
+        return false;
+      }
+    });
+    assert.ok(
+      alertLine !== undefined,
+      `Dev mailbox must contain an alert email to ${probeOwnerWithEmailAddress}; new lines: ${JSON.stringify(newLines)}`,
+    );
+  });
+
+  test("no email is sent (and no crash) when the owner has no email configured", async () => {
+    await setActiveResetCode(probeOwnerNoEmailId);
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    const mailboxPath = "/tmp/gwh-dev-emails.jsonl";
+    const bytesBefore = existsSync(mailboxPath) ? readFileSync(mailboxPath).length : 0;
+
+    const r = await post("/owner/reset-password-request", { username: probeOwnerNoEmailUsername });
+    assert.strictEqual(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+    assert.strictEqual((r.body as { ok: boolean }).ok, true);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // No new entries in the mailbox for this owner (there is no email to send to).
+    if (existsSync(mailboxPath)) {
+      const newContent = readFileSync(mailboxPath).slice(bytesBefore).toString("utf8");
+      const newLines = newContent.split("\n").filter(Boolean);
+      const unexpectedLine = newLines.find((line) => {
+        try {
+          const entry = JSON.parse(line) as { to?: string };
+          // We don't know what email an attacker might have used; the owner has
+          // no email so nothing should be sent on their behalf.
+          return entry.to === probeOwnerNoEmailUsername;
+        } catch {
+          return false;
+        }
+      });
+      assert.ok(
+        unexpectedLine === undefined,
+        "No alert email should be sent when the owner has no email address",
+      );
+    }
+    // If the mailbox doesn't exist, that is also acceptable — no email was sent.
+  });
+});
+
 /* ── Owner login brute-force lockout ────────────────────────────────────── */
 
 describe("POST /owner/login brute-force lockout", () => {

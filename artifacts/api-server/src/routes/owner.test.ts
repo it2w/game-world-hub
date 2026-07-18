@@ -19,6 +19,7 @@ import { AddressInfo } from "node:net";
 import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
+import { signToken } from "../middlewares/auth";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -396,6 +397,19 @@ describe("POST /owner/users/bulk", () => {
     /* Verify DB was actually updated */
     const [u] = await db.select({ status: usersTable.status }).from(usersTable).where(eq(usersTable.id, bulkUserId));
     assert.strictEqual(u?.status, "suspended");
+  });
+
+  test("suspend action — suspended user's active token is immediately rejected (403)", async () => {
+    /* bulkUserId is already suspended by the previous test. Sign a JWT for them and
+       confirm that any authenticated endpoint returns 403 — the suspension is enforced
+       at the middleware level on the very next request, without waiting for token expiry. */
+    const userToken = signToken({ userId: bulkUserId, username: `own_bulk_${SUFFIX}` });
+    const res = await fetch(`${baseUrl}/users/search?q=x`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert.strictEqual(res.status, 403, "suspended user must be rejected with 403 on any authenticated endpoint");
+    const body = await res.json() as { error?: string };
+    assert.strictEqual(body.error, "suspended", "error message must be 'suspended'");
   });
 
   test("unsuspend action — user status set to offline", async () => {

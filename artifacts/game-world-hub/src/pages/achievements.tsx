@@ -275,17 +275,53 @@ export default function Achievements() {
         </div>
       </div>
 
-      {/* ── full stats row ───────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-        className="sm:grid-cols-4">
-        {Object.entries(data.stats).map(([key, value]) => (
-          <div key={key} className="bg-card p-4">
-            <div className="text-2xl font-bold font-mono" style={{ color: C1 }}>{value}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-1">
-              {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
+      {/* ── full stats grid ──────────────────────────────────── */}
+      <div style={{ position: "relative" }}>
+        {/* outer glow frame */}
+        <div style={{ position:"absolute", inset:-1, background:`linear-gradient(135deg,${C1}33,transparent,${C1}22)` }} />
+        <div style={{
+          position: "relative",
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 1,
+          background: `${C1}18`,
+          border: `1px solid ${C1}22`,
+        }} className="sm:grid-cols-4">
+          {Object.entries(data.stats).map(([key, value]) => (
+            <div key={key} style={{
+              background: "hsl(var(--card))",
+              padding: "16px 20px",
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              {/* subtle corner bracket */}
+              <div style={{ position:"absolute", top:6, insetInlineStart:6, width:8, height:8, borderTop:`1px solid ${C1}55`, borderInlineStart:`1px solid ${C1}55` }} />
+              {/* scanline */}
+              <div style={{ position:"absolute", inset:0, opacity:0.015, backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.6) 2px,rgba(255,255,255,0.6) 3px)", pointerEvents:"none" }} />
+
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 28,
+                fontWeight: 900,
+                lineHeight: 1,
+                color: C1,
+                textShadow: `0 0 12px ${C1}66`,
+                marginBottom: 6,
+              }}>
+                {String(value).padStart(2, "0")}
+              </div>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 9,
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.35)",
+              }}>
+                {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ── achievements ────────────────────────────────────── */}

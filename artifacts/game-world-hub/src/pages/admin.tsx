@@ -284,11 +284,6 @@ function UsersPanel() {
                           <Crown className="w-3 h-3 me-1" /> {t("users.activatePro")}
                         </Button>
                       )}
-                      {!u.isAdmin && (
-                        <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onPromote(u.id)}>
-                          <UserCog className="w-3 h-3 me-1" /> {t("users.makeAdmin")}
-                        </Button>
-                      )}
                       {(u.status as string) === "suspended" ? (
                         <Button
                           size="sm"

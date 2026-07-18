@@ -26,6 +26,7 @@ import {
 import { sendEmail } from "../lib/email";
 import { issueCode, verifyAndConsumeCode } from "../lib/otp";
 import { logger } from "../lib/logger";
+import { getUserProgress } from "../lib/xp";
 
 const router: IRouter = Router();
 
@@ -48,7 +49,10 @@ async function isTotpCodeValid(code: string, secret: string): Promise<boolean> {
   }
 }
 
-function safeUser(u: typeof usersTable.$inferSelect) {
+function safeUser(
+  u: typeof usersTable.$inferSelect,
+  progress?: Awaited<ReturnType<typeof getUserProgress>>,
+) {
   const now = new Date();
   const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
   return {
@@ -72,6 +76,11 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     profileBgUrl: u.profileBgUrl ?? null,
     isAdmin: u.isAdmin,
     createdAt: u.createdAt.toISOString(),
+    tier: progress?.tier ?? null,
+    tierLevel: progress?.level ?? null,
+    totalXp: progress?.totalXp ?? null,
+    xpIntoLevel: progress?.xpIntoLevel ?? null,
+    xpForNext: progress?.xpForNext ?? null,
   };
 }
 
@@ -528,7 +537,8 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     res.status(401).json({ error: "User not found" });
     return;
   }
-  res.json(safeUser(user));
+  const progress = await getUserProgress(user.id);
+  res.json(safeUser(user, progress));
 });
 
 // PATCH /auth/me/status

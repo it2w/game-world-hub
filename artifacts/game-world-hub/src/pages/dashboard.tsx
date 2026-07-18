@@ -88,8 +88,10 @@ function XpBar({ me }: { me:any }) {
   return (
     <div className="xp-wrap">
       <div className="xp-header">
-        <span className="xp-level">LVL {me.tierLevel ?? 1}</span>
-        <span className="xp-nums">{(me.xpIntoLevel??0).toLocaleString()} / {(me.xpForNext??1000).toLocaleString()} XP</span>
+        <span className="xp-level">
+          {me.tier ? `${me.tier} · LVL ${me.tierLevel ?? 1}` : `LVL ${me.tierLevel ?? 1}`}
+        </span>
+        <span className="xp-nums">{(me.xpIntoLevel??0).toLocaleString()} / {(me.xpForNext??0).toLocaleString()} XP</span>
       </div>
       <div className="xp-track">
         <div className="xp-fill" style={{ width:`${pct}%` }}><div className="xp-shimmer"/></div>

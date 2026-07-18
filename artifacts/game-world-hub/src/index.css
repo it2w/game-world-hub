@@ -153,18 +153,18 @@
   
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: 'Spline Sans Mono', Menlo, monospace;
+  --app-font-mono: 'Spline Sans Mono', 'JetBrains Mono', Menlo, monospace;
   
   --radius: 0rem; /* Hard edges for cockpit feel */
 
   color-scheme: dark;
 }
 
-/* Arabic locale: Arabic-capable fonts while keeping the terminal aesthetic.
-   Mono keeps latin glyphs monospaced; Arabic glyphs fall back to Plex Arabic. */
+/* Arabic locale: Tajawal for Arabic text (optimised for screen readability at
+   small sizes), Spline Sans Mono for latin mono glyphs. */
 html[lang='ar'] {
-  --app-font-sans: 'IBM Plex Sans Arabic', 'Inter', sans-serif;
-  --app-font-mono: 'Spline Sans Mono', 'IBM Plex Sans Arabic', Menlo, monospace;
+  --app-font-sans: 'Tajawal', 'Inter', sans-serif;
+  --app-font-mono: 'Spline Sans Mono', 'Tajawal', Menlo, monospace;
 }
 
 @layer base {

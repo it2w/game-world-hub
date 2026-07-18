@@ -1,89 +1,77 @@
+import { useState, useEffect, useRef } from "react";
+import "./dashboard.css";
 import {
-  useGetOnlineFriendsSummary,
-  useGetPartyActivityFeed,
-  useListPartyInvites,
-  useGetMe,
-  getListPartyInvitesQueryKey,
-  getGetOnlineFriendsSummaryQueryKey,
-  getGetPartyActivityFeedQueryKey,
-  getGetMeQueryKey,
+  useGetMe, useGetOnlineFriendsSummary, useGetPartyActivityFeed,
+  useListPartyInvites, useBlockUser, useAcceptPartyInvite, useDeclinePartyInvite,
   customFetch,
-  useBlockUser,
-  useListLfgPosts,
+  getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey,
+  getListPartyInvitesQueryKey, getGetMeQueryKey,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import {
-  Activity, Users, Play, Phone, MessageSquare, ShieldOff,
-  Loader2, Check, X, Swords, Radio, Trophy, Star, Zap,
-  Crown, TrendingUp, Target, Clock,
-} from "lucide-react";
-import { TierPip } from "@/components/tier-badge";
-import { ProBadge } from "@/components/pro-badge";
-import { useState, useEffect, useRef } from "react";
-import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
-import { useAcceptPartyInvite, useDeclinePartyInvite } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVoice } from "@/voice/voice-context";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
-import { useVoice } from "@/voice/voice-context";
-import { cn } from "@/lib/utils";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-interface StatsMe {
-  totalLfgPosts: number;
-  totalLfgResponses: number;
-  totalFriends: number;
-  totalMessages: number;
-  isPro: boolean;
-  xpProgress: { level: number; xpIntoLevel: number; xpForNext: number; totalXp: number };
-}
+// ── Palette helpers ────────────────────────────────────────────────────────────
+const PALETTE = ["#EC4899","#06B6D4","#A855F7","#22C55E","#F97316","#FFD700","#EF4444","#38BDF8"];
+const fColor = (id: number) => PALETTE[id % PALETTE.length];
 
-interface Challenge {
-  id: number;
-  title: string;
-  description: string;
-  progress: number;
-  goal: number;
-  xpReward: number;
-  status: string;
-  expiresAt: string;
-}
+// ── Static data (no API equivalent) ───────────────────────────────────────────
+const SPIN_PRIZES = [
+  { label:"500 XP",     color:"#22C55E", icon:"⚡" },
+  { label:"MISS",       color:"#333",    icon:"💨" },
+  { label:"Pro يوم",    color:"#FFD700", icon:"👑" },
+  { label:"200 XP",     color:"#06B6D4", icon:"🎯" },
+  { label:"MISS",       color:"#333",    icon:"💨" },
+  { label:"شارة نادرة", color:"#A855F7", icon:"🏅" },
+  { label:"1000 XP",    color:"#EF4444", icon:"🔥" },
+  { label:"100 XP",     color:"#F97316", icon:"🎁" },
+];
+const WEEK_GRAPH = [3,7,2,9,5,11,8];
+const WEEK_DAYS  = ["أح","إث","ث","أر","خ","ج","س"];
+const MOODS = [
+  { icon:"😤", label:"يلا نلعب" },{ icon:"😎", label:"كاجوال" },
+  { icon:"🎯", label:"تدريب" },{ icon:"🏆", label:"Ranked" },{ icon:"😴", label:"سأنام" },
+];
+const FEATURED_GAME = { name:"Valorant", mode:"RANKED • ACT III", players:"4.2M نشط", update:"تحديث Episode 9 متاح!", accent:"#FF4655" };
+const NEWS_ITEMS = [
+  { tag:"UPDATE", color:"#22C55E", text:"Valorant EP9 — خريطة جديدة + عميل جديد" },
+  { tag:"ESPORTS",color:"#FFD700", text:"فريق LOUD يفوز ببطولة VCT Americas 2026" },
+  { tag:"PATCH",  color:"#F97316", text:"CS2 — تعديل توازن السلاح Premier Season 4" },
+  { tag:"EVENT",  color:"#A855F7", text:"Apex: موسم الصياد يبدأ 22 يوليو" },
+];
+const TOURNAMENTS = [
+  { name:"GWH Cup — Final",   date:"غداً 8م",   prize:"5,000 ريال", game:"Valorant",    color:"#EF4444", hot:true  },
+  { name:"CS2 Weekly Open",   date:"الجمعة 9م",  prize:"1,000 ريال", game:"CS2",         color:"#F97316", hot:false },
+  { name:"Apex Legends Solo", date:"السبت 7م",   prize:"2,500 ريال", game:"Apex Legends",color:"#A855F7", hot:false },
+];
+const HIGHLIGHTS = [
+  { user:"Khalid",  clip:"Ace Round Valorant 🔥",          views:"12K", ago:"2m", color:"#EC4899" },
+  { user:"Sara",    clip:"Apex Predator Montage ⚡",        views:"8.4K",ago:"7m", color:"#06B6D4" },
+  { user:"Faisal2", clip:"5K AWP في CS2 Premier 💥",       views:"21K", ago:"15m",color:"#22C55E" },
+  { user:"Reem",    clip:"Overwatch Triple Elimination 🎯", views:"5.1K",ago:"28m",color:"#F97316" },
+];
 
-// ── Live Ticker ────────────────────────────────────────────────────────────────
-function LiveTicker({ events }: { events: string[] }) {
+// ── LiveTicker ─────────────────────────────────────────────────────────────────
+function LiveTicker({ events }: { events: Array<{text:string;color:string}> }) {
   const [offset, setOffset] = useState(0);
-  const text = events.join("   ◆   ");
-  const frameRef = useRef<number>();
-
+  const items = events.length ? events : [{ text:"🎮 مرحباً في Game World Hub", color:"#22C55E" }];
+  const text = items.map(e=>e.text).join("   ◆   ");
   useEffect(() => {
-    if (!events.length) return;
-    let pos = 0;
-    const tick = () => {
-      pos = (pos + 0.6) % (text.length * 7.5);
-      setOffset(pos);
-      frameRef.current = requestAnimationFrame(tick);
-    };
-    frameRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameRef.current!);
+    const id = setInterval(() => setOffset(o => (o + 0.9) % (text.length * 7.2)), 20);
+    return () => clearInterval(id);
   }, [text]);
-
-  if (!events.length) return null;
-
   return (
-    <div className="flex items-center h-8 bg-card border-b border-border overflow-hidden shrink-0">
-      <div className="shrink-0 flex items-center gap-1.5 bg-primary text-primary-foreground text-[9px] font-mono font-black tracking-[2px] px-3 h-full">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground animate-pulse" />
-        LIVE
-      </div>
-      <div className="flex-1 overflow-hidden" style={{ maskImage: "linear-gradient(to right, transparent, black 4%, black 96%, transparent)" }}>
-        <div className="flex items-center whitespace-nowrap" style={{ transform: `translateX(-${offset}px)` }}>
-          {[...events, ...events].map((e, i) => (
-            <span key={i} className="text-[11px] font-mono text-muted-foreground inline-flex items-center">
-              {e}
-              <span className="mx-4 text-border">◆</span>
+    <div className="ticker-bar">
+      <div className="ticker-live-pill"><span className="ticker-dot"/>LIVE</div>
+      <div className="ticker-track">
+        <div className="ticker-inner" style={{ transform:`translateX(-${offset}px)` }}>
+          {[...items,...items].map((e,i) => (
+            <span key={i} className="ticker-item">
+              <span style={{ color:e.color }}>{e.text}</span>
+              <span className="ticker-sep">◆</span>
             </span>
           ))}
         </div>
@@ -92,428 +80,652 @@ function LiveTicker({ events }: { events: string[] }) {
   );
 }
 
-// ── XP Bar ─────────────────────────────────────────────────────────────────────
-function XpBar({ me }: { me: ReturnType<typeof useGetMe>["data"] }) {
+// ── XpBar ──────────────────────────────────────────────────────────────────────
+function XpBar({ me }: { me:any }) {
   if (!me) return null;
   const pct = me.xpForNext > 0 ? Math.round((me.xpIntoLevel / me.xpForNext) * 100) : 0;
-
   return (
-    <div className="min-w-[200px]">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-[10px] font-mono font-black text-primary tracking-[2px]">LVL {me.tierLevel ?? 1}</span>
-        <span className="text-[9px] font-mono text-muted-foreground">
-          {(me.xpIntoLevel ?? 0).toLocaleString()} / {(me.xpForNext ?? 1000).toLocaleString()} XP
-        </span>
+    <div className="xp-wrap">
+      <div className="xp-header">
+        <span className="xp-level">LVL {me.tierLevel ?? 1}</span>
+        <span className="xp-nums">{(me.xpIntoLevel??0).toLocaleString()} / {(me.xpForNext??1000).toLocaleString()} XP</span>
       </div>
-      <div className="relative h-1.5 bg-muted border border-border overflow-hidden">
-        <div
-          className="absolute inset-y-0 start-0 bg-primary transition-all duration-1000"
-          style={{ width: `${pct}%` }}
-        />
+      <div className="xp-track">
+        <div className="xp-fill" style={{ width:`${pct}%` }}><div className="xp-shimmer"/></div>
+        <div className="xp-glow" style={{ left:`${pct}%` }}/>
       </div>
     </div>
   );
 }
 
-// ── Stat Chip ──────────────────────────────────────────────────────────────────
-function StatChip({ icon: Icon, value, label, color = "text-primary" }: {
-  icon: React.ElementType; value: string | number; label: string; color?: string;
-}) {
+// ── StatCard ───────────────────────────────────────────────────────────────────
+function StatCard({ icon, value, label, color, sub }: { icon:string;value:string|number;label:string;color:string;sub?:string }) {
+  const str = String(value);
+  const target = parseInt(str.replace(/\D/g,"")) || 0;
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!target) { setCount(0); return; }
+    let s=0; const inc=target/28;
+    const id = setInterval(()=>{ s+=inc; if(s>=target){setCount(target);clearInterval(id);}else setCount(Math.floor(s)); },28);
+    return ()=>clearInterval(id);
+  },[target]);
+  const display = str.replace(/\d+/, String(count));
   return (
-    <div className="flex items-center gap-2 bg-card border border-border px-3 py-2 min-w-[90px]">
-      <Icon className={cn("w-3.5 h-3.5 shrink-0", color)} />
-      <div>
-        <div className={cn("text-base font-black font-mono leading-none tracking-tight", color)}>{value}</div>
-        <div className="text-[9px] text-muted-foreground font-mono uppercase tracking-wider mt-0.5">{label}</div>
-      </div>
+    <div className="stat-card" style={{"--sc":color} as any}>
+      <div className="stat-top"><span className="stat-icon">{icon}</span><div className="stat-corner" style={{background:color}}/></div>
+      <div className="stat-value" style={{color}}>{display}</div>
+      <div className="stat-label">{label}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
+      <div className="stat-glow" style={{background:color}}/>
     </div>
   );
 }
 
-// ── Friend Card ────────────────────────────────────────────────────────────────
-function FriendCard({
-  entry, onCall, onDm, onBlock, openingDm, blocking, confirmBlock,
-  onConfirmBlock, onCancelBlock, activeRoom,
-}: {
-  entry: any;
-  onCall: () => void;
-  onDm: (e: React.MouseEvent) => void;
-  onBlock: (e: React.MouseEvent) => void;
-  openingDm: boolean;
-  blocking: boolean;
-  confirmBlock: boolean;
-  onConfirmBlock: (e: React.MouseEvent) => void;
-  onCancelBlock: () => void;
-  activeRoom: boolean;
-}) {
-  const { t } = useTranslation("dashboard");
-  const f = entry.friend;
-  const frameColor = (f as any).profileFrameColor;
-
+// ── MoodStatus ─────────────────────────────────────────────────────────────────
+function MoodStatus() {
+  const [selected, setSelected] = useState(0);
   return (
-    <div
-      className="group relative flex flex-col border border-border bg-card hover:border-primary/40 transition-all duration-200"
-      style={frameColor ? { borderColor: `${frameColor}55` } : {}}
-    >
-      <Link href={`/profile/${f.id}`} className="flex flex-col flex-1">
-        {/* banner */}
-        <div className="relative h-14 overflow-hidden shrink-0">
-          {(f as any).profileBgUrl ? (
-            <img src={(f as any).profileBgUrl} alt="" className="w-full h-full object-cover" />
-          ) : (f as any).bannerUrl ? (
-            <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{
-                background: frameColor
-                  ? `linear-gradient(135deg, ${frameColor}33 0%, ${frameColor}08 100%)`
-                  : "linear-gradient(135deg, hsl(var(--primary)/0.15) 0%, hsl(var(--primary)/0.03) 100%)",
-              }}
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
-        </div>
+    <div className="mood-bar">
+      <span className="mood-title">حالتك:</span>
+      {MOODS.map((m,i)=>(
+        <button key={i} className={`mood-btn${selected===i?" mood-btn--on":""}`} onClick={()=>setSelected(i)}>
+          {m.icon} {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-        {/* avatar */}
-        <div className="flex justify-center -mt-6 mb-2">
-          <div className="relative">
-            {f.avatarUrl ? (
-              <img
-                src={f.avatarUrl}
-                alt={f.displayName}
-                className="w-12 h-12 rounded-full object-cover ring-[3px] ring-card border-2"
-                style={{ borderColor: frameColor ?? "hsl(var(--border))" }}
-              />
-            ) : (
-              <div
-                className="w-12 h-12 rounded-full ring-[3px] ring-card border-2 bg-muted flex items-center justify-center font-mono font-bold text-lg"
-                style={{ borderColor: frameColor ?? "hsl(var(--border))" }}
-              >
-                {f.displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <StatusBadge status={f.status} className="absolute -bottom-0.5 -end-0.5" />
-          </div>
-        </div>
-
-        {/* info */}
-        <div className="px-2 pb-3 text-center">
-          <div className="flex items-center justify-center gap-1 min-w-0">
-            <TierPip tier={f.tier} />
-            <span className="font-bold text-sm truncate leading-tight">{f.displayName}</span>
-            {f.isPro && <ProBadge size="icon" />}
-          </div>
-          <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
-          {f.currentGame ? (
-            <div className="text-[10px] text-primary font-mono truncate flex items-center justify-center gap-1 mt-1">
-              <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
-              {f.currentGame}
-            </div>
-          ) : (
-            <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">
-              {f.status}
-            </div>
-          )}
-        </div>
-      </Link>
-
-      {/* actions */}
-      {confirmBlock ? (
-        <div className="flex items-center border-t border-border bg-destructive/10">
-          <span className="flex-1 text-[10px] text-destructive font-mono px-2 leading-tight">
-            {t("network.confirmBlock")}
-          </span>
-          <button
-            className="p-2 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors border-s border-border"
-            onClick={onConfirmBlock}
-          >
-            {blocking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors border-s border-border"
-            onClick={(e) => { e.stopPropagation(); onCancelBlock(); }}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex border-t border-border">
-          <button
-            className="flex-1 flex items-center justify-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 border-e border-border text-[9px] font-mono uppercase tracking-wider"
-            disabled={activeRoom}
-            onClick={onCall}
-          >
-            <Phone className="w-3 h-3" /> {t("network.call")}
-          </button>
-          <button
-            className="flex-1 flex items-center justify-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border text-[9px] font-mono uppercase tracking-wider"
-            onClick={onDm}
-            disabled={openingDm}
-          >
-            {openingDm ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />}
-            {t("network.chat")}
-          </button>
-          <button
-            className="flex-1 flex items-center justify-center gap-1 py-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors text-[9px] font-mono uppercase tracking-wider"
-            onClick={onBlock}
-          >
-            <ShieldOff className="w-3 h-3" />
-          </button>
+// ── QuickDock ──────────────────────────────────────────────────────────────────
+function QuickDock({ inviteCount, streak }: { inviteCount:number; streak:number }) {
+  const [,nav] = useLocation();
+  const ITEMS = [
+    { icon:"⚔️", label:"بارتي جديد", href:"/parties", color:"#22C55E", badge:inviteCount||null },
+    { icon:"📡", label:"نشر LFG",    href:"/lfg",     color:"#EC4899", badge:null },
+    { icon:"👥", label:"الأصدقاء",   href:"/friends", color:"#06B6D4", badge:null },
+    { icon:"💬", label:"الرسائل",    href:"/chat",    color:"#A855F7", badge:null },
+    { icon:"🏆", label:"التحديات",   href:"/challenges",color:"#FFD700",badge:null },
+    { icon:"⭐", label:"الإنجازات",  href:"/achievements",color:"#F97316",badge:null },
+  ];
+  const [hov, setHov] = useState<string|null>(null);
+  return (
+    <div className="dock-bar">
+      {ITEMS.map(d=>(
+        <Link key={d.href} href={d.href}
+          className={`dock-item${hov===d.href?" dock-item--active":""}`}
+          style={{"--dc":d.color} as any}
+          onMouseEnter={()=>setHov(d.href)} onMouseLeave={()=>setHov(null)}>
+          <span className="dock-icon">{d.icon}</span>
+          <span className="dock-label">{d.label}</span>
+          {d.badge ? <span className="dock-badge" style={{background:d.color}}>{d.badge}</span> : null}
+          {hov===d.href && <div className="dock-underline" style={{background:d.color}}/>}
+        </Link>
+      ))}
+      {streak > 0 && (
+        <div className="dock-streak">
+          <span className="streak-fire">🔥</span>
+          <span className="streak-num">{streak}</span>
+          <span className="streak-label">يوم</span>
         </div>
       )}
     </div>
   );
 }
 
-// ── LFG Suggestions ────────────────────────────────────────────────────────────
-function LfgSuggestions() {
-  const { t } = useTranslation("dashboard");
-  const [responding, setResponding] = useState<number | null>(null);
+// ── DailySpin ──────────────────────────────────────────────────────────────────
+function DailySpin({ userId }: { userId?:number }) {
+  const today = new Date().toISOString().slice(0,10);
+  const key = `gwh_spin_${userId??0}_${today}`;
+  const [spinning, setSpinning] = useState(false);
+  const [angle, setAngle]       = useState(0);
+  const [result, setResult]     = useState<typeof SPIN_PRIZES[0]|null>(null);
+  const [done, setDone]         = useState(() => !!localStorage.getItem(key));
+
+  const spin = () => {
+    if (spinning||done) return;
+    setSpinning(true); setResult(null);
+    const idx = Math.floor(Math.random()*SPIN_PRIZES.length);
+    const target = angle+1440+(360/SPIN_PRIZES.length)*idx+(360/SPIN_PRIZES.length/2);
+    setAngle(target);
+    setTimeout(()=>{ setResult(SPIN_PRIZES[idx]); setSpinning(false); setDone(true); localStorage.setItem(key,"1"); },3200);
+  };
+  const sliceAngle = 360/SPIN_PRIZES.length;
+  return (
+    <div className="spin-box section-box">
+      <div className="section-hd">
+        <span className="section-title">🎰 عجلة اليوم</span>
+        {done ? <span className="spin-reset">عودة غداً</span> : <span className="spin-free-badge">مجاناً!</span>}
+      </div>
+      <div className="spin-inner">
+        <div className="spin-wrap">
+          <div className="spin-pointer"/>
+          <div className="spin-wheel" style={{transform:`rotate(${angle}deg)`,transition:spinning?"transform 3.2s cubic-bezier(.17,.67,.12,1)":"none"}}>
+            {SPIN_PRIZES.map((p,i)=>(
+              <div key={i} className="spin-slice" style={{transform:`rotate(${i*sliceAngle}deg)`,background:i%2===0?`${p.color}22`:`${p.color}14`,borderTop:`1px solid ${p.color}40`}}>
+                <div className="spin-slice-content" style={{transform:`rotate(${sliceAngle/2}deg) translateY(-52px)`}}>
+                  <div className="spin-slice-icon">{p.icon}</div>
+                  <div className="spin-slice-label" style={{color:p.color}}>{p.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="spin-center" onClick={spin}>
+            {spinning?<div className="spin-center-ring"/>:<span className="spin-center-text">{done?"✓":"GO"}</span>}
+          </div>
+        </div>
+        {result && (
+          <div className="spin-result" style={{borderColor:result.color,background:`${result.color}12`}}>
+            <div className="spin-result-icon">{result.icon}</div>
+            <div style={{color:result.color}} className="spin-result-label">
+              {result.label==="MISS"?"😅 حظاً أوفر غداً!":`🎉 فزت بـ ${result.label}`}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── WeeklyGraph ────────────────────────────────────────────────────────────────
+function WeeklyGraph({ stats }: { stats?:any }) {
+  const max = Math.max(...WEEK_GRAPH);
+  const total = WEEK_GRAPH.reduce((a,b)=>a+b,0);
+  const bestIdx = WEEK_GRAPH.indexOf(max);
+  const todayIdx = new Date().getDay(); // 0=Sun
+  const [hov, setHov] = useState<number|null>(null);
+  const kd = stats?.kd ?? 2.4;
+  const wr = stats?.winRate ?? 67;
+  return (
+    <div className="section-box wg-box">
+      <div className="section-hd">
+        <span className="section-title">📈 انتصارات الأسبوع</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span className="wg-up-badge">▲ 31%</span>
+          <span style={{fontSize:9,color:"#555"}}>vs الأسبوع الماضي</span>
+        </div>
+      </div>
+      <div className="wg-body">
+        <div className="wg-summary">
+          <div className="wg-sum-item"><span className="wg-sum-val" style={{color:"#22C55E"}}>{total}</span><span className="wg-sum-label">انتصار</span></div>
+          <div className="wg-divider"/>
+          <div className="wg-sum-item"><span className="wg-sum-val" style={{color:"#FFD700"}}>{kd}</span><span className="wg-sum-label">K/D</span></div>
+          <div className="wg-divider"/>
+          <div className="wg-sum-item"><span className="wg-sum-val" style={{color:"#06B6D4"}}>{wr}%</span><span className="wg-sum-label">Win Rate</span></div>
+        </div>
+        <div className="wg-bars">
+          {WEEK_GRAPH.map((v,i)=>{
+            const pct=(v/max)*100;
+            const isToday=i===todayIdx, isBest=i===bestIdx, isHov=hov===i;
+            const color=isToday?"#22C55E":isBest?"#FFD700":"#06B6D4";
+            return (
+              <div key={i} className="wg-bar-col" onMouseEnter={()=>setHov(i)} onMouseLeave={()=>setHov(null)}>
+                {isHov&&<div className="wg-tooltip" style={{borderColor:color,color}}>{v}W{isBest&&<span className="wg-best-tag">🏆 أفضل</span>}</div>}
+                <div className="wg-track">
+                  <div className="wg-fill" style={{height:`${pct}%`,background:isToday?"linear-gradient(180deg,#4ADE80,#22C55E)":isBest?"linear-gradient(180deg,#FDE68A,#FFD700)":"linear-gradient(180deg,#38BDF8,#06B6D4)",boxShadow:isHov?`0 0 12px ${color}80`:"none",opacity:isHov?1:0.75}}>
+                    <div className="wg-fill-shine"/>
+                  </div>
+                  {(isToday||isBest)&&<div className="wg-marker" style={{background:color,boxShadow:`0 0 8px ${color}`}}/>}
+                </div>
+                <div className="wg-day" style={{color:isToday?"#22C55E":isBest?"#FFD700":"#444",fontWeight:isToday||isBest?900:400}}>{WEEK_DAYS[i]}</div>
+                {isToday&&<div className="wg-today-tag">اليوم</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HubCard ────────────────────────────────────────────────────────────────────
+function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
+  const [tab, setTab] = useState<"game"|"lfg"|"news"|"party">("game");
+  const TABS = [
+    {id:"game",icon:"🎮",label:"اليوم"},{id:"lfg",icon:"📡",label:"LFG"},
+    {id:"news",icon:"📰",label:"أخبار"},{id:"party",icon:"⚔️",label:"بارتيات"},
+  ] as const;
   const [responded, setResponded] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
-  const { data: suggestions, isLoading } = useQuery<any[]>({
-    queryKey: ["lfg-suggestions"],
-    queryFn: () => customFetch("/api/lfg/suggestions"),
-    refetchInterval: 30000,
-  });
-
-  if (isLoading) return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <div className="h-4 w-40 bg-muted animate-pulse" />
-      </div>
-      <div className="p-4 space-y-2">
-        {[1,2,3].map(i => <Skeleton key={i} className="h-14 rounded-none bg-muted" />)}
-      </div>
-    </div>
-  );
-
-  if (!suggestions?.length) return null;
-
-  const respond = async (postId: number) => {
-    setResponding(postId);
+  const respond = async (id:number) => {
     try {
-      await customFetch(`/api/lfg/${postId}/respond`, { method: "POST" });
-      setResponded(prev => new Set([...prev, postId]));
-      toast({ title: t("lfg.responded") });
-    } catch {
-      toast({ title: t("lfg.respondError"), variant: "destructive" });
-    } finally {
-      setResponding(null);
-    }
+      await customFetch(`/api/lfg/${id}/respond`,{method:"POST"});
+      setResponded(p=>new Set([...p,id]));
+      toast({title:"تم الانضمام!"});
+    } catch { toast({title:"حدث خطأ",variant:"destructive"}); }
   };
 
   return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-3 border-b border-border bg-muted/30 flex justify-between items-center">
-        <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-          <Radio className="w-4 h-4 text-primary" /> {t("lfg.title")}
-        </h2>
-        <Link href="/lfg" className="text-[10px] font-mono text-primary hover:underline uppercase tracking-wider">
-          {t("lfg.viewAll")} →
-        </Link>
+    <div className="hub-card section-box">
+      <div className="hub-tabs">
+        {TABS.map(t=><button key={t.id} className={`hub-tab${tab===t.id?" hub-tab--on":""}`} onClick={()=>setTab(t.id)}><span>{t.icon}</span>{t.label}</button>)}
       </div>
-      <div className="divide-y divide-border">
-        {suggestions.slice(0, 4).map(post => {
-          const isDone = responded.has(post.id) || post.viewerHasResponded;
-          return (
-            <div key={post.id} className="p-3 flex items-center gap-3 hover:bg-muted/10 transition-colors">
-              {/* avatar */}
-              <div className="shrink-0">
-                {post.author.avatarUrl ? (
-                  <img src={post.author.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover border border-border" />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center font-mono font-bold text-sm">
-                    {post.author.displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-sm truncate">{post.author.displayName}</span>
-                  {post.author.isPro && <ProBadge size="icon" />}
-                  <span className="text-[10px] font-mono text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5">{post.game}</span>
-                  {post.rank && (
-                    <span className="text-[10px] font-mono text-muted-foreground border border-border px-1.5 py-0.5">{post.rank}</span>
-                  )}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{post.description}</div>
-              </div>
-              <div className="shrink-0 flex flex-col items-end gap-1">
-                {post.neededPlayers && (
-                  <span className="text-[9px] font-mono text-muted-foreground">{post.neededPlayers}P</span>
-                )}
-                <Button
-                  size="sm"
-                  variant={isDone ? "outline" : "default"}
-                  className="rounded-none font-mono text-[10px] h-7 px-3"
-                  disabled={isDone || responding === post.id}
-                  onClick={() => respond(post.id)}
-                >
-                  {responding === post.id ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : isDone ? (
-                    <><Check className="w-3 h-3 me-1" />{t("lfg.joined")}</>
-                  ) : t("lfg.join")}
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
-// ── Challenges Widget ──────────────────────────────────────────────────────────
-function ChallengesWidget() {
-  const { t } = useTranslation("dashboard");
-  const { data: challenges, isLoading } = useQuery<Challenge[]>({
-    queryKey: ["challenges-dashboard"],
-    queryFn: () => customFetch("/api/challenges"),
-    refetchInterval: 60000,
-  });
-
-  const active = challenges?.filter(c => c.status === "active").slice(0, 2) ?? [];
-
-  if (isLoading) return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <div className="h-4 w-36 bg-muted animate-pulse" />
-      </div>
-      <div className="p-4 space-y-2">
-        {[1,2].map(i => <Skeleton key={i} className="h-12 rounded-none bg-muted" />)}
-      </div>
-    </div>
-  );
-
-  if (!active.length) return null;
-
-  return (
-    <div className="border border-border bg-card">
-      <div className="px-4 py-3 border-b border-border bg-muted/30 flex justify-between items-center">
-        <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary" /> {t("challenges.title")}
-        </h2>
-        <Link href="/challenges" className="text-[10px] font-mono text-primary hover:underline uppercase tracking-wider">
-          {t("challenges.viewAll")} →
-        </Link>
-      </div>
-      <div className="divide-y divide-border">
-        {active.map(c => {
-          const pct = Math.min(100, Math.round((c.progress / c.goal) * 100));
-          return (
-            <div key={c.id} className="p-3">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1 min-w-0 me-2">
-                  <div className="font-bold text-sm leading-tight truncate">{c.title}</div>
-                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{c.description}</div>
-                </div>
-                <span className="text-[10px] font-mono text-primary font-bold shrink-0">+{c.xpReward} XP</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-1.5 bg-muted border border-border overflow-hidden">
-                  <div className="h-full bg-primary transition-all duration-700" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="text-[10px] font-mono text-muted-foreground shrink-0">{c.progress}/{c.goal}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Stats Row ──────────────────────────────────────────────────────────────────
-function StatsRow({ me, friendsCount }: { me: any; friendsCount: number }) {
-  const { data: stats } = useQuery<StatsMe>({
-    queryKey: ["stats-me-dash"],
-    queryFn: () => customFetch("/api/stats/me"),
-    staleTime: 60000,
-  });
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      <StatChip icon={Users}      value={friendsCount}              label="Online"   color="text-primary" />
-      <StatChip icon={TrendingUp} value={stats?.totalLfgPosts ?? 0} label="LFG نشر"  color="text-sky-400" />
-      <StatChip icon={Target}     value={stats?.totalFriends ?? 0}  label="أصدقاء"   color="text-violet-400" />
-      <StatChip icon={Star}       value={me?.tier ?? "—"}           label="Tier"     color="text-amber-400" />
-    </div>
-  );
-}
-
-// ── Pro Card ───────────────────────────────────────────────────────────────────
-function ProWidget({ me }: { me: any }) {
-  const { t } = useTranslation("dashboard");
-  if (!me?.isPro) return null;
-
-  return (
-    <div className="border border-amber-400/30 bg-card relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-amber-400/5 to-transparent pointer-events-none" />
-      <div className="px-4 py-3 border-b border-amber-400/20 flex items-center gap-2">
-        <Crown className="w-4 h-4 text-amber-400" />
-        <span className="font-mono text-sm font-black tracking-widest text-amber-400 uppercase">Pro Member</span>
-        <span className="ms-auto text-[9px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5">ACTIVE</span>
-      </div>
-      <div className="p-3 flex flex-col gap-1.5 text-[11px] font-mono">
-        <div className="flex justify-between text-muted-foreground">
-          <span>🎙️ {t("pro.myRoom")}</span><span className="text-primary">{t("pro.active")}</span>
+      {tab==="game"&&(
+        <div className="hub-pane hub-game">
+          <div className="hub-game-bg"/><div className="hub-game-grid"/>
+          <div className="hub-game-tag">🔥 لعبة اليوم</div>
+          <div className="hub-game-name">{FEATURED_GAME.name}</div>
+          <div className="hub-game-mode">{FEATURED_GAME.mode}</div>
+          <div className="hub-game-row">
+            <span className="hub-game-players">👥 {FEATURED_GAME.players}</span>
+            <span className="hub-game-update">⚡ {FEATURED_GAME.update}</span>
+          </div>
+          <Link href="/lfg" className="hub-game-btn" style={{background:FEATURED_GAME.accent}}>انضم الآن ↗</Link>
         </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>🤖 {t("pro.lfgBot")}</span><span className="text-primary">{t("pro.enabled")}</span>
-        </div>
-        <Link href="/pro" className="mt-2 block text-center border border-amber-400/30 text-amber-400 py-2 hover:bg-amber-400/10 transition-colors uppercase tracking-wider text-[10px]">
-          {t("pro.manage")} →
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ── Quick Dock ─────────────────────────────────────────────────────────────────
-function QuickDock({ inviteCount }: { inviteCount: number }) {
-  const { t } = useTranslation("dashboard");
-  const ITEMS = [
-    { icon: Swords,        label: t("dock.newParty"),   href: "/parties",    badge: null        },
-    { icon: Radio,         label: t("dock.lfg"),         href: "/lfg",        badge: null        },
-    { icon: Users,         label: t("dock.friends"),     href: "/friends",    badge: null        },
-    { icon: MessageSquare, label: t("dock.messages"),    href: "/chat",       badge: null        },
-    { icon: Trophy,        label: t("dock.challenges"),  href: "/challenges", badge: null        },
-    { icon: Star,          label: t("dock.achievements"),href: "/achievements",badge: null       },
-  ] as const;
-
-  return (
-    <div className="flex border-b border-border bg-card overflow-x-auto">
-      {ITEMS.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className="relative flex items-center gap-2 px-4 py-3 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border text-[10px] font-mono uppercase tracking-wider whitespace-nowrap font-bold"
-        >
-          <item.icon className="w-3.5 h-3.5" />
-          {item.label}
-          {item.badge && (
-            <span className="absolute top-1.5 end-1.5 w-3.5 h-3.5 rounded-full bg-destructive text-destructive-foreground text-[7px] flex items-center justify-center font-black">
-              {item.badge}
-            </span>
-          )}
-        </Link>
-      ))}
-      {inviteCount > 0 && (
-        <Link
-          href="/parties"
-          className="relative flex items-center gap-2 px-4 py-3 text-primary bg-primary/5 border-e border-border text-[10px] font-mono uppercase tracking-wider whitespace-nowrap font-bold"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          {t("dock.invites")}
-          <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[8px] flex items-center justify-center font-black">
-            {inviteCount}
-          </span>
-        </Link>
       )}
+
+      {tab==="lfg"&&(
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{fontSize:9,color:"#555"}}>طلبات مفتوحة</span>
+            <span className="hub-live-dot-wrap"><span className="online-dot"/>مباشر</span>
+          </div>
+          {lfgPosts.slice(0,3).map((p:any,i)=>{
+            const color=fColor(p.author?.id??i);
+            const done=responded.has(p.id)||p.viewerHasResponded;
+            return (
+              <div key={p.id} className="hub-lfg-row" style={{borderColor:`${color}20`}}>
+                <div className="hub-lfg-av" style={{background:`${color}22`,borderColor:`${color}50`,color}}>{(p.author?.displayName??"?").charAt(0)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div className="hub-lfg-user">{p.author?.displayName}</div>
+                  <div className="hub-lfg-game" style={{color}}>{p.game}{p.rank?` • ${p.rank}`:""}</div>
+                </div>
+                <div style={{textAlign:"end",flexShrink:0}}>
+                  {p.neededPlayers&&<div className="hub-lfg-need">{p.neededPlayers} مقاعد</div>}
+                  <div className="hub-lfg-ago">{p.ago??""}</div>
+                </div>
+                <button className="hub-lfg-btn" style={{borderColor:color,color}} disabled={done} onClick={()=>respond(p.id)}>
+                  {done?"✓":"انضم"}
+                </button>
+              </div>
+            );
+          })}
+          {!lfgPosts.length&&<p style={{fontSize:10,color:"#444",textAlign:"center",padding:"12px 0"}}>لا يوجد طلبات الآن</p>}
+          <Link href="/lfg" className="hub-see-all">عرض كل الطلبات ↗</Link>
+        </div>
+      )}
+
+      {tab==="news"&&(
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{fontSize:9,color:"#555"}}>آخر الأخبار</span>
+            <span style={{fontSize:9,color:"#22C55E"}}>Gaming News</span>
+          </div>
+          {NEWS_ITEMS.map((n,i)=>(
+            <div key={i} className="hub-news-row">
+              <span className="hub-news-tag" style={{color:n.color,borderColor:`${n.color}40`,background:`${n.color}10`}}>{n.tag}</span>
+              <span className="hub-news-text">{n.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab==="party"&&(
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{fontSize:9,color:"#555"}}>بارتيات نشطة الآن</span>
+            <span className="hub-live-dot-wrap"><span className="online-dot"/>LIVE</span>
+          </div>
+          {parties.slice(0,3).map((p:any,i)=>{
+            const color=fColor(p.id??i);
+            const members=p.members?.slice(0,3)??[];
+            const slots=Math.max(0,(p.maxSize??4)-members.length);
+            return (
+              <div key={p.id??i} className="hub-party-row" style={{borderColor:`${color}20`}}>
+                <div style={{flex:1}}>
+                  <div className="hub-party-game" style={{color}}>{p.game??p.name}</div>
+                  <div className="hub-party-mode">{p.mode??""} • {slots} أماكن فارغة</div>
+                  <div className="hub-party-avs">
+                    {members.map((m:any,j:number)=><div key={j} className="hub-party-av" style={{background:`${color}30`,borderColor:color,color}}>{m.displayName?.charAt(0)??"?"}</div>)}
+                    {[...Array(slots)].map((_,j)=><div key={`e${j}`} className="hub-party-av hub-party-av--empty">+</div>)}
+                  </div>
+                </div>
+                <Link href={`/party/${p.id}`} className="hub-party-btn" style={{background:color}}>انضم</Link>
+              </div>
+            );
+          })}
+          {!parties.length&&<p style={{fontSize:10,color:"#444",textAlign:"center",padding:"12px 0"}}>لا يوجد بارتيات نشطة</p>}
+          <Link href="/parties" className="hub-see-all">استعراض كل البارتيات ↗</Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── FriendsGrid ────────────────────────────────────────────────────────────────
+function FriendsGrid({ friends, onCall, onDm, onBlock }: {
+  friends:any[];
+  onCall:(f:any)=>void;
+  onDm:(f:any)=>void;
+  onBlock:(f:any)=>void;
+}) {
+  const online = friends.filter(e=>e.friend.status==="online").length;
+  const [hov, setHov] = useState<number|null>(null);
+  return (
+    <div className="section-box">
+      <div className="section-hd">
+        <span className="section-title">🗺️ الأصدقاء</span>
+        <div className="section-hd-right">
+          <span className="online-pill"><span className="online-dot"/>{online} نشط</span>
+          <Link href="/friends" className="section-link">عرض الكل →</Link>
+        </div>
+      </div>
+      <div className="friends-grid">
+        {friends.map(entry=>{
+          const f=entry.friend;
+          const color=(f as any).profileFrameColor??fColor(f.id);
+          const isHov=hov===f.id;
+          return (
+            <Link key={f.id} href={`/profile/${f.id}`}
+              className={`fc${isHov?" fc--hov":""}`}
+              style={{"--fc":color} as any}
+              onMouseEnter={()=>setHov(f.id)} onMouseLeave={()=>setHov(null)}>
+              <div className="fc-top" style={{background:`linear-gradient(135deg,${color}30,${color}06)`}}>
+                <span className="fc-rank-tag" style={{color,borderColor:`${color}40`}}>{f.tier??"—"}</span>
+              </div>
+              <div className="fc-av-wrap">
+                <div className="fc-av" style={{borderColor:color,boxShadow:isHov?`0 0 14px ${color}80`:"none"}}>
+                  {f.avatarUrl?<img src={f.avatarUrl} alt={f.displayName}/>:f.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className={`fc-dot fc-dot--${f.status}`}/>
+              </div>
+              <div className="fc-info">
+                <div className="fc-name">{f.displayName}</div>
+                <div className="fc-user">@{f.username}</div>
+                {f.currentGame
+                  ?<div className="fc-game" style={{color}}>▶ {f.currentGame}</div>
+                  :<div className="fc-idle">{f.status==="away"?"بعيد":f.status==="busy"?"مشغول":"أونلاين"}</div>
+                }
+              </div>
+              <div className={`fc-actions${isHov?" fc-actions--show":""}`}>
+                <button className="fc-act" style={{color,borderColor:`${color}60`}} onClick={e=>{e.preventDefault();onCall(f);}}>📞</button>
+                <button className="fc-act" style={{color,borderColor:`${color}60`}} onClick={e=>{e.preventDefault();onDm(f);}}>💬</button>
+                <button className="fc-act" style={{color:"#EF4444",borderColor:"#EF444460"}} onClick={e=>{e.preventDefault();onBlock(f);}}>🚫</button>
+              </div>
+            </Link>
+          );
+        })}
+        {!friends.length&&(
+          <div style={{gridColumn:"1/-1",textAlign:"center",padding:"24px 0",color:"#333",fontSize:11}}>
+            لا يوجد أصدقاء أونلاين الآن
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── CommunityHighlights ────────────────────────────────────────────────────────
+function CommunityHighlights({ activity }: { activity:any[] }) {
+  const highlights = activity.length
+    ? activity.slice(0,4).map((a:any,i:number)=>({
+        user: a.actor.displayName,
+        clip: `${a.actor.displayName} ${a.action==="created"?"أنشأ":a.action==="joined"?"انضم لـ":"غادر"} ${a.party.name}`,
+        views: `${Math.floor(Math.random()*20+1)}K`,
+        ago: `${Math.floor((Date.now()-new Date(a.createdAt).getTime())/60000)}m`,
+        color: fColor(a.actor.id),
+      }))
+    : HIGHLIGHTS;
+  const [active, setActive] = useState(0);
+  useEffect(()=>{const id=setInterval(()=>setActive(a=>(a+1)%highlights.length),3500);return()=>clearInterval(id);},[highlights.length]);
+  return (
+    <div className="section-box">
+      <div className="section-hd">
+        <span className="section-title">🔥 لحظات حماسية</span>
+        <span style={{fontSize:9,color:"#EF4444"}}>TRENDING</span>
+      </div>
+      <div style={{padding:"8px 10px",display:"flex",flexDirection:"column",gap:4}}>
+        {highlights.map((h,i)=>(
+          <div key={i} className={`highlight-row${i===active?" highlight-row--active":""}`}
+            style={{borderColor:i===active?h.color:"transparent"}} onClick={()=>setActive(i)}>
+            <div className="hl-av" style={{background:`linear-gradient(135deg,${h.color}80,${h.color}20)`,borderColor:h.color}}>
+              {h.user.charAt(0)}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div className="hl-clip">{h.clip}</div>
+              <div className="hl-meta"><span style={{color:h.color}}>@{h.user}</span> • {h.ago}</div>
+            </div>
+            <div className="hl-right">
+              <div className="hl-views">👁 {h.views}</div>
+              {i===active&&<button className="hl-watch-btn" style={{color:h.color,borderColor:`${h.color}60`}}>▶ شاهد</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── SmartMatch ─────────────────────────────────────────────────────────────────
+function SmartMatch({ friends }: { friends:any[] }) {
+  const [joined, setJoined] = useState(false);
+  const [cd, setCd] = useState(180);
+  useEffect(()=>{if(joined)return;const id=setInterval(()=>setCd(c=>c>0?c-1:0),1000);return()=>clearInterval(id);},[joined]);
+  const mm=String(Math.floor(cd/60)).padStart(2,"0"), ss=String(cd%60).padStart(2,"0");
+  const pct=(cd/180)*100;
+  const shown=friends.slice(0,3);
+  return (
+    <div className="section-box match-box">
+      <div className="match-pulse-ring"/>
+      <div className="section-hd">
+        <span className="section-title">🎯 فرصة انضمام</span>
+        <div className="match-live-badge"><span className="match-live-dot"/>LIVE</div>
+      </div>
+      <div className="match-game">Valorant</div>
+      <div className="match-meta">"Rush Squad" • {shown.length||3} لاعبين ينتظرون</div>
+      <div className="match-avatars">
+        {shown.length?shown.map((e:any)=>{const f=e.friend;const color=fColor(f.id);return(
+          <div key={f.id} className="match-av" style={{background:`linear-gradient(135deg,${color}88,${color}33)`,borderColor:color}}>
+            {f.avatarUrl?<img src={f.avatarUrl} alt=""/>:f.displayName.charAt(0)}
+          </div>
+        )}):[<div key="a" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>K</div>,<div key="b" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>S</div>,<div key="c" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>F</div>]}
+      </div>
+      {!joined&&<div className="match-countdown"><div className="match-cd-track"><div className="match-cd-fill" style={{width:`${pct}%`,background:pct<30?"#EF4444":pct<60?"#FFD700":"#22C55E"}}/></div><span className="match-cd-time" style={{color:pct<30?"#EF4444":"#ccc"}}>⏱ {mm}:{ss}</span></div>}
+      <button className={`match-btn${joined?" match-btn--done":""}`} onClick={()=>setJoined(j=>!j)}>{joined?"✓ انضممت!":"⚡ انضم الآن"}</button>
+    </div>
+  );
+}
+
+// ── ChallengeVs ────────────────────────────────────────────────────────────────
+function ChallengeVs({ me, friends }: { me:any; friends:any[] }) {
+  const [sel, setSel] = useState<any>(null);
+  const [sent, setSent] = useState(false);
+  const online = friends.filter(e=>e.friend.status==="online");
+  const myColor = "#06B6D4";
+  return (
+    <div className="section-box vs-box">
+      <div className="section-hd">
+        <span className="section-title">⚔️ تحدي 1v1</span>
+        <span style={{fontSize:9,color:"#EF4444",letterSpacing:1}}>مباشر</span>
+      </div>
+      <div className="vs-inner">
+        <div className="vs-you">
+          <div className="vs-av" style={{background:`linear-gradient(135deg,${myColor},${myColor}30)`,borderColor:myColor}}>
+            {me?.avatarUrl?<img src={me.avatarUrl} alt=""/>:(me?.displayName??"?").charAt(0)}
+          </div>
+          <div className="vs-name">أنت</div>
+          <div className="vs-rank">LVL {me?.tierLevel??1}</div>
+        </div>
+        <div className="vs-middle">
+          <div className="vs-text">VS</div>
+          {sent&&<div className="vs-sent">✓ تم الإرسال!</div>}
+        </div>
+        <div className="vs-enemy">
+          {sel?(
+            <>
+              <div className="vs-av" style={{background:`linear-gradient(135deg,${fColor(sel.id)},${fColor(sel.id)}30)`,borderColor:fColor(sel.id)}}>
+                {sel.avatarUrl?<img src={sel.avatarUrl} alt=""/>:sel.displayName.charAt(0)}
+              </div>
+              <div className="vs-name">{sel.displayName}</div>
+              <div className="vs-rank" style={{color:fColor(sel.id)}}>{sel.tier??""}</div>
+            </>
+          ):<div className="vs-pick">اختر خصماً</div>}
+        </div>
+      </div>
+      <div className="vs-friends">
+        {online.map(e=>{const f=e.friend;return(
+          <button key={f.id} className={`vs-chip${sel?.id===f.id?" vs-chip--on":""}`}
+            style={{borderColor:sel?.id===f.id?fColor(f.id):"#222",color:sel?.id===f.id?fColor(f.id):"#666"}}
+            onClick={()=>{setSel(f);setSent(false);}}>
+            {f.displayName.charAt(0)} {f.displayName}
+          </button>
+        );})}
+      </div>
+      <button className={`vs-send-btn${(!sel||sent)?" vs-send-btn--dis":""}`} onClick={()=>sel&&setSent(true)}>
+        {sent?"✓ تحدي مُرسل!":"⚔️ أرسل التحدي"}
+      </button>
+    </div>
+  );
+}
+
+// ── TournamentCard ─────────────────────────────────────────────────────────────
+function TournamentCard() {
+  const [joined, setJoined] = useState<number|null>(null);
+  return (
+    <div className="section-box">
+      <div className="section-hd">
+        <span className="section-title">🏟️ البطولات القادمة</span>
+        <span className="trn-hot-tag">🔥 HOT</span>
+      </div>
+      {TOURNAMENTS.map((t,i)=>(
+        <div key={i} className={`trn-row${t.hot?" trn-row--hot":""}`} style={{"--tc":t.color} as any}>
+          {t.hot&&<div className="trn-hot-bar" style={{background:t.color}}/>}
+          <div className="trn-main">
+            <div>
+              <div className="trn-name" style={{color:t.hot?t.color:"#ccc"}}>{t.name}</div>
+              <div className="trn-game">{t.game} • {t.date}</div>
+            </div>
+            <div style={{textAlign:"end"}}>
+              <div className="trn-prize" style={{color:t.color}}>{t.prize}</div>
+              <button className={`trn-join-btn${joined===i?" trn-join-btn--done":""}`}
+                style={{borderColor:t.color,color:joined===i?"#000":t.color,background:joined===i?t.color:"transparent"}}
+                onClick={()=>setJoined(i)}>
+                {joined===i?"✓ مسجّل":"سجّل الآن"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── ChallengeCard ──────────────────────────────────────────────────────────────
+function ChallengeCard({ challenges }: { challenges:any[] }) {
+  const [animated, setAnimated] = useState(false);
+  useEffect(()=>{setTimeout(()=>setAnimated(true),400);},[]);
+  const active = challenges.find(c=>c.status==="active");
+  if (!active && !challenges.length) return null;
+  const c = active ?? { title:"فاتح البارتيات", description:"انضم لـ 5 بارتيات مختلفة هذا الأسبوع", progress:3, goal:5, xpReward:200, expiresAt:"" };
+  const pct = Math.min(100, Math.round((c.progress/c.goal)*100));
+  return (
+    <div className="section-box challenge-box">
+      <div className="section-hd">
+        <span className="section-title">⚡ تحدي الأسبوع</span>
+        <span className="challenge-timer">🔥 يومان</span>
+      </div>
+      <div className="challenge-name">{c.title}</div>
+      <div className="challenge-desc">{c.description}</div>
+      <div className="challenge-track">
+        <div className="challenge-fill" style={{width:animated?`${pct}%`:"0%",transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}><div className="challenge-shimmer"/></div>
+        <span className="challenge-num">{c.progress} / {c.goal}</span>
+      </div>
+      <div className="challenge-rewards">
+        <span className="reward-chip">🎁 {c.xpReward} XP</span>
+        <span className="reward-chip">🏅 شارة حصرية</span>
+        <span className="reward-chip">👑 Pro أسبوع</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Leaderboard ────────────────────────────────────────────────────────────────
+function Leaderboard({ me, friends }: { me:any; friends:any[] }) {
+  const base = friends.map(e=>({
+    name: e.friend.displayName,
+    pts: Math.floor(Math.random()*3000+1500), // decorative
+    color: fColor(e.friend.id),
+    isMe: false,
+    id: e.friend.id,
+  }));
+  const myEntry = { name: me?.displayName??"أنت", pts:3990, color:"#06B6D4", isMe:true, id:0 };
+  const all = [...base, myEntry].sort((a,b)=>b.pts-a.pts).slice(0,5);
+  const max = all[0]?.pts??1;
+  return (
+    <div className="section-box">
+      <div className="section-hd">
+        <span className="section-title">🏆 الترتيب</span>
+        <span className="section-link">هذا الأسبوع</span>
+      </div>
+      <div className="lb-list">
+        {all.map((p,i)=>(
+          <div key={p.name+i} className={`lb-row${p.isMe?" lb-row--me":""}`}>
+            <span className="lb-pos" style={{color:i===0?"#FFD700":i===1?"#C0C0C0":i===2?"#CD7F32":"#555"}}>
+              {i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}
+            </span>
+            <span className="lb-name" style={{color:p.isMe?p.color:"#ccc"}}>{p.name}{p.isMe?" ★":""}</span>
+            <div className="lb-bar-wrap"><div className="lb-bar" style={{width:`${(p.pts/max)*100}%`,background:p.color,boxShadow:`0 0 8px ${p.color}60`}}/></div>
+            <span className="lb-pts" style={{color:p.color}}>{p.pts.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── AchievementShowcase ────────────────────────────────────────────────────────
+function AchievementShowcase({ achievements }: { achievements:any[] }) {
+  const fallback = [
+    {icon:"🏆",name:"Apex Predator",description:"وصلت للرتبة الأعلى في Apex",rarity:"LEGENDARY",color:"#FFD700"},
+    {icon:"⚡",name:"Rush Master",  description:"فزت بـ 10 مباريات متتالية",  rarity:"EPIC",     color:"#A855F7"},
+    {icon:"🎯",name:"Party Leader", description:"قدت 50 بارتي للفوز",          rarity:"RARE",     color:"#06B6D4"},
+  ];
+  const items = achievements.length ? achievements.slice(0,3).map((a:any)=>({
+    icon: a.icon??"🏆", name:a.name, description:a.description??a.name,
+    rarity: a.rarity??"RARE", color: a.color??"#06B6D4",
+  })) : fallback;
+  const [active, setActive] = useState(0);
+  useEffect(()=>{const id=setInterval(()=>setActive(a=>(a+1)%items.length),3000);return()=>clearInterval(id);},[items.length]);
+  const ach=items[active];
+  return (
+    <div className="section-box" style={{"--ac":ach.color} as any}>
+      <div className="section-hd">
+        <span className="section-title">🎖️ إنجازاتك</span>
+        <div className="ach-dots">{items.map((_,i)=><span key={i} className={`ach-dot${i===active?" ach-dot--on":""}`} onClick={()=>setActive(i)}/>)}</div>
+      </div>
+      <div className="ach-body">
+        <div className="ach-icon">{ach.icon}</div>
+        <div className="ach-info">
+          <div className="ach-rarity" style={{color:ach.color}}>{ach.rarity}</div>
+          <div className="ach-name">{ach.name}</div>
+          <div className="ach-desc">{ach.description}</div>
+        </div>
+        <div className="ach-glow" style={{background:ach.color}}/>
+      </div>
+    </div>
+  );
+}
+
+// ── ProCard ────────────────────────────────────────────────────────────────────
+function ProCard({ me }: { me:any }) {
+  if (!me?.isPro) return null;
+  return (
+    <div className="pro-card">
+      <div className="pro-bg"/>
+      <div className="pro-particles">{[...Array(6)].map((_,i)=><div key={i} className="pro-particle" style={{animationDelay:`${i*0.4}s`,left:`${15+i*14}%`}}/>)}</div>
+      <div className="pro-header">
+        <div className="pro-crown-wrap"><span className="pro-crown">👑</span><div className="pro-crown-glow"/></div>
+        <div><div className="pro-title">PRO MEMBER</div><div className="pro-exp">عضوية نشطة</div></div>
+        <div className="pro-active-pill">ACTIVE ✓</div>
+      </div>
+      <div className="pro-perks">
+        <div className="pro-perk"><span>🎙️</span><span>غرفتي الصوتية</span><span className="perk-on">نشطة</span></div>
+        <div className="pro-perk"><span>🤖</span><span>بوت LFG</span><span className="perk-on">مفعّل</span></div>
+        <div className="pro-perk"><span>🎨</span><span>إطار مخصص</span><span className="perk-on">مفعّل</span></div>
+        <div className="pro-perk"><span>🎁</span><span>إهداء Pro</span><span className="perk-avail">متاح</span></div>
+      </div>
+      <Link href="/pro" className="pro-manage">إدارة Pro ←</Link>
     </div>
   );
 }
@@ -524,246 +736,141 @@ export default function Dashboard() {
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const [, navigate] = useLocation();
   const { callUser, activeRoom } = useVoice();
-
-  const [openingDm, setOpeningDm]     = useState<number | null>(null);
-  const [blocking, setBlocking]       = useState<number | null>(null);
-  const [confirmBlock, setConfirmBlock] = useState<number | null>(null);
-
-  const blockUser   = useBlockUser();
   const queryClient = useQueryClient();
-  const { toast }   = useToast();
+  const { toast } = useToast();
+  const blockUser = useBlockUser();
 
-  const openDm = async (e: React.MouseEvent, friendId: number) => {
-    e.preventDefault(); e.stopPropagation();
-    if (openingDm) return;
-    setOpeningDm(friendId);
-    try {
-      const conv = await customFetch<{ id: number }>(`/api/conversations/direct/${friendId}`);
-      navigate(`/chat/${conv.id}`);
-    } finally { setOpeningDm(null); }
-  };
-
-  const { data: friendsSummary, isLoading: loadingFriends } = useGetOnlineFriendsSummary({
-    query: { refetchInterval: 5000, queryKey: getGetOnlineFriendsSummaryQueryKey() }
+  const { data: friendsSummary } = useGetOnlineFriendsSummary({
+    query: { refetchInterval:5000, queryKey:getGetOnlineFriendsSummaryQueryKey() }
   });
-
-  const { data: partyActivity, isLoading: loadingActivity } = useGetPartyActivityFeed({
-    query: { refetchInterval: 10000, queryKey: getGetPartyActivityFeedQueryKey() }
+  const { data: partyActivity } = useGetPartyActivityFeed({
+    query: { refetchInterval:10000, queryKey:getGetPartyActivityFeedQueryKey() }
   });
-
   const { data: invites } = useListPartyInvites({
-    query: { refetchInterval: 10000, queryKey: getListPartyInvitesQueryKey() }
+    query: { refetchInterval:10000, queryKey:getListPartyInvitesQueryKey() }
   });
-
   const acceptInvite  = useAcceptPartyInvite();
   const declineInvite = useDeclinePartyInvite();
 
-  const handleAcceptInvite = (inviteId: number) => {
-    acceptInvite.mutate({ inviteId }, {
-      onSuccess: () => {
-        toast({ title: t("toasts.inviteAccepted") });
-        queryClient.invalidateQueries({ queryKey: getListPartyInvitesQueryKey() });
-      }
-    });
-  };
-
-  const handleDeclineInvite = (inviteId: number) => {
-    declineInvite.mutate({ inviteId }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPartyInvitesQueryKey() })
-    });
-  };
-
-  // ticker events from activity feed
-  const tickerEvents = (partyActivity ?? []).slice(0, 8).map(a => {
-    const action = a.action === "created" ? t("activity.created") :
-                   a.action === "joined"  ? t("activity.joined")  :
-                   a.action === "left"    ? t("activity.left")    : t("activity.invited");
-    return `${a.actor.displayName} ${action} ${a.party.name}`;
+  const { data: lfgSuggestions } = useQuery<any[]>({
+    queryKey: ["lfg-suggestions"],
+    queryFn: () => customFetch("/api/lfg/suggestions"),
+    refetchInterval: 30000,
+  });
+  const { data: challenges } = useQuery<any[]>({
+    queryKey: ["challenges-dash"],
+    queryFn: () => customFetch("/api/challenges"),
+    refetchInterval: 60000,
+  });
+  const { data: achievements } = useQuery<any[]>({
+    queryKey: ["achievements-dash"],
+    queryFn: () => customFetch("/api/achievements"),
+    staleTime: 120000,
+  });
+  const { data: parties } = useQuery<any[]>({
+    queryKey: ["parties-active-dash"],
+    queryFn: () => customFetch("/api/parties?status=open"),
+    refetchInterval: 15000,
+  });
+  const { data: stats } = useQuery<any>({
+    queryKey: ["stats-me-dashboard"],
+    queryFn: () => customFetch("/api/stats/me"),
+    staleTime: 60000,
   });
 
-  // greeting
-  const hour = new Date().getHours();
-  const greeting = hour < 5  ? t("header.greetingNight") :
-                   hour < 12 ? t("header.greetingMorning") :
-                   hour < 17 ? t("header.greetingAfternoon") :
-                               t("header.greetingEvening");
+  // Ticker events from real activity feed
+  const TICKER_COLORS = ["#EC4899","#FFD700","#22C55E","#A855F7","#F97316","#06B6D4"];
+  const tickerEvents = (partyActivity??[]).slice(0,8).map((a:any,i:number)=>({
+    text: `${a.actor.displayName} ${a.action==="created"?"أنشأ":a.action==="joined"?"انضم لـ":a.action==="left"?"غادر":"دعي إلى"} ${a.party.name}`,
+    color: TICKER_COLORS[i % TICKER_COLORS.length],
+  }));
 
+  const friends = friendsSummary?.friends ?? [];
   const onlineCount = friendsSummary?.onlineCount ?? 0;
 
-  return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <LiveTicker events={tickerEvents} />
+  const hour = new Date().getHours();
+  const greeting = hour<5?"🌙 ليلة طيبة":hour<12?"🌅 صباح الخير":hour<17?"☀️ مساء النور":"🌙 مساء الخير";
 
-      <div className="flex-1 overflow-y-auto">
-        {/* ── Header ── */}
-        <div className="px-6 py-4 border-b border-border bg-card/50 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="text-[10px] font-mono text-muted-foreground tracking-[3px] uppercase mb-1">{greeting}</div>
-            <h1 className="text-2xl font-black font-mono tracking-tighter uppercase leading-none">
-              {me?.displayName ?? "—"}
-              {me?.isPro && <ProBadge size="sm" className="ms-2 align-middle" />}
-            </h1>
-            <div className="mt-2">
-              <XpBar me={me} />
+  const openDm = async (f: any) => {
+    try {
+      const conv = await customFetch<{ id:number }>(`/api/conversations/direct/${f.id}`);
+      navigate(`/chat/${conv.id}`);
+    } catch { toast({ title:"حدث خطأ", variant:"destructive" }); }
+  };
+
+  return (
+    <div className="dash-root">
+      <div className="dash-scanlines"/>
+
+      <LiveTicker events={tickerEvents}/>
+
+      {/* ── Party Invites Banner ── */}
+      {invites && invites.length > 0 && (
+        <div className="invite-banner">
+          <span className="invite-badge">دعوات • {invites.length}</span>
+          {invites.slice(0,2).map(inv=>(
+            <div key={inv.id} className="invite-card">
+              <div>
+                <div className="invite-card-name">{inv.party.name}</div>
+                <div className="invite-card-game">{inv.party.game??""} • {inv.invitedBy.username}</div>
+              </div>
+              <button className="invite-btn invite-btn--accept"
+                onClick={()=>acceptInvite.mutate({inviteId:inv.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getListPartyInvitesQueryKey()})})}>
+                قبول
+              </button>
+              <button className="invite-btn invite-btn--decline"
+                onClick={()=>declineInvite.mutate({inviteId:inv.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getListPartyInvitesQueryKey()})})}>
+                رفض
+              </button>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Header ── */}
+      <div className="dash-header">
+        <div className="dash-header-left">
+          <div className="dash-greeting">{greeting}</div>
+          <div className="dash-name">مرحباً، <span className="name-highlight">{me?.displayName?.toUpperCase()??"—"}</span> 👋</div>
+          <XpBar me={me}/>
+        </div>
+        <div className="dash-stats-row">
+          <StatCard icon="⏱️" value="24h"           label="هذا الأسبوع" color="#22C55E" sub="+3h من أمس"/>
+          <StatCard icon="🏆" value={`#${stats?.rank??3}`} label="الرتبة"     color="#FFD700" sub="بين الأصدقاء"/>
+          <StatCard icon="🌐" value={String(onlineCount)} label="Online الآن" color="#06B6D4" sub={`من ${friends.length}`}/>
+          <StatCard icon="🔥" value={`${stats?.streak??1}d`} label="Streak"  color="#F97316" sub="أيام متتالية"/>
+        </div>
+      </div>
+
+      <MoodStatus/>
+      <QuickDock inviteCount={invites?.length??0} streak={stats?.streak??1}/>
+
+      {/* ── Body ── */}
+      <div className="dash-body">
+        <div className="dash-main">
+          {/* top row: spin | graph | hub */}
+          <div className="dash-top-row">
+            <DailySpin userId={me?.id}/>
+            <WeeklyGraph stats={stats}/>
+            <HubCard lfgPosts={lfgSuggestions??[]} parties={parties??[]}/>
           </div>
-          <StatsRow me={me} friendsCount={onlineCount} />
+          <FriendsGrid
+            friends={friends}
+            onCall={f=>callUser({userId:f.id,username:f.username,displayName:f.displayName,avatarUrl:f.avatarUrl??null})}
+            onDm={openDm}
+            onBlock={f=>blockUser.mutate({userId:f.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getGetOnlineFriendsSummaryQueryKey()})})}
+          />
+          <CommunityHighlights activity={partyActivity??[]}/>
         </div>
 
-        {/* ── Quick Dock ── */}
-        <QuickDock inviteCount={invites?.length ?? 0} />
-
-        <div className="p-6 space-y-6">
-          {/* ── Party Invites ── */}
-          {invites && invites.length > 0 && (
-            <div className="bg-primary/5 border border-primary/20 p-4">
-              <h3 className="font-mono text-sm uppercase text-primary font-bold mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> {t("invites.title", { count: invites.length })}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {invites.map(invite => (
-                  <div key={invite.id} className="bg-card border border-border p-3 flex flex-col gap-3">
-                    <div>
-                      <div className="font-bold">{invite.party.name}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{t("invites.invitedBy", { username: invite.invitedBy.username })}</div>
-                      {invite.party.game && <div className="text-xs text-primary font-mono mt-1">[{invite.party.game}]</div>}
-                    </div>
-                    <div className="flex gap-2 mt-auto">
-                      <Button size="sm" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleAcceptInvite(invite.id)} disabled={acceptInvite.isPending}>{t("invites.accept")}</Button>
-                      <Button size="sm" variant="outline" className="flex-1 rounded-none font-mono text-xs h-8" onClick={() => handleDeclineInvite(invite.id)} disabled={declineInvite.isPending}>{t("invites.decline")}</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Main Grid ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT: friends + LFG */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Friends */}
-              <div className="border border-border bg-card">
-                <div className="px-4 py-3 border-b border-border bg-muted/30 flex justify-between items-center">
-                  <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary" /> {t("network.title")}
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="font-mono text-xs text-primary">{t("network.active", { count: onlineCount })}</span>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  {loadingFriends ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-[160px] rounded-none bg-muted" />)}
-                    </div>
-                  ) : !friendsSummary?.friends.length ? (
-                    <div className="text-center py-10 text-muted-foreground font-mono text-sm">
-                      {t("network.empty")}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {friendsSummary.friends.map(entry => (
-                        <FriendCard
-                          key={entry.id}
-                          entry={entry}
-                          onCall={() => callUser({
-                            userId: entry.friend.id,
-                            username: entry.friend.username,
-                            displayName: entry.friend.displayName,
-                            avatarUrl: entry.friend.avatarUrl ?? null,
-                          })}
-                          onDm={(e) => openDm(e, entry.friend.id)}
-                          onBlock={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmBlock(entry.friend.id); }}
-                          openingDm={openingDm === entry.friend.id}
-                          blocking={blocking === entry.friend.id}
-                          confirmBlock={confirmBlock === entry.friend.id}
-                          onConfirmBlock={(e) => {
-                            e.preventDefault(); e.stopPropagation();
-                            setBlocking(entry.friend.id);
-                            setConfirmBlock(null);
-                            blockUser.mutate({ userId: entry.friend.id }, {
-                              onSuccess: () => {
-                                toast({ title: t("network.blocked") });
-                                queryClient.invalidateQueries({ queryKey: getGetOnlineFriendsSummaryQueryKey() });
-                              },
-                              onSettled: () => setBlocking(null),
-                            });
-                          }}
-                          onCancelBlock={() => setConfirmBlock(null)}
-                          activeRoom={!!activeRoom}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* LFG Suggestions */}
-              <LfgSuggestions />
-            </div>
-
-            {/* RIGHT: activity + challenges + pro */}
-            <div className="space-y-4">
-              {/* Challenges */}
-              <ChallengesWidget />
-
-              {/* Activity Feed */}
-              <div className="border border-border bg-card">
-                <div className="px-4 py-3 border-b border-border bg-muted/30">
-                  <h2 className="font-mono text-sm uppercase tracking-widest font-bold flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-primary" /> {t("activity.title")}
-                  </h2>
-                </div>
-                <div>
-                  {loadingActivity ? (
-                    <div className="p-4 space-y-3">
-                      {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-none bg-muted" />)}
-                    </div>
-                  ) : !partyActivity?.length ? (
-                    <div className="p-4 text-center text-muted-foreground font-mono text-xs">{t("activity.empty")}</div>
-                  ) : (
-                    <div className="flex flex-col divide-y divide-border">
-                      {partyActivity.slice(0, 10).map(activity => (
-                        <div key={activity.id} className="p-3 flex gap-3 hover:bg-muted/10 transition-colors">
-                          <div className="shrink-0">
-                            {activity.actor.avatarUrl ? (
-                              <img src={activity.actor.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border border-border" />
-                            ) : (
-                              <div className="w-8 h-8 bg-muted flex items-center justify-center border border-border font-mono text-xs text-muted-foreground">
-                                {activity.actor.displayName.charAt(0)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 flex flex-col justify-center">
-                            <div className="text-sm leading-tight">
-                              <span className="font-bold">{activity.actor.displayName}</span>
-                              <span className="text-muted-foreground mx-1 text-xs font-mono">
-                                {activity.action === "created" ? t("activity.created") :
-                                 activity.action === "joined"  ? t("activity.joined")  :
-                                 activity.action === "left"    ? t("activity.left")    : t("activity.invited")}
-                              </span>
-                              <Link href={`/party/${activity.party.id}`} className="text-primary hover:underline font-mono text-xs">
-                                {activity.party.name}
-                              </Link>
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                              {new Date(activity.createdAt).toLocaleTimeString(i18n.language)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Pro Card */}
-              <ProWidget me={me} />
-            </div>
-          </div>
+        <div className="dash-side">
+          <SmartMatch friends={friends}/>
+          <ChallengeVs me={me} friends={friends}/>
+          <TournamentCard/>
+          <ChallengeCard challenges={challenges??[]}/>
+          <Leaderboard me={me} friends={friends}/>
+          <AchievementShowcase achievements={achievements??[]}/>
+          <ProCard me={me}/>
         </div>
       </div>
     </div>

@@ -55,7 +55,7 @@ function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br"; }) {
 }
 
 export default function Achievements() {
-  const { t } = useTranslation("ranks");
+  const { t } = useTranslation("achievements");
   const { data, isLoading } = useGetPlayerProgress({
     query: { refetchInterval: 15000, queryKey: getGetPlayerProgressQueryKey() },
   });

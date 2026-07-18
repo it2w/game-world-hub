@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 const _jwtSecretRaw = process.env.JWT_SECRET;
 if (!_jwtSecretRaw) {
@@ -86,7 +86,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
-  // Check suspension via a lightweight primary-key lookup.
+  // Check suspension and existence via a lightweight primary-key lookup.
   // Fail CLOSED on any error: a suspended user must never slip through.
   try {
     const [user] = await db

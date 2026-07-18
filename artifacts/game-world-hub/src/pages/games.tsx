@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { 
   useListAllGames, 
   useGetMe, 
@@ -26,6 +27,7 @@ const addGameSchema = z.object({
 });
 
 export default function Games() {
+  const { t } = useTranslation("games");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -81,15 +83,15 @@ export default function Games() {
       <div className="flex-1 space-y-6">
         <div className="border-b border-border pb-4">
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-            <Library className="w-8 h-8 text-primary" /> LOCAL_LIBRARY
+            <Library className="w-8 h-8 text-primary" /> {t("library.title")}
           </h1>
-          <p className="text-muted-foreground font-mono text-sm mt-1">{myGames?.length || 0} TITLES INDEXED</p>
+          <p className="text-muted-foreground font-mono text-sm mt-1">{t("library.indexed", { count: myGames?.length || 0 })}</p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {myGames?.length === 0 ? (
             <div className="col-span-full py-12 text-center border border-dashed border-border font-mono text-sm text-muted-foreground">
-              LIBRARY EMPTY. ACQUIRE TARGETS FROM DATABASE.
+              {t("library.empty")}
             </div>
           ) : (
             myGames?.map(ug => (
@@ -120,12 +122,12 @@ export default function Games() {
       {/* Global Database */}
       <div className="w-full md:w-80 shrink-0 space-y-4">
         <div className="bg-card border border-border p-4">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4">Master Database</h2>
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4">{t("database.title")}</h2>
           
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              placeholder="SEARCH CATALOG..." 
+              placeholder={t("database.searchPlaceholder")}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="font-mono pl-9 rounded-none border-border bg-background h-10"
@@ -134,16 +136,16 @@ export default function Games() {
 
           <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
             {filteredMasterList.length === 0 ? (
-              <div className="text-center py-4 text-xs font-mono text-muted-foreground">NO MATCHING TITLES</div>
+              <div className="text-center py-4 text-xs font-mono text-muted-foreground">{t("database.noResults")}</div>
             ) : (
               filteredMasterList.map(game => (
                 <div key={game.id} className="p-2 border border-border flex items-center justify-between hover:border-primary/50 transition-colors bg-background">
                   <div className="min-w-0 pr-2">
                     <div className="text-sm font-bold truncate">{game.name}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground truncate">{game.genre || 'Unknown'}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground truncate">{game.genre || t("database.unknownGenre")}</div>
                   </div>
                   <Button size="sm" variant="outline" className="shrink-0 h-7 rounded-none px-2 font-mono text-[10px] border-primary/30 text-primary hover:bg-primary/10" onClick={() => handleAddToLibrary(game.id)} disabled={addUserGame.isPending}>
-                    <Plus className="w-3 h-3" /> ADD
+                    <Plus className="w-3 h-3" /> {t("database.addToLibrary")}
                   </Button>
                 </div>
               ))
@@ -154,34 +156,34 @@ export default function Games() {
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="w-full rounded-none font-mono text-xs border-dashed">
-                  MISSING TARGET? ADD TO DB
+                  {t("database.addButton")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="border-border bg-card rounded-none">
                 <DialogHeader>
-                  <DialogTitle className="font-mono uppercase tracking-widest text-primary">Inject New Record</DialogTitle>
+                  <DialogTitle className="font-mono uppercase tracking-widest text-primary">{t("dialog.title")}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleAddMasterGame)} className="space-y-4 pt-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs">TITLE</FormLabel>
+                        <FormLabel className="font-mono text-xs">{t("dialog.fieldTitle")}</FormLabel>
                         <FormControl><Input {...field} className="font-mono rounded-none border-border" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="genre" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs">GENRE (OPTIONAL)</FormLabel>
+                        <FormLabel className="font-mono text-xs">{t("dialog.fieldGenre")}</FormLabel>
                         <FormControl><Input {...field} className="font-mono rounded-none border-border" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="coverUrl" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs">COVER URL (OPTIONAL)</FormLabel>
+                        <FormLabel className="font-mono text-xs">{t("dialog.fieldCover")}</FormLabel>
                         <FormControl><Input {...field} className="font-mono rounded-none border-border" /></FormControl>
                       </FormItem>
                     )} />
-                    <Button type="submit" className="w-full font-mono rounded-none" disabled={createMasterGame.isPending}>INJECT</Button>
+                    <Button type="submit" className="w-full font-mono rounded-none" disabled={createMasterGame.isPending}>{t("dialog.submit")}</Button>
                   </form>
                 </Form>
               </DialogContent>

@@ -578,8 +578,7 @@ router.post("/conversations/:conversationId/restore", requireAuth, async (req, r
 });
 
 // DELETE /conversations/:conversationId/messages/:messageId
-// Soft-delete: records the deletion for the requesting user only.
-// The message stays in the DB so other participants still see it.
+// Hard-delete: only the original sender may delete their own message.
 router.delete("/conversations/:conversationId/messages/:messageId", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
   const rawConv = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
@@ -596,10 +595,12 @@ router.delete("/conversations/:conversationId/messages/:messageId", requireAuth,
     .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)));
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
 
-  // Only the message author may delete it.
+  // Only the original sender may delete the message
   if (msg.senderId !== myId) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  // Record the per-user soft-delete (ignore duplicate if already deleted)
+  // Per-user soft-delete: insert a deletion record so the message is hidden
+  // only for the sender; the conversation history for the other participant
+  // is unaffected. (Matches the GET /messages filter on messageDeletionsTable.)
   await db.insert(messageDeletionsTable)
     .values({ messageId, userId: myId })
     .onConflictDoNothing();

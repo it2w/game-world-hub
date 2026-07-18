@@ -1,0 +1,22 @@
+{
+  "library": {
+    "title": "المكتبة المحلية",
+    "indexed": "{{count}} عنوان مُفهرس",
+    "empty": "المكتبة فارغة. أضف ألعابًا من قاعدة البيانات."
+  },
+  "database": {
+    "title": "قاعدة البيانات الرئيسية",
+    "searchPlaceholder": "ابحث في الفهرس...",
+    "noResults": "لا توجد عناوين مطابقة",
+    "unknownGenre": "غير معروف",
+    "addButton": "لم تجد لعبتك؟ أضفها",
+    "addToLibrary": "إضافة"
+  },
+  "dialog": {
+    "title": "إضافة سجل جديد",
+    "fieldTitle": "الاسم",
+    "fieldGenre": "الفئة (اختياري)",
+    "fieldCover": "رابط الغلاف (اختياري)",
+    "submit": "حفظ"
+  }
+}

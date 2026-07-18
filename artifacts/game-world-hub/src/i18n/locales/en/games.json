@@ -1,0 +1,22 @@
+{
+  "library": {
+    "title": "LOCAL_LIBRARY",
+    "indexed": "{{count}} TITLES INDEXED",
+    "empty": "LIBRARY EMPTY. ACQUIRE TARGETS FROM DATABASE."
+  },
+  "database": {
+    "title": "Master Database",
+    "searchPlaceholder": "SEARCH CATALOG...",
+    "noResults": "NO MATCHING TITLES",
+    "unknownGenre": "Unknown",
+    "addButton": "MISSING TARGET? ADD TO DB",
+    "addToLibrary": "ADD"
+  },
+  "dialog": {
+    "title": "Inject New Record",
+    "fieldTitle": "TITLE",
+    "fieldGenre": "GENRE (OPTIONAL)",
+    "fieldCover": "COVER URL (OPTIONAL)",
+    "submit": "INJECT"
+  }
+}

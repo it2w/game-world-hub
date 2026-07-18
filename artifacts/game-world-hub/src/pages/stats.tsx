@@ -73,8 +73,6 @@ export default function StatsPage() {
     ? Math.round((stats.xpProgress.xpIntoLevel / stats.xpProgress.xpForNext) * 100)
     : 100;
 
-  const proFeatures: string[] = t("proFeatures", { returnObjects: true }) as string[];
-
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       {/* Header */}
@@ -128,41 +126,34 @@ export default function StatsPage() {
         ))}
       </div>
 
-      {/* Advanced — Pro only */}
-      {stats.isPro ? (
-        <div className="bg-card border border-border p-6 space-y-4">
-          <h2 className="font-mono text-sm uppercase text-primary tracking-widest flex items-center gap-2">
-            <Crown className="w-4 h-4" />
-            {t("weeklyActivity")} <ProBadge size="icon" />
-          </h2>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <XAxis dataKey="day" tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 0, fontFamily: "monospace", fontSize: 12 }}
-                cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-              />
-              <Bar dataKey="activity" radius={0}>
-                {weeklyData.map((_, i) => (
-                  <Cell key={i} fill={i === new Date().getDay() ? "hsl(var(--primary))" : "hsl(var(--muted-foreground)/0.4)"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="bg-card border border-primary/30 p-8 text-center space-y-3">
-          <Crown className="w-8 h-8 text-primary mx-auto" />
-          <h3 className="font-mono font-bold text-primary uppercase tracking-widest">{t("upgradeTitle")}</h3>
-          <p className="font-mono text-sm text-muted-foreground">{t("upgradeDesc")}</p>
-          <ul className="font-mono text-xs text-muted-foreground space-y-1 text-start max-w-xs mx-auto">
-            {proFeatures.map(p => (
-              <li key={p}>✓ {p}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Weekly Activity — visible for all users */}
+      <div className="bg-card border border-border p-6 space-y-4">
+        <h2 className="font-mono text-sm uppercase text-primary tracking-widest flex items-center gap-2">
+          <Crown className="w-4 h-4" />
+          {t("weeklyActivity")}
+        </h2>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <XAxis dataKey="day" tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 0, fontFamily: "monospace", fontSize: 12 }}
+              cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+            />
+            <Bar dataKey="activity" radius={0}>
+              {weeklyData.map((_, i) => (
+                <Cell key={i} fill={i === new Date().getDay() ? "hsl(var(--primary))" : "hsl(var(--muted-foreground)/0.4)"} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        {!stats.isPro && (
+          <p className="font-mono text-xs text-muted-foreground border-t border-border pt-3 flex items-center gap-2">
+            <Crown className="w-3 h-3 text-primary flex-shrink-0" />
+            {t("upgradeDesc")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

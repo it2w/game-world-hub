@@ -8,7 +8,7 @@ import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X } from "lucide-react";
-import { TierBadge, DivisionBadge, TierPip, type TierName } from "@/components/tier-badge";
+import { TierBadge, DivisionBadge, TierPip, getDivision, TIER_CONFIG, type TierName } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
@@ -320,38 +320,99 @@ export default function Profile() {
             </p>
           )}
 
-          {/* Rank + XP block */}
-          {"tier" in user && user.tier && (
-            <div className="bg-background border border-border px-4 py-3 flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-4 shrink-0">
-                <TierBadge
-                  tier={user.tier as TierName}
-                  level={user.tierLevel ?? 1}
-                  xpIntoLevel={user.xpIntoLevel ?? 0}
-                  xpForNext={user.xpForNext ?? 400}
-                  size="sm"
-                />
-                <DivisionBadge
-                  tier={user.tier as TierName}
-                  level={user.tierLevel ?? 1}
-                  size="sm"
-                />
-              </div>
-              <div className="hidden sm:block w-px self-stretch bg-border shrink-0" />
-              <div className="flex-1 min-w-[120px] space-y-1.5">
-                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
-                  <span>XP</span>
-                  <span className="text-primary">{user.xpIntoLevel ?? 0} / {user.xpForNext ?? 400}</span>
+          {/* Rank + XP block — Design 4 holographic style */}
+          {"tier" in user && user.tier && (() => {
+            const t2 = user.tier as TierName;
+            const cfg2 = TIER_CONFIG[t2] ?? TIER_CONFIG["INITIATE"];
+            const C1 = cfg2.color1, C2 = cfg2.color2, BR = cfg2.border;
+            const lv = user.tierLevel ?? 1;
+            const xpIn = user.xpIntoLevel ?? 0;
+            const xpNx = user.xpForNext ?? 400;
+            const pct = xpNx > 0 ? Math.min(100, Math.round((xpIn / xpNx) * 100)) : 0;
+            const div = getDivision(t2, lv);
+            return (
+              <div style={{ position: "relative" }}>
+                {/* outer glow frame */}
+                <div style={{ position:"absolute", inset:-1, background:`linear-gradient(135deg,${C1}55,${C2}22,transparent,${C1}33)` }} />
+                <div style={{ position:"relative", background:"hsl(var(--card))", overflow:"hidden" }}>
+                  {/* scanlines */}
+                  <div style={{ position:"absolute", inset:0, pointerEvents:"none", opacity:0.018, backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.6) 2px,rgba(255,255,255,0.6) 3px)" }} />
+                  {/* corner brackets */}
+                  {(["tl","tr","bl","br"] as const).map(pos => (
+                    <div key={pos} style={{
+                      position:"absolute",
+                      top: pos.startsWith("t") ? 6 : undefined,
+                      bottom: pos.startsWith("b") ? 6 : undefined,
+                      left: pos.endsWith("l") ? 6 : undefined,
+                      right: pos.endsWith("r") ? 6 : undefined,
+                      width:10, height:10,
+                      borderColor:"rgba(255,255,255,0.55)", borderStyle:"solid",
+                      borderTopWidth:    pos.startsWith("t") ? 2 : 0,
+                      borderBottomWidth: pos.startsWith("b") ? 2 : 0,
+                      borderLeftWidth:   pos.endsWith("l")   ? 2 : 0,
+                      borderRightWidth:  pos.endsWith("r")   ? 2 : 0,
+                    }} />
+                  ))}
+                  {/* header bar */}
+                  <div style={{ borderBottom:`1px solid ${C1}66`, padding:"5px 16px", display:"flex", justifyContent:"space-between", background:"rgba(0,0,0,0.2)" }}>
+                    <span style={{ fontFamily:"monospace", fontSize:8, color:`${C1}99`, letterSpacing:"0.3em" }}>// RANK //</span>
+                    <span style={{ fontFamily:"monospace", fontSize:8, color:`${C1}99`, letterSpacing:"0.2em" }}>S01</span>
+                  </div>
+                  {/* body */}
+                  <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+                    {/* badge */}
+                    <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", alignItems:"center", gap:8, borderInlineEnd:`1px solid ${C1}66`, background:"rgba(0,0,0,0.12)", flexShrink:0, position:"relative" }}>
+                      <div style={{ position:"absolute", width:100, height:100, borderRadius:"50%", border:`1px solid ${C1}44`, pointerEvents:"none" }} />
+                      <div style={{ position:"absolute", width:80,  height:80,  borderRadius:"50%", border:`1px solid ${C1}66`, pointerEvents:"none" }} />
+                      <TierBadge tier={t2} level={lv} xpIntoLevel={xpIn} xpForNext={xpNx} size="sm" showXpBar={false} />
+                      <div style={{ border:`1px solid ${C1}99`, padding:"2px 10px", fontFamily:"monospace", fontSize:8, color:C1, letterSpacing:"0.2em", textAlign:"center", boxShadow:`0 0 8px ${C1}22 inset` }}>
+                        DIV {div}
+                      </div>
+                    </div>
+                    {/* info */}
+                    <div style={{ flex:1, padding:"12px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+                      <div>
+                        <div style={{ fontFamily:"monospace", fontSize:8, color:`${C1}cc`, letterSpacing:"0.3em", marginBottom:3 }}>[ الرتبة ]</div>
+                        <svg height="36" style={{ display:"block", overflow:"visible", filter:`drop-shadow(0 0 10px ${C1}77)` }}>
+                          <defs>
+                            <linearGradient id={`pg-${t2}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%"   stopColor="#ffffff" />
+                              <stop offset="55%"  stopColor={BR} />
+                              <stop offset="100%" stopColor={C1} />
+                            </linearGradient>
+                          </defs>
+                          <text x="0" y="31" fill={`url(#pg-${t2})`} fontSize="32" fontWeight="900" fontFamily="Arial Black, sans-serif">
+                            {cfg2.labelAr}
+                          </text>
+                        </svg>
+                        <div style={{ fontFamily:"monospace", fontSize:8, color:`${C1}99`, letterSpacing:"0.25em", marginTop:2 }}>{cfg2.label} // LVL {lv}</div>
+                      </div>
+                      {/* divider */}
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <div style={{ flex:1, height:1, background:`linear-gradient(90deg,transparent,${C1}cc)` }} />
+                        <span style={{ color:C1, fontSize:10 }}>⚔</span>
+                        <div style={{ flex:1, height:1, background:`linear-gradient(90deg,${C1}cc,transparent)` }} />
+                      </div>
+                      {/* XP bar */}
+                      <div>
+                        <div style={{ display:"flex", justifyContent:"space-between", fontFamily:"monospace", fontSize:8, marginBottom:4 }}>
+                          <span style={{ color:BR }}>█ {xpIn} XP</span>
+                          <span style={{ color:"rgba(255,255,255,0.3)" }}>{xpNx} XP ▓</span>
+                        </div>
+                        <div style={{ height:6, background:"rgba(0,0,0,0.4)", border:`1px solid ${C1}88`, position:"relative", overflow:"hidden" }}>
+                          <div style={{ width:`${pct}%`, height:"100%", background:`linear-gradient(90deg,${C2},${C1},${BR})`, boxShadow:`0 0 10px ${C1}99`, transition:"width 0.7s ease" }} />
+                          <div style={{ position:"absolute", inset:0, backgroundImage:"repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,0.25) 4px,rgba(0,0,0,0.25) 5px)" }} />
+                        </div>
+                        <div style={{ fontFamily:"monospace", fontSize:8, color:`${C1}aa`, marginTop:3 }}>
+                          {xpNx - xpIn} XP → LVL {lv + 1}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all"
-                    style={{ width: `${Math.min(100, Math.round(((user.xpIntoLevel ?? 0) / (user.xpForNext ?? 400)) * 100))}%` }}
-                  />
-                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Stats row */}
           <div className="flex flex-wrap gap-3">

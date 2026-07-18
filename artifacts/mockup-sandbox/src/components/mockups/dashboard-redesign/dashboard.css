@@ -63,7 +63,7 @@
 .dash-body { display:grid;grid-template-columns:1fr 330px;gap:10px;padding:10px 20px 0; }
 .dash-main { display:flex;flex-direction:column;gap:10px; }
 .dash-side { display:flex;flex-direction:column;gap:8px; }
-.dash-top-row { display:grid;grid-template-columns:220px 1fr;gap:10px; }
+.dash-top-row { display:grid;grid-template-columns:220px 220px 1fr;gap:10px; }
 
 /* ── Section Box ──────────────────────────────────────────────────────────────── */
 .section-box { background:#0d0d0d;border:1px solid #1c1c1c;overflow:hidden;position:relative; }
@@ -107,25 +107,25 @@
   background: #22C55E15; border: 1px solid #22C55E40;
   padding: 2px 7px; letter-spacing: 1px;
 }
-.wg-body { padding: 10px 14px 12px; }
+.wg-body { padding: 8px 12px 10px; }
 
 .wg-summary {
-  display: flex; align-items: center; gap: 0;
+  display: flex; align-items: center;
   background: #111; border: 1px solid #1e1e1e;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
-.wg-sum-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 2px; }
-.wg-sum-val { font-size: 20px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
-.wg-sum-label { font-size: 8px; color: #555; letter-spacing: 1px; text-transform: uppercase; }
-.wg-divider { width: 1px; height: 32px; background: #1e1e1e; }
+.wg-sum-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 5px 0; gap: 1px; }
+.wg-sum-val { font-size: 14px; font-weight: 900; letter-spacing: -0.5px; line-height: 1; }
+.wg-sum-label { font-size: 7px; color: #555; letter-spacing: 1px; text-transform: uppercase; }
+.wg-divider { width: 1px; height: 22px; background: #1e1e1e; }
 
 .wg-bars {
-  display: flex; align-items: flex-end; gap: 6px;
-  height: 100px; position: relative;
+  display: flex; align-items: flex-end; gap: 4px;
+  height: 90px; position: relative;
 }
 .wg-bar-col {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; gap: 5px; position: relative;
+  align-items: center; gap: 4px; position: relative;
   cursor: pointer; height: 100%;
 }
 .wg-track {
@@ -133,41 +133,41 @@
   display: flex; align-items: flex-end; justify-content: center;
 }
 .wg-fill {
-  width: 100%; border-radius: 2px 2px 0 0;
+  width: 72%; border-radius: 3px 3px 0 0;
   position: relative; overflow: hidden;
   transition: height 1s cubic-bezier(.4,0,.2,1), opacity .15s;
-  min-height: 4px;
+  min-height: 3px;
 }
 .wg-fill-shine {
   position: absolute; top: 0; left: 0; right: 0; height: 40%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent);
   border-radius: 2px 2px 0 0;
 }
 .wg-marker {
-  position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
-  width: 8px; height: 8px; border-radius: 50%;
+  position: absolute; top: -3px; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 6px; border-radius: 50%;
 }
 .wg-day {
-  font-size: 9px; text-align: center;
+  font-size: 8px; text-align: center;
   transition: color .15s; flex-shrink: 0;
 }
 .wg-today-tag {
-  font-size: 7px; color: #22C55E; letter-spacing: 1px;
-  line-height: 1; margin-top: -3px;
+  font-size: 6px; color: #22C55E; letter-spacing: 0.5px;
+  line-height: 1; margin-top: -2px;
 }
 .wg-tooltip {
-  position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
   background: #111; border: 1px solid;
-  font-size: 9px; font-weight: 900; padding: 3px 6px;
+  font-size: 8px; font-weight: 900; padding: 2px 5px;
   white-space: nowrap; z-index: 10;
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 3px;
   pointer-events: none;
 }
 .wg-tooltip::after {
   content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 4px solid transparent; border-top-color: #333;
+  border: 3px solid transparent; border-top-color: #333;
 }
-.wg-best-tag { font-size: 7px; }
+.wg-best-tag { font-size: 6px; }
 
 /* ── Graph old ────────────────────────────────────────────────────────────────── */
 

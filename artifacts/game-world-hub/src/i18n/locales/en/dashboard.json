@@ -3,10 +3,14 @@
     "title": "OVERVIEW",
     "status": "STATUS: {{status}}",
     "browseParties": "BROWSE PARTIES",
-    "createParty": "CREATE PARTY"
+    "createParty": "CREATE PARTY",
+    "greetingMorning": "🌅 Good Morning",
+    "greetingAfternoon": "☀️ Good Afternoon",
+    "greetingEvening": "🌙 Good Evening",
+    "greetingNight": "🌙 Good Night"
   },
   "invites": {
-    "title_one": "PENDING INVITES ({{count}})",
+    "title_one": "PENDING INVITE ({{count}})",
     "title_other": "PENDING INVITES ({{count}})",
     "invitedBy": "Invited by @{{username}}",
     "accept": "ACCEPT",
@@ -33,6 +37,34 @@
     "joined": "joined party",
     "left": "left party",
     "invited": "invited to"
+  },
+  "lfg": {
+    "title": "LFG — LOOKING FOR GROUP",
+    "viewAll": "VIEW ALL",
+    "join": "JOIN",
+    "joined": "JOINED",
+    "responded": "Joined successfully!",
+    "respondError": "Something went wrong, try again"
+  },
+  "challenges": {
+    "title": "ACTIVE_CHALLENGES",
+    "viewAll": "VIEW ALL"
+  },
+  "dock": {
+    "newParty": "NEW PARTY",
+    "lfg": "POST LFG",
+    "friends": "FRIENDS",
+    "messages": "MESSAGES",
+    "challenges": "CHALLENGES",
+    "achievements": "ACHIEVEMENTS",
+    "invites": "INVITES"
+  },
+  "pro": {
+    "myRoom": "My Voice Room",
+    "lfgBot": "LFG Bot",
+    "active": "ACTIVE",
+    "enabled": "ENABLED",
+    "manage": "MANAGE PRO"
   },
   "toasts": {
     "inviteAccepted": "Invite accepted"

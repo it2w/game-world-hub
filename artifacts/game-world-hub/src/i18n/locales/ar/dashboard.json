@@ -3,7 +3,11 @@
     "title": "نظرة عامة",
     "status": "الحالة: {{status}}",
     "browseParties": "تصفح المجموعات",
-    "createParty": "إنشاء مجموعة"
+    "createParty": "إنشاء مجموعة",
+    "greetingMorning": "🌅 صباح الخير",
+    "greetingAfternoon": "☀️ مساء النور",
+    "greetingEvening": "🌙 مساء الخير",
+    "greetingNight": "🌙 ليلة طيبة"
   },
   "invites": {
     "title_one": "دعوة معلقة ({{count}})",
@@ -13,7 +17,7 @@
     "decline": "رفض"
   },
   "network": {
-    "title": "الشبكة المتصلة",
+    "title": "الأصدقاء المتصلون",
     "active": "{{count}} نشط",
     "empty": "لا يوجد لاعبون متصلون",
     "openChat": "فتح الدردشة",
@@ -33,6 +37,34 @@
     "joined": "انضم إلى",
     "left": "غادر",
     "invited": "دُعي إلى"
+  },
+  "lfg": {
+    "title": "LFG — البحث عن لاعبين",
+    "viewAll": "عرض الكل",
+    "join": "انضم",
+    "joined": "انضممت",
+    "responded": "تم الانضمام!",
+    "respondError": "حدث خطأ، حاول مجدداً"
+  },
+  "challenges": {
+    "title": "التحديات النشطة",
+    "viewAll": "عرض الكل"
+  },
+  "dock": {
+    "newParty": "بارتي جديد",
+    "lfg": "نشر LFG",
+    "friends": "الأصدقاء",
+    "messages": "الرسائل",
+    "challenges": "التحديات",
+    "achievements": "الإنجازات",
+    "invites": "دعوات"
+  },
+  "pro": {
+    "myRoom": "غرفتي الصوتية",
+    "lfgBot": "بوت LFG",
+    "active": "نشطة",
+    "enabled": "مفعّل",
+    "manage": "إدارة Pro"
   },
   "toasts": {
     "inviteAccepted": "تم قبول الدعوة"

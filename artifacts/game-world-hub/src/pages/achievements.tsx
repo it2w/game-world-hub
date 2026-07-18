@@ -20,32 +20,39 @@ import {
   Check,
   type LucideIcon,
 } from "lucide-react";
-import { TierBadge, DivisionBadge, type TierName } from "@/components/tier-badge";
+import { TierBadge, DivisionBadge, getDivision, TIER_CONFIG, type TierName } from "@/components/tier-badge";
 
 const ICONS: Record<string, LucideIcon> = {
-  UserPlus,
-  Users,
-  Crown,
-  Swords,
-  MessageSquare,
-  Radar,
-  Handshake,
-  Gamepad2,
-  Link2,
-  Shield,
-  Trophy,
+  UserPlus, Users, Crown, Swords, MessageSquare,
+  Radar, Handshake, Gamepad2, Link2, Shield, Trophy,
 };
 
 const STAT_KEYS = new Set([
-  "friends",
-  "partiesCreated",
-  "partiesJoined",
-  "messagesSent",
-  "lfgPosts",
-  "lfgResponses",
-  "games",
-  "platforms",
+  "friends", "partiesCreated", "partiesJoined",
+  "messagesSent", "lfgPosts", "lfgResponses", "games", "platforms",
 ]);
+
+/* ── corner bracket helper ──────────────────────────────────────── */
+function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br"; }) {
+  const color = "rgba(255,255,255,0.25)";
+  const size = 14;
+  const style: React.CSSProperties = {
+    position: "absolute",
+    width: size,
+    height: size,
+    borderColor: color,
+    borderStyle: "solid",
+    borderTopWidth:    pos.startsWith("t") ? 2 : 0,
+    borderBottomWidth: pos.startsWith("b") ? 2 : 0,
+    borderLeftWidth:   pos.endsWith("l")   ? 2 : 0,
+    borderRightWidth:  pos.endsWith("r")   ? 2 : 0,
+    top:    pos.startsWith("t") ? 8 : undefined,
+    bottom: pos.startsWith("b") ? 8 : undefined,
+    left:   pos.endsWith("l")   ? 8 : undefined,
+    right:  pos.endsWith("r")   ? 8 : undefined,
+  };
+  return <div style={style} />;
+}
 
 export default function Achievements() {
   const { t } = useTranslation("ranks");
@@ -55,8 +62,8 @@ export default function Achievements() {
 
   if (isLoading || !data) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="py-12 text-center font-mono text-sm text-muted-foreground">
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="py-16 text-center font-mono text-sm text-muted-foreground tracking-widest">
           {t("computing")}
         </div>
       </div>
@@ -64,66 +71,216 @@ export default function Achievements() {
   }
 
   const pct = data.xpForNext > 0 ? Math.min(100, Math.round((data.xpIntoLevel / data.xpForNext) * 100)) : 0;
+  const tier = data.rank as TierName;
+  const cfg  = TIER_CONFIG[tier] ?? TIER_CONFIG["INITIATE"];
+  const div  = getDivision(tier, data.level);
+  const isTopDiv = div === "I";
+
+  const C1 = cfg.color1;
+  const C2 = cfg.color2;
+  const BORDER_C = cfg.border;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-          <Trophy className="w-7 h-7 text-primary" /> {t("title")}
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+
+      {/* ── page header ─────────────────────────────────────── */}
+      <div className="border-b border-border pb-4 flex items-center gap-3">
+        <Trophy className="w-6 h-6 text-primary" />
+        <h1 className="text-2xl font-black font-mono tracking-tighter uppercase text-foreground">
+          {t("title")}
         </h1>
-        <p className="text-muted-foreground font-mono text-sm mt-1">
+        <span className="font-mono text-xs text-muted-foreground ms-auto">
           {t("progression", { unlocked: data.unlockedCount, total: data.totalCount })}
-        </p>
+        </span>
       </div>
 
-      {/* Rank + XP */}
-      <div className="bg-card border border-border">
-        <div className="flex flex-col lg:flex-row">
-          <div className="flex items-center gap-6 p-6 border-b lg:border-b-0 lg:border-e border-border">
-            <TierBadge
-              tier={data.rank as TierName}
-              level={data.level}
-              xpIntoLevel={data.xpIntoLevel}
-              xpForNext={data.xpForNext}
-              size="md"
-              showXpBar={false}
-            />
-            <DivisionBadge
-              tier={data.rank as TierName}
-              level={data.level}
-              size="md"
-            />
-            <div className="hidden sm:block">
-              <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{t("rank")}</div>
-              <div className="text-2xl font-bold font-mono uppercase tracking-wider text-foreground">
-                {t(`rankTitles.${data.rank}`, { defaultValue: data.rank })}
-              </div>
-              <div className="mt-1 flex items-center gap-1 text-xs font-mono text-primary">
-                <Zap className="w-3 h-3" /> {t("totalXp", { xp: data.totalXp.toLocaleString("en-US") })}
-              </div>
-            </div>
+      {/* ── Design-4 rank hero ──────────────────────────────── */}
+      <div style={{ position: "relative" }}>
+        {/* outer glow frame */}
+        <div style={{
+          position: "absolute", inset: -1, borderRadius: 2,
+          background: `linear-gradient(135deg,${C1}44,${C2}22,transparent,${C1}22)`,
+        }} />
+
+        <div style={{
+          position: "relative",
+          background: "hsl(var(--card))",
+          border: "1px solid transparent",
+          overflow: "hidden",
+        }}>
+          {/* scanlines */}
+          <div style={{
+            position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10,
+            opacity: 0.018,
+            backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.6) 2px,rgba(255,255,255,0.6) 3px)",
+          }} />
+
+          {/* corner brackets */}
+          <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
+
+          {/* top header bar */}
+          <div style={{
+            borderBottom: `1px solid ${C1}22`,
+            padding: "7px 20px",
+            display: "flex",
+            justifyContent: "space-between",
+            background: "rgba(0,0,0,0.2)",
+          }}>
+            <span style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}88`, letterSpacing: "0.3em" }}>
+              // RANK SYSTEM v2.0 //
+            </span>
+            <span style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}88`, letterSpacing: "0.2em" }}>
+              SEASON_01
+            </span>
           </div>
 
-          <div className="flex-1 p-6 flex flex-col justify-center">
-            <div className="flex items-center justify-between text-xs font-mono uppercase text-muted-foreground mb-2">
-              <span>{t("level", { level: data.level })}</span>
-              <span>{t("xpProgress", { into: data.xpIntoLevel, forNext: data.xpForNext })}</span>
+          {/* main body: badge | divider | info */}
+          <div style={{ display: "flex", alignItems: "stretch" }}>
+
+            {/* ── badge panel ── */}
+            <div style={{
+              width: 180,
+              flexShrink: 0,
+              padding: "24px 20px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              borderInlineEnd: `1px solid ${C1}22`,
+              background: "rgba(0,0,0,0.12)",
+              position: "relative",
+            }}>
+              {/* holo rings */}
+              <div style={{ position: "absolute", width: 170, height: 170, borderRadius: "50%", border: `1px solid ${C1}16`, pointerEvents: "none" }} />
+              <div style={{ position: "absolute", width: 145, height: 145, borderRadius: "50%", border: `1px solid ${C1}28`, pointerEvents: "none" }} />
+
+              <TierBadge
+                tier={tier}
+                level={data.level}
+                xpIntoLevel={data.xpIntoLevel}
+                xpForNext={data.xpForNext}
+                size="md"
+                showXpBar={false}
+              />
+
+              {/* DIV chip */}
+              <div style={{
+                border: `1px solid ${C1}99`,
+                padding: "3px 16px",
+                fontFamily: "monospace",
+                fontSize: 10,
+                color: C1,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                textAlign: "center",
+                width: "100%",
+                boxSizing: "border-box",
+                boxShadow: `0 0 10px ${C1}22 inset, 0 0 6px ${C1}22`,
+              }}>
+                {isTopDiv ? "★ " : ""}DIV {div}
+              </div>
             </div>
-            <div className="h-3 bg-muted border border-border overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <div className="mt-2 text-[11px] font-mono text-muted-foreground">
-              {t("xpToNext", { xp: data.xpForNext - data.xpIntoLevel, level: data.level + 1 })}
+
+            {/* ── info panel ── */}
+            <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 12 }}>
+
+              {/* rank label + name */}
+              <div>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}66`, letterSpacing: "0.35em", marginBottom: 4 }}>
+                  [ {t("rank")} ]
+                </div>
+                {/* SVG gradient name — works in all iframe/browser contexts */}
+                <svg height="52" style={{ display: "block", overflow: "visible", marginBottom: 2, filter: `drop-shadow(0 0 14px ${C1}77)` }}>
+                  <defs>
+                    <linearGradient id={`nameGrad-${tier}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#ffffff" />
+                      <stop offset="55%"  stopColor={BORDER_C} />
+                      <stop offset="100%" stopColor={C1} />
+                    </linearGradient>
+                  </defs>
+                  <text
+                    x="0" y="46"
+                    fill={`url(#nameGrad-${tier})`}
+                    fontSize="46"
+                    fontWeight="900"
+                    fontFamily="Arial Black, sans-serif"
+                  >
+                    {t(`rankTitles.${tier}`, { defaultValue: cfg.label })}
+                  </text>
+                </svg>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: `${C1}88`, letterSpacing: "0.3em" }}>
+                  {cfg.label} // LVL {data.level}
+                </div>
+              </div>
+
+              {/* decorative divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,transparent,${C1}55)` }} />
+                <Swords style={{ width: 12, height: 12, color: C1, opacity: 0.7 }} />
+                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,${C1}55,transparent)` }} />
+              </div>
+
+              {/* XP bar */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "monospace", fontSize: 9, marginBottom: 5 }}>
+                  <span style={{ color: BORDER_C }}>█ {data.xpIntoLevel.toLocaleString()} XP</span>
+                  <span style={{ color: "rgba(255,255,255,0.2)" }}>{data.xpForNext.toLocaleString()} XP ▓</span>
+                </div>
+                <div style={{
+                  height: 8,
+                  background: "rgba(0,0,0,0.4)",
+                  border: `1px solid ${C1}33`,
+                  position: "relative",
+                  overflow: "hidden",
+                }}>
+                  <div style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    background: `linear-gradient(90deg,${C2},${C1},${BORDER_C})`,
+                    boxShadow: `0 0 14px ${C1}99, 0 0 6px ${C1}`,
+                    transition: "width 0.7s ease",
+                  }} />
+                  {/* scanlines on bar */}
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,0.25) 4px,rgba(0,0,0,0.25) 5px)",
+                  }} />
+                </div>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}55`, marginTop: 4 }}>
+                  {(data.xpForNext - data.xpIntoLevel).toLocaleString()} XP_REMAINING → LEVEL_{data.level + 1}
+                </div>
+              </div>
+
+              {/* stats mini-grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+                {Object.entries(data.stats).slice(0, 4).map(([key, value]) => (
+                  <div key={key} style={{
+                    display: "flex", flexDirection: "column",
+                    padding: "7px 10px",
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 900, color: C1, lineHeight: 1 }}>
+                      {String(value).padStart(2, "0")}
+                    </span>
+                    <span style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em", marginTop: 3, textTransform: "uppercase" }}>
+                      {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border border border-border">
+      {/* ── full stats row ───────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+        className="sm:grid-cols-4">
         {Object.entries(data.stats).map(([key, value]) => (
           <div key={key} className="bg-card p-4">
-            <div className="text-2xl font-bold font-mono text-foreground">{value}</div>
+            <div className="text-2xl font-bold font-mono" style={{ color: C1 }}>{value}</div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-1">
               {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
             </div>
@@ -131,41 +288,68 @@ export default function Achievements() {
         ))}
       </div>
 
-      {/* Achievements */}
+      {/* ── achievements ────────────────────────────────────── */}
       <div>
-        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-3">{t("achievements")}</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+          <Trophy className="w-3 h-3" /> {t("achievements")}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {data.achievements.map((a) => {
             const Icon = ICONS[a.icon] ?? Trophy;
             const progress = a.target > 0 ? Math.min(100, Math.round((a.current / a.target) * 100)) : 0;
             return (
               <div
                 key={a.id}
-                className={`border p-4 flex gap-4 transition-colors ${
-                  a.unlocked ? "border-primary/60 bg-primary/5" : "border-border bg-card"
-                }`}
+                style={{
+                  border: `1px solid ${a.unlocked ? C1 + "55" : "rgba(255,255,255,0.07)"}`,
+                  background: a.unlocked ? `${C1}08` : "hsl(var(--card))",
+                  padding: 14,
+                  display: "flex",
+                  gap: 12,
+                  position: "relative",
+                  overflow: "hidden",
+                  transition: "border-color 0.2s",
+                }}
               >
-                <div
-                  className={`w-12 h-12 shrink-0 flex items-center justify-center border ${
-                    a.unlocked ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {a.unlocked ? <Icon className="w-6 h-6" /> : <Lock className="w-5 h-5" />}
+                {/* top-left mini bracket on unlocked */}
+                {a.unlocked && (
+                  <>
+                    <div style={{ position: "absolute", top: 4, left: 4, width: 8, height: 8, borderTop: `1px solid ${C1}`, borderLeft: `1px solid ${C1}` }} />
+                    <div style={{ position: "absolute", bottom: 4, right: 4, width: 8, height: 8, borderBottom: `1px solid ${C1}`, borderRight: `1px solid ${C1}` }} />
+                  </>
+                )}
+
+                <div style={{
+                  width: 44, height: 44, flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  border: `1px solid ${a.unlocked ? C1 + "66" : "rgba(255,255,255,0.08)"}`,
+                  background: a.unlocked ? `${C1}15` : "rgba(0,0,0,0.25)",
+                  color: a.unlocked ? C1 : "rgba(255,255,255,0.2)",
+                }}>
+                  {a.unlocked ? <Icon style={{ width: 20, height: 20 }} /> : <Lock style={{ width: 16, height: 16 }} />}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`font-bold font-mono uppercase text-sm truncate ${a.unlocked ? "text-foreground" : "text-muted-foreground"}`}>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <span style={{
+                      fontFamily: "monospace", fontSize: 11, fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: "0.08em",
+                      color: a.unlocked ? "white" : "rgba(255,255,255,0.3)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
                       {t(`defs.${a.id}.name`, { defaultValue: a.name })}
                     </span>
-                    {a.unlocked && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    {a.unlocked && <Check style={{ width: 12, height: 12, color: C1, flexShrink: 0 }} />}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t(`defs.${a.id}.description`, { defaultValue: a.description })}</p>
+                  <p style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.3)", lineHeight: 1.4 }}>
+                    {t(`defs.${a.id}.description`, { defaultValue: a.description })}
+                  </p>
                   {!a.unlocked && (
-                    <div className="mt-2">
-                      <div className="h-1.5 bg-muted border border-border overflow-hidden">
-                        <div className="h-full bg-primary/70" style={{ width: `${progress}%` }} />
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ height: 3, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${progress}%`, background: `${C1}88` }} />
                       </div>
-                      <div className="text-[10px] font-mono text-muted-foreground mt-1">
+                      <div style={{ fontFamily: "monospace", fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>
                         {a.current} / {a.target}
                       </div>
                     </div>

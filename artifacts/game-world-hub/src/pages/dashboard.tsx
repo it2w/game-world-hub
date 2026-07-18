@@ -534,9 +534,36 @@ function SmartMatch({ friends }: { friends:any[] }) {
 // ── ChallengeVs ────────────────────────────────────────────────────────────────
 function ChallengeVs({ me, friends }: { me:any; friends:any[] }) {
   const [sel, setSel] = useState<any>(null);
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [, nav] = useLocation();
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const online = friends.filter(e=>e.friend.status==="online");
   const myColor = "#06B6D4";
+
+  const sendChallenge = async () => {
+    if (!sel || sending || sent) return;
+    setSending(true);
+    try {
+      // Default: 7-day challenge, most_hours type
+      const endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+      await customFetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId: sel.id, type: "most_hours", endsAt }),
+      });
+      setSent(true);
+      qc.invalidateQueries({ queryKey: ["challenges"] });
+      toast({ title: "✓ تم إرسال التحدي!" });
+      setTimeout(() => nav("/challenges"), 1200);
+    } catch (e: any) {
+      toast({ title: "فشل إرسال التحدي", description: e?.data?.error ?? "حاول مجدداً", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="section-box vs-box">
       <div className="section-hd">
@@ -576,8 +603,12 @@ function ChallengeVs({ me, friends }: { me:any; friends:any[] }) {
           </button>
         );})}
       </div>
-      <button className={`vs-send-btn${(!sel||sent)?" vs-send-btn--dis":""}`} onClick={()=>sel&&setSent(true)}>
-        {sent?"✓ تحدي مُرسل!":"⚔️ أرسل التحدي"}
+      <button
+        className={`vs-send-btn${(!sel||sent||sending)?" vs-send-btn--dis":""}`}
+        onClick={sendChallenge}
+        disabled={!sel||sent||sending}
+      >
+        {sending?"جاري الإرسال…":sent?"✓ تحدي مُرسل!":"⚔️ أرسل التحدي"}
       </button>
     </div>
   );

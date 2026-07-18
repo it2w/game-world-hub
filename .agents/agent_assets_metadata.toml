@@ -90,3 +90,9 @@ id = "0hlPhI7CUpRw4OBseS9Js"
 uri = "file://screenshots/pro-badge-variants.png"
 type = "image"
 title = "أشكال بادج Pro — اختر واحداً"
+
+[[outputs]]
+id = "UpMS-y8RoTaWdnhtZdITj"
+uri = "file://screenshots/pro-badge-variants2.png"
+type = "image"
+title = "أشكال بادج Pro — A B C D E F"

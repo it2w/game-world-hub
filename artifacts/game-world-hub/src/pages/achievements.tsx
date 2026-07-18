@@ -34,7 +34,7 @@ const STAT_KEYS = new Set([
 
 /* ── corner bracket helper ──────────────────────────────────────── */
 function Corner({ pos }: { pos: "tl" | "tr" | "bl" | "br"; }) {
-  const color = "rgba(255,255,255,0.25)";
+  const color = "rgba(255,255,255,0.55)";
   const size = 14;
   const style: React.CSSProperties = {
     position: "absolute",
@@ -120,7 +120,7 @@ export default function Achievements() {
 
           {/* top header bar */}
           <div style={{
-            borderBottom: `1px solid ${C1}22`,
+            borderBottom: `1px solid ${C1}66`,
             padding: "7px 20px",
             display: "flex",
             justifyContent: "space-between",
@@ -147,13 +147,13 @@ export default function Achievements() {
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              borderInlineEnd: `1px solid ${C1}22`,
+              borderInlineEnd: `1px solid ${C1}66`,
               background: "rgba(0,0,0,0.12)",
               position: "relative",
             }}>
               {/* holo rings */}
-              <div style={{ position: "absolute", width: 170, height: 170, borderRadius: "50%", border: `1px solid ${C1}16`, pointerEvents: "none" }} />
-              <div style={{ position: "absolute", width: 145, height: 145, borderRadius: "50%", border: `1px solid ${C1}28`, pointerEvents: "none" }} />
+              <div style={{ position: "absolute", width: 170, height: 170, borderRadius: "50%", border: `1px solid ${C1}44`, pointerEvents: "none" }} />
+              <div style={{ position: "absolute", width: 145, height: 145, borderRadius: "50%", border: `1px solid ${C1}66`, pointerEvents: "none" }} />
 
               <TierBadge
                 tier={tier}
@@ -187,7 +187,7 @@ export default function Achievements() {
 
               {/* rank label + name */}
               <div>
-                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}66`, letterSpacing: "0.35em", marginBottom: 4 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}cc`, letterSpacing: "0.35em", marginBottom: 4 }}>
                   [ {t("rank")} ]
                 </div>
                 {/* SVG gradient name — works in all iframe/browser contexts */}
@@ -216,9 +216,9 @@ export default function Achievements() {
 
               {/* decorative divider */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,transparent,${C1}55)` }} />
-                <Swords style={{ width: 12, height: 12, color: C1, opacity: 0.7 }} />
-                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,${C1}55,transparent)` }} />
+                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,transparent,${C1}cc)` }} />
+                <Swords style={{ width: 12, height: 12, color: C1, opacity: 1 }} />
+                <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,${C1}cc,transparent)` }} />
               </div>
 
               {/* XP bar */}
@@ -230,7 +230,7 @@ export default function Achievements() {
                 <div style={{
                   height: 8,
                   background: "rgba(0,0,0,0.4)",
-                  border: `1px solid ${C1}33`,
+                  border: `1px solid ${C1}88`,
                   position: "relative",
                   overflow: "hidden",
                 }}>
@@ -247,7 +247,7 @@ export default function Achievements() {
                     backgroundImage: "repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,0.25) 4px,rgba(0,0,0,0.25) 5px)",
                   }} />
                 </div>
-                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}55`, marginTop: 4 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: `${C1}aa`, marginTop: 4 }}>
                   {(data.xpForNext - data.xpIntoLevel).toLocaleString()} XP_REMAINING → LEVEL_{data.level + 1}
                 </div>
               </div>
@@ -259,12 +259,12 @@ export default function Achievements() {
                     display: "flex", flexDirection: "column",
                     padding: "7px 10px",
                     background: "rgba(0,0,0,0.3)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.2)",
                   }}>
                     <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 900, color: C1, lineHeight: 1 }}>
                       {String(value).padStart(2, "0")}
                     </span>
-                    <span style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em", marginTop: 3, textTransform: "uppercase" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 8, color: "rgba(255,255,255,0.55)", letterSpacing: "0.12em", marginTop: 3, textTransform: "uppercase" }}>
                       {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
                     </span>
                   </div>
@@ -278,14 +278,14 @@ export default function Achievements() {
       {/* ── full stats grid ──────────────────────────────────── */}
       <div style={{ position: "relative" }}>
         {/* outer glow frame */}
-        <div style={{ position:"absolute", inset:-1, background:`linear-gradient(135deg,${C1}33,transparent,${C1}22)` }} />
+        <div style={{ position:"absolute", inset:-1, background:`linear-gradient(135deg,${C1}66,transparent,${C1}44)` }} />
         <div style={{
           position: "relative",
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
           gap: 1,
-          background: `${C1}18`,
-          border: `1px solid ${C1}22`,
+          background: `${C1}55`,
+          border: `1px solid ${C1}66`,
         }} className="sm:grid-cols-4">
           {Object.entries(data.stats).map(([key, value]) => (
             <div key={key} style={{
@@ -295,7 +295,7 @@ export default function Achievements() {
               overflow: "hidden",
             }}>
               {/* subtle corner bracket */}
-              <div style={{ position:"absolute", top:6, insetInlineStart:6, width:8, height:8, borderTop:`1px solid ${C1}55`, borderInlineStart:`1px solid ${C1}55` }} />
+              <div style={{ position:"absolute", top:6, insetInlineStart:6, width:8, height:8, borderTop:`2px solid ${C1}cc`, borderInlineStart:`2px solid ${C1}cc` }} />
               {/* scanline */}
               <div style={{ position:"absolute", inset:0, opacity:0.015, backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.6) 2px,rgba(255,255,255,0.6) 3px)", pointerEvents:"none" }} />
 
@@ -315,7 +315,7 @@ export default function Achievements() {
                 fontSize: 9,
                 letterSpacing: "0.18em",
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.35)",
+                color: "rgba(255,255,255,0.65)",
               }}>
                 {STAT_KEYS.has(key) ? t(`stats.${key}`) : key}
               </div>
@@ -337,7 +337,7 @@ export default function Achievements() {
               <div
                 key={a.id}
                 style={{
-                  border: `1px solid ${a.unlocked ? C1 + "55" : "rgba(255,255,255,0.07)"}`,
+                  border: `1px solid ${a.unlocked ? C1 + "99" : "rgba(255,255,255,0.15)"}`,
                   background: a.unlocked ? `${C1}08` : "hsl(var(--card))",
                   padding: 14,
                   display: "flex",
@@ -358,7 +358,7 @@ export default function Achievements() {
                 <div style={{
                   width: 44, height: 44, flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  border: `1px solid ${a.unlocked ? C1 + "66" : "rgba(255,255,255,0.08)"}`,
+                  border: `1px solid ${a.unlocked ? C1 + "bb" : "rgba(255,255,255,0.18)"}`,
                   background: a.unlocked ? `${C1}15` : "rgba(0,0,0,0.25)",
                   color: a.unlocked ? C1 : "rgba(255,255,255,0.2)",
                 }}>
@@ -377,12 +377,12 @@ export default function Achievements() {
                     </span>
                     {a.unlocked && <Check style={{ width: 12, height: 12, color: C1, flexShrink: 0 }} />}
                   </div>
-                  <p style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.3)", lineHeight: 1.4 }}>
+                  <p style={{ fontFamily: "monospace", fontSize: 10, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
                     {t(`defs.${a.id}.description`, { defaultValue: a.description })}
                   </p>
                   {!a.unlocked && (
                     <div style={{ marginTop: 6 }}>
-                      <div style={{ height: 3, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                      <div style={{ height: 3, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.2)", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${progress}%`, background: `${C1}88` }} />
                       </div>
                       <div style={{ fontFamily: "monospace", fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 3 }}>

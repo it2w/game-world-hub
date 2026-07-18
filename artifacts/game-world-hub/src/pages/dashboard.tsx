@@ -200,11 +200,6 @@ export default function Dashboard() {
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
-                            {f.isPro && (
-                              <div className="absolute top-1.5 end-1.5">
-                                <ProBadge size="sm" />
-                              </div>
-                            )}
                           </div>
 
                           {/* avatar row — centred using margin auto, NO inline-block RTL trick */}
@@ -231,7 +226,10 @@ export default function Dashboard() {
 
                           {/* info — centred text */}
                           <div className="px-2 pb-3 text-center">
-                            <div className="font-bold text-sm truncate leading-tight">{f.displayName}</div>
+                            <div className="flex items-center justify-center gap-1 min-w-0">
+                              <span className="font-bold text-sm truncate leading-tight">{f.displayName}</span>
+                              {f.isPro && <ProBadge size="sm" />}
+                            </div>
                             <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
                             {f.currentGame ? (
                               <div className="text-[10px] text-primary font-mono truncate flex items-center justify-center gap-1 mt-1">

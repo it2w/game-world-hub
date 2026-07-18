@@ -49,6 +49,8 @@ async function isTotpCodeValid(code: string, secret: string): Promise<boolean> {
 }
 
 function safeUser(u: typeof usersTable.$inferSelect) {
+  const now = new Date();
+  const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
   return {
     id: u.id,
     username: u.username,
@@ -62,6 +64,13 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     allowProfileComments: u.allowProfileComments,
     status: u.status,
     currentGame: u.currentGame ?? null,
+    rank: u.rank ?? null,
+    region: u.region ?? null,
+    isPro: proActive,
+    proExpiresAt: u.proExpiresAt?.toISOString() ?? null,
+    profileFrameColor: u.profileFrameColor ?? null,
+    profileBgUrl: u.profileBgUrl ?? null,
+    isAdmin: u.isAdmin,
     createdAt: u.createdAt.toISOString(),
   };
 }

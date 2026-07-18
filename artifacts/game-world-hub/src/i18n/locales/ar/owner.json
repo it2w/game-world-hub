@@ -57,6 +57,7 @@
   "stats.recentSignups":          "أحدث التسجيلات",
   "stats.topPlayers":             "أكثر اللاعبين نشاطاً",
   "stats.posts":                  "منشور",
+  "stats.onlineNowHint":          "اضغط لعرض المستخدمين المتصلين",
   "stats.broadcast":              "إعلان عام",
   "stats.broadcastTitle":         "إرسال إشعار لجميع المستخدمين",
   "stats.broadcastTitlePlaceholder": "عنوان الإعلان…",

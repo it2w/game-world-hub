@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, like, or, desc, sql, inArray, ne } from "drizzle-orm";
+import { eq, like, or, desc, sql, inArray, ne, and, gte } from "drizzle-orm";
 import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable, messagesTable, partiesTable, notificationsTable } from "@workspace/db";
 import { requireOwner, signOwnerToken, verifyOwnerToken } from "../middlewares/owner";
 import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
@@ -254,7 +254,7 @@ router.get("/owner/users", requireOwner, async (req, res): Promise<void> => {
     filterBy === "pro"       ? eq(usersTable.isPro, true) :
     filterBy === "admin"     ? eq(usersTable.isAdmin, true) :
     filterBy === "suspended" ? eq(usersTable.status, "suspended") :
-    filterBy === "online"    ? sql`${usersTable.lastActiveAt} >= ${min5} and ${usersTable.status} != 'offline'` :
+    filterBy === "online"    ? and(gte(usersTable.lastActiveAt, min5), ne(usersTable.status, "offline"), ne(usersTable.status, "suspended")) :
     undefined;
 
   // combine search + filter manually

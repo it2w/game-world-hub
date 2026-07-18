@@ -420,14 +420,15 @@ const NAV_GROUPS: { labelKey: string; items: { id: Tab; icon: React.ReactNode; k
 
 const FLAT_TABS = NAV_GROUPS.flatMap((g) => g.items);
 
-function TabContent({ tab, session, ownerInfo, onRefreshMe, t, toast }: {
+function TabContent({ tab, session, ownerInfo, onRefreshMe, t, toast, onShowOnlineUsers, usersDefaultFilter, usersKey }: {
   tab: Tab; session: OwnerSession; ownerInfo: OwnerInfo; onRefreshMe: () => void;
   t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+  onShowOnlineUsers?: () => void; usersDefaultFilter?: string; usersKey?: number;
 }) {
   return (
     <>
-      {tab === "stats"     && <StatsTab     session={session} t={t} />}
-      {tab === "users"     && <UsersTab     session={session} t={t} toast={toast} />}
+      {tab === "stats"     && <StatsTab     session={session} t={t} onShowOnlineUsers={onShowOnlineUsers} />}
+      {tab === "users"     && <UsersTab     key={usersKey} defaultFilter={usersDefaultFilter} session={session} t={t} toast={toast} />}
       {tab === "admins"    && <AdminsTab    session={session} t={t} toast={toast} />}
       {tab === "codes"     && <CodesTab     session={session} t={t} toast={toast} />}
       {tab === "subs"      && <SubsTab      session={session} t={t} />}
@@ -446,8 +447,16 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
   session: OwnerSession; ownerInfo: OwnerInfo; onRefreshMe: () => void;
   t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [tab, setTab] = useState<Tab>("stats");
+  const [tab,               setTab]               = useState<Tab>("stats");
+  const [usersDefaultFilter, setUsersDefaultFilter] = useState<string>("all");
+  const [usersKey,           setUsersKey]           = useState(0);
   const activeItem = FLAT_TABS.find((i) => i.id === tab);
+
+  const goToOnlineUsers = useCallback(() => {
+    setUsersDefaultFilter("online");
+    setUsersKey((k) => k + 1);
+    setTab("users");
+  }, []);
 
   return (
     /* dir=ltr so sidebar is always on the left regardless of app locale */
@@ -509,7 +518,8 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
           ))}
         </div>
         <div className="p-4 flex-1">
-          <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />
+          <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast}
+            onShowOnlineUsers={goToOnlineUsers} usersDefaultFilter={usersDefaultFilter} usersKey={usersKey} />
         </div>
       </div>
 
@@ -523,7 +533,8 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
           </h2>
         </div>
 
-        <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />
+        <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast}
+          onShowOnlineUsers={goToOnlineUsers} usersDefaultFilter={usersDefaultFilter} usersKey={usersKey} />
       </main>
     </div>
   );
@@ -531,7 +542,7 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
 
 /* ─── Stats Tab ──────────────────────────────────────────────────────────── */
 
-function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
+function StatsTab({ session, t, onShowOnlineUsers }: { session: OwnerSession; t: (k: string) => string; onShowOnlineUsers?: () => void }) {
   const { toast } = useToast();
   const [stats,   setStats]   = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -563,7 +574,7 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
   };
 
   const mainCards = [
-    { label: t("stats.onlineNow"),   value: stats?.onlineNow,   icon: <span className="relative flex"><span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75"/><Zap className="w-5 h-5 text-green-400 relative"/></span>, sub: null, highlight: true },
+    { label: t("stats.onlineNow"),   value: stats?.onlineNow,   icon: <span className="relative flex"><span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-green-400 opacity-75"/><Zap className="w-5 h-5 text-green-400 relative"/></span>, sub: t("stats.onlineNowHint"), highlight: true, onClick: onShowOnlineUsers },
     { label: t("stats.totalUsers"),  value: stats?.totalUsers,  icon: <Users      className="w-5 h-5 text-blue-400"   />, sub: null, highlight: false },
     { label: t("stats.proUsers"),    value: stats?.proUsers,    icon: <Crown      className="w-5 h-5 text-yellow-400" />, sub: null, highlight: false },
     { label: t("stats.admins"),      value: stats?.adminUsers,  icon: <Shield     className="w-5 h-5 text-purple-400" />, sub: null, highlight: false },
@@ -620,15 +631,21 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {mainCards.map(({ label, value, icon, sub, highlight }) => (
-          <div key={label} className={`border bg-background p-4 flex flex-col gap-1.5 ${highlight ? "border-green-500/40 bg-green-500/5" : "border-border"}`}>
-            <div className="flex items-center gap-2">{icon}<span className="font-mono text-[10px] text-muted-foreground uppercase">{label}</span></div>
-            <div className={`font-mono text-2xl font-bold ${highlight ? "text-green-400" : "text-foreground"}`}>
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (value ?? "—")}
-            </div>
-            {sub && !loading && <div className="font-mono text-[10px] text-muted-foreground">{sub}</div>}
-          </div>
-        ))}
+        {mainCards.map(({ label, value, icon, sub, highlight, onClick }) => {
+          const Elem = onClick ? "button" : "div";
+          return (
+            <Elem key={label} type={onClick ? "button" : undefined} onClick={onClick}
+              className={`border bg-background p-4 flex flex-col gap-1.5 text-start w-full ${
+                highlight ? "border-green-500/40 bg-green-500/5" : "border-border"
+              } ${onClick ? "cursor-pointer hover:border-green-500/60 hover:bg-green-500/10 transition-colors" : ""}`}>
+              <div className="flex items-center gap-2">{icon}<span className="font-mono text-[10px] text-muted-foreground uppercase">{label}</span></div>
+              <div className={`font-mono text-2xl font-bold ${highlight ? "text-green-400" : "text-foreground"}`}>
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (value ?? "—")}
+              </div>
+              {sub && !loading && <div className="font-mono text-[10px] text-muted-foreground">{sub}</div>}
+            </Elem>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -682,11 +699,12 @@ function StatsTab({ session, t }: { session: OwnerSession; t: (k: string) => str
 
 /* ─── Users Tab ──────────────────────────────────────────────────────────── */
 
-function UsersTab({ session, t, toast }: {
+function UsersTab({ session, t, toast, defaultFilter }: {
   session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+  defaultFilter?: string;
 }) {
   const [query,    setQuery]    = useState("");
-  const [filterBy, setFilterBy] = useState<"all"|"pro"|"admin"|"suspended"|"online">("all");
+  const [filterBy, setFilterBy] = useState<"all"|"pro"|"admin"|"suspended"|"online">((defaultFilter as "all"|"pro"|"admin"|"suspended"|"online") ?? "all");
   const [users,    setUsers]    = useState<UserRow[]>([]);
   const [total,    setTotal]    = useState(0);
   const [offset,   setOffset]   = useState(0);

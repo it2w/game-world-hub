@@ -65,6 +65,7 @@
   "stats.recentSignups":          "Recent Signups",
   "stats.topPlayers":             "Top Players",
   "stats.posts":                  "posts",
+  "stats.onlineNowHint":          "Click to view online users",
   "stats.broadcast":              "Broadcast",
   "stats.broadcastTitle":         "Send Announcement",
   "stats.broadcastTitlePlaceholder": "Announcement title…",

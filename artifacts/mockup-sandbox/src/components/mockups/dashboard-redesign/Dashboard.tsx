@@ -260,50 +260,85 @@ function DailySpin() {
 // ── Weekly Graph ───────────────────────────────────────────────────────────────
 function WeeklyGraph() {
   const max = Math.max(...WEEK_GRAPH);
-  const w = 240, h = 70, pad = 8;
-  const pts = WEEK_GRAPH.map((v,i) => {
-    const x = pad + (i/(WEEK_GRAPH.length-1))*(w-pad*2);
-    const y = h - pad - ((v/max)*(h-pad*2));
-    return `${x},${y}`;
-  });
-  const polyline = pts.join(" ");
-  const area = `${pad},${h} ${polyline} ${w-pad},${h}`;
+  const todayIdx = 6; // Saturday = today
+  const total = WEEK_GRAPH.reduce((a,b)=>a+b,0);
+  const bestIdx = WEEK_GRAPH.indexOf(max);
+  const [hov, setHov] = useState<number|null>(null);
 
   return (
-    <div className="section-box">
+    <div className="section-box wg-box">
       <div className="section-hd">
         <span className="section-title">📈 انتصارات الأسبوع</span>
-        <span style={{ fontSize:9,color:"#22C55E" }}>+31% عن الأسبوع الماضي</span>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span className="wg-up-badge">▲ 31%</span>
+          <span style={{ fontSize:9,color:"#555" }}>vs الأسبوع الماضي</span>
+        </div>
       </div>
-      <div style={{ padding:"10px 14px" }}>
-        <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow:"visible" }}>
-          <defs>
-            <linearGradient id="graph-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22C55E" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#22C55E" stopOpacity="0"/>
-            </linearGradient>
-          </defs>
-          <polygon points={area} fill="url(#graph-fill)" />
-          <polyline points={polyline} fill="none" stroke="#22C55E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {WEEK_GRAPH.map((v,i) => {
-            const x = pad + (i/(WEEK_GRAPH.length-1))*(w-pad*2);
-            const y = h - pad - ((v/max)*(h-pad*2));
+
+      <div className="wg-body">
+        {/* summary row */}
+        <div className="wg-summary">
+          <div className="wg-sum-item">
+            <span className="wg-sum-val" style={{ color:"#22C55E" }}>{total}</span>
+            <span className="wg-sum-label">انتصار</span>
+          </div>
+          <div className="wg-divider"/>
+          <div className="wg-sum-item">
+            <span className="wg-sum-val" style={{ color:"#FFD700" }}>{ME.kd}</span>
+            <span className="wg-sum-label">K/D</span>
+          </div>
+          <div className="wg-divider"/>
+          <div className="wg-sum-item">
+            <span className="wg-sum-val" style={{ color:"#06B6D4" }}>{ME.winRate}%</span>
+            <span className="wg-sum-label">Win Rate</span>
+          </div>
+        </div>
+
+        {/* bars */}
+        <div className="wg-bars">
+          {WEEK_GRAPH.map((v, i) => {
+            const pct = (v / max) * 100;
+            const isToday = i === todayIdx;
+            const isBest  = i === bestIdx;
+            const isHov   = hov === i;
+            const color   = isToday ? "#22C55E" : isBest ? "#FFD700" : "#06B6D4";
             return (
-              <g key={i}>
-                <circle cx={x} cy={y} r="3.5" fill="#22C55E" />
-                <circle cx={x} cy={y} r="6" fill="none" stroke="#22C55E" strokeWidth="1" strokeOpacity="0.3"/>
-                <text x={x} y={y-8} textAnchor="middle" fontSize="8" fill="#22C55E">{v}</text>
-              </g>
+              <div key={i} className="wg-bar-col"
+                onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}>
+                {/* tooltip */}
+                {isHov && (
+                  <div className="wg-tooltip" style={{ borderColor:color, color }}>
+                    {v}W
+                    {isBest && <span className="wg-best-tag">🏆 أفضل</span>}
+                  </div>
+                )}
+                {/* bar track */}
+                <div className="wg-track">
+                  <div className="wg-fill"
+                    style={{
+                      height:`${pct}%`,
+                      background:isToday
+                        ? "linear-gradient(180deg,#4ADE80,#22C55E)"
+                        : isBest
+                        ? "linear-gradient(180deg,#FDE68A,#FFD700)"
+                        : "linear-gradient(180deg,#38BDF8,#06B6D4)",
+                      boxShadow:isHov?`0 0 12px ${color}80`:"none",
+                      opacity:isHov?1:0.75,
+                    }}>
+                    <div className="wg-fill-shine"/>
+                  </div>
+                  {(isToday||isBest) && (
+                    <div className="wg-marker" style={{ background:color, boxShadow:`0 0 8px ${color}` }}/>
+                  )}
+                </div>
+                {/* day label */}
+                <div className="wg-day" style={{ color:isToday?"#22C55E":isBest?"#FFD700":"#444", fontWeight:isToday||isBest?900:400 }}>
+                  {WEEK_DAYS[i]}
+                </div>
+                {isToday && <div className="wg-today-tag">اليوم</div>}
+              </div>
             );
           })}
-        </svg>
-        <div style={{ display:"flex",justifyContent:"space-between",marginTop:4 }}>
-          {WEEK_DAYS.map((d,i) => <span key={i} style={{ fontSize:8,color:"#444",textAlign:"center",flex:1 }}>{d}</span>)}
-        </div>
-        <div style={{ display:"flex",gap:16,marginTop:8 }}>
-          <div className="graph-stat"><span style={{ color:"#FFD700" }}>K/D</span><span style={{ color:"#fff",fontWeight:900 }}>{ME.kd}</span></div>
-          <div className="graph-stat"><span style={{ color:"#06B6D4" }}>WIN%</span><span style={{ color:"#fff",fontWeight:900 }}>{ME.winRate}%</span></div>
-          <div className="graph-stat"><span style={{ color:"#A855F7" }}>TOTAL</span><span style={{ color:"#fff",fontWeight:900 }}>{WEEK_GRAPH.reduce((a,b)=>a+b,0)}W</span></div>
         </div>
       </div>
     </div>

@@ -236,7 +236,7 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
       sendEmail({
         to: owner.email,
         subject: "Security alert: owner password reset probed",
-        text: `Someone requested a new owner password reset code while one was already active.\n\nDetails:\n  Username: ${owner.username}\n  IP address: ${probeIp}\n  Time: ${new Date().toUTCString()}\n\nIf this was not you, your owner panel may be under attack.`,
+        text: `Someone requested a new owner password reset code while one was already active.\n\nDetails:\n  Username: ${owner.username}\n  IP address: ${probeIp}\n  Time: ${new Date().toUTCString()}\n  Existing code expires at: ${owner.passwordResetExpiresAt!.toUTCString()}\n\nIf this was not you, your owner panel may be under attack.`,
       }).catch((e) => logger.error(e, "owner: failed to send reset probe alert email"));
     }
 

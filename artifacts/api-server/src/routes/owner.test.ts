@@ -898,6 +898,49 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
     );
   });
 
+  test("alert email body includes the reset code expiry time", async () => {
+    // Set an active code with a known expiry so we can verify it appears in the email.
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await db
+      .update(superAdminsTable)
+      .set({
+        passwordResetCodeHash: "dummyhash",
+        passwordResetExpiresAt: expiresAt,
+        passwordResetAttempts: 0,
+      })
+      .where(eq(superAdminsTable.id, probeOwnerWithEmailId));
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    const mailboxPath = "/tmp/gwh-dev-emails.jsonl";
+    const bytesBefore = existsSync(mailboxPath) ? readFileSync(mailboxPath).length : 0;
+
+    const r = await post("/owner/reset-password-request", { username: probeOwnerWithEmailUsername });
+    assert.strictEqual(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    if (!existsSync(mailboxPath)) {
+      assert.fail("Dev mailbox file not found — sendEmail must have never been called");
+    }
+    const newContent = readFileSync(mailboxPath).slice(bytesBefore).toString("utf8");
+    const newLines = newContent.split("\n").filter(Boolean);
+    const alertEntry = newLines
+      .map((line) => { try { return JSON.parse(line) as { to?: string; subject?: string; text?: string }; } catch { return null; } })
+      .find((e) => e?.to === probeOwnerWithEmailAddress && e?.subject?.toLowerCase().includes("reset"));
+
+    assert.ok(alertEntry !== undefined, `Alert email to ${probeOwnerWithEmailAddress} not found in mailbox`);
+    assert.ok(
+      typeof alertEntry!.text === "string" && alertEntry!.text.includes("expires at"),
+      `Email body must include the phrase "expires at"; got: ${alertEntry!.text}`,
+    );
+    // The expiry date string (UTC) must appear in the email body.
+    const expiryString = expiresAt.toUTCString();
+    assert.ok(
+      alertEntry!.text!.includes(expiryString),
+      `Email body must include the expiry timestamp "${expiryString}"; got: ${alertEntry!.text}`,
+    );
+  });
+
   test("no email is sent (and no crash) when the owner has no email configured", async () => {
     await setActiveResetCode(probeOwnerNoEmailId);
 

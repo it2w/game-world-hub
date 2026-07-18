@@ -63,7 +63,7 @@
 .dash-body { display:grid;grid-template-columns:1fr 330px;gap:10px;padding:10px 20px 0; }
 .dash-main { display:flex;flex-direction:column;gap:10px; }
 .dash-side { display:flex;flex-direction:column;gap:8px; }
-.dash-top-row { display:grid;grid-template-columns:220px 220px 1fr;gap:10px; }
+.dash-top-row { display:grid;grid-template-columns:220px 300px 1fr;gap:10px; }
 
 /* ── Section Box ──────────────────────────────────────────────────────────────── */
 .section-box { background:#0d0d0d;border:1px solid #1c1c1c;overflow:hidden;position:relative; }

@@ -74,16 +74,31 @@ export function Design4() {
             </div>
 
             {/* info panel */}
-            <div style={{ flex:1, padding:"24px 28px" }}>
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontFamily:"monospace", fontSize:9, color:`${C1}66`, letterSpacing:"0.35em", marginBottom:6 }}>[ الرتبة الحالية ]</div>
-                <div style={{ fontFamily:"'Arial Black',sans-serif", fontSize:44, fontWeight:900, lineHeight:1, color:"#fff", textShadow:`0 0 24px ${C1}cc, 0 0 48px ${C1}66`, marginBottom:4 }}>
-                  محارب
-                </div>
+            <div style={{ flex:1, padding:"20px 24px", display:"flex", flexDirection:"column", justifyContent:"center", gap:12 }}>
+              <div>
+                <div style={{ fontFamily:"monospace", fontSize:9, color:`${C1}66`, letterSpacing:"0.35em", marginBottom:4 }}>[ الرتبة الحالية ]</div>
+                <svg width="230" height="58" viewBox="0 0 230 58" style={{ display:"block", overflow:"visible", filter:`drop-shadow(0 0 16px ${C1}88)` }}>
+                  <defs>
+                    <linearGradient id="nameGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ffffff"/>
+                      <stop offset="55%" stopColor={BORDER}/>
+                      <stop offset="100%" stopColor={C1}/>
+                    </linearGradient>
+                  </defs>
+                  <text x="0" y="50" fill="url(#nameGrad)" fontSize="52" fontWeight="900" fontFamily="Arial Black, sans-serif">محارب</text>
+                </svg>
                 <div style={{ fontFamily:"monospace", fontSize:10, color:`${C1}88`, letterSpacing:"0.3em" }}>WARRIOR // LVL 12</div>
               </div>
 
-              <div style={{ marginBottom:16 }}>
+              {/* decorative divider */}
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ flex:1, height:1, background:`linear-gradient(90deg,transparent,${C1}55)` }} />
+                <span style={{ color:C1, fontSize:12, opacity:0.7 }}>⚔</span>
+                <div style={{ flex:1, height:1, background:`linear-gradient(90deg,${C1}55,transparent)` }} />
+              </div>
+
+              {/* XP bar */}
+              <div>
                 <div style={{ display:"flex", justifyContent:"space-between", fontFamily:"monospace", fontSize:9, marginBottom:5 }}>
                   <span style={{ color:BORDER }}>█ 101 XP</span>
                   <span style={{ color:"#444" }}>400 XP ▓</span>
@@ -92,9 +107,10 @@ export function Design4() {
                   <div style={{ width:"25%", height:"100%", background:`linear-gradient(90deg,${C2},${C1},${BORDER})`, boxShadow:`0 0 16px ${C1}99,0 0 8px ${C1}` }} />
                   <div style={{ position:"absolute", inset:0, backgroundImage:"repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,0.3) 4px,rgba(0,0,0,0.3) 5px)" }} />
                 </div>
-                <div style={{ fontFamily:"monospace", fontSize:9, color:`${C1}55`, marginTop:5 }}>299 XP_REMAINING → LEVEL_13</div>
+                <div style={{ fontFamily:"monospace", fontSize:9, color:`${C1}55`, marginTop:4 }}>299 XP_REMAINING → LEVEL_13</div>
               </div>
 
+              {/* stats */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                 {[["04","ALLIES"],["01","REQUESTS"],["00","PARTIES"],["00","SIGNALS"]].map(([n,l])=>(
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#0d0d0d", border:"1px solid #1e1e1e" }}>

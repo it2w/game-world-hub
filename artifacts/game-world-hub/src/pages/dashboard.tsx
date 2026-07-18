@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { ProBadge } from "@/components/pro-badge";
 import "./dashboard.css";
 import {
   useGetMe, useGetOnlineFriendsSummary, useGetPartyActivityFeed,
@@ -419,7 +420,6 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
               className="fc"
               style={{"--fc":color} as any}>
               <div className="fc-top" style={{background:`linear-gradient(160deg,${color}40 0%,${color}10 60%,#0a0a0a 100%)`}}>
-                {f.isPro && <span className="fc-pro-badge">👑 PRO</span>}
                 <span className="fc-rank-tag" style={{color,borderColor:`${color}50`}}>{f.tier??"—"}</span>
               </div>
               <div className="fc-av-wrap">
@@ -430,6 +430,7 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
               </div>
               <div className="fc-info">
                 <div className="fc-name">{f.displayName}</div>
+                {f.isPro && <div style={{display:"flex",justifyContent:"center",marginTop:3}}><ProBadge size="sm"/></div>}
                 <div className="fc-user">@{f.username}</div>
                 {f.currentGame
                   ?<div className="fc-game" style={{color}}>▶ {f.currentGame}</div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useVoice } from "../voice-context";
@@ -193,6 +193,39 @@ export function VoicePanel() {
   const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
 
+  /* ── Drag state ───────────────────────────────────────────────────────── */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragOrigin = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const onHeaderPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Don't start drag if user clicked a button/input inside the header
+    if ((e.target as HTMLElement).closest("button,a,select,input,[role='button']")) return;
+    e.preventDefault();
+    const rect = panelRef.current!.getBoundingClientRect();
+    dragOrigin.current = { startX: e.clientX, startY: e.clientY, initX: rect.left, initY: rect.top };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDragging(true);
+  }, []);
+
+  const onHeaderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragOrigin.current) return;
+    const dx = e.clientX - dragOrigin.current.startX;
+    const dy = e.clientY - dragOrigin.current.startY;
+    const panelW = panelRef.current?.offsetWidth ?? 300;
+    const panelH = panelRef.current?.offsetHeight ?? 400;
+    setPos({
+      x: Math.max(0, Math.min(window.innerWidth - panelW, dragOrigin.current.initX + dx)),
+      y: Math.max(0, Math.min(window.innerHeight - panelH, dragOrigin.current.initY + dy)),
+    });
+  }, []);
+
+  const onHeaderPointerUp = useCallback(() => {
+    dragOrigin.current = null;
+    setDragging(false);
+  }, []);
+
   const openCallChat = useCallback((peerId: number) => {
     customFetch<{ id: number }>(`/api/conversations/direct/${peerId}`)
       .then((conv) => navigate(`/chat/${conv.id}`))
@@ -279,11 +312,14 @@ export function VoicePanel() {
 
       {/* ── Panel ──────────────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-4 start-4 z-[80] w-[300px] font-mono"
+        ref={panelRef}
+        className="fixed z-[80] w-[300px] font-mono"
         style={{
+          ...(pos ? { left: pos.x, top: pos.y } : { bottom: 16, insetInlineStart: 16 }),
           background: "linear-gradient(180deg, #0e0e1c 0%, #080812 100%)",
           border: "1px solid rgba(255,255,255,0.08)",
           boxShadow: "0 32px 64px rgba(0,0,0,0.9), inset 0 0 0 1px rgba(255,255,255,0.03)",
+          userSelect: "none",
         }}
       >
         {/* Top gradient bar */}
@@ -292,10 +328,17 @@ export function VoicePanel() {
           style={{ background: "linear-gradient(90deg,hsl(var(--primary)) 0%,#00bfff 55%,transparent 100%)" }}
         />
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
+        {/* ── Header (drag handle) ─────────────────────────────────────── */}
         <div
           className="flex items-center justify-between px-4 py-2.5"
-          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+          style={{
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            cursor: dragging ? "grabbing" : "grab",
+          }}
+          onPointerDown={onHeaderPointerDown}
+          onPointerMove={onHeaderPointerMove}
+          onPointerUp={onHeaderPointerUp}
+          onPointerCancel={onHeaderPointerUp}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="relative flex shrink-0 w-2 h-2">

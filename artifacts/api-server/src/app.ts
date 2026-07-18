@@ -39,10 +39,14 @@ app.use("/api/webhooks/salla", express.raw({ type: "application/json" }), proRou
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Timing middleware — must come after body parsers so duration includes parse time
-app.use((_req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => recordRequest(Date.now() - start));
+// Timing + byte-counting middleware
+app.use((req, res, next) => {
+  const start    = Date.now();
+  const bytesIn  = Number(req.headers["content-length"] ?? 0);
+  res.on("finish", () => {
+    const bytesOut = Number(res.getHeader("content-length") ?? 0);
+    recordRequest(Date.now() - start, bytesIn, bytesOut);
+  });
   next();
 });
 

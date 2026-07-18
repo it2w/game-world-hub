@@ -86,10 +86,11 @@ interface AnalyticsData {
 interface ContentLfg   { id: number; game: string; description: string; status: string; author_id: number; author_username: string | null; response_count: number; created_at: string }
 interface ContentParty { id: number; name: string; game: string | null; leader_id: number; leader_username: string | null; member_count: number; max_size: number; created_at: string }
 interface SystemHealth {
-  cpu:  { cores: number; loadavg: number[]; usedPct: number };
-  ram:  { totalMb: number; usedMb: number; freeMb: number; usedPct: number };
-  heap: { usedMb: number; totalMb: number; rssMb: number };
-  uptime: number; region: string; requestsPerMin: number; avgResponseMs: number;
+  cpu: { cores: number; loadavg: number[]; usedPct: number };
+  ram: { rssMb: number; heapUsedMb: number; heapTotalMb: number; heapPct: number; hostTotalMb: number; hostFreeMb: number };
+  uptime: number; region: string;
+  requestsPerMin: number; avgResponseMs: number;
+  totalBytesIn: number; totalBytesOut: number;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
@@ -1952,6 +1953,12 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
 
 /* ─── Analytics Tab ──────────────────────────────────────────────────────── */
 
+function fmtBytes(b: number): string {
+  if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  if (b >= 1024)        return `${(b / 1024).toFixed(1)} KB`;
+  return `${b} B`;
+}
+
 function fmtUptime(s: number): string {
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
@@ -2127,21 +2134,19 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
               </div>
             </div>
 
-            {/* RAM */}
+            {/* RAM — process RSS (real footprint of this Node.js process) */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <MemoryStick className="w-3 h-3 text-muted-foreground" />
                   <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.ram")}</span>
                 </div>
-                <span className={`font-mono text-xs font-bold ${health.ram.usedPct >= 85 ? "text-red-400" : health.ram.usedPct >= 65 ? "text-yellow-400" : "text-blue-400"}`}>
-                  {health.ram.usedPct}%
-                </span>
+                <span className="font-mono text-xs font-bold text-blue-400">{health.ram.rssMb} MB</span>
               </div>
-              <GaugeBar pct={health.ram.usedPct} />
+              <GaugeBar pct={Math.min(100, Math.round((health.ram.rssMb / Math.max(1, health.ram.heapTotalMb * 2)) * 100))} />
               <div className="flex justify-between font-mono text-[9px] text-muted-foreground/60">
-                <span>{health.ram.usedMb} MB {t("analytics.used")}</span>
-                <span>{t("analytics.of")} {health.ram.totalMb} MB</span>
+                <span>RSS {health.ram.rssMb} MB</span>
+                <span>{t("analytics.hostFree")}: {health.ram.hostFreeMb} / {health.ram.hostTotalMb} MB</span>
               </div>
             </div>
 
@@ -2152,24 +2157,24 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
                   <Layers className="w-3 h-3 text-muted-foreground" />
                   <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.heap")}</span>
                 </div>
-                <span className="font-mono text-xs font-bold text-violet-400">{health.heap.usedMb} MB</span>
+                <span className={`font-mono text-xs font-bold ${health.ram.heapPct >= 85 ? "text-red-400" : health.ram.heapPct >= 65 ? "text-yellow-400" : "text-violet-400"}`}>
+                  {health.ram.heapPct}%
+                </span>
               </div>
-              <GaugeBar pct={Math.round((health.heap.usedMb / health.heap.totalMb) * 100)} />
+              <GaugeBar pct={health.ram.heapPct} />
               <div className="flex justify-between font-mono text-[9px] text-muted-foreground/60">
-                <span>RSS {health.heap.rssMb} MB</span>
-                <span>{t("analytics.of")} {health.heap.totalMb} MB</span>
+                <span>{health.ram.heapUsedMb} MB {t("analytics.used")}</span>
+                <span>{t("analytics.of")} {health.ram.heapTotalMb} MB</span>
               </div>
             </div>
 
             {/* Traffic */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                  <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.traffic")}</span>
-                </div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.traffic")}</span>
               </div>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="font-mono text-lg font-bold text-cyan-400">{health.requestsPerMin}</div>
                   <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.reqPerMin")}</div>
@@ -2177,6 +2182,14 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
                 <div>
                   <div className="font-mono text-lg font-bold text-sky-400">{health.avgResponseMs} ms</div>
                   <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.avgResponse")}</div>
+                </div>
+                <div>
+                  <div className="font-mono text-sm font-bold text-emerald-400">{fmtBytes(health.totalBytesIn)}</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.bytesIn")}</div>
+                </div>
+                <div>
+                  <div className="font-mono text-sm font-bold text-orange-400">{fmtBytes(health.totalBytesOut)}</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.bytesOut")}</div>
                 </div>
               </div>
             </div>

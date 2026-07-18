@@ -87,6 +87,32 @@ export function _resetResetRateBucket(key: string): void {
   resetRateBuckets.delete(key);
 }
 
+/* ─── Probe alert email deduplication ───────────────────────────────────── */
+
+/**
+ * At most one probe-alert email is sent per owner per this window.
+ * Prevents inbox flooding when an attacker rapidly repeats reset requests.
+ */
+const PROBE_ALERT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const probeAlertSentAt = new Map<number, number>(); // ownerId → timestamp
+
+/** Exposed for tests to reset cooldown state between runs. */
+export function _resetProbeAlertCooldown(ownerId: number): void {
+  probeAlertSentAt.delete(ownerId);
+}
+
+/**
+ * Returns true if a probe alert email may be sent for this owner right now,
+ * and records the timestamp so subsequent calls within the cooldown return false.
+ */
+function claimProbeAlertSlot(ownerId: number): boolean {
+  const now = Date.now();
+  const last = probeAlertSentAt.get(ownerId);
+  if (last !== undefined && now - last < PROBE_ALERT_COOLDOWN_MS) return false;
+  probeAlertSentAt.set(ownerId, now);
+  return true;
+}
+
 /**
  * Returns true if the request is within the allowed rate.
  * Always increments the counter — call on every request to these endpoints.
@@ -232,7 +258,9 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
     logger.warn({ ownerId: owner.id, ip: probeIp }, "owner: reset bypass attempt detected");
 
     // Send an alert email if the owner has one configured.
-    if (owner.email) {
+    // Rate-limited to at most once per PROBE_ALERT_COOLDOWN_MS per owner to
+    // prevent inbox flooding when an attacker rapidly repeats reset requests.
+    if (owner.email && claimProbeAlertSlot(owner.id)) {
       sendEmail({
         to: owner.email,
         subject: "Security alert: owner password reset probed",

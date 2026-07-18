@@ -20,7 +20,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
 import { signToken } from "../middlewares/auth";
-import { _resetLoginBucket, _resetResetRateBucket } from "./owner";
+import { _resetLoginBucket, _resetResetRateBucket, _resetProbeAlertCooldown } from "./owner";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -833,6 +833,7 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
   after(async () => {
     for (const id of [probeOwnerWithEmailId, probeOwnerNoEmailId, probeOwnerLogOnlyId]) {
       await db.delete(superAdminsTable).where(eq(superAdminsTable.id, id)).catch(() => {});
+      _resetProbeAlertCooldown(id);
     }
   });
 
@@ -974,6 +975,55 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
       );
     }
     // If the mailbox doesn't exist, that is also acceptable — no email was sent.
+  });
+
+  test("N rapid bypass requests result in exactly 1 alert email, not N", async () => {
+    // Reset the cooldown so this test starts with a fresh slot.
+    _resetProbeAlertCooldown(probeOwnerWithEmailId);
+
+    // Ensure a non-expired reset code is active so every request hits the bypass path.
+    await setActiveResetCode(probeOwnerWithEmailId);
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    const mailboxPath = "/tmp/gwh-dev-emails.jsonl";
+    const bytesBefore = existsSync(mailboxPath) ? readFileSync(mailboxPath).length : 0;
+
+    // Fire 5 rapid bypass requests in parallel — without the cooldown each
+    // would produce a separate alert email.
+    const N = 5;
+    await Promise.all(
+      Array.from({ length: N }, () =>
+        post("/owner/reset-password-request", { username: probeOwnerWithEmailUsername }),
+      ),
+    );
+
+    // Give the async sendEmail calls a moment to flush to the dev mailbox.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    const newContent = existsSync(mailboxPath)
+      ? readFileSync(mailboxPath).slice(bytesBefore).toString("utf8")
+      : "";
+    const alertCount = newContent
+      .split("\n")
+      .filter(Boolean)
+      .filter((line) => {
+        try {
+          const entry = JSON.parse(line) as { to?: string; subject?: string };
+          return (
+            entry.to === probeOwnerWithEmailAddress &&
+            typeof entry.subject === "string" &&
+            entry.subject.toLowerCase().includes("reset")
+          );
+        } catch {
+          return false;
+        }
+      }).length;
+
+    assert.strictEqual(
+      alertCount,
+      1,
+      `Expected exactly 1 alert email for ${N} rapid bypass requests, but found ${alertCount}`,
+    );
   });
 });
 

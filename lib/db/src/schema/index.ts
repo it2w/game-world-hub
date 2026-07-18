@@ -19,3 +19,4 @@ export * from "./stored-images";
 export * from "./challenges";
 export * from "./lfgBot";
 export * from "./proGifts";
+export * from "./permanent-rooms";

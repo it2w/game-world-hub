@@ -61,8 +61,9 @@ export interface PeerUiState {
 }
 
 export type ActiveRoom =
-  | { kind: "party"; room: string; partyId: number; title: string }
-  | { kind: "call"; room: string; peer: CallUser; title: string };
+  | { kind: "party";   room: string; partyId: number; title: string }
+  | { kind: "call";    room: string; peer: CallUser;  title: string }
+  | { kind: "proroom"; room: string; roomId: number;  title: string };
 
 interface IncomingCall {
   callId: string;
@@ -100,6 +101,7 @@ interface VoiceContextValue {
   screenAudioVolumes: Record<number, number>;
 
   joinPartyVoice: (partyId: number, title: string) => Promise<void>;
+  joinProRoom: (roomId: number, title: string) => Promise<void>;
   leaveVoice: () => void;
   rejoin: () => Promise<void>;
   callUser: (user: CallUser) => void;
@@ -731,6 +733,27 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     [leaveVoice, connectLiveKit],
   );
 
+  const joinProRoom = useCallback(
+    async (roomId: number, title: string) => {
+      setError(null);
+      setCanRejoin(false);
+      const roomName = `proroom:${roomId}`;
+      if (activeRoomRef.current?.room === roomName) return;
+      if (activeRoomRef.current) leaveVoice();
+      const room: ActiveRoom = { kind: "proroom", room: roomName, roomId, title };
+      setActiveRoom(room);
+      activeRoomRef.current = room;
+      try {
+        await connectLiveKit(roomName);
+      } catch {
+        setError("Failed to join voice room");
+        setActiveRoom(null);
+        activeRoomRef.current = null;
+      }
+    },
+    [leaveVoice, connectLiveKit],
+  );
+
   const callUser = useCallback(
     (user: CallUser) => {
       setError(null);
@@ -1170,6 +1193,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     peerVolumes,
     screenAudioVolumes,
     joinPartyVoice,
+    joinProRoom,
     leaveVoice,
     rejoin,
     callUser,

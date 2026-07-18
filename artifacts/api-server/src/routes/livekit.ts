@@ -2,7 +2,7 @@ import { Router } from "express";
 import { AccessToken } from "livekit-server-sdk";
 import { requireAuth } from "../middlewares/auth";
 import { and, eq } from "drizzle-orm";
-import { db, partyMembersTable, usersTable } from "@workspace/db";
+import { db, partyMembersTable, usersTable, permanentRoomsTable } from "@workspace/db";
 import { callRooms } from "../ws/signaling";
 import { logger } from "../lib/logger";
 import { toPublicImageUrl } from "../lib/objectStorage";
@@ -57,8 +57,29 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
       res.status(403).json({ error: "Not authorized for this call" });
       return;
     }
+  } else if (room.startsWith("proroom:")) {
+    const roomId = Number(room.slice("proroom:".length));
+    if (!Number.isInteger(roomId) || roomId <= 0) {
+      res.status(400).json({ error: "Invalid room id" });
+      return;
+    }
+    try {
+      const [existingRoom] = await db
+        .select({ id: permanentRoomsTable.id })
+        .from(permanentRoomsTable)
+        .where(eq(permanentRoomsTable.id, roomId));
+      if (!existingRoom) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+      // No password check here — client must call /api/rooms/:id/verify-password first
+    } catch (err) {
+      logger.error({ err }, "livekit: proroom check failed");
+      res.status(500).json({ error: "Internal error" });
+      return;
+    }
   } else {
-    res.status(400).json({ error: "Invalid room format (expected party:<id> or call:<id>)" });
+    res.status(400).json({ error: "Invalid room format (expected party:<id>, call:<id>, or proroom:<id>)" });
     return;
   }
 

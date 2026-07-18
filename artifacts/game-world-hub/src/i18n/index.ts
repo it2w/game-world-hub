@@ -34,6 +34,8 @@ import enChallenges from './locales/en/challenges.json';
 import arChallenges from './locales/ar/challenges.json';
 import enStats from './locales/en/stats.json';
 import arStats from './locales/ar/stats.json';
+import enRooms from './locales/en/rooms.json';
+import arRooms from './locales/ar/rooms.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -56,6 +58,7 @@ const resources = {
     owner: enOwner,
     challenges: enChallenges,
     stats: enStats,
+    rooms: enRooms,
   },
   ar: {
     common: arCommon,
@@ -74,6 +77,7 @@ const resources = {
     owner: arOwner,
     challenges: arChallenges,
     stats: arStats,
+    rooms: arRooms,
   },
 };
 

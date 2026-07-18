@@ -25,6 +25,7 @@ import Profile from '@/pages/profile';
 import Settings from '@/pages/settings';
 import Stats from '@/pages/stats';
 import Challenges from '@/pages/challenges';
+import Rooms from '@/pages/rooms';
 import Admin from '@/pages/admin';
 import Owner from '@/pages/owner';
 import NotFound from '@/pages/not-found';
@@ -96,6 +97,7 @@ function Router() {
             <Route path="/settings" component={Settings} />
             <Route path="/stats" component={Stats} />
             <Route path="/challenges" component={Challenges} />
+            <Route path="/rooms" component={Rooms} />
             <Route path="/admin" component={Admin} />
             <Route component={NotFound} />
           </Switch>

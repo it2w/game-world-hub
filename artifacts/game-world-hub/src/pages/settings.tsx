@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, Ticket, Crown, Gift, Bot, Palette } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, Ticket, Crown, Gift, Bot, Palette, Mic, Lock, Unlock, Save, X, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
@@ -844,6 +844,7 @@ export default function Settings() {
 
       {/* ── Pro sections (visible to all; locked for non-Pro) ─────────────── */}
       <ProProfileSection me={me} onSave={refreshMe} />
+      <MyRoomSection />
       <LfgBotSection me={me} />
       <GiftProSection me={me} />
     </div>
@@ -1116,6 +1117,192 @@ function LfgBotSection({ me }: { me: any }) {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── My Voice Room ──────────────────────────────────────────────────────────────
+
+function MyRoomSection() {
+  const { t } = useTranslation("rooms");
+  const { data: proStatus } = useGetMePro();
+  const isPro = !!proStatus?.isPro;
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: myRoom, isLoading } = useQuery<any | null>({
+    queryKey: ["rooms", "mine"],
+    queryFn: () => customFetch("/api/rooms/mine"),
+  });
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [password, setPassword] = useState("");
+  const [clearPassword, setClearPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Populate form when room loads
+  const populated = !!myRoom;
+  useState(() => {
+    if (myRoom) {
+      setName(myRoom.name ?? "");
+      setDescription(myRoom.description ?? "");
+    }
+  });
+
+  const saveRoom = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      if (myRoom) {
+        await customFetch("/api/rooms/mine", {
+          method: "PATCH",
+          body: JSON.stringify({ name, description, password: password || undefined, clearPassword: clearPassword || undefined }),
+          headers: { "Content-Type": "application/json" },
+        });
+        toast({ title: t("updated") });
+      } else {
+        await customFetch("/api/rooms", {
+          method: "POST",
+          body: JSON.stringify({ name, description, password: password || undefined }),
+          headers: { "Content-Type": "application/json" },
+        });
+        toast({ title: t("created") });
+      }
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      setPassword("");
+      setClearPassword(false);
+    } catch {
+      toast({ title: t("error"), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteRoom = async () => {
+    setDeleting(true);
+    try {
+      await customFetch("/api/rooms/mine", { method: "DELETE" });
+      toast({ title: t("deleted") });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      setName(""); setDescription(""); setPassword(""); setConfirmDelete(false);
+    } catch {
+      toast({ title: t("error"), variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div id="myroom" className="bg-card border border-border p-6 space-y-4">
+      {/* header */}
+      <div className="flex items-center gap-2 mb-1">
+        <Mic className="w-4 h-4 text-primary" />
+        <h3 className="font-mono font-bold text-sm uppercase tracking-widest text-primary">{t("myRoomSection")}</h3>
+        {!isPro && <span className="ms-auto"><Crown className="w-4 h-4 text-primary" /></span>}
+      </div>
+      <p className="font-mono text-xs text-muted-foreground">{t("myRoomDesc")}</p>
+
+      {!isPro ? (
+        <p className="font-mono text-xs text-muted-foreground border border-border px-4 py-3 bg-background">{t("proOnlyDesc")}</p>
+      ) : isLoading ? (
+        <div className="h-20 bg-muted animate-pulse" />
+      ) : (
+        <div className="space-y-3">
+          {/* current room status */}
+          {myRoom ? (
+            <div className="flex items-center gap-2 border border-primary/30 bg-primary/5 px-3 py-2">
+              {myRoom.hasPassword
+                ? <Lock className="w-3 h-3 text-muted-foreground" />
+                : <Unlock className="w-3 h-3 text-primary" />
+              }
+              <span className="font-mono text-xs font-bold">{myRoom.name}</span>
+              <span className="font-mono text-xs text-muted-foreground ms-auto">{myRoom.hasPassword ? t("protected") : t("open")}</span>
+            </div>
+          ) : (
+            <p className="font-mono text-xs text-muted-foreground">{t("noRoomYet")}</p>
+          )}
+
+          {/* form */}
+          <div className="space-y-3">
+            <div>
+              <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("roomName")}</label>
+              <Input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder={t("roomNamePlaceholder")}
+                className="font-mono rounded-none border-border bg-background text-sm"
+                maxLength={40}
+              />
+            </div>
+            <div>
+              <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("description")}</label>
+              <Input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder={t("descriptionPlaceholder")}
+                className="font-mono rounded-none border-border bg-background text-sm"
+                maxLength={100}
+              />
+            </div>
+            <div>
+              <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("password")}</label>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setClearPassword(false); }}
+                  placeholder={t("passwordPlaceholder")}
+                  className="font-mono rounded-none border-border bg-background text-sm"
+                />
+                {myRoom?.hasPassword && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="font-mono rounded-none text-xs shrink-0"
+                    onClick={() => { setClearPassword(true); setPassword(""); }}
+                    type="button"
+                  >
+                    <X className="w-3 h-3 me-1" /> {t("clearPassword", { defaultValue: "Clear" })}
+                  </Button>
+                )}
+              </div>
+              {clearPassword && <p className="font-mono text-[10px] text-yellow-500 mt-1">كلمة المرور ستُحذف عند الحفظ</p>}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                className="font-mono rounded-none text-xs flex-1"
+                onClick={saveRoom}
+                disabled={saving || !name.trim()}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-3 h-3 me-1" />{t("saveChanges")}</>}
+              </Button>
+              {myRoom && !confirmDelete && (
+                <Button
+                  variant="outline"
+                  className="font-mono rounded-none text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  {t("deleteRoom")}
+                </Button>
+              )}
+              {confirmDelete && (
+                <Button
+                  variant="destructive"
+                  className="font-mono rounded-none text-xs"
+                  onClick={deleteRoom}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : "✓ " + t("confirmDelete", { defaultValue: "Confirm" })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

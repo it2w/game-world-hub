@@ -24,6 +24,7 @@ import proGiftsRouter from "./pro-gifts";
 import adminRouter from "./admin";
 import ownerRouter from "./owner";
 import downloadRouter from "./download";
+import roomsRouter from "./rooms";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(proGiftsRouter);
 router.use(adminRouter);
 router.use(ownerRouter);
 router.use(downloadRouter);
+router.use(roomsRouter);
 
 export default router;

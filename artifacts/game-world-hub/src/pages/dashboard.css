@@ -181,29 +181,27 @@
 .trn-join-btn--done { color:#000!important; }
 
 /* ── Friends Grid ─────────────────────────────────────────────────────────────── */
-.friends-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:8px; }
-.fc { position:relative;background:#0f0f0f;border:1px solid #1e1e1e;display:flex;flex-direction:column;align-items:center;padding-bottom:6px;cursor:pointer;overflow:hidden;transition:border-color .2s,transform .15s; }
-.fc:hover,.fc--hov { border-color:var(--fc);transform:translateY(-3px);box-shadow:0 6px 24px rgba(0,0,0,.6); }
-.fc-top { height:28px;width:100%;position:relative;display:flex;align-items:flex-start;justify-content:space-between;padding:4px 5px; }
+.friends-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:8px; }
+.fc { position:relative;background:#0f0f0f;border:1px solid #1e1e1e;display:flex;flex-direction:column;align-items:center;cursor:pointer;overflow:hidden;transition:border-color .2s,transform .15s; }
+.fc:hover,.fc--hov { border-color:var(--fc);transform:translateY(-2px);box-shadow:0 4px 18px rgba(0,0,0,.7); }
+.fc-top { height:58px;width:100%;position:relative;display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 5px;flex-shrink:0; }
 .fc-rank-tag { font-size:6px;font-weight:900;letter-spacing:1px;border:1px solid;padding:1px 3px; }
-.fc-live-tag { font-size:6px;font-weight:900;color:#EF4444;letter-spacing:.5px;animation:blink-dot 1s infinite; }
-.fc-av-wrap { position:relative;margin-top:-12px;z-index:2; }
-.fc-av { width:38px;height:38px;border-radius:50%;background:#1a1a1a;border:2px solid;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;transition:box-shadow .2s;overflow:hidden; }
+.fc-av-wrap { position:relative;margin-top:-20px;z-index:2; }
+.fc-av { width:44px;height:44px;border-radius:50%;background:#1a1a1a;border:2px solid;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#fff;transition:box-shadow .2s;overflow:hidden; }
 .fc-av img { width:100%;height:100%;object-fit:cover; }
-.fc-dot { width:9px;height:9px;border-radius:50%;position:absolute;bottom:-1px;right:-1px;border:2px solid #0f0f0f; }
+.fc-dot { width:9px;height:9px;border-radius:50%;position:absolute;bottom:1px;right:1px;border:2px solid #0f0f0f; }
 .fc-dot--online { background:#22C55E;box-shadow:0 0 5px #22C55E; }
 .fc-dot--away   { background:#F59E0B; }
 .fc-dot--busy   { background:#EF4444; }
 .fc-dot--offline { background:#333; }
-.fc-info { text-align:center;padding:5px 5px 0;width:100%; }
-.fc-name { font-size:10px;font-weight:700;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.fc-user { font-size:8px;color:#444; }
+.fc-info { text-align:center;padding:4px 6px 2px;width:100%; }
+.fc-name { font-size:11px;font-weight:700;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.fc-user { font-size:8px;color:#555;margin-top:1px; }
 .fc-game { font-size:8px;margin-top:1px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .fc-idle { font-size:8px;color:#444;text-transform:uppercase;letter-spacing:1px;margin-top:1px; }
-.fc-actions { display:flex;gap:3px;padding:0 5px;margin-top:5px;opacity:0;transition:opacity .15s;width:100%; }
-.fc-actions--show { opacity:1; }
-.fc-act { flex:1;background:transparent;border:1px solid;font-family:inherit;font-size:8px;font-weight:700;padding:3px 2px;cursor:pointer;transition:background .15s;text-align:center; }
-.fc-act:hover { background:rgba(255,255,255,.04); }
+.fc-actions { display:flex;gap:3px;padding:6px 5px 7px;width:100%;border-top:1px solid #1a1a1a;margin-top:4px; }
+.fc-act { flex:1;background:transparent;border:1px solid;font-family:inherit;font-size:8px;font-weight:700;padding:4px 2px;cursor:pointer;transition:background .15s;text-align:center; }
+.fc-act:hover { background:rgba(255,255,255,.06); }
 
 /* ── Leaderboard ──────────────────────────────────────────────────────────────── */
 .lb-list { padding:8px 12px;display:flex;flex-direction:column;gap:5px; }

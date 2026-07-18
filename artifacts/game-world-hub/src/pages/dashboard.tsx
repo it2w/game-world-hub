@@ -401,7 +401,6 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
   onBlock:(f:any)=>void;
 }) {
   const online = friends.filter(e=>e.friend.status==="online").length;
-  const [hov, setHov] = useState<number|null>(null);
   return (
     <div className="section-box">
       <div className="section-hd">
@@ -415,17 +414,15 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
         {friends.map(entry=>{
           const f=entry.friend;
           const color=(f as any).profileFrameColor??fColor(f.id);
-          const isHov=hov===f.id;
           return (
             <Link key={f.id} href={`/profile/${f.id}`}
-              className={`fc${isHov?" fc--hov":""}`}
-              style={{"--fc":color} as any}
-              onMouseEnter={()=>setHov(f.id)} onMouseLeave={()=>setHov(null)}>
-              <div className="fc-top" style={{background:`linear-gradient(135deg,${color}30,${color}06)`}}>
-                <span className="fc-rank-tag" style={{color,borderColor:`${color}40`}}>{f.tier??"—"}</span>
+              className="fc"
+              style={{"--fc":color} as any}>
+              <div className="fc-top" style={{background:`linear-gradient(160deg,${color}40 0%,${color}10 60%,#0a0a0a 100%)`}}>
+                <span className="fc-rank-tag" style={{color,borderColor:`${color}50`}}>{f.tier??"—"}</span>
               </div>
               <div className="fc-av-wrap">
-                <div className="fc-av" style={{borderColor:color,boxShadow:isHov?`0 0 14px ${color}80`:"none"}}>
+                <div className="fc-av" style={{borderColor:color}}>
                   {f.avatarUrl?<img src={f.avatarUrl} alt={f.displayName}/>:f.displayName.charAt(0).toUpperCase()}
                 </div>
                 <div className={`fc-dot fc-dot--${f.status}`}/>
@@ -435,13 +432,13 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
                 <div className="fc-user">@{f.username}</div>
                 {f.currentGame
                   ?<div className="fc-game" style={{color}}>▶ {f.currentGame}</div>
-                  :<div className="fc-idle">{f.status==="away"?"بعيد":f.status==="busy"?"مشغول":"أونلاين"}</div>
+                  :<div className="fc-idle">{f.status==="away"?"بعيد":f.status==="busy"?"مشغول":"ONLINE"}</div>
                 }
               </div>
-              <div className={`fc-actions${isHov?" fc-actions--show":""}`}>
-                <button className="fc-act" style={{color,borderColor:`${color}60`}} onClick={e=>{e.preventDefault();onCall(f);}}>📞</button>
-                <button className="fc-act" style={{color,borderColor:`${color}60`}} onClick={e=>{e.preventDefault();onDm(f);}}>💬</button>
-                <button className="fc-act" style={{color:"#EF4444",borderColor:"#EF444460"}} onClick={e=>{e.preventDefault();onBlock(f);}}>🚫</button>
+              <div className="fc-actions">
+                <button className="fc-act" style={{color,borderColor:`${color}50`}} title="اتصال"  onClick={e=>{e.preventDefault();onCall(f);}}>📞 اتصال</button>
+                <button className="fc-act" style={{color,borderColor:`${color}50`}} title="دردشة"  onClick={e=>{e.preventDefault();onDm(f);}}>💬 دردشة</button>
+                <button className="fc-act" style={{color:"#EF4444",borderColor:"#EF444450"}} title="حظر" onClick={e=>{e.preventDefault();onBlock(f);}}>🚫 حظر</button>
               </div>
             </Link>
           );

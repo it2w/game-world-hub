@@ -48,10 +48,10 @@ const TOURNAMENTS = [
   { name:"Apex Legends Solo", date:"السبت 7م",   prize:"2,500 ريال", game:"Apex Legends",color:"#A855F7", hot:false },
 ];
 const HIGHLIGHTS = [
-  { user:"Khalid",  clip:"Ace Round Valorant 🔥",          views:"12K", ago:"2m", color:"#EC4899" },
-  { user:"Sara",    clip:"Apex Predator Montage ⚡",        views:"8.4K",ago:"7m", color:"#06B6D4" },
-  { user:"Faisal2", clip:"5K AWP في CS2 Premier 💥",       views:"21K", ago:"15m",color:"#22C55E" },
-  { user:"Reem",    clip:"Overwatch Triple Elimination 🎯", views:"5.1K",ago:"28m",color:"#F97316" },
+  { user:"Khalid",  avatarUrl:null, clip:"Ace Round Valorant 🔥",          views:"12K", ago:"2m", color:"#EC4899" },
+  { user:"Sara",    avatarUrl:null, clip:"Apex Predator Montage ⚡",        views:"8.4K",ago:"7m", color:"#06B6D4" },
+  { user:"Faisal2", avatarUrl:null, clip:"5K AWP في CS2 Premier 💥",       views:"21K", ago:"15m",color:"#22C55E" },
+  { user:"Reem",    avatarUrl:null, clip:"Overwatch Triple Elimination 🎯", views:"5.1K",ago:"28m",color:"#F97316" },
 ];
 
 // ── LiveTicker ─────────────────────────────────────────────────────────────────
@@ -461,6 +461,7 @@ function CommunityHighlights({ activity }: { activity:any[] }) {
   const highlights = activity.length
     ? activity.slice(0,4).map((a:any,i:number)=>({
         user: a.actor.displayName,
+        avatarUrl: a.actor.avatarUrl ?? null,
         clip: `${a.actor.displayName} ${a.action==="created"?"أنشأ":a.action==="joined"?"انضم لـ":"غادر"} ${a.party.name}`,
         views: `${Math.floor(Math.random()*20+1)}K`,
         ago: `${Math.floor((Date.now()-new Date(a.createdAt).getTime())/60000)}m`,
@@ -480,7 +481,9 @@ function CommunityHighlights({ activity }: { activity:any[] }) {
           <div key={i} className={`highlight-row${i===active?" highlight-row--active":""}`}
             style={{borderColor:i===active?h.color:"transparent"}} onClick={()=>setActive(i)}>
             <div className="hl-av" style={{background:`linear-gradient(135deg,${h.color}80,${h.color}20)`,borderColor:h.color}}>
-              {h.user.charAt(0)}
+              {h.avatarUrl
+                ? <img src={h.avatarUrl} alt={h.user} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>
+                : h.user.charAt(0)}
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div className="hl-clip">{h.clip}</div>

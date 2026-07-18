@@ -202,69 +202,71 @@ export default function Friends() {
                   return (
                     <div
                       key={entry.id}
-                      className="group border border-border bg-card hover:border-primary/30 transition-all duration-200 flex flex-col overflow-hidden"
+                      className="group border border-border bg-card hover:border-primary/30 transition-all duration-200 flex flex-col"
+                      style={
+                        (f as any).profileFrameColor
+                          ? { borderColor: `${(f as any).profileFrameColor}55` }
+                          : {}
+                      }
                     >
-                      {/* banner + avatar header */}
-                      <Link href={`/profile/${f.id}`} className="block">
-                        {/* banner with avatar absolutely anchored — RTL-safe */}
-                        <div className="relative h-[72px] overflow-visible">
-                          <div className="h-full overflow-hidden">
-                            {(f as any).profileBgUrl && (
-                              <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            )}
-                            {(f as any).bannerUrl ? (
-                              <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
-                            ) : (
-                              !((f as any).profileBgUrl) && (
-                                <div
-                                  className="w-full h-full"
-                                  style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
-                                />
-                              )
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-card/20 to-transparent" />
+                      {/* banner */}
+                      <div className="relative h-20 overflow-hidden shrink-0">
+                        {(f as any).profileBgUrl ? (
+                          <img src={(f as any).profileBgUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (f as any).bannerUrl ? (
+                          <img src={(f as any).bannerUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div
+                            className="w-full h-full"
+                            style={{
+                              background: (f as any).profileFrameColor
+                                ? `linear-gradient(135deg, ${(f as any).profileFrameColor}30 0%, ${(f as any).profileFrameColor}08 100%)`
+                                : "linear-gradient(135deg, hsl(var(--primary)/0.14) 0%, hsl(var(--primary)/0.03) 100%)",
+                            }}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/10 to-transparent" />
+                        {f.isPro && (
+                          <div className="absolute top-2 end-2">
+                            <ProBadge size="sm" />
                           </div>
+                        )}
+                      </div>
 
-                          {/* avatar — absolute bottom-start, half-overlapping banner */}
-                          <div className="absolute bottom-0 translate-y-1/2 start-4 z-10">
-                            {f.avatarUrl ? (
-                              <img
-                                src={f.avatarUrl}
-                                alt=""
-                                className="w-14 h-14 object-cover rounded-full ring-[3px] ring-card border-2"
-                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
-                              />
-                            ) : (
-                              <div
-                                className="w-14 h-14 rounded-full ring-[3px] ring-card border-2 flex items-center justify-center font-mono font-bold text-xl"
-                                style={{
-                                  borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)",
-                                  background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))",
-                                }}
-                              >
-                                {f.displayName.charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
-                          </div>
-
-                          {/* Pro badge top-end */}
-                          {f.isPro && (
-                            <div className="absolute top-2 end-2 z-10">
-                              <ProBadge size="sm" />
+                      {/* main body — horizontal: avatar + info */}
+                      <Link href={`/profile/${f.id}`} className="flex items-center gap-4 px-4 py-3 flex-1">
+                        {/* avatar — shrink-0 avoids compression, no RTL tricks */}
+                        <div className="relative shrink-0">
+                          {f.avatarUrl ? (
+                            <img
+                              src={f.avatarUrl}
+                              alt=""
+                              className="w-14 h-14 rounded-full object-cover ring-[3px] ring-card border-2"
+                              style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.6)" }}
+                            />
+                          ) : (
+                            <div
+                              className="w-14 h-14 rounded-full ring-[3px] ring-card border-2 flex items-center justify-center font-mono font-bold text-xl"
+                              style={{
+                                borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.6)",
+                                background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))",
+                              }}
+                            >
+                              {f.displayName.charAt(0).toUpperCase()}
                             </div>
                           )}
+                          <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
                         </div>
 
-                        {/* info — pt accounts for avatar overlap (h-14/2 = 28px) */}
-                        <div className="pt-9 px-4 pb-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-bold text-base truncate leading-tight hover:text-primary transition-colors">
+                        {/* info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-base leading-tight truncate group-hover:text-primary transition-colors">
                               {f.displayName}
                             </span>
                             {f.tier && <TierPip tier={f.tier} />}
                           </div>
-                          <div className="text-[11px] text-muted-foreground font-mono mt-0.5">@{f.username}</div>
+                          <div className="text-[11px] text-muted-foreground font-mono mt-0.5 truncate">@{f.username}</div>
                           {f.currentGame ? (
                             <div className="text-xs text-primary font-mono truncate flex items-center gap-1.5 mt-1.5">
                               <Play className="w-3 h-3 fill-primary shrink-0" />

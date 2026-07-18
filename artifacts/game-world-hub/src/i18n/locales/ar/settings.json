@@ -97,6 +97,16 @@
     "placeholder": "XXXX-XXXX-XXXX-XXXX",
     "redeem": "تفعيل"
   },
+  "danger": {
+    "title": "منطقة الخطر",
+    "deleteAccount": "حذف الحساب",
+    "deleteWarning": "هذا الإجراء نهائي ولا يمكن التراجع عنه. سيُحذف حسابك وجميع بياناتك وأصدقاؤك ورسائلك بشكل دائم.",
+    "confirmLabel": "اكتب اسم المستخدم للتأكيد:",
+    "confirmPlaceholder": "اسم-المستخدم",
+    "cancel": "إلغاء",
+    "deleteButton": "حذف حسابي نهائيًا",
+    "deleting": "جارٍ الحذف..."
+  },
   "toasts": {
     "codeRedeemed": "تم تفعيل Pro لمدة {{durationDays}} يوم.",
     "codeRedeemFailed": "تعذّر تفعيل الكود.",
@@ -137,6 +147,7 @@
     "channelLinked": "تم ربط قناة {{platform}}",
     "failedToLinkChannel": "فشل ربط القناة",
     "channelUnlinked": "تم إلغاء ربط القناة",
-    "failedToUnlinkChannel": "فشل إلغاء ربط القناة"
+    "failedToUnlinkChannel": "فشل إلغاء ربط القناة",
+    "accountDeleteFailed": "تعذّر حذف الحساب. حاول مجددًا."
   }
 }

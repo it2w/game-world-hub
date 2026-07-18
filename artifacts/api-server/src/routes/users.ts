@@ -440,6 +440,13 @@ router.delete("/users/me/banner", requireAuth, async (req, res): Promise<void> =
   res.json(safeUser(user));
 });
 
+// DELETE /users/me — permanently deletes the authenticated user's account
+router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+  res.status(204).end();
+});
+
 // DELETE /users/me/photos/:photoId
 router.delete("/users/me/photos/:photoId", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.photoId) ? req.params.photoId[0] : req.params.photoId;

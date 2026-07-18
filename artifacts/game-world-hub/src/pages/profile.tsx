@@ -1,13 +1,14 @@
 import { Link, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useUpdateProfile, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X, Pencil, Loader2 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { TierBadge, DivisionBadge, TierPip, getDivision, TIER_CONFIG, type TierName } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
 import { format } from "date-fns";
@@ -81,9 +82,55 @@ export default function Profile() {
   const { upload, isUploading } = useImageUpload();
   const [commentText, setCommentText] = useState("");
   const photoFileRef = useRef<HTMLInputElement>(null);
+  const avatarUploadRef = useRef<HTMLInputElement>(null);
+  const updateProfile = useUpdateProfile();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editFrameColor, setEditFrameColor] = useState("");
 
   const refreshPhotos = () => queryClient.invalidateQueries({ queryKey: getListProfilePhotosQueryKey(userId) });
   const refreshWall = () => queryClient.invalidateQueries({ queryKey: getListProfileCommentsQueryKey(userId) });
+
+  // Sync edit sheet state whenever the profile loads/changes
+  useEffect(() => {
+    if (user) {
+      setEditName(user.displayName);
+      setEditBio(user.bio ?? "");
+      setEditFrameColor((user as Record<string, unknown>).profileFrameColor as string ?? "");
+    }
+  }, [user]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const objectPath = await upload(file);
+      updateProfile.mutate({ userId, data: { avatarUrl: objectPath } }, {
+        onSuccess: () => { toast({ title: t("toasts.avatarUpdated") }); refreshUser(); },
+        onError: () => toast({ title: t("toasts.profileUpdateFailed"), variant: "destructive" }),
+      });
+    } catch (err) {
+      toast({ title: t("toasts.uploadFailed"), description: err instanceof Error ? err.message : undefined, variant: "destructive" });
+    }
+  };
+
+  const handleSaveProfile = () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) return;
+    const data: Record<string, string> = { displayName: trimmedName, bio: editBio.trim() };
+    // Always send profileFrameColor for Pro users so empty string (reset) actually clears it server-side
+    if ((user as Record<string, unknown>)?.isPro) data.profileFrameColor = editFrameColor;
+    updateProfile.mutate({ userId, data }, {
+      onSuccess: () => {
+        toast({ title: t("toasts.profileUpdated") });
+        setEditOpen(false);
+        refreshUser();
+      },
+      onError: () => toast({ title: t("toasts.profileUpdateFailed"), variant: "destructive" }),
+    });
+  };
 
   const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -263,11 +310,15 @@ export default function Profile() {
 
         {/* AVATAR + IDENTITY ROW — overlaps banner */}
         <div className="px-6 -mt-14 relative z-10 flex items-end gap-5">
-          <div className="relative shrink-0 group">
+          <div
+            className={`relative shrink-0 group${isOwner ? " cursor-pointer" : ""}`}
+            onClick={() => { if (isOwner) avatarUploadRef.current?.click(); }}
+            title={isOwner ? t("uploadAvatar") : undefined}
+          >
             {/* Avatar circle — Pro frame color or default card border */}
             <div
               className="w-28 h-28 rounded-full border-4 bg-muted overflow-hidden flex items-center justify-center"
-              style={{ borderColor: user.profileFrameColor ?? undefined }}
+              style={{ borderColor: (user as Record<string, unknown>).profileFrameColor as string ?? undefined }}
             >
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -276,19 +327,29 @@ export default function Profile() {
                   {user.displayName.charAt(0).toUpperCase()}
                 </span>
               )}
-              {/* Delete avatar (owner, on hover) */}
-              {isOwner && user.avatarUrl && (
-                <button
-                  onClick={handleDeleteAvatar}
-                  disabled={deleteAvatar.isPending}
-                  className="absolute inset-0 rounded-full bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-destructive"
-                  title={t("deleteAvatar")}
-                  data-testid="button-delete-avatar"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              {/* Upload overlay (owner, on hover) */}
+              {isOwner && (
+                <div className="absolute inset-0 rounded-full bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  {isUploading ? (
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-primary" />
+                  )}
+                </div>
               )}
             </div>
+            {/* Delete avatar button — separate corner button, stops propagation */}
+            {isOwner && user.avatarUrl && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteAvatar(); }}
+                disabled={deleteAvatar.isPending}
+                className="absolute top-0.5 end-0.5 p-1 bg-background/90 border border-border rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive hover:text-white z-10"
+                title={t("deleteAvatar")}
+                data-testid="button-delete-avatar"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
             {/* Status pill — fully OUTSIDE the avatar, below it */}
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-full whitespace-nowrap shadow-sm">
               <StatusBadge status={user.status} className="w-2 h-2 shrink-0" />
@@ -307,6 +368,16 @@ export default function Profile() {
               {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
             </div>
             <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
+            {isOwner && (
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                onClick={() => setEditOpen(true)}
+                data-testid="button-edit-profile"
+              >
+                <Pencil className="w-3 h-3" /> {t("editProfile.button")}
+              </button>
+            )}
           </div>
         </div>
 
@@ -651,6 +722,80 @@ export default function Profile() {
           </div>
         )}
       </div>
+      {/* Hidden file inputs */}
+      <input ref={avatarUploadRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} data-testid="input-avatar-upload" />
+
+      {/* Edit Profile Sheet (own profile only) */}
+      {isOwner && (
+        <Sheet open={editOpen} onOpenChange={setEditOpen}>
+          <SheetContent side="right" className="font-mono border-border bg-card w-full sm:max-w-md flex flex-col gap-0 p-0">
+            <SheetHeader className="p-6 border-b border-border">
+              <SheetTitle className="font-mono uppercase tracking-widest">{t("editProfile.title")}</SheetTitle>
+              <SheetDescription className="font-mono text-xs text-muted-foreground">
+                {t("editProfile.description")}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 space-y-5 p-6 overflow-y-auto">
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1.5">
+                  {t("editProfile.displayName")}
+                </label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  maxLength={50}
+                  className="w-full bg-background border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary transition-colors rounded-none"
+                />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1.5">
+                  {t("editProfile.bio")}
+                </label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  className="w-full bg-background border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary transition-colors resize-none rounded-none"
+                />
+                <div className="text-[10px] text-muted-foreground font-mono mt-1">{editBio.length}/500</div>
+              </div>
+              {(user as Record<string, unknown>).isPro && (
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1.5">
+                    {t("editProfile.frameColor")}
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={editFrameColor || "#22C55E"}
+                      onChange={(e) => setEditFrameColor(e.target.value)}
+                      className="h-9 w-14 border border-border bg-background cursor-pointer p-0.5 rounded-none"
+                    />
+                    <span className="font-mono text-xs text-muted-foreground flex-1">{editFrameColor || "default"}</span>
+                    <button
+                      type="button"
+                      className="font-mono text-[10px] text-muted-foreground hover:text-primary uppercase tracking-wider"
+                      onClick={() => setEditFrameColor("")}
+                    >
+                      {t("editProfile.frameColorReset")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <SheetFooter className="p-6 border-t border-border">
+              <Button
+                className="w-full font-mono rounded-none"
+                onClick={handleSaveProfile}
+                disabled={updateProfile.isPending || !editName.trim()}
+              >
+                {updateProfile.isPending ? t("editProfile.saving") : t("editProfile.saveButton")}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

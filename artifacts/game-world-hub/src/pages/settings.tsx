@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, AlertTriangle } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
@@ -83,6 +84,8 @@ export default function Settings() {
   const [disablePassword, setDisablePassword] = useState("");
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const bannerFileRef = useRef<HTMLInputElement>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const refreshMe = () => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
   const errText = (err: unknown, fallback: string) =>
@@ -352,6 +355,19 @@ export default function Settings() {
         onError: () => toast({ title: t("toasts.failedToUnlinkChannel"), variant: "destructive" }),
       }
     );
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!me || deleteConfirmText !== me.username || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await customFetch("/api/users/me", { method: "DELETE" });
+      // JWT becomes invalid once the user row is deleted — redirect clears app state
+      window.location.href = "/";
+    } catch {
+      toast({ title: t("toasts.accountDeleteFailed"), variant: "destructive" });
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -805,6 +821,55 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Danger Zone ─────────────────────────────────────────────────────── */}
+      <div className="bg-card border border-destructive/30 p-6">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-destructive mb-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" /> {t("danger.title")}
+        </h2>
+        <p className="font-mono text-xs text-muted-foreground mb-4">{t("danger.deleteWarning")}</p>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="font-mono rounded-none border-destructive/40 text-destructive hover:bg-destructive/10 gap-2">
+              <Trash2 className="w-4 h-4" /> {t("danger.deleteAccount")}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="font-mono rounded-none border-border bg-card">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="uppercase tracking-widest text-destructive">
+                {t("danger.deleteAccount")}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground text-xs leading-relaxed">
+                {t("danger.deleteWarning")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 py-2">
+              <label className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground block">
+                {t("danger.confirmLabel")}
+              </label>
+              <Input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={me?.username ?? t("danger.confirmPlaceholder")}
+                className="font-mono rounded-none border-border bg-background"
+                autoComplete="off"
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="font-mono rounded-none" onClick={() => setDeleteConfirmText("")}>
+                {t("danger.cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="font-mono rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40"
+                disabled={!me || deleteConfirmText !== me.username || isDeleting}
+                onClick={handleDeleteAccount}
+              >
+                {isDeleting ? t("danger.deleting") : t("danger.deleteButton")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
     </div>

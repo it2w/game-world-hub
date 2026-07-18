@@ -97,6 +97,16 @@
     "placeholder": "XXXX-XXXX-XXXX-XXXX",
     "redeem": "Redeem"
   },
+  "danger": {
+    "title": "DANGER_ZONE",
+    "deleteAccount": "DELETE ACCOUNT",
+    "deleteWarning": "This action is permanent and cannot be undone. Your account, data, friends, and messages will be permanently deleted.",
+    "confirmLabel": "Type your username to confirm:",
+    "confirmPlaceholder": "your-username",
+    "cancel": "CANCEL",
+    "deleteButton": "PERMANENTLY DELETE MY ACCOUNT",
+    "deleting": "DELETING..."
+  },
   "toasts": {
     "codeRedeemed": "Pro activated for {{durationDays}} days.",
     "codeRedeemFailed": "Could not redeem code.",
@@ -137,6 +147,7 @@
     "channelLinked": "{{platform}} channel linked",
     "failedToLinkChannel": "Failed to link channel",
     "channelUnlinked": "Channel unlinked",
-    "failedToUnlinkChannel": "Failed to unlink channel"
+    "failedToUnlinkChannel": "Failed to unlink channel",
+    "accountDeleteFailed": "Could not delete account. Please try again."
   }
 }

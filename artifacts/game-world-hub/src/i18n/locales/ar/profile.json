@@ -6,6 +6,18 @@
   "init": "تاريخ الإنشاء: {{date}}",
   "deleteAvatar": "إزالة الصورة الشخصية",
   "deleteBanner": "إزالة الغلاف",
+  "uploadAvatar": "انقر لتغيير الصورة",
+  "editProfile": {
+    "button": "تعديل الملف",
+    "title": "تعديل الملف الشخصي",
+    "description": "تحديث الاسم الظاهر والنبذة ولون الإطار.",
+    "displayName": "الاسم الظاهر",
+    "bio": "النبذة",
+    "frameColor": "لون الإطار (Pro)",
+    "frameColorReset": "إعادة تعيين",
+    "saveButton": "حفظ التغييرات",
+    "saving": "جارٍ الحفظ..."
+  },
   "rank": {
     "label": "الرتبة"
   },
@@ -66,8 +78,11 @@
     "userUnblocked": "تم إلغاء حظر المستخدم",
     "userUnblockFailed": "تعذّر إلغاء حظر المستخدم",
     "avatarDeleted": "تمت إزالة الصورة الشخصية",
+    "avatarUpdated": "تم تحديث الصورة الشخصية",
     "bannerDeleted": "تمت إزالة الغلاف",
-    "deleteFailed": "تعذّر الحذف"
+    "deleteFailed": "تعذّر الحذف",
+    "profileUpdated": "تم تحديث الملف الشخصي",
+    "profileUpdateFailed": "تعذّر تحديث الملف الشخصي"
   },
   "noBanner": "لا توجد صورة غلاف"
 }

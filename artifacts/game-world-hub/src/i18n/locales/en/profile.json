@@ -6,6 +6,18 @@
   "init": "INIT: {{date}}",
   "deleteAvatar": "Remove profile picture",
   "deleteBanner": "Remove banner",
+  "uploadAvatar": "Click to change avatar",
+  "editProfile": {
+    "button": "EDIT PROFILE",
+    "title": "Edit Profile",
+    "description": "Update your display name, bio, and frame color.",
+    "displayName": "DISPLAY NAME",
+    "bio": "BIOGRAPHY",
+    "frameColor": "FRAME COLOR (PRO)",
+    "frameColorReset": "Reset",
+    "saveButton": "SAVE CHANGES",
+    "saving": "SAVING..."
+  },
   "rank": {
     "label": "Rank"
   },
@@ -66,8 +78,11 @@
     "userUnblocked": "User unblocked",
     "userUnblockFailed": "Couldn't unblock user",
     "avatarDeleted": "Profile picture removed",
+    "avatarUpdated": "Profile picture updated",
     "bannerDeleted": "Banner removed",
-    "deleteFailed": "Couldn't delete"
+    "deleteFailed": "Couldn't delete",
+    "profileUpdated": "Profile updated",
+    "profileUpdateFailed": "Couldn't update profile"
   },
-  "noBanner": "No cover photo"
+  "noBanner": "No banner image"
 }

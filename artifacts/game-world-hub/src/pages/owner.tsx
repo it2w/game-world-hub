@@ -216,7 +216,7 @@ export default function Owner() {
 
   return (
     <div className="min-h-screen bg-background flex items-start justify-center p-4 md:p-8">
-      <div className={`w-full ${mode === "dashboard" ? "max-w-5xl" : "max-w-md"} border border-primary/30 bg-card shadow-2xl`}>
+      <div className={`w-full ${mode === "dashboard" ? "max-w-6xl" : "max-w-md"} border border-primary/30 bg-card shadow-2xl`}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-primary/20">
           <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function Owner() {
           )}
         </div>
 
-        <div className="p-6">
+        <div className={mode === "dashboard" ? "" : "p-6"}>
           {mode === "login"     && <LoginForm onLogin={handleLogin} onReset={() => setMode("reset")} t={t} toast={toast} />}
           {mode === "reset"     && <ResetForm onBack={() => setMode("login")} t={t} toast={toast} />}
           {mode === "dashboard" && session && ownerInfo && (
@@ -377,51 +377,55 @@ function ResetForm({ onBack, t, toast }: {
 
 /* ─── Dashboard ──────────────────────────────────────────────────────────── */
 
-const TABS: { id: Tab; icon: React.ReactNode; key: string }[] = [
-  { id: "stats",     icon: <BarChart3         className="w-4 h-4" />, key: "tabs.stats"     },
-  { id: "users",     icon: <Users             className="w-4 h-4" />, key: "tabs.users"     },
-  { id: "admins",    icon: <Shield            className="w-4 h-4" />, key: "tabs.admins"    },
-  { id: "codes",     icon: <Tag               className="w-4 h-4" />, key: "tabs.codes"     },
-  { id: "subs",      icon: <CreditCard        className="w-4 h-4" />, key: "tabs.subs"      },
-  { id: "analytics", icon: <TrendingUp        className="w-4 h-4" />, key: "tabs.analytics" },
-  { id: "content",   icon: <Layers            className="w-4 h-4" />, key: "tabs.content"   },
-  { id: "log",       icon: <Activity          className="w-4 h-4" />, key: "tabs.log"       },
-  { id: "reports",   icon: <Flag              className="w-4 h-4" />, key: "tabs.reports"   },
-  { id: "denylist",  icon: <Ban               className="w-4 h-4" />, key: "tabs.denylist"  },
-  { id: "settings",  icon: <SlidersHorizontal className="w-4 h-4" />, key: "tabs.settings"  },
-  { id: "account",   icon: <Settings          className="w-4 h-4" />, key: "tabs.account"   },
+/* Navigation structure — grouped for sidebar */
+const NAV_GROUPS: { labelKey: string; items: { id: Tab; icon: React.ReactNode; key: string }[] }[] = [
+  {
+    labelKey: "nav.overview",
+    items: [
+      { id: "stats",     icon: <BarChart3  className="w-3.5 h-3.5" />, key: "tabs.stats"     },
+      { id: "analytics", icon: <TrendingUp className="w-3.5 h-3.5" />, key: "tabs.analytics" },
+    ],
+  },
+  {
+    labelKey: "nav.users",
+    items: [
+      { id: "users",   icon: <Users  className="w-3.5 h-3.5" />, key: "tabs.users"   },
+      { id: "admins",  icon: <Shield className="w-3.5 h-3.5" />, key: "tabs.admins"  },
+      { id: "reports", icon: <Flag   className="w-3.5 h-3.5" />, key: "tabs.reports" },
+    ],
+  },
+  {
+    labelKey: "nav.commerce",
+    items: [
+      { id: "subs",  icon: <CreditCard className="w-3.5 h-3.5" />, key: "tabs.subs"  },
+      { id: "codes", icon: <Tag        className="w-3.5 h-3.5" />, key: "tabs.codes" },
+    ],
+  },
+  {
+    labelKey: "nav.platform",
+    items: [
+      { id: "content",  icon: <Layers   className="w-3.5 h-3.5" />, key: "tabs.content"  },
+      { id: "denylist", icon: <Ban      className="w-3.5 h-3.5" />, key: "tabs.denylist" },
+      { id: "log",      icon: <Activity className="w-3.5 h-3.5" />, key: "tabs.log"      },
+    ],
+  },
+  {
+    labelKey: "nav.system",
+    items: [
+      { id: "settings", icon: <SlidersHorizontal className="w-3.5 h-3.5" />, key: "tabs.settings" },
+      { id: "account",  icon: <Settings          className="w-3.5 h-3.5" />, key: "tabs.account"  },
+    ],
+  },
 ];
 
-function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
-  session: OwnerSession; ownerInfo: OwnerInfo; onRefreshMe: () => void;
+const FLAT_TABS = NAV_GROUPS.flatMap((g) => g.items);
+
+function TabContent({ tab, session, ownerInfo, onRefreshMe, t, toast }: {
+  tab: Tab; session: OwnerSession; ownerInfo: OwnerInfo; onRefreshMe: () => void;
   t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [tab, setTab] = useState<Tab>("stats");
-
   return (
-    <div className="space-y-4">
-      {!ownerInfo.email && (
-        <div className="flex items-center gap-2 text-yellow-500 border border-yellow-500/30 bg-yellow-500/5 px-3 py-2">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-mono text-[11px] uppercase">{t("noEmailWarning")}</span>
-        </div>
-      )}
-
-      {/* Tab bar */}
-      <div className="flex border-b border-border overflow-x-auto">
-        {TABS.map(({ id, icon, key }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 font-mono text-xs uppercase whitespace-nowrap border-b-2 transition-colors ${
-              tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {icon} {t(key)}
-          </button>
-        ))}
-      </div>
-
+    <>
       {tab === "stats"     && <StatsTab     session={session} t={t} />}
       {tab === "users"     && <UsersTab     session={session} t={t} toast={toast} />}
       {tab === "admins"    && <AdminsTab    session={session} t={t} toast={toast} />}
@@ -434,6 +438,93 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
       {tab === "denylist"  && <DenylistTab  session={session} t={t} toast={toast} />}
       {tab === "settings"  && <SettingsTab  session={session} t={t} toast={toast} />}
       {tab === "account"   && <AccountTab   session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
+    </>
+  );
+}
+
+function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
+  session: OwnerSession; ownerInfo: OwnerInfo; onRefreshMe: () => void;
+  t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [tab, setTab] = useState<Tab>("stats");
+  const activeItem = FLAT_TABS.find((i) => i.id === tab);
+
+  return (
+    /* dir=ltr so sidebar is always on the left regardless of app locale */
+    <div className="flex flex-col md:flex-row min-h-[640px]" dir="ltr">
+
+      {/* ── Left sidebar (desktop only) ── */}
+      <aside className="hidden md:flex flex-col w-44 shrink-0 border-r border-border">
+        {!ownerInfo.email && (
+          <div className="flex items-start gap-1.5 text-yellow-500 border-b border-yellow-500/20 bg-yellow-500/5 px-3 py-2">
+            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+            <span className="font-mono text-[9px] uppercase leading-tight">{t("noEmailWarning")}</span>
+          </div>
+        )}
+
+        <nav className="flex-1 py-2 overflow-y-auto">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.labelKey} className="mb-2">
+              <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40 px-4 pt-3 pb-1.5 select-none">
+                {t(group.labelKey)}
+              </p>
+              {group.items.map(({ id, icon, key }) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className={`w-full flex items-center gap-2.5 px-4 py-[7px] font-mono text-[11px] transition-all border-l-2 text-start ${
+                    tab === id
+                      ? "border-l-primary text-primary bg-primary/[0.07]"
+                      : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-white/[0.03]"
+                  }`}
+                >
+                  <span className="shrink-0">{icon}</span>
+                  <span className="truncate">{t(key)}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* ── Mobile compact tab strip ── */}
+      <div className="md:hidden flex-col flex">
+        {!ownerInfo.email && (
+          <div className="flex items-center gap-2 text-yellow-500 border-b border-yellow-500/20 bg-yellow-500/5 px-3 py-2">
+            <AlertTriangle className="w-3 h-3 shrink-0" />
+            <span className="font-mono text-[9px] uppercase">{t("noEmailWarning")}</span>
+          </div>
+        )}
+        <div className="flex border-b border-border overflow-x-auto shrink-0">
+          {FLAT_TABS.map(({ id, icon, key }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 font-mono text-[10px] uppercase whitespace-nowrap border-b-2 transition-colors shrink-0 ${
+                tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+              }`}
+            >
+              {icon} {t(key)}
+            </button>
+          ))}
+        </div>
+        <div className="p-4 flex-1">
+          <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />
+        </div>
+      </div>
+
+      {/* ── Desktop content area ── */}
+      <main className="hidden md:block flex-1 p-6 overflow-x-hidden min-w-0">
+        {/* Page header row */}
+        <div className="flex items-center gap-2.5 mb-5 pb-4 border-b border-border/50">
+          <span className="text-primary/60">{activeItem?.icon}</span>
+          <h2 className="font-mono text-[11px] uppercase tracking-widest text-foreground/60">
+            {activeItem ? t(activeItem.key) : ""}
+          </h2>
+        </div>
+
+        <TabContent tab={tab} session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />
+      </main>
     </div>
   );
 }

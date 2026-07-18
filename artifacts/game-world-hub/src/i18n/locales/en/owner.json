@@ -42,6 +42,12 @@
   "tabs.settings":  "Settings",
   "tabs.account":   "Account",
 
+  "nav.overview": "Overview",
+  "nav.users":    "Users",
+  "nav.commerce": "Commerce",
+  "nav.platform": "Platform",
+  "nav.system":   "System",
+
   "stats.onlineNow":              "Online Now",
   "stats.totalUsers":             "Total Users",
   "stats.proUsers":               "Pro Users",

@@ -201,6 +201,12 @@
   "tabs.analytics": "التحليلات",
   "tabs.content":   "المحتوى",
 
+  "nav.overview": "نظرة عامة",
+  "nav.users":    "المستخدمون",
+  "nav.commerce": "التجارة",
+  "nav.platform": "المنصة",
+  "nav.system":   "النظام",
+
   "analytics.newUsers":       "مستخدمون جدد",
   "analytics.dau":            "المستخدمون النشطون يومياً",
   "analytics.lfgPosts":       "منشورات LFG",

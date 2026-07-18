@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, like, or, desc, sql, inArray, ne } from "drizzle-orm";
 import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable, messagesTable, partiesTable, notificationsTable } from "@workspace/db";
-import { requireOwner, signOwnerToken } from "../middlewares/owner";
+import { requireOwner, signOwnerToken, verifyOwnerToken } from "../middlewares/owner";
 import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { sendEmail } from "../lib/email";
@@ -524,6 +524,34 @@ router.get("/owner/pro-subscriptions", requireOwner, async (_req, res): Promise<
 
 Promise.allSettled([
   pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_invalidated_before TIMESTAMPTZ`),
+  /* Fix author_id FK if it was previously created pointing at users instead of super_admins. */
+  pool.query(`
+    DO $mig$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid  = t.oid
+        JOIN pg_class r ON c.confrelid = r.oid
+        WHERE t.relname = 'admin_notes'
+          AND c.conname = 'admin_notes_author_id_fkey'
+          AND r.relname = 'users'
+      ) THEN
+        ALTER TABLE admin_notes DROP CONSTRAINT admin_notes_author_id_fkey;
+        ALTER TABLE admin_notes
+          ADD CONSTRAINT admin_notes_author_id_fkey
+          FOREIGN KEY (author_id) REFERENCES super_admins(id) ON DELETE CASCADE;
+      END IF;
+    END $mig$
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_notes (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      author_id  INTEGER NOT NULL REFERENCES super_admins(id) ON DELETE CASCADE,
+      body       TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`CREATE INDEX IF NOT EXISTS admin_notes_user_id_idx ON admin_notes(user_id)`),
   pool.query(`
     CREATE TABLE IF NOT EXISTS admin_permissions (
       user_id            INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -762,6 +790,298 @@ router.put("/owner/settings", requireOwner, async (req, res): Promise<void> => {
     detail: entries.map(([k, v]) => `${k}=${v}`).join(", "),
   });
   res.json({ ok: true });
+});
+
+/* ─── Analytics (5-min in-process cache) ────────────────────────────────── */
+
+let _analyticsCache: { range: number; data: unknown; ts: number } | null = null;
+const ANALYTICS_TTL_MS = 5 * 60 * 1000;
+
+router.get("/owner/analytics", requireOwner, async (req, res): Promise<void> => {
+  const range = Math.min(Math.max(Number(req.query.range) || 30, 7), 90);
+  if (_analyticsCache && _analyticsCache.range === range && Date.now() - _analyticsCache.ts < ANALYTICS_TTL_MS) {
+    res.json(_analyticsCache.data); return;
+  }
+
+  const [nu, dau, lfg, pro] = await Promise.all([
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM users u WHERE date_trunc('day', u.created_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM users u WHERE date_trunc('day', u.last_active_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM lfg_posts p WHERE date_trunc('day', p.created_at AT TIME ZONE 'UTC') = s), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+    pool.query<{ date: string; count: number }>(`
+      SELECT to_char(s, 'YYYY-MM-DD') AS date,
+             coalesce((SELECT count(*)::int FROM pro_subscriptions ps WHERE date_trunc('day', ps.created_at AT TIME ZONE 'UTC') = s AND ps.provider != 'manual-expiry'), 0) AS count
+      FROM generate_series(
+        date_trunc('day', NOW() - ($1 || ' days')::interval),
+        date_trunc('day', NOW()),
+        '1 day'::interval
+      ) AS s ORDER BY s
+    `, [range]),
+  ]);
+
+  const peakDau = dau.rows.reduce((m, r) => Math.max(m, r.count), 0);
+  const [proR, usrR] = await Promise.all([
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users WHERE is_pro = true`),
+    pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM users`),
+  ]);
+  const proConvRate = usrR.rows[0]?.n ? +((proR.rows[0]?.n ?? 0) / usrR.rows[0].n * 100).toFixed(1) : 0;
+
+  const data = { range, newUsers: nu.rows, dau: dau.rows, lfgPosts: lfg.rows, proActivations: pro.rows, summary: { peakDau, proConvRate } };
+  _analyticsCache = { range, data, ts: Date.now() };
+  res.json(data);
+});
+
+/* ─── User Detail ─────────────────────────────────────────────────────────── */
+
+router.get("/owner/users/:id/detail", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId || !Number.isInteger(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { getUserProgress } = await import("../lib/xp");
+
+  const [progress, proHistRes, notesRes, rptRes] = await Promise.all([
+    getUserProgress(userId).catch(() => null),
+    pool.query<{ id: number; provider: string; status: string; started_at: string | null; expires_at: string | null; amount: string | null; currency: string | null }>(
+      `SELECT id, provider, status, started_at, expires_at, amount, currency
+       FROM pro_subscriptions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 5`,
+      [userId],
+    ).catch(() => ({ rows: [] as { id: number; provider: string; status: string; started_at: string | null; expires_at: string | null; amount: string | null; currency: string | null }[] })),
+    pool.query<{ id: number; author_id: number; author_name: string | null; body: string; created_at: string }>(
+      `SELECT n.id, n.author_id, sa.username AS author_name, n.body, n.created_at
+       FROM admin_notes n LEFT JOIN super_admins sa ON sa.id = n.author_id
+       WHERE n.user_id=$1 ORDER BY n.created_at DESC`,
+      [userId],
+    ).catch(() => ({ rows: [] as { id: number; author_id: number; author_name: string | null; body: string; created_at: string }[] })),
+    pool.query<{ total: number }>(
+      `SELECT count(*)::int AS total FROM reports WHERE target_type='user' AND target_id=$1`,
+      [userId],
+    ).catch(() => ({ rows: [{ total: 0 }] })),
+  ]);
+
+  res.json({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    email: user.email ?? null,
+    status: user.status,
+    avatarUrl: user.avatarUrl ?? null,
+    isPro: user.isPro,
+    isAdmin: user.isAdmin,
+    proExpiresAt: user.proExpiresAt?.toISOString() ?? null,
+    createdAt: user.createdAt.toISOString(),
+    lastActiveAt: user.lastActiveAt?.toISOString() ?? null,
+    progress,
+    proHistory: proHistRes.rows,
+    notes: notesRes.rows,
+    reportCount: rptRes.rows[0]?.total ?? 0,
+  });
+});
+
+/* ─── Admin Notes ─────────────────────────────────────────────────────────── */
+
+router.get("/owner/users/:id/notes", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { rows } = await pool.query<{ id: number; author_id: number; author_name: string | null; body: string; created_at: string }>(
+    `SELECT n.id, n.author_id, sa.username AS author_name, n.body, n.created_at
+     FROM admin_notes n LEFT JOIN super_admins sa ON sa.id = n.author_id
+     WHERE n.user_id=$1 ORDER BY n.created_at DESC`,
+    [userId],
+  ).catch(() => ({ rows: [] as { id: number; author_id: number; author_name: string | null; body: string; created_at: string }[] }));
+  res.json({ items: rows });
+});
+
+router.post("/owner/users/:id/notes", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  if (!body) { res.status(400).json({ error: "body is required" }); return; }
+  if (body.length > 2000) { res.status(400).json({ error: "Note must be ≤2000 characters" }); return; }
+  const { rows } = await pool.query<{ id: number; body: string; created_at: string }>(
+    `INSERT INTO admin_notes (user_id, author_id, body) VALUES ($1,$2,$3) RETURNING id, body, created_at`,
+    [userId, req.owner!.ownerId, body],
+  );
+  res.status(201).json({ ...rows[0], author_id: req.owner!.ownerId, author_name: req.owner!.username });
+});
+
+router.delete("/owner/notes/:noteId", requireOwner, async (req, res): Promise<void> => {
+  const noteId = Number(req.params.noteId);
+  if (!noteId) { res.status(400).json({ error: "Invalid note id" }); return; }
+  const { rowCount } = await pool.query(`DELETE FROM admin_notes WHERE id=$1`, [noteId]);
+  if (!rowCount) { res.status(404).json({ error: "Note not found" }); return; }
+  res.json({ ok: true });
+});
+
+/* ─── Content Moderation ──────────────────────────────────────────────────── */
+
+router.get("/owner/content", requireOwner, async (req, res): Promise<void> => {
+  const type   = typeof req.query.type   === "string" ? req.query.type   : "lfg";
+  const limit  = Math.min(Number(req.query.limit)  || 20, 100);
+  const offset = Math.max(Number(req.query.offset) || 0,  0);
+
+  if (type === "lfg") {
+    const [items, total] = await Promise.all([
+      pool.query<{ id: number; game: string; description: string; status: string; author_id: number; author_username: string | null; response_count: number; created_at: string }>(`
+        SELECT p.id, p.game, p.description, p.status, p.author_id,
+               u.username AS author_username,
+               (SELECT count(*)::int FROM lfg_responses WHERE post_id=p.id) AS response_count,
+               p.created_at
+        FROM lfg_posts p LEFT JOIN users u ON u.id=p.author_id
+        ORDER BY p.created_at DESC LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM lfg_posts`),
+    ]);
+    res.json({ total: total.rows[0]?.n ?? 0, items: items.rows });
+  } else if (type === "party") {
+    const [items, total] = await Promise.all([
+      pool.query<{ id: number; name: string; game: string | null; leader_id: number; leader_username: string | null; member_count: number; max_size: number; created_at: string }>(`
+        SELECT pa.id, pa.name, pa.game, pa.leader_id,
+               u.username AS leader_username,
+               (SELECT count(*)::int FROM party_members WHERE party_id=pa.id) AS member_count,
+               pa.max_size, pa.created_at
+        FROM parties pa LEFT JOIN users u ON u.id=pa.leader_id
+        ORDER BY pa.created_at DESC LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM parties`),
+    ]);
+    res.json({ total: total.rows[0]?.n ?? 0, items: items.rows });
+  } else {
+    res.status(400).json({ error: "type must be lfg or party" });
+  }
+});
+
+router.delete("/owner/content/lfg/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rowCount } = await pool.query(`DELETE FROM lfg_posts WHERE id=$1`, [id]);
+  if (!rowCount) { res.status(404).json({ error: "LFG post not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "delete_content", { targetId: id, detail: `lfg_post #${id}` });
+  res.json({ ok: true });
+});
+
+router.delete("/owner/content/party/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rowCount } = await pool.query(`DELETE FROM parties WHERE id=$1`, [id]);
+  if (!rowCount) { res.status(404).json({ error: "Party not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "delete_content", { targetId: id, detail: `party #${id}` });
+  res.json({ ok: true });
+});
+
+/* ─── Bulk Actions ────────────────────────────────────────────────────────── */
+
+const BULK_ACTIONS = ["activate_pro", "deactivate_pro", "suspend", "unsuspend", "force_logout"] as const;
+type BulkAction = (typeof BULK_ACTIONS)[number];
+
+router.post("/owner/users/bulk", requireOwner, async (req, res): Promise<void> => {
+  const { userIds, action, durationDays } = req.body as { userIds?: unknown; action?: unknown; durationDays?: unknown };
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    res.status(400).json({ error: "userIds must be a non-empty array" }); return;
+  }
+  if (userIds.length > 100) {
+    res.status(400).json({ error: "Cannot bulk-action more than 100 users" }); return;
+  }
+  if (!BULK_ACTIONS.includes(action as BulkAction)) {
+    res.status(400).json({ error: `action must be one of: ${BULK_ACTIONS.join(", ")}` }); return;
+  }
+  const days = Math.max(Number(durationDays) || 30, 1);
+  const succeeded: number[] = [];
+  const failed: number[] = [];
+
+  for (const uid of (userIds as unknown[]).map(Number).filter((n) => n > 0 && Number.isInteger(n))) {
+    try {
+      switch (action as BulkAction) {
+        case "activate_pro":   await activateProForUser(uid, { provider: "owner_bulk", durationDays: days }); break;
+        case "deactivate_pro": await deactivatePro(uid); break;
+        case "suspend":        await db.update(usersTable).set({ status: "suspended"                }).where(eq(usersTable.id, uid)); break;
+        case "unsuspend":      await db.update(usersTable).set({ status: "offline"                  }).where(eq(usersTable.id, uid)); break;
+        case "force_logout":   await db.update(usersTable).set({ sessionsInvalidatedBefore: new Date() }).where(eq(usersTable.id, uid)); break;
+      }
+      succeeded.push(uid);
+    } catch { failed.push(uid); }
+  }
+
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, `bulk_${action as string}`, {
+    detail: `${succeeded.length} ok, ${failed.length} failed`,
+  });
+  res.json({ succeeded, failed });
+});
+
+/* ─── Export (CSV, token also accepted via ?token= for window.open) ──────── */
+
+router.get("/owner/export/users", async (req, res): Promise<void> => {
+  const rawToken = typeof req.query.token === "string"
+    ? req.query.token
+    : (req.headers.authorization ?? "").replace("Bearer ", "");
+  try { verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { rows } = await pool.query<{
+    id: number; username: string; display_name: string | null; email: string | null;
+    is_pro: boolean; is_admin: boolean; status: string; created_at: string; last_active_at: string | null;
+  }>(`SELECT id, username, display_name, email, is_pro, is_admin, status, created_at, last_active_at FROM users ORDER BY id ASC`);
+
+  const esc = (v: string | null) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const csv = ["id,username,display_name,email,is_pro,is_admin,status,created_at,last_active_at",
+    ...rows.map((r) => [r.id, r.username, esc(r.display_name), esc(r.email), r.is_pro, r.is_admin, r.status, r.created_at, r.last_active_at ?? ""].join(","))
+  ].join("\n");
+
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="users-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
+router.get("/owner/export/log", async (req, res): Promise<void> => {
+  const rawToken = typeof req.query.token === "string"
+    ? req.query.token
+    : (req.headers.authorization ?? "").replace("Bearer ", "");
+  try { verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { rows } = await pool.query<{
+    id: number; action: string; target_id: number | null; target_name: string | null;
+    detail: string | null; owner_name: string; created_at: string;
+  }>(`
+    SELECT al.id, al.action, al.target_id, u.username AS target_name, al.detail,
+           sa.username AS owner_name, al.created_at
+    FROM owner_activity_log al
+    LEFT JOIN users u      ON u.id  = al.target_id
+    LEFT JOIN super_admins sa ON sa.id = al.owner_id
+    ORDER BY al.created_at DESC LIMIT 5000
+  `);
+
+  const esc = (v: string | null) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const csv = ["id,action,target_id,target_name,detail,owner_name,created_at",
+    ...rows.map((r) => [r.id, r.action, r.target_id ?? "", esc(r.target_name), esc(r.detail), r.owner_name, r.created_at].join(","))
+  ].join("\n");
+
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="log-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
 });
 
 export default router;

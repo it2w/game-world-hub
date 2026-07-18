@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Shield, Mail, KeyRound, LogOut, AlertTriangle,
   ChevronDown, ChevronUp, Loader2, Users, BarChart3,
@@ -12,7 +13,9 @@ import {
   Activity, UserX, UserCheck, TrendingUp, Clock,
   FileText, Zap, MessageSquare, Swords, Megaphone,
   Trophy, Filter, Flag, Lock, Power, SlidersHorizontal, Trash2, Check,
+  Download, Layers,
 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { getApiUrl } from "@/lib/api";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -61,7 +64,27 @@ interface LogRow {
   detail: string | null; ownerId: number; ownerName: string; createdAt: string;
 }
 
-type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "reports" | "denylist" | "settings" | "account";
+type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "reports" | "denylist" | "settings" | "account" | "analytics" | "content";
+
+interface AdminNote    { id: number; author_id: number; author_name: string | null; body: string; created_at: string }
+interface UserDetail   {
+  id: number; username: string; displayName: string; email: string | null; status: string;
+  avatarUrl: string | null; isPro: boolean; isAdmin: boolean; proExpiresAt: string | null;
+  createdAt: string; lastActiveAt: string | null;
+  progress: { level: number; xp: number; xpForNext: number } | null;
+  proHistory: { id: number; provider: string; status: string; started_at: string | null; expires_at: string | null }[];
+  notes: AdminNote[]; reportCount: number;
+}
+interface AnalyticsData {
+  range: number;
+  newUsers: { date: string; count: number }[];
+  dau:      { date: string; count: number }[];
+  lfgPosts: { date: string; count: number }[];
+  proActivations: { date: string; count: number }[];
+  summary: { peakDau: number; proConvRate: number };
+}
+interface ContentLfg   { id: number; game: string; description: string; status: string; author_id: number; author_username: string | null; response_count: number; created_at: string }
+interface ContentParty { id: number; name: string; game: string | null; leader_id: number; leader_username: string | null; member_count: number; max_size: number; created_at: string }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -104,20 +127,26 @@ function timeAgo(iso: string | null): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  activate_pro:    "Activated Pro",
-  deactivate_pro:  "Deactivated Pro",
-  grant_admin:     "Granted Admin",
-  revoke_admin:    "Revoked Admin",
-  suspend_user:    "Suspended User",
-  unsuspend_user:  "Unsuspended User",
-  create_code:     "Created Code",
-  disable_code:    "Disabled Code",
-  force_logout:    "Force Logout",
-  set_permissions: "Set Permissions",
-  denylist_add:    "Denylist — Added",
-  denylist_remove: "Denylist — Removed",
-  update_settings: "Updated Settings",
-  broadcast:       "Broadcast",
+  activate_pro:         "Activated Pro",
+  deactivate_pro:       "Deactivated Pro",
+  grant_admin:          "Granted Admin",
+  revoke_admin:         "Revoked Admin",
+  suspend_user:         "Suspended User",
+  unsuspend_user:       "Unsuspended User",
+  create_code:          "Created Code",
+  disable_code:         "Disabled Code",
+  force_logout:         "Force Logout",
+  set_permissions:      "Set Permissions",
+  denylist_add:         "Denylist — Added",
+  denylist_remove:      "Denylist — Removed",
+  update_settings:      "Updated Settings",
+  broadcast:            "Broadcast",
+  delete_content:       "Deleted Content",
+  bulk_activate_pro:    "Bulk — Activated Pro",
+  bulk_deactivate_pro:  "Bulk — Deactivated Pro",
+  bulk_suspend:         "Bulk — Suspended",
+  bulk_unsuspend:       "Bulk — Unsuspended",
+  bulk_force_logout:    "Bulk — Force Logout",
 };
 
 const ACTION_COLOR: Record<string, string> = {
@@ -349,16 +378,18 @@ function ResetForm({ onBack, t, toast }: {
 /* ─── Dashboard ──────────────────────────────────────────────────────────── */
 
 const TABS: { id: Tab; icon: React.ReactNode; key: string }[] = [
-  { id: "stats",    icon: <BarChart3        className="w-4 h-4" />, key: "tabs.stats"    },
-  { id: "users",    icon: <Users            className="w-4 h-4" />, key: "tabs.users"    },
-  { id: "admins",   icon: <Shield           className="w-4 h-4" />, key: "tabs.admins"   },
-  { id: "codes",    icon: <Tag              className="w-4 h-4" />, key: "tabs.codes"    },
-  { id: "subs",     icon: <CreditCard       className="w-4 h-4" />, key: "tabs.subs"     },
-  { id: "log",      icon: <Activity         className="w-4 h-4" />, key: "tabs.log"      },
-  { id: "reports",  icon: <Flag             className="w-4 h-4" />, key: "tabs.reports"  },
-  { id: "denylist", icon: <Ban              className="w-4 h-4" />, key: "tabs.denylist" },
-  { id: "settings", icon: <SlidersHorizontal className="w-4 h-4" />, key: "tabs.settings" },
-  { id: "account",  icon: <Settings         className="w-4 h-4" />, key: "tabs.account"  },
+  { id: "stats",     icon: <BarChart3         className="w-4 h-4" />, key: "tabs.stats"     },
+  { id: "users",     icon: <Users             className="w-4 h-4" />, key: "tabs.users"     },
+  { id: "admins",    icon: <Shield            className="w-4 h-4" />, key: "tabs.admins"    },
+  { id: "codes",     icon: <Tag               className="w-4 h-4" />, key: "tabs.codes"     },
+  { id: "subs",      icon: <CreditCard        className="w-4 h-4" />, key: "tabs.subs"      },
+  { id: "analytics", icon: <TrendingUp        className="w-4 h-4" />, key: "tabs.analytics" },
+  { id: "content",   icon: <Layers            className="w-4 h-4" />, key: "tabs.content"   },
+  { id: "log",       icon: <Activity          className="w-4 h-4" />, key: "tabs.log"       },
+  { id: "reports",   icon: <Flag              className="w-4 h-4" />, key: "tabs.reports"   },
+  { id: "denylist",  icon: <Ban               className="w-4 h-4" />, key: "tabs.denylist"  },
+  { id: "settings",  icon: <SlidersHorizontal className="w-4 h-4" />, key: "tabs.settings"  },
+  { id: "account",   icon: <Settings          className="w-4 h-4" />, key: "tabs.account"   },
 ];
 
 function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
@@ -391,16 +422,18 @@ function Dashboard({ session, ownerInfo, onRefreshMe, t, toast }: {
         ))}
       </div>
 
-      {tab === "stats"    && <StatsTab    session={session} t={t} />}
-      {tab === "users"    && <UsersTab    session={session} t={t} toast={toast} />}
-      {tab === "admins"   && <AdminsTab   session={session} t={t} toast={toast} />}
-      {tab === "codes"    && <CodesTab    session={session} t={t} toast={toast} />}
-      {tab === "subs"     && <SubsTab     session={session} t={t} />}
-      {tab === "log"      && <LogTab      session={session} t={t} />}
-      {tab === "reports"  && <ReportsTab  session={session} t={t} toast={toast} />}
-      {tab === "denylist" && <DenylistTab session={session} t={t} toast={toast} />}
-      {tab === "settings" && <SettingsTab session={session} t={t} toast={toast} />}
-      {tab === "account"  && <AccountTab  session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
+      {tab === "stats"     && <StatsTab     session={session} t={t} />}
+      {tab === "users"     && <UsersTab     session={session} t={t} toast={toast} />}
+      {tab === "admins"    && <AdminsTab    session={session} t={t} toast={toast} />}
+      {tab === "codes"     && <CodesTab     session={session} t={t} toast={toast} />}
+      {tab === "subs"      && <SubsTab      session={session} t={t} />}
+      {tab === "analytics" && <AnalyticsTab session={session} t={t} />}
+      {tab === "content"   && <ContentTab   session={session} t={t} toast={toast} />}
+      {tab === "log"       && <LogTab       session={session} t={t} />}
+      {tab === "reports"   && <ReportsTab   session={session} t={t} toast={toast} />}
+      {tab === "denylist"  && <DenylistTab  session={session} t={t} toast={toast} />}
+      {tab === "settings"  && <SettingsTab  session={session} t={t} toast={toast} />}
+      {tab === "account"   && <AccountTab   session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
     </div>
   );
 }
@@ -568,7 +601,12 @@ function UsersTab({ session, t, toast }: {
   const [offset,   setOffset]   = useState(0);
   const [loading,  setLoading]  = useState(false);
   const [acting,   setActing]   = useState<number | null>(null);
-  const [proDays,  setProDays]  = useState<Record<number, string>>({});
+  const [proDays,     setProDays]     = useState<Record<number, string>>({});
+  const [checked,     setChecked]     = useState<Set<number>>(new Set());
+  const [detailUser,  setDetailUser]  = useState<UserRow | null>(null);
+  const [bulkAction,  setBulkAction]  = useState("suspend");
+  const [bulkDays,    setBulkDays]    = useState("30");
+  const [bulkRunning, setBulkRunning] = useState(false);
   const LIMIT = 20;
 
   const load = useCallback(async (q: string, fb: string, off: number, append = false) => {
@@ -636,6 +674,24 @@ function UsersTab({ session, t, toast }: {
 
   const loadMore = () => { const next = offset + LIMIT; setOffset(next); load(query, filterBy, next, true); };
 
+  const toggleCheck = (id: number) => setChecked((prev) => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+
+  const runBulkAction = async () => {
+    if (!checked.size || bulkRunning) return;
+    setBulkRunning(true);
+    try {
+      const { succeeded, failed } = await ownerFetch<{ succeeded: number[]; failed: number[] }>(
+        "owner/users/bulk", session.token,
+        { method: "POST", body: JSON.stringify({ userIds: [...checked], action: bulkAction, durationDays: Number(bulkDays) }) },
+      );
+      toast({ title: `${succeeded.length} ${t("users.bulkOk")}${failed.length ? `, ${failed.length} ${t("users.bulkFailed")}` : ""}` });
+      setChecked(new Set()); reload();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setBulkRunning(false); }
+  };
+
   const statusDot = (s: string) => {
     const map: Record<string, string> = { online: "bg-green-400", away: "bg-yellow-400", busy: "bg-red-400", suspended: "bg-red-600", offline: "bg-muted" };
     return <span className={`inline-block w-2 h-2 rounded-full ${map[s] ?? "bg-muted"}`} title={s} />;
@@ -677,54 +733,83 @@ function UsersTab({ session, t, toast }: {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {checked.size > 0 && (
+        <div className="border border-primary/40 bg-primary/5 px-3 py-2 flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-xs text-primary shrink-0">{checked.size} {t("users.selected")}</span>
+          <select value={bulkAction} onChange={(e) => setBulkAction(e.target.value)}
+            className="font-mono text-xs bg-background border border-border rounded-none px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary">
+            <option value="suspend">{t("users.bulk.suspend")}</option>
+            <option value="unsuspend">{t("users.bulk.unsuspend")}</option>
+            <option value="force_logout">{t("users.bulk.forceLogout")}</option>
+            <option value="activate_pro">{t("users.bulk.activatePro")}</option>
+            <option value="deactivate_pro">{t("users.bulk.deactivatePro")}</option>
+          </select>
+          {bulkAction === "activate_pro" && (
+            <Input type="number" min={1} max={3650} value={bulkDays} onChange={(e) => setBulkDays(e.target.value)}
+              className="w-16 h-7 text-xs font-mono rounded-none px-2" title={t("users.durationDays")} />
+          )}
+          <Button size="sm" className="h-7 px-2 font-mono text-xs rounded-none" onClick={runBulkAction} disabled={bulkRunning}>
+            {bulkRunning && <Loader2 className="w-3 h-3 animate-spin me-1" />}
+            {t("users.bulk.run")}
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs rounded-none text-muted-foreground"
+            onClick={() => setChecked(new Set())}>{t("users.bulk.clear")}</Button>
+        </div>
+      )}
+
       {users.length === 0 && !loading ? (
         <p className="text-center font-mono text-xs text-muted-foreground py-8">{t("users.noResults")}</p>
       ) : (
         <div className="space-y-2">
           {users.map((u) => (
-            <div key={u.id} className={`border bg-background p-3 space-y-2 ${u.status === "suspended" ? "border-red-500/40" : "border-border"}`}>
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <div className="font-mono text-sm font-semibold flex items-center gap-2">
-                    {statusDot(u.status)}
-                    {u.displayName || u.username}
-                    {u.isPro   && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-yellow-500/60 text-yellow-400">PRO</Badge>}
-                    {u.isAdmin && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-500/60 text-purple-400">ADMIN</Badge>}
-                    {u.status === "suspended" && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-red-500/60 text-red-400">SUSPENDED</Badge>}
-                  </div>
-                  <div className="font-mono text-[11px] text-muted-foreground">@{u.username} {u.email ? `· ${u.email}` : ""}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {t("users.joined")}: {fmtDate(u.createdAt)}
-                    {u.lastActiveAt ? ` · ${t("users.lastSeen")}: ${timeAgo(u.lastActiveAt)}` : ""}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Pro toggle */}
-                  {!u.isPro && (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number" min={1} max={3650}
-                        value={proDays[u.id] ?? "30"}
-                        onChange={(e) => setProDays((p) => ({ ...p, [u.id]: e.target.value }))}
-                        className="w-14 h-7 text-xs font-mono rounded-none px-2"
-                        title={t("users.durationDays")}
-                      />
-                      <span className="font-mono text-[9px] text-muted-foreground">{t("users.days")}</span>
+            <div key={u.id} className={`border bg-background p-3 ${u.status === "suspended" ? "border-red-500/40" : "border-border"}`}>
+              <div className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1.5 shrink-0 accent-primary cursor-pointer" checked={checked.has(u.id)} onChange={() => toggleCheck(u.id)} aria-label={`Select ${u.username}`} />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <button type="button" className="font-mono text-sm font-semibold flex items-center gap-2 flex-wrap hover:text-primary transition-colors text-start" onClick={() => setDetailUser(u)}>
+                        {statusDot(u.status)}
+                        {u.displayName || u.username}
+                        {u.isPro   && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-yellow-500/60 text-yellow-400">PRO</Badge>}
+                        {u.isAdmin && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-500/60 text-purple-400">ADMIN</Badge>}
+                        {u.status === "suspended" && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-red-500/60 text-red-400">SUSPENDED</Badge>}
+                      </button>
+                      <div className="font-mono text-[11px] text-muted-foreground">@{u.username} {u.email ? `· ${u.email}` : ""}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        {t("users.joined")}: {fmtDate(u.createdAt)}
+                        {u.lastActiveAt ? ` · ${t("users.lastSeen")}: ${timeAgo(u.lastActiveAt)}` : ""}
+                      </div>
                     </div>
-                  )}
-                  <Button size="sm" variant={u.isPro ? "destructive" : "outline"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => togglePro(u)} disabled={acting === u.id}>
-                    {acting === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : u.isPro ? <XCircle className="w-3 h-3 me-1" /> : <Crown className="w-3 h-3 me-1" />}
-                    {u.isPro ? t("users.deactivatePro") : t("users.activatePro")}
-                  </Button>
-                  <Button size="sm" variant={u.isAdmin ? "destructive" : "secondary"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => toggleAdmin(u)} disabled={acting === u.id}>
-                    {u.isAdmin ? t("users.removeAdmin") : t("users.makeAdmin")}
-                  </Button>
-                  <Button size="sm" variant={u.status === "suspended" ? "outline" : "destructive"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => toggleSuspend(u)} disabled={acting === u.id}>
-                    {u.status === "suspended" ? <><UserCheck className="w-3 h-3 me-1" />{t("users.unsuspend")}</> : <><UserX className="w-3 h-3 me-1" />{t("users.suspend")}</>}
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-orange-500/50 text-orange-400 hover:bg-orange-500/10" onClick={() => forceLogout(u)} disabled={acting === u.id} title={t("users.forceLogout")}>
-                    <Power className="w-3 h-3 me-1" />{t("users.forceLogout")}
-                  </Button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {!u.isPro && (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number" min={1} max={3650}
+                            value={proDays[u.id] ?? "30"}
+                            onChange={(e) => setProDays((p) => ({ ...p, [u.id]: e.target.value }))}
+                            className="w-14 h-7 text-xs font-mono rounded-none px-2"
+                            title={t("users.durationDays")}
+                          />
+                          <span className="font-mono text-[9px] text-muted-foreground">{t("users.days")}</span>
+                        </div>
+                      )}
+                      <Button size="sm" variant={u.isPro ? "destructive" : "outline"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => togglePro(u)} disabled={acting === u.id}>
+                        {acting === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : u.isPro ? <XCircle className="w-3 h-3 me-1" /> : <Crown className="w-3 h-3 me-1" />}
+                        {u.isPro ? t("users.deactivatePro") : t("users.activatePro")}
+                      </Button>
+                      <Button size="sm" variant={u.isAdmin ? "destructive" : "secondary"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => toggleAdmin(u)} disabled={acting === u.id}>
+                        {u.isAdmin ? t("users.removeAdmin") : t("users.makeAdmin")}
+                      </Button>
+                      <Button size="sm" variant={u.status === "suspended" ? "outline" : "destructive"} className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => toggleSuspend(u)} disabled={acting === u.id}>
+                        {u.status === "suspended" ? <><UserCheck className="w-3 h-3 me-1" />{t("users.unsuspend")}</> : <><UserX className="w-3 h-3 me-1" />{t("users.suspend")}</>}
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-orange-500/50 text-orange-400 hover:bg-orange-500/10" onClick={() => forceLogout(u)} disabled={acting === u.id} title={t("users.forceLogout")}>
+                        <Power className="w-3 h-3 me-1" />{t("users.forceLogout")}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -736,6 +821,10 @@ function UsersTab({ session, t, toast }: {
             </Button>
           )}
         </div>
+      )}
+
+      {detailUser && (
+        <UserDetailDrawer user={detailUser} session={session} t={t} toast={toast} onClose={() => setDetailUser(null)} />
       )}
     </div>
   );
@@ -1563,6 +1652,409 @@ function SettingsTab({ session, t, toast }: {
         {saving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Check className="w-4 h-4 me-2" />}
         {t("settings.save")}
       </Button>
+    </div>
+  );
+}
+
+/* ─── User Detail Drawer ─────────────────────────────────────────────────── */
+
+function UserDetailDrawer({ user, session, t, toast, onClose }: {
+  user: UserRow; session: OwnerSession;
+  t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+  onClose: () => void;
+}) {
+  const [detail,       setDetail]       = useState<UserDetail | null>(null);
+  const [loadingDetail,setLoadingDetail] = useState(true);
+  const [noteBody,     setNoteBody]     = useState("");
+  const [addingNote,   setAddingNote]   = useState(false);
+  const [deletingNote, setDeletingNote] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLoadingDetail(true);
+    ownerFetch<UserDetail>(`owner/users/${user.id}/detail`, session.token)
+      .then((d) => setDetail(d))
+      .catch(() => {})
+      .finally(() => setLoadingDetail(false));
+  }, [user.id, session.token]);
+
+  const addNote = async () => {
+    if (!noteBody.trim() || addingNote) return;
+    setAddingNote(true);
+    try {
+      const note = await ownerFetch<AdminNote>(`owner/users/${user.id}/notes`, session.token, {
+        method: "POST", body: JSON.stringify({ body: noteBody.trim() }),
+      });
+      setDetail((d) => d ? { ...d, notes: [note, ...d.notes] } : d);
+      setNoteBody("");
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setAddingNote(false); }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    setDeletingNote(noteId);
+    try {
+      await ownerFetch(`owner/notes/${noteId}`, session.token, { method: "DELETE" });
+      setDetail((d) => d ? { ...d, notes: d.notes.filter((n) => n.id !== noteId) } : d);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setDeletingNote(null); }
+  };
+
+  const initials = (d: UserDetail) => (d.displayName || d.username).slice(0, 2).toUpperCase();
+  const dot = (s: string) => {
+    const m: Record<string, string> = { online: "bg-green-400", away: "bg-yellow-400", busy: "bg-red-400", suspended: "bg-red-600", offline: "bg-muted" };
+    return <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${m[s] ?? "bg-muted"}`} />;
+  };
+
+  return (
+    <Sheet open onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto bg-background border-l border-primary/20 p-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
+          <SheetTitle className="font-mono text-sm uppercase flex items-center gap-2">
+            <Users className="w-4 h-4" /> {t("detail.title")}
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="px-6 py-4">
+          {loadingDetail ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          ) : !detail ? (
+            <p className="font-mono text-xs text-muted-foreground py-8 text-center">{t("detail.notFound")}</p>
+          ) : (
+            <div className="space-y-5">
+              {/* Avatar + identity */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-mono text-xl font-bold text-primary shrink-0">
+                  {initials(detail)}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {dot(detail.status)}
+                    <span className="font-mono text-base font-semibold truncate">{detail.displayName || detail.username}</span>
+                    {detail.isPro   && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-yellow-500/60 text-yellow-400">PRO</Badge>}
+                    {detail.isAdmin && <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-500/60 text-purple-400">ADMIN</Badge>}
+                  </div>
+                  <div className="font-mono text-[11px] text-muted-foreground">@{detail.username}</div>
+                  {detail.email && <div className="font-mono text-[11px] text-muted-foreground">{detail.email}</div>}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="font-mono text-[11px]">
+                  <div className="text-[10px] uppercase text-muted-foreground">{t("detail.joined")}</div>
+                  <div>{fmtDate(detail.createdAt)}</div>
+                </div>
+                <div className="font-mono text-[11px]">
+                  <div className="text-[10px] uppercase text-muted-foreground">{t("detail.lastSeen")}</div>
+                  <div>{detail.lastActiveAt ? timeAgo(detail.lastActiveAt) : "—"}</div>
+                </div>
+                {detail.isPro && detail.proExpiresAt && (
+                  <div className="col-span-2 font-mono text-[11px]">
+                    <div className="text-[10px] uppercase text-yellow-400">{t("detail.proExpires")}</div>
+                    <div>{fmtDate(detail.proExpiresAt)}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* XP bar */}
+              {detail.progress && (
+                <div className="border border-border bg-background px-4 py-3 space-y-1.5">
+                  <div className="flex justify-between font-mono text-xs">
+                    <span className="text-[10px] uppercase text-muted-foreground">{t("detail.level")} {detail.progress.level}</span>
+                    <span className="text-muted-foreground">{detail.progress.xp} / {detail.progress.xpForNext} XP</span>
+                  </div>
+                  <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min((detail.progress.xp / Math.max(detail.progress.xpForNext, 1)) * 100, 100)}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Reports badge */}
+              {detail.reportCount > 0 && (
+                <div className="flex items-center gap-2 border border-orange-500/30 bg-orange-500/5 px-3 py-2">
+                  <Flag className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                  <span className="font-mono text-xs text-orange-400">{detail.reportCount} {t("detail.reports")}</span>
+                </div>
+              )}
+
+              {/* Pro history */}
+              {detail.proHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="font-mono text-[10px] uppercase text-muted-foreground">{t("detail.proHistory")}</p>
+                  {detail.proHistory.map((h) => (
+                    <div key={h.id} className="font-mono text-[11px] border border-border bg-background px-2 py-1.5 flex justify-between gap-2">
+                      <span className="text-muted-foreground">{h.provider}</span>
+                      <span className={h.status === "active" ? "text-green-400" : "text-muted-foreground"}>{h.status}</span>
+                      <span>{fmtDate(h.expires_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Admin notes */}
+              <div className="space-y-2">
+                <p className="font-mono text-[10px] uppercase text-muted-foreground flex items-center gap-1.5">
+                  <MessageSquare className="w-3 h-3" /> {t("detail.notes")} ({detail.notes.length})
+                </p>
+
+                <div className="flex gap-1.5">
+                  <textarea
+                    value={noteBody}
+                    onChange={(e) => setNoteBody(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote(); }}
+                    placeholder={t("detail.notePlaceholder")}
+                    rows={2}
+                    className="flex-1 bg-background border border-border rounded-none px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <Button size="sm" className="h-auto rounded-none font-mono text-xs px-2.5 self-stretch" onClick={addNote} disabled={addingNote || !noteBody.trim()}>
+                    {addingNote ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {detail.notes.length === 0 ? (
+                    <p className="font-mono text-[10px] text-muted-foreground text-center py-2">{t("detail.noNotes")}</p>
+                  ) : detail.notes.map((n) => (
+                    <div key={n.id} className="border border-border bg-background px-3 py-2 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10px] text-muted-foreground">@{n.author_name ?? "owner"} · {timeAgo(n.created_at)}</span>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive" onClick={() => deleteNote(n.id)} disabled={deletingNote === n.id}>
+                          {deletingNote === n.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
+                        </Button>
+                      </div>
+                      <p className="font-mono text-xs whitespace-pre-wrap">{n.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/* ─── Analytics Tab ──────────────────────────────────────────────────────── */
+
+function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
+  const [range,   setRange]   = useState<30 | 90>(30);
+  const [data,    setData]    = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async (r: number) => {
+    setLoading(true);
+    try { setData(await ownerFetch<AnalyticsData>(`owner/analytics?range=${r}`, session.token)); }
+    catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { load(range); }, [range, load]);
+
+  const exportCsv = async (type: "users" | "log") => {
+    try {
+      const res = await fetch(`${getApiUrl()}owner/export/${type}`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = `${type}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  };
+
+  const CHARTS: { key: keyof Pick<AnalyticsData, "newUsers" | "dau" | "lfgPosts" | "proActivations">; label: string; color: string }[] = [
+    { key: "newUsers",       label: t("analytics.newUsers"),       color: "#4ade80" },
+    { key: "dau",            label: t("analytics.dau"),            color: "#60a5fa" },
+    { key: "lfgPosts",       label: t("analytics.lfgPosts"),       color: "#a78bfa" },
+    { key: "proActivations", label: t("analytics.proActivations"), color: "#facc15" },
+  ];
+
+  const Skel = () => <div className="h-36 bg-border/30 animate-pulse" />;
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1.5">
+          {([30, 90] as const).map((r) => (
+            <button key={r} onClick={() => setRange(r)}
+              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+                range === r ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+              }`}>
+              {r}d
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => exportCsv("users")}>
+            <Download className="w-3 h-3 me-1" /> {t("analytics.exportUsers")}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => exportCsv("log")}>
+            <Download className="w-3 h-3 me-1" /> {t("analytics.exportLog")}
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary row */}
+      {data && !loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {[
+            { label: t("analytics.peakDau"),    value: data.summary.peakDau },
+            { label: t("analytics.proConvRate"), value: `${data.summary.proConvRate}%` },
+            { label: t("analytics.totalLfg"),    value: data.lfgPosts.reduce((s, r) => s + r.count, 0) },
+          ].map(({ label, value }) => (
+            <div key={label} className="border border-border bg-background px-3 py-2">
+              <div className="font-mono text-[10px] text-muted-foreground uppercase">{label}</div>
+              <div className="font-mono text-xl font-bold">{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Charts grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {CHARTS.map(({ key, label, color }) => (
+          <div key={key} className="border border-border bg-background p-3 space-y-2">
+            <p className="font-mono text-[10px] uppercase text-muted-foreground">{label}</p>
+            {loading ? <Skel /> : (
+              <ResponsiveContainer width="100%" height={140}>
+                <AreaChart data={data?.[key] ?? []} margin={{ top: 2, right: 2, bottom: 0, left: -20 }}>
+                  <defs>
+                    <linearGradient id={`g-${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fontFamily: "monospace" }}
+                    tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 9, fontFamily: "monospace" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11, fontFamily: "monospace", borderRadius: 0 }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Area type="monotone" dataKey="count" stroke={color} strokeWidth={1.5} fill={`url(#g-${key})`} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Content Tab ────────────────────────────────────────────────────────── */
+
+function ContentTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [subTab,   setSubTab]   = useState<"lfg" | "party">("lfg");
+  const [items,    setItems]    = useState<(ContentLfg | ContentParty)[]>([]);
+  const [total,    setTotal]    = useState(0);
+  const [offset,   setOffset]   = useState(0);
+  const [loading,  setLoading]  = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const LIMIT = 20;
+
+  const load = useCallback(async (type: "lfg" | "party", off: number, append = false) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ type, limit: String(LIMIT), offset: String(off) });
+      const data   = await ownerFetch<{ total: number; items: (ContentLfg | ContentParty)[] }>(`owner/content?${params}`, session.token);
+      setTotal(data.total);
+      setItems((p) => append ? [...p, ...data.items] : data.items);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { setOffset(0); load(subTab, 0); }, [subTab, load]);
+
+  const deleteItem = async (id: number) => {
+    if (!confirm(t("content.deleteConfirm"))) return;
+    setDeleting(id);
+    try {
+      await ownerFetch(`owner/content/${subTab}/${id}`, session.token, { method: "DELETE" });
+      toast({ title: t("content.deleted") });
+      setItems((p) => p.filter((i) => i.id !== id));
+      setTotal((prev) => prev - 1);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setDeleting(null); }
+  };
+
+  const loadMore = () => { const next = offset + LIMIT; setOffset(next); load(subTab, next, true); };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1.5">
+          {(["lfg", "party"] as const).map((s) => (
+            <button key={s} onClick={() => setSubTab(s)}
+              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${
+                subTab === s ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+              }`}>
+              {s === "lfg" ? t("content.lfg") : t("content.party")}
+            </button>
+          ))}
+          <span className="font-mono text-[10px] text-muted-foreground self-center ms-1">{total}</span>
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={() => { setOffset(0); load(subTab, 0); }}>
+          <RefreshCw className={`w-3.5 h-3.5 me-1 ${loading ? "animate-spin" : ""}`} />{t("refresh")}
+        </Button>
+      </div>
+
+      {loading && items.length === 0 ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center font-mono text-xs text-muted-foreground py-8">{t("content.noResults")}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <div key={item.id} className="border border-border bg-background px-3 py-2.5 flex items-start justify-between gap-2">
+              {subTab === "lfg" ? (() => {
+                const p = item as ContentLfg;
+                return (
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5">{p.game}</Badge>
+                      <Badge variant="outline" className={`text-[10px] h-4 px-1.5 ${p.status === "open" ? "text-green-400 border-green-500/60" : "text-muted-foreground"}`}>
+                        {p.status}
+                      </Badge>
+                      <span className="font-mono text-[10px] text-muted-foreground">{p.response_count} responses · {timeAgo(p.created_at)}</span>
+                    </div>
+                    <p className="font-mono text-xs line-clamp-2 text-foreground/80">{p.description}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">@{p.author_username ?? p.author_id}</p>
+                  </div>
+                );
+              })() : (() => {
+                const p = item as ContentParty;
+                return (
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-semibold">{p.name}</span>
+                      {p.game && <Badge variant="outline" className="text-[10px] h-4 px-1.5">{p.game}</Badge>}
+                      <span className="font-mono text-[10px] text-muted-foreground">{p.member_count}/{p.max_size} · {timeAgo(p.created_at)}</span>
+                    </div>
+                    <p className="font-mono text-[10px] text-muted-foreground">@{p.leader_username ?? p.leader_id}</p>
+                  </div>
+                );
+              })()}
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
+                onClick={() => deleteItem(item.id)} disabled={deleting === item.id}>
+                {deleting === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              </Button>
+            </div>
+          ))}
+          {!loading && items.length < total && (
+            <Button variant="outline" className="w-full rounded-none font-mono text-xs mt-2" onClick={loadMore}>
+              {t("content.loadMore")} ({items.length}/{total})
+            </Button>
+          )}
+          {loading && <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin" /></div>}
+        </div>
+      )}
     </div>
   );
 }

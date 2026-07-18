@@ -151,14 +151,15 @@ export default function RoomsPage() {
           <p className="text-xs text-muted-foreground font-mono mt-1 tracking-widest">{t("subtitle")}</p>
         </div>
         {isPro && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="font-mono rounded-none text-xs"
-            onClick={() => window.location.href = "/settings#myroom"}
-          >
-            <Crown className="w-3 h-3 me-1 text-primary" /> {t("myRoom")}
-          </Button>
+          <a href="/pro">
+            <Button
+              variant="default"
+              size="sm"
+              className="font-mono rounded-none text-xs gap-1.5 border border-yellow-400/40 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20 hover:text-yellow-200"
+            >
+              <Crown className="w-3.5 h-3.5" /> {t("myRoom")}
+            </Button>
+          </a>
         )}
       </div>
 

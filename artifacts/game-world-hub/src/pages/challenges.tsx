@@ -146,11 +146,14 @@ export default function ChallengesPage() {
     refetchInterval: 15000,
   });
 
-  const { data: friends } = useQuery<any[]>({
+  // /api/friends returns { id (friendship id), since, friend: { id, username, displayName, ... } }
+  // We need friend.id (user ID) for the challenge POST, not the friendship record id.
+  const { data: friendsRaw } = useQuery<any[]>({
     queryKey: ["friends-list"],
     queryFn: () => customFetch("/api/friends"),
     enabled: !!myId,
   });
+  const friends = (friendsRaw ?? []).map((f: any) => f.friend ?? f);
 
   const [tab, setTab] = useState<"active" | "pending" | "completed">("active");
   const [newOpen, setNewOpen] = useState(false);

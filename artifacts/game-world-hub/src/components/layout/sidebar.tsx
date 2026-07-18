@@ -126,6 +126,14 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/pro")}>
+                  <Link href="/pro">
+                    <Crown className="w-4 h-4 text-yellow-400" />
+                    <span className="text-yellow-400 font-bold">{t("sidebar.pro")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

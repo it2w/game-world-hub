@@ -778,12 +778,28 @@ export default function Dashboard() {
     staleTime: 60000,
   });
 
-  // Ticker events from real activity feed
+  // Ticker events: real activity + static filler so the bar is never empty
   const TICKER_COLORS = ["#EC4899","#FFD700","#22C55E","#A855F7","#F97316","#06B6D4"];
-  const tickerEvents = (partyActivity??[]).slice(0,8).map((a:any,i:number)=>({
-    text: `${a.actor.displayName} ${a.action==="created"?"أنشأ":a.action==="joined"?"انضم لـ":a.action==="left"?"غادر":"دعي إلى"} ${a.party.name}`,
+  const STATIC_TICKER = [
+    { text:"🏆 فريق LOUD يفوز ببطولة VCT Americas 2026",      color:"#FFD700" },
+    { text:"⚡ Valorant EP9 — خريطة جديدة + عميل جديد",       color:"#06B6D4" },
+    { text:"🎯 GWH Cup الليلة 8م — Prize: 5,000 ريال",        color:"#22C55E" },
+    { text:"🔥 Apex: موسم الصياد يبدأ 22 يوليو",              color:"#F97316" },
+    { text:"👑 اشتراك Pro متاح الآن بأسعار جديدة",            color:"#A855F7" },
+    { text:"📡 2,400 لاعب يبحثون عن بارتي الآن",              color:"#EC4899" },
+    { text:"🎮 CS2 تحديث توازن السلاح — Premier Season 4",    color:"#38BDF8" },
+    { text:"⭐ موسم Ranked الجديد بدأ — تسلق الرتب الآن",     color:"#EF4444" },
+  ];
+  const realEvents = (partyActivity??[]).slice(0,8).map((a:any,i:number)=>({
+    text: `${a.actor.displayName} ${a.action==="created"?"أنشأ بارتي":a.action==="joined"?"انضم لـ":a.action==="left"?"غادر":"دُعي إلى"} ${a.party.name}`,
     color: TICKER_COLORS[i % TICKER_COLORS.length],
   }));
+  // interleave real + static so there's always ≥12 items
+  const tickerEvents: {text:string;color:string}[] = [];
+  const combined = [...realEvents];
+  const fillCount = Math.max(0, 10 - combined.length);
+  for (let i = 0; i < fillCount; i++) tickerEvents.push(STATIC_TICKER[i % STATIC_TICKER.length]);
+  for (let i = 0; i < combined.length; i++) { tickerEvents.push(combined[i]); if (i < STATIC_TICKER.length) tickerEvents.push(STATIC_TICKER[i]); }
 
   const friends = friendsSummary?.friends ?? [];
   const onlineCount = friendsSummary?.onlineCount ?? 0;

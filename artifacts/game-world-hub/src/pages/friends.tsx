@@ -258,7 +258,7 @@ export default function Friends() {
                         <div className="px-2 pb-3 text-center">
                           <div className="flex items-center justify-center gap-1 min-w-0">
                             <span className="font-bold text-sm truncate leading-tight">{f.displayName}</span>
-                            {f.isPro && <ProBadge size="sm" />}
+                            {f.isPro && <ProBadge size="icon" />}
                           </div>
                           <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
                           {f.currentGame ? (

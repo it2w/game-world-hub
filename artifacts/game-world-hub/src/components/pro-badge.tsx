@@ -1,13 +1,21 @@
 import { cn } from "@/lib/utils";
-import { Crown } from "lucide-react";
+import { Crown, BadgeCheck } from "lucide-react";
 
 interface ProBadgeProps {
-  size?: "sm" | "md" | "lg";
+  size?: "icon" | "sm" | "md" | "lg";
   className?: string;
   text?: string;
 }
 
 export function ProBadge({ size = "sm", className, text }: ProBadgeProps) {
+  if (size === "icon") {
+    return (
+      <BadgeCheck
+        className={cn("w-3.5 h-3.5 shrink-0 fill-amber-400 text-black", className)}
+      />
+    );
+  }
+
   return (
     <span
       className={cn(

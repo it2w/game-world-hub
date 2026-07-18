@@ -429,8 +429,10 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
                 <div className={`fc-dot fc-dot--${f.status}`}/>
               </div>
               <div className="fc-info">
-                <div className="fc-name">{f.displayName}</div>
-                {f.isPro && <div style={{display:"flex",justifyContent:"center",marginTop:3}}><ProBadge size="sm"/></div>}
+                <div className="fc-name" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                  {f.displayName}
+                  {f.isPro && <ProBadge size="icon"/>}
+                </div>
                 <div className="fc-user">@{f.username}</div>
                 {f.currentGame
                   ?<div className="fc-game" style={{color}}>▶ {f.currentGame}</div>

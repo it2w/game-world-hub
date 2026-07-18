@@ -77,7 +77,7 @@ export function Design4() {
             <div style={{ flex:1, padding:"24px 28px" }}>
               <div style={{ marginBottom:16 }}>
                 <div style={{ fontFamily:"monospace", fontSize:9, color:`${C1}66`, letterSpacing:"0.35em", marginBottom:6 }}>[ الرتبة الحالية ]</div>
-                <div style={{ fontFamily:"'Arial Black',sans-serif", fontSize:44, fontWeight:900, lineHeight:1, background:`linear-gradient(180deg,#FFFFFF 0%,${BORDER} 60%,${C1} 100%)`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", marginBottom:4 }}>
+                <div style={{ fontFamily:"'Arial Black',sans-serif", fontSize:44, fontWeight:900, lineHeight:1, color:"#fff", textShadow:`0 0 24px ${C1}cc, 0 0 48px ${C1}66`, marginBottom:4 }}>
                   محارب
                 </div>
                 <div style={{ fontFamily:"monospace", fontSize:10, color:`${C1}88`, letterSpacing:"0.3em" }}>WARRIOR // LVL 12</div>

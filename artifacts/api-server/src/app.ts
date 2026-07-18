@@ -13,6 +13,9 @@ const app: Express = express();
 // the Replit edge, etc.).  Without this, req.ip is the proxy's IP and every
 // client shares the same rate-limit bucket.
 app.set("trust proxy", 1);
+// API responses must never be cached by the browser or any intermediate proxy,
+// or the UI can show stale data (e.g., status text, profile fields) after updates.
+app.set("etag", false);
 
 app.use(
   pinoHttp({
@@ -53,6 +56,15 @@ app.use((req, res, next) => {
     const bytesOut = Number(res.getHeader("content-length") ?? 0);
     recordRequest(Date.now() - start, bytesIn, bytesOut);
   });
+  next();
+});
+
+// Before routing, mark all API responses as uncacheable. Individual routes
+// (like image assets) may override this with their own Cache-Control headers.
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   next();
 });
 

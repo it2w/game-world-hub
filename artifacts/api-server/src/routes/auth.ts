@@ -67,6 +67,7 @@ function safeUser(
     twoFactorMethod: u.twoFactorMethod,
     allowProfileComments: u.allowProfileComments,
     status: u.status,
+    statusText: u.statusText ?? null,
     currentGame: u.currentGame ?? null,
     rank: u.rank ?? null,
     region: u.region ?? null,

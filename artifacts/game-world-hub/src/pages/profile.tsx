@@ -384,6 +384,14 @@ export default function Profile() {
 
           {/* Identity — beside the avatar */}
           <div className="flex-1 min-w-0 pb-1">
+            {/* Custom Status Text — above name/username, next to avatar */}
+            {user.statusText && (
+              <div className="relative inline-block max-w-full mb-2">
+                <div className="bg-muted/50 border border-border px-3 py-1.5 rounded-xl rounded-tl-none text-sm font-mono text-foreground/90 max-w-sm">
+                  {user.statusText}
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
                 {user.displayName}
@@ -416,18 +424,6 @@ export default function Profile() {
 
         {/* BODY */}
         <div className="px-6 pt-8 pb-6 space-y-4">
-
-          {/* Custom Status Text */}
-          {user.statusText && (
-            <div className="flex items-start gap-3">
-              <div className="relative bg-muted/50 border border-border px-4 py-2 rounded-lg rounded-tl-none max-w-sm">
-                <p className="text-sm font-mono text-foreground/90">
-                  {user.statusText}
-                </p>
-              </div>
-              <StatusBadge status={user.status} className="w-2.5 h-2.5 mt-1.5 shrink-0" />
-            </div>
-          )}
 
           {/* Bio */}
           {user.bio && (

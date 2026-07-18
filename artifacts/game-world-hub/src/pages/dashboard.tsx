@@ -419,6 +419,7 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
               className="fc"
               style={{"--fc":color} as any}>
               <div className="fc-top" style={{background:`linear-gradient(160deg,${color}40 0%,${color}10 60%,#0a0a0a 100%)`}}>
+                {f.isPro && <span className="fc-pro-badge">👑 PRO</span>}
                 <span className="fc-rank-tag" style={{color,borderColor:`${color}50`}}>{f.tier??"—"}</span>
               </div>
               <div className="fc-av-wrap">

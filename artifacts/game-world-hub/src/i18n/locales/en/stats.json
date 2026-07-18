@@ -1,0 +1,25 @@
+{
+  "title": "My Stats",
+  "subtitle": "Profile Stats — Since {{date}}",
+  "level": "Level {{level}} — {{tier}}",
+  "weeklyActivity": "Weekly Activity",
+  "upgradeTitle": "Upgrade to Pro",
+  "upgradeDesc": "Get detailed charts, LFG priority, permanent voice rooms, and more.",
+  "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  "cards": {
+    "lfgPosts": "LFG Posts",
+    "lfgResponses": "LFG Responses",
+    "friends": "Friends",
+    "messages": "Messages",
+    "photos": "Photos",
+    "memberDays": "Member Days"
+  },
+  "proFeatures": [
+    "📊 Advanced stats with charts",
+    "🎯 LFG priority listing",
+    "🤖 Auto LFG bot",
+    "🎨 Permanent custom voice rooms",
+    "🖼️ Colored profile frame",
+    "🎁 Pro gift every 90 days"
+  ]
+}

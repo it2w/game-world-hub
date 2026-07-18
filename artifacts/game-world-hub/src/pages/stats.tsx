@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { customFetch, useGetMe } from "@workspace/api-client-react";
 import { BarChart2, MessageSquare, Users, Gamepad2, Camera, Zap, Crown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
@@ -23,16 +24,8 @@ interface Stats {
   };
 }
 
-function weeklyActivityData(userId: number) {
-  const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  // Stable pseudo-random based on userId
-  return days.map((day, i) => ({
-    day,
-    activity: Math.floor(((userId * 7 + i * 31) % 90) + 10),
-  }));
-}
-
 export default function StatsPage() {
+  const { t } = useTranslation("stats");
   const { data: me } = useGetMe();
 
   const { data: stats, isLoading } = useQuery<Stats>({
@@ -56,23 +49,31 @@ export default function StatsPage() {
     );
   }
 
-  const weeklyData = weeklyActivityData(me.id);
   const memberDate = new Date(stats.memberSince);
   const nowMs = Date.now();
   const memberDays = Math.floor((nowMs - memberDate.getTime()) / (1000 * 60 * 60 * 24));
 
+  // Localised day names from translation file
+  const days: string[] = t("days", { returnObjects: true }) as string[];
+  const weeklyData = days.map((day, i) => ({
+    day,
+    activity: Math.floor(((me.id * 7 + i * 31) % 90) + 10),
+  }));
+
   const statCards = [
-    { label: "منشورات LFG", value: stats.totalLfgPosts, icon: Gamepad2, color: "text-primary" },
-    { label: "ردود LFG", value: stats.totalLfgResponses, icon: Zap, color: "text-yellow-400" },
-    { label: "الأصدقاء", value: stats.totalFriends, icon: Users, color: "text-blue-400" },
-    { label: "الرسائل", value: stats.totalMessages, icon: MessageSquare, color: "text-green-400" },
-    { label: "الصور", value: stats.totalPhotos, icon: Camera, color: "text-purple-400" },
-    { label: "أيام العضوية", value: memberDays, icon: Crown, color: "text-orange-400" },
+    { label: t("cards.lfgPosts"),     value: stats.totalLfgPosts,      icon: Gamepad2,      color: "text-primary" },
+    { label: t("cards.lfgResponses"), value: stats.totalLfgResponses,   icon: Zap,           color: "text-yellow-400" },
+    { label: t("cards.friends"),      value: stats.totalFriends,        icon: Users,         color: "text-blue-400" },
+    { label: t("cards.messages"),     value: stats.totalMessages,       icon: MessageSquare, color: "text-green-400" },
+    { label: t("cards.photos"),       value: stats.totalPhotos,         icon: Camera,        color: "text-purple-400" },
+    { label: t("cards.memberDays"),   value: memberDays,                icon: Crown,         color: "text-orange-400" },
   ];
 
   const xpPct = stats.xpProgress.xpForNext > 0
     ? Math.round((stats.xpProgress.xpIntoLevel / stats.xpProgress.xpForNext) * 100)
     : 100;
+
+  const proFeatures: string[] = t("proFeatures", { returnObjects: true }) as string[];
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -81,10 +82,10 @@ export default function StatsPage() {
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
             <BarChart2 className="w-8 h-8 text-primary" />
-            إحصائياتي
+            {t("title")}
           </h1>
-          <p className="text-xs text-muted-foreground font-mono mt-1 uppercase tracking-widest">
-            PROFILE STATS — SINCE {memberDate.toLocaleDateString("ar")}
+          <p className="text-xs text-muted-foreground font-mono mt-1 tracking-widest">
+            {t("subtitle", { date: memberDate.toLocaleDateString() })}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -97,7 +98,7 @@ export default function StatsPage() {
       <div className="bg-card border border-border p-6">
         <div className="flex items-center justify-between mb-3">
           <span className="font-mono text-xs uppercase text-muted-foreground tracking-widest">
-            المستوى {stats.xpProgress.level} — {stats.xpProgress.tier}
+            {t("level", { level: stats.xpProgress.level, tier: stats.xpProgress.tier })}
           </span>
           <span className="font-mono text-xs text-primary">
             {stats.xpProgress.xpIntoLevel.toLocaleString()} / {stats.xpProgress.xpForNext.toLocaleString()} XP
@@ -132,7 +133,7 @@ export default function StatsPage() {
         <div className="bg-card border border-border p-6 space-y-4">
           <h2 className="font-mono text-sm uppercase text-primary tracking-widest flex items-center gap-2">
             <Crown className="w-4 h-4" />
-            النشاط الأسبوعي <ProBadge size="icon" />
+            {t("weeklyActivity")} <ProBadge size="icon" />
           </h2>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -153,12 +154,10 @@ export default function StatsPage() {
       ) : (
         <div className="bg-card border border-primary/30 p-8 text-center space-y-3">
           <Crown className="w-8 h-8 text-primary mx-auto" />
-          <h3 className="font-mono font-bold text-primary uppercase tracking-widest">ترقّ إلى Pro</h3>
-          <p className="font-mono text-sm text-muted-foreground">
-            احصل على رسوم بيانية تفصيلية، الأولوية في LFG، غرف صوتية دائمة، وأكثر.
-          </p>
+          <h3 className="font-mono font-bold text-primary uppercase tracking-widest">{t("upgradeTitle")}</h3>
+          <p className="font-mono text-sm text-muted-foreground">{t("upgradeDesc")}</p>
           <ul className="font-mono text-xs text-muted-foreground space-y-1 text-start max-w-xs mx-auto">
-            {["📊 إحصائيات متقدمة مع رسوم بيانية", "🎯 الأولوية في قائمة LFG", "🤖 بوت LFG التلقائي", "🎨 غرف صوتية مخصصة دائمة", "🖼️ إطار بروفايل ملون", "🎁 هدية اشتراك Pro كل 90 يومًا"].map(p => (
+            {proFeatures.map(p => (
               <li key={p}>✓ {p}</li>
             ))}
           </ul>

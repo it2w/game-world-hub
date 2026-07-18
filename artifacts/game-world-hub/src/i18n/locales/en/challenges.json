@@ -1,0 +1,48 @@
+{
+  "title": "Challenges",
+  "subtitle": "Friend Challenges — Weekly Competitions",
+  "newChallenge": "New Challenge",
+  "tabs": {
+    "active": "Active",
+    "pending": "Pending",
+    "completed": "Completed"
+  },
+  "empty": "No challenges",
+  "types": {
+    "most_hours": "Most Hours",
+    "first_rank": "First Rank"
+  },
+  "status": {
+    "pending": "Pending",
+    "active": "Active",
+    "declined": "Declined",
+    "won": "Won 🏆",
+    "lost": "Lost",
+    "cancelled": "Cancelled"
+  },
+  "actions": {
+    "accept": "Accept",
+    "decline": "Decline",
+    "recordWinner": "Record Winner",
+    "cancelChallenge": "Cancel Challenge",
+    "sendChallenge": "Send Challenge",
+    "confirmWinner": "Confirm Winner",
+    "whoWon": "Who Won?"
+  },
+  "form": {
+    "chooseFriend": "Choose a Friend",
+    "chooseDefault": "-- Choose --",
+    "challengeType": "Challenge Type",
+    "endDate": "End Date",
+    "details": "Details (optional)",
+    "detailsPlaceholder": "e.g. Most hours in Valorant this week"
+  },
+  "toasts": {
+    "sent": "Challenge sent!",
+    "error": "Error",
+    "failedSend": "Failed to send",
+    "done": "Done",
+    "resultRecorded": "Result recorded!"
+  },
+  "ended": "Ended"
+}

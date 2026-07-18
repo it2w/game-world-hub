@@ -106,7 +106,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/stats")}>
                   <Link href="/stats">
                     <BarChart2 className="w-4 h-4" />
-                    <span>إحصائياتي</span>
+                    <span>{t("sidebar.stats")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -114,7 +114,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/challenges")}>
                   <Link href="/challenges">
                     <Swords className="w-4 h-4" />
-                    <span>التحديات</span>
+                    <span>{t("sidebar.challenges")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

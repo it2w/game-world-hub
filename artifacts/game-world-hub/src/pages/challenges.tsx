@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { customFetch, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Swords, Plus, Trophy, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,43 +23,46 @@ interface Challenge {
   createdAt: string;
 }
 
-function timeLeft(endsAt: string) {
+function timeLeft(endsAt: string, endedLabel: string) {
   const ms = new Date(endsAt).getTime() - Date.now();
-  if (ms <= 0) return "انتهى";
+  if (ms <= 0) return endedLabel;
   const d = Math.floor(ms / 86400000);
   const h = Math.floor((ms % 86400000) / 3600000);
-  if (d > 0) return `${d}ي ${h}س`;
-  return `${h}س`;
+  if (d > 0) return `${d}d ${h}h`;
+  return `${h}h`;
 }
 
 function TypeLabel({ type }: { type: string }) {
+  const { t } = useTranslation("challenges");
   return (
     <span className={`font-mono text-xs uppercase px-2 py-0.5 border ${type === "most_hours" ? "border-yellow-500/40 text-yellow-400" : "border-blue-500/40 text-blue-400"}`}>
-      {type === "most_hours" ? "أكثر ساعات" : "أول رانك"}
+      {t(`types.${type}`)}
     </span>
   );
 }
 
 function StatusBadge({ status, winnerId, myId }: { status: string; winnerId: number | null; myId: number }) {
+  const { t } = useTranslation("challenges");
   const map: Record<string, { label: string; cls: string }> = {
-    pending: { label: "قيد الانتظار", cls: "text-yellow-400 border-yellow-500/30" },
-    active: { label: "نشط", cls: "text-green-400 border-green-500/30" },
-    declined: { label: "مرفوض", cls: "text-red-400 border-red-500/30" },
-    completed: { label: winnerId === myId ? "فزت 🏆" : "خسرت", cls: winnerId === myId ? "text-yellow-400 border-yellow-500/30" : "text-muted-foreground border-border" },
-    cancelled: { label: "ملغى", cls: "text-muted-foreground border-border" },
+    pending:   { label: t("status.pending"),   cls: "text-yellow-400 border-yellow-500/30" },
+    active:    { label: t("status.active"),    cls: "text-green-400 border-green-500/30" },
+    declined:  { label: t("status.declined"),  cls: "text-red-400 border-red-500/30" },
+    completed: { label: winnerId === myId ? t("status.won") : t("status.lost"), cls: winnerId === myId ? "text-yellow-400 border-yellow-500/30" : "text-muted-foreground border-border" },
+    cancelled: { label: t("status.cancelled"), cls: "text-muted-foreground border-border" },
   };
   const { label, cls } = map[status] ?? { label: status, cls: "border-border text-muted-foreground" };
   return <span className={`font-mono text-xs uppercase px-2 py-0.5 border ${cls}`}>{label}</span>;
 }
 
 function ChallengeCard({ c, myId, onAction }: { c: Challenge; myId: number; onAction: () => void }) {
+  const { t } = useTranslation("challenges");
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const mutate = async (path: string, body?: object) => {
     await customFetch(`/api/challenges/${c.id}/${path}`, { method: "PATCH", body: body ? JSON.stringify(body) : undefined, headers: { "Content-Type": "application/json" } });
     qc.invalidateQueries({ queryKey: ["challenges"] });
-    toast({ title: "تم" });
+    toast({ title: t("toasts.done") });
   };
 
   const isChallenged = c.challenged.id === myId;
@@ -93,7 +97,7 @@ function ChallengeCard({ c, myId, onAction }: { c: Challenge; myId: number; onAc
         <TypeLabel type={c.type} />
         {c.status === "active" && (
           <span className="font-mono text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {timeLeft(c.endsAt)}
+            <Clock className="w-3 h-3" /> {timeLeft(c.endsAt, t("ended"))}
           </span>
         )}
       </div>
@@ -103,17 +107,17 @@ function ChallengeCard({ c, myId, onAction }: { c: Challenge; myId: number; onAc
       {c.status === "pending" && isChallenged && (
         <div className="flex gap-2 pt-1">
           <Button size="sm" className="font-mono rounded-none h-7 text-xs" onClick={() => mutate("accept")}>
-            <CheckCircle className="w-3 h-3 me-1" /> قبول
+            <CheckCircle className="w-3 h-3 me-1" /> {t("actions.accept")}
           </Button>
           <Button size="sm" variant="outline" className="font-mono rounded-none h-7 text-xs" onClick={() => mutate("decline")}>
-            <XCircle className="w-3 h-3 me-1" /> رفض
+            <XCircle className="w-3 h-3 me-1" /> {t("actions.decline")}
           </Button>
         </div>
       )}
 
       {c.status === "active" && (
         <Button size="sm" variant="outline" className="font-mono rounded-none h-7 text-xs w-full" onClick={onAction}>
-          <Trophy className="w-3 h-3 me-1" /> تسجيل الفائز
+          <Trophy className="w-3 h-3 me-1" /> {t("actions.recordWinner")}
         </Button>
       )}
 
@@ -122,7 +126,7 @@ function ChallengeCard({ c, myId, onAction }: { c: Challenge; myId: number; onAc
           await customFetch(`/api/challenges/${c.id}`, { method: "DELETE" });
           qc.invalidateQueries({ queryKey: ["challenges"] });
         }}>
-          إلغاء التحدي
+          {t("actions.cancelChallenge")}
         </Button>
       )}
     </div>
@@ -130,6 +134,7 @@ function ChallengeCard({ c, myId, onAction }: { c: Challenge; myId: number; onAc
 }
 
 export default function ChallengesPage() {
+  const { t } = useTranslation("challenges");
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const myId = me?.id ?? 0;
   const qc = useQueryClient();
@@ -151,7 +156,6 @@ export default function ChallengesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState<Challenge | null>(null);
 
-  // New challenge form state
   const [friendId, setFriendId] = useState<number>(0);
   const [type, setType] = useState<"most_hours" | "first_rank">("most_hours");
   const [detail, setDetail] = useState("");
@@ -171,11 +175,11 @@ export default function ChallengesPage() {
         headers: { "Content-Type": "application/json" },
       });
       qc.invalidateQueries({ queryKey: ["challenges"] });
-      toast({ title: "تم إرسال التحدي!" });
+      toast({ title: t("toasts.sent") });
       setNewOpen(false);
       setFriendId(0); setType("most_hours"); setDetail(""); setEndsAt("");
     } catch (e: any) {
-      toast({ title: "خطأ", description: e?.data?.error ?? "فشل الإرسال", variant: "destructive" });
+      toast({ title: t("toasts.error"), description: e?.data?.error ?? t("toasts.failedSend"), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -191,10 +195,10 @@ export default function ChallengesPage() {
         headers: { "Content-Type": "application/json" },
       });
       qc.invalidateQueries({ queryKey: ["challenges"] });
-      toast({ title: "تم تسجيل النتيجة!" });
+      toast({ title: t("toasts.resultRecorded") });
       setWinnerOpen(null);
     } catch {
-      toast({ title: "خطأ", variant: "destructive" });
+      toast({ title: t("toasts.error"), variant: "destructive" });
     } finally {
       setCompleting(false);
     }
@@ -212,24 +216,26 @@ export default function ChallengesPage() {
       <div className="border-b border-border pb-4 flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
-            <Swords className="w-8 h-8 text-primary" /> التحديات
+            <Swords className="w-8 h-8 text-primary" /> {t("title")}
           </h1>
-          <p className="text-xs text-muted-foreground font-mono mt-1 tracking-widest">تحديات الأصدقاء — منافسات أسبوعية</p>
+          <p className="text-xs text-muted-foreground font-mono mt-1 tracking-widest">
+            {t("subtitle")}
+          </p>
         </div>
         <Button className="font-mono rounded-none" onClick={() => setNewOpen(true)}>
-          <Plus className="w-4 h-4 me-1" /> تحدي جديد
+          <Plus className="w-4 h-4 me-1" /> {t("newChallenge")}
         </Button>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-0 border border-border overflow-hidden">
-        {([["active", "النشطة"], ["pending", "قيد الانتظار"], ["completed", "المكتملة"]] as const).map(([key, label]) => (
+        {(["active", "pending", "completed"] as const).map((key) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={`flex-1 font-mono text-xs uppercase py-2 px-3 transition-colors ${tab === key ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
           >
-            {label}
+            {t(`tabs.${key}`)}
           </button>
         ))}
       </div>
@@ -242,7 +248,7 @@ export default function ChallengesPage() {
       ) : filtered.length === 0 ? (
         <div className="bg-card border border-border p-12 text-center">
           <Swords className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-          <p className="font-mono text-sm text-muted-foreground uppercase">لا توجد تحديات</p>
+          <p className="font-mono text-sm text-muted-foreground uppercase">{t("empty")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -256,38 +262,38 @@ export default function ChallengesPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="font-mono rounded-none border-border bg-card max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-mono uppercase text-sm">تحدي جديد</DialogTitle>
+            <DialogTitle className="font-mono uppercase text-sm">{t("newChallenge")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">اختر صديقًا</label>
+              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("form.chooseFriend")}</label>
               <select
                 value={friendId}
                 onChange={(e) => setFriendId(Number(e.target.value))}
                 className="w-full bg-background border border-border font-mono text-sm p-2 rounded-none"
               >
-                <option value={0}>-- اختر --</option>
+                <option value={0}>{t("form.chooseDefault")}</option>
                 {(friends ?? []).map((f: any) => (
                   <option key={f.id} value={f.id}>{f.displayName} (@{f.username})</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">نوع التحدي</label>
+              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("form.challengeType")}</label>
               <div className="flex gap-0">
-                {([["most_hours", "أكثر ساعات"], ["first_rank", "أول رانك"]] as const).map(([val, lbl]) => (
+                {(["most_hours", "first_rank"] as const).map((val) => (
                   <button
                     key={val}
                     onClick={() => setType(val)}
                     className={`flex-1 font-mono text-xs py-2 border transition-colors ${type === val ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:bg-muted"}`}
                   >
-                    {lbl}
+                    {t(`types.${val}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">تاريخ الانتهاء</label>
+              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("form.endDate")}</label>
               <Input
                 type="datetime-local"
                 value={endsAt}
@@ -296,17 +302,17 @@ export default function ChallengesPage() {
               />
             </div>
             <div>
-              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">تفاصيل (اختياري)</label>
+              <label className="text-xs uppercase text-muted-foreground tracking-widest block mb-1">{t("form.details")}</label>
               <Textarea
                 value={detail}
                 onChange={(e) => setDetail(e.target.value)}
                 className="font-mono rounded-none border-border bg-background resize-none"
                 rows={2}
-                placeholder="مثلاً: أكثر ساعات في Valorant هذا الأسبوع"
+                placeholder={t("form.detailsPlaceholder")}
               />
             </div>
             <Button className="w-full font-mono rounded-none" onClick={createChallenge} disabled={creating || !friendId || !endsAt}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "إرسال التحدي"}
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : t("actions.sendChallenge")}
             </Button>
           </div>
         </DialogContent>
@@ -316,7 +322,7 @@ export default function ChallengesPage() {
       <Dialog open={!!winnerOpen} onOpenChange={() => setWinnerOpen(null)}>
         <DialogContent className="font-mono rounded-none border-border bg-card max-w-xs">
           <DialogHeader>
-            <DialogTitle className="font-mono uppercase text-sm">من فاز؟</DialogTitle>
+            <DialogTitle className="font-mono uppercase text-sm">{t("actions.whoWon")}</DialogTitle>
           </DialogHeader>
           {winnerOpen && (
             <div className="space-y-3 pt-2">
@@ -336,7 +342,7 @@ export default function ChallengesPage() {
                 </button>
               ))}
               <Button className="w-full font-mono rounded-none" onClick={completeChallenge} disabled={completing || !winnerId}>
-                {completing ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد الفائز"}
+                {completing ? <Loader2 className="w-4 h-4 animate-spin" /> : t("actions.confirmWinner")}
               </Button>
             </div>
           )}

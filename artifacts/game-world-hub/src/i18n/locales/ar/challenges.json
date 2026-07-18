@@ -1,0 +1,48 @@
+{
+  "title": "التحديات",
+  "subtitle": "تحديات الأصدقاء — منافسات أسبوعية",
+  "newChallenge": "تحدي جديد",
+  "tabs": {
+    "active": "النشطة",
+    "pending": "قيد الانتظار",
+    "completed": "المكتملة"
+  },
+  "empty": "لا توجد تحديات",
+  "types": {
+    "most_hours": "أكثر ساعات",
+    "first_rank": "أول رانك"
+  },
+  "status": {
+    "pending": "قيد الانتظار",
+    "active": "نشط",
+    "declined": "مرفوض",
+    "won": "فزت 🏆",
+    "lost": "خسرت",
+    "cancelled": "ملغى"
+  },
+  "actions": {
+    "accept": "قبول",
+    "decline": "رفض",
+    "recordWinner": "تسجيل الفائز",
+    "cancelChallenge": "إلغاء التحدي",
+    "sendChallenge": "إرسال التحدي",
+    "confirmWinner": "تأكيد الفائز",
+    "whoWon": "من فاز؟"
+  },
+  "form": {
+    "chooseFriend": "اختر صديقًا",
+    "chooseDefault": "-- اختر --",
+    "challengeType": "نوع التحدي",
+    "endDate": "تاريخ الانتهاء",
+    "details": "تفاصيل (اختياري)",
+    "detailsPlaceholder": "مثلاً: أكثر ساعات في Valorant هذا الأسبوع"
+  },
+  "toasts": {
+    "sent": "تم إرسال التحدي!",
+    "error": "خطأ",
+    "failedSend": "فشل الإرسال",
+    "done": "تم",
+    "resultRecorded": "تم تسجيل النتيجة!"
+  },
+  "ended": "انتهى"
+}

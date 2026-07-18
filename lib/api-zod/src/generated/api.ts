@@ -672,6 +672,9 @@ export const UpdateProfileParams = zod.object({
   "userId": zod.coerce.number()
 })
 
+export const updateProfileBodyUsernameMin = 3;
+export const updateProfileBodyUsernameMax = 30;
+
 export const updateProfileBodyDisplayNameMax = 50;
 
 export const updateProfileBodyBioMax = 500;
@@ -679,6 +682,7 @@ export const updateProfileBodyBioMax = 500;
 
 
 export const UpdateProfileBody = zod.object({
+  "username": zod.string().min(updateProfileBodyUsernameMin).max(updateProfileBodyUsernameMax).optional(),
   "displayName": zod.string().min(1).max(updateProfileBodyDisplayNameMax).optional(),
   "bio": zod.string().max(updateProfileBodyBioMax).optional(),
   "avatarUrl": zod.string().optional(),

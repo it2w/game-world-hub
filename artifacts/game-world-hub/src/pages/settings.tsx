@@ -235,7 +235,18 @@ export default function Settings() {
     handle: z.string().min(1, t("validation.required")).max(100)
   }), [t]);
 
-  // Four independent identity forms
+  const usernameResolverSchema = useMemo(() => z.object({
+    username: z.string()
+      .min(3, t("validation.usernameFormat"))
+      .max(30, t("validation.usernameFormat"))
+      .regex(/^[a-zA-Z0-9_]+$/, t("validation.usernameFormat"))
+  }), [t]);
+
+  // Five independent identity forms
+  const usernameForm = useForm<{ username: string }>({
+    resolver: zodResolver(usernameResolverSchema),
+    defaultValues: { username: "" }
+  });
   const displayNameForm = useForm<z.infer<typeof displayNameSchema>>({
     resolver: zodResolver(displayNameSchema),
     defaultValues: { displayName: "" }
@@ -270,6 +281,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (me) {
+      if (!usernameForm.formState.isDirty)   usernameForm.reset({ username: me.username });
       if (!displayNameForm.formState.isDirty) displayNameForm.reset({ displayName: me.displayName });
       if (!avatarForm.formState.isDirty)     avatarForm.reset({ avatarUrl: me.avatarUrl || "" });
       if (!bannerForm.formState.isDirty)     bannerForm.reset({ bannerUrl: me.bannerUrl || "" });
@@ -290,6 +302,25 @@ export default function Settings() {
           refreshMe();
           queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
         }
+      }
+    );
+  };
+
+  const onUsernameSubmit = (data: { username: string }) => {
+    if (!me) return;
+    updateProfile.mutate(
+      { userId: me.id, data: { username: data.username } },
+      {
+        onSuccess: () => {
+          toast({ title: t("toasts.usernameSaved") });
+          usernameForm.reset({ username: data.username });
+          refreshMe();
+          queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(me.id) });
+        },
+        onError: (err) => {
+          const msg = errText(err, t("toasts.usernameError"));
+          toast({ title: t("toasts.usernameError"), description: msg, variant: "destructive" });
+        },
       }
     );
   };
@@ -388,6 +419,22 @@ export default function Settings() {
             <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
               <User className="w-4 h-4" /> {t("identity.title")}
             </h2>
+
+            {/* Username */}
+            <Form {...usernameForm}>
+              <form onSubmit={usernameForm.handleSubmit(onUsernameSubmit)} className="space-y-2">
+                <FormField control={usernameForm.control} name="username" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-mono text-xs">{t("identity.username")}</FormLabel>
+                    <div className="flex gap-2">
+                      <FormControl><Input {...field} className="font-mono rounded-none border-border bg-background" placeholder="username" /></FormControl>
+                      <Button type="submit" variant="outline" className="font-mono rounded-none shrink-0" disabled={updateProfile.isPending || !usernameForm.formState.isDirty}>{t("identity.writeConfig")}</Button>
+                    </div>
+                    <FormMessage className="font-mono text-xs" />
+                  </FormItem>
+                )} />
+              </form>
+            </Form>
 
             {/* Display name */}
             <Form {...displayNameForm}>

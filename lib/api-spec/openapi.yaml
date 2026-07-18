@@ -2801,6 +2801,10 @@ components:
     ProfileUpdate:
       type: object
       properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
         displayName:
           type: string
           minLength: 1

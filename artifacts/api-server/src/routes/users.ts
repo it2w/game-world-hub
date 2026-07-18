@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, ne, or } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -171,6 +171,9 @@ router.get("/users/:userId", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/;
+const USERNAME_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 // PATCH /users/:userId/profile
 router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
@@ -192,13 +195,45 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
     updates.bannerUrl = await normalizeStoredImagePath(userId, updates.bannerUrl as string);
   }
   // Pro-only: profile frame color and background URL
-  const [currentUser] = await db.select({ isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt }).from(usersTable).where(eq(usersTable.id, userId));
+  const [currentUser] = await db.select({
+    isPro: usersTable.isPro,
+    proExpiresAt: usersTable.proExpiresAt,
+    usernameChangedAt: usersTable.usernameChangedAt,
+  }).from(usersTable).where(eq(usersTable.id, userId));
   const now = new Date();
   const proActive = currentUser?.isPro && (!currentUser.proExpiresAt || currentUser.proExpiresAt > now);
   if (proActive) {
     if (typeof req.body.profileFrameColor === "string") updates.profileFrameColor = req.body.profileFrameColor;
     if (typeof req.body.profileBgUrl === "string") updates.profileBgUrl = req.body.profileBgUrl;
   }
+
+  // Username change: validate format, uniqueness, and 30-day cooldown
+  if (typeof updates.username === "string") {
+    const newUsername = updates.username as string;
+    if (!USERNAME_RE.test(newUsername)) {
+      res.status(400).json({ error: "Username must be 3–30 characters and contain only letters, numbers, and underscores." });
+      return;
+    }
+    const lastChanged = currentUser?.usernameChangedAt;
+    if (lastChanged) {
+      const elapsed = now.getTime() - lastChanged.getTime();
+      if (elapsed < USERNAME_COOLDOWN_MS) {
+        const nextAllowed = new Date(lastChanged.getTime() + USERNAME_COOLDOWN_MS);
+        res.status(429).json({ error: `Username can only be changed once every 30 days. Next change allowed on ${nextAllowed.toISOString()}.` });
+        return;
+      }
+    }
+    const [existing] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.username, newUsername), ne(usersTable.id, userId)));
+    if (existing) {
+      res.status(409).json({ error: "Username is already taken." });
+      return;
+    }
+    updates.usernameChangedAt = now;
+  }
+
   const [user] = await db.update(usersTable)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .set(updates as any)

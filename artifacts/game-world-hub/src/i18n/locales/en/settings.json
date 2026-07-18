@@ -4,6 +4,8 @@
   },
   "identity": {
     "title": "IDENTITY_PARAMS",
+    "username": "USERNAME",
+    "usernameCooldown": "Username can be changed once every 30 days. Next change available: {{date}}",
     "displayName": "DISPLAY NAME",
     "avatar": "AVATAR",
     "banner": "PROFILE BANNER",
@@ -89,7 +91,8 @@
   },
   "validation": {
     "imageRef": "Enter a URL or upload an image",
-    "required": "Required"
+    "required": "Required",
+    "usernameFormat": "3–30 chars, letters, numbers, underscores only"
   },
   "activationCode": {
     "title": "ACTIVATION CODE",
@@ -143,6 +146,8 @@
     "startupLaunchDisabled": "Startup launch disabled",
     "failedToUpdateStartup": "Failed to update startup setting",
     "profileSaved": "Profile configuration saved",
+    "usernameSaved": "Username updated",
+    "usernameError": "Couldn't update username",
     "statusUpdated": "Status updated globally",
     "channelLinked": "{{platform}} channel linked",
     "failedToLinkChannel": "Failed to link channel",

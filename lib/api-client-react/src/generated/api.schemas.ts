@@ -508,6 +508,11 @@ export interface UserProfile {
 
 export interface ProfileUpdate {
   /**
+     * @minLength 3
+     * @maxLength 30
+     */
+  username?: string;
+  /**
      * @minLength 1
      * @maxLength 50
      */

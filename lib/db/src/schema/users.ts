@@ -42,6 +42,8 @@ export const usersTable = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   // Friend-online notification opt-in: comma-separated friend user IDs to watch, or "*" for all.
   friendOnlineWatchlist: text("friend_online_watchlist"),
+  // Username change cooldown tracking. Null means the username has never been changed.
+  usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

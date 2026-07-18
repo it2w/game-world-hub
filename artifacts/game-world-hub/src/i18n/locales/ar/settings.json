@@ -4,6 +4,8 @@
   },
   "identity": {
     "title": "بيانات الهوية",
+    "username": "اسم المستخدم",
+    "usernameCooldown": "يمكن تغيير اسم المستخدم مرة واحدة كل 30 يومًا. التغيير التالي متاح في: {{date}}",
     "displayName": "الاسم الظاهر",
     "avatar": "الصورة الرمزية",
     "banner": "غلاف الملف الشخصي",
@@ -89,7 +91,8 @@
   },
   "validation": {
     "imageRef": "أدخل رابطًا أو ارفع صورة",
-    "required": "مطلوب"
+    "required": "مطلوب",
+    "usernameFormat": "3–30 حرفًا، أحرف وأرقام وشرطة سفلية فقط"
   },
   "activationCode": {
     "title": "كود التفعيل",
@@ -143,6 +146,8 @@
     "startupLaunchDisabled": "تم تعطيل التشغيل عند البدء",
     "failedToUpdateStartup": "فشل تحديث إعداد بدء التشغيل",
     "profileSaved": "تم حفظ إعدادات الملف الشخصي",
+    "usernameSaved": "تم تحديث اسم المستخدم",
+    "usernameError": "تعذّر تحديث اسم المستخدم",
     "statusUpdated": "تم تحديث الحالة عالميًا",
     "channelLinked": "تم ربط قناة {{platform}}",
     "failedToLinkChannel": "فشل ربط القناة",

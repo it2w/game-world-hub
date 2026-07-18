@@ -20,7 +20,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
 import { signToken } from "../middlewares/auth";
-import { _resetLoginBucket, _resetResetRateBucket, _resetProbeAlertCooldown, sweepRateBuckets } from "./owner";
+import { _resetLoginBucket, _resetResetRateBucket, _resetProbeAlertCooldown, sweepRateBuckets, purgeExpiredResetRateBuckets } from "./owner";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -1261,6 +1261,60 @@ describe("Reset rate limit — IP isolation via X-Forwarded-For", () => {
       429,
       `IP-B must not be blocked by IP-A's exhausted bucket; got ${res.status}`,
     );
+  });
+});
+
+/* ── Expired rate-limit bucket purge ────────────────────────────────────── */
+
+describe("purgeExpiredResetRateBuckets", () => {
+  const RESET_RATE_WINDOW_MS = 15 * 60 * 1000;
+
+  const expiredKey = `reset-req:purge-expired-${SUFFIX}`;
+  const activeKey  = `reset-req:purge-active-${SUFFIX}`;
+
+  before(async () => {
+    // Insert one row whose window has expired (older than the window).
+    await pool.query(
+      `INSERT INTO owner_reset_rate_buckets (key, count, window_start)
+       VALUES ($1, 3, $2)
+       ON CONFLICT (key) DO UPDATE SET count = 3, window_start = $2`,
+      [expiredKey, Date.now() - RESET_RATE_WINDOW_MS - 1000],
+    );
+    // Insert one row whose window is still active.
+    await pool.query(
+      `INSERT INTO owner_reset_rate_buckets (key, count, window_start)
+       VALUES ($1, 2, $2)
+       ON CONFLICT (key) DO UPDATE SET count = 2, window_start = $2`,
+      [activeKey, Date.now() - 1000],
+    );
+  });
+
+  after(async () => {
+    await pool.query(
+      `DELETE FROM owner_reset_rate_buckets WHERE key = ANY($1::text[])`,
+      [[expiredKey, activeKey]],
+    ).catch(() => {});
+  });
+
+  test("removes expired rows and leaves active rows intact", async () => {
+    const deleted = await purgeExpiredResetRateBuckets();
+
+    // At least our expired test row must have been removed.
+    assert.ok(deleted >= 1, `expected at least 1 deleted row, got ${deleted}`);
+
+    // The expired key must be gone.
+    const { rows: expiredRows } = await pool.query(
+      `SELECT 1 FROM owner_reset_rate_buckets WHERE key = $1`,
+      [expiredKey],
+    );
+    assert.strictEqual(expiredRows.length, 0, "expired bucket row should have been deleted");
+
+    // The active key must still be present.
+    const { rows: activeRows } = await pool.query(
+      `SELECT 1 FROM owner_reset_rate_buckets WHERE key = $1`,
+      [activeKey],
+    );
+    assert.strictEqual(activeRows.length, 1, "active bucket row should not have been deleted");
   });
 });
 

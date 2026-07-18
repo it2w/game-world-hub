@@ -86,7 +86,31 @@ pool.query(`
     count        INTEGER NOT NULL DEFAULT 0,
     window_start BIGINT  NOT NULL
   )
-`).catch((e) => logger.error(e, "owner_reset_rate_buckets: migration failed"));
+`).then(() => purgeExpiredResetRateBuckets())
+  .catch((e) => logger.error(e, "owner_reset_rate_buckets: migration failed"));
+
+// Periodically remove expired buckets so the table doesn't grow without bound.
+// Runs every full rate-limit window (15 minutes).
+setInterval(() => {
+  purgeExpiredResetRateBuckets().catch((e) => logger.error(e, "owner_reset_rate_buckets: periodic purge failed"));
+}, RESET_RATE_WINDOW_MS).unref();
+
+/**
+ * Deletes rows whose rate-limit window has already expired.
+ * Exposed for tests.
+ */
+export async function purgeExpiredResetRateBuckets(): Promise<number> {
+  const cutoff = Date.now() - RESET_RATE_WINDOW_MS;
+  const { rowCount } = await pool.query(
+    `DELETE FROM owner_reset_rate_buckets WHERE window_start < $1`,
+    [cutoff],
+  );
+  const deleted = rowCount ?? 0;
+  if (deleted > 0) {
+    logger.info({ deleted }, "owner_reset_rate_buckets: purged expired rows");
+  }
+  return deleted;
+}
 
 /** Exposed for tests to reset state between runs. */
 export async function _resetResetRateBucket(key: string): Promise<void> {

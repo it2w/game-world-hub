@@ -66,6 +66,27 @@ const MOODS = [
   { icon:"😴", label:"سأنام" },
 ];
 
+const FEATURED_GAME = { name:"Valorant", mode:"RANKED • ACT III", players:"4.2M نشط", update:"تحديث Episode 9 متاح!", accent:"#FF4655" };
+
+const LFG_POSTS = [
+  { user:"Ahmed_X",  game:"Valorant",     rank:"DIAMOND", need:2, ago:"1m",  color:"#EC4899" },
+  { user:"mz_gamer", game:"CS2",          rank:"MASTER",  need:1, ago:"4m",  color:"#22C55E" },
+  { user:"Sara_99",  game:"Apex Legends", rank:"PLAT",    need:3, ago:"9m",  color:"#06B6D4" },
+];
+
+const NEWS_ITEMS = [
+  { tag:"UPDATE",  color:"#22C55E", text:"Valorant EP9 — خريطة جديدة + عميل جديد" },
+  { tag:"ESPORTS", color:"#FFD700", text:"فريق LOUD يفوز ببطولة VCT Americas 2026" },
+  { tag:"PATCH",   color:"#F97316", text:"CS2 — تعديل توازن السلاح Premier Season 4" },
+  { tag:"EVENT",   color:"#A855F7", text:"Apex: موسم الصياد يبدأ 22 يوليو" },
+];
+
+const LIVE_PARTIES = [
+  { game:"Valorant",    players:["K","S","F"], mode:"Ranked",  slots:2, color:"#EC4899" },
+  { game:"CS2",         players:["F2"],        mode:"Premier", slots:4, color:"#22C55E" },
+  { game:"Overwatch 2", players:["R","O"],     mode:"Comp",    slots:3, color:"#F97316" },
+];
+
 const TOURNAMENTS = [
   { name:"GWH Cup — Final",    date:"غداً 8م",   prize:"5,000 ريال", game:"Valorant",    color:"#EF4444", hot:true  },
   { name:"CS2 Weekly Open",    date:"الجمعة 9م", prize:"1,000 ريال", game:"CS2",         color:"#F97316", hot:false },
@@ -471,6 +492,126 @@ function CommunityHighlights() {
   );
 }
 
+// ── Hub Card (game + lfg + news + parties) ────────────────────────────────────
+function HubCard() {
+  const [tab, setTab] = useState<"game"|"lfg"|"news"|"party">("game");
+  const TABS = [
+    { id:"game",  icon:"🎮", label:"اليوم"   },
+    { id:"lfg",   icon:"📡", label:"LFG"     },
+    { id:"news",  icon:"📰", label:"أخبار"   },
+    { id:"party", icon:"⚔️", label:"بارتيات" },
+  ] as const;
+
+  return (
+    <div className="hub-card section-box">
+      {/* tabs */}
+      <div className="hub-tabs">
+        {TABS.map(t => (
+          <button key={t.id}
+            className={`hub-tab ${tab===t.id?"hub-tab--on":""}`}
+            onClick={() => setTab(t.id)}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* featured game */}
+      {tab === "game" && (
+        <div className="hub-pane hub-game">
+          <div className="hub-game-bg" />
+          <div className="hub-game-grid" />
+          <div className="hub-game-tag">🔥 لعبة اليوم</div>
+          <div className="hub-game-name">{FEATURED_GAME.name}</div>
+          <div className="hub-game-mode">{FEATURED_GAME.mode}</div>
+          <div className="hub-game-row">
+            <span className="hub-game-players">👥 {FEATURED_GAME.players}</span>
+            <span className="hub-game-update">⚡ {FEATURED_GAME.update}</span>
+          </div>
+          <button className="hub-game-btn" style={{ background:FEATURED_GAME.accent }}>
+            انضم الآن ↗
+          </button>
+        </div>
+      )}
+
+      {/* LFG */}
+      {tab === "lfg" && (
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{ fontSize:9,color:"#555" }}>طلبات مفتوحة</span>
+            <span className="hub-live-dot-wrap"><span className="online-dot"/>مباشر</span>
+          </div>
+          {LFG_POSTS.map((p,i) => (
+            <div key={i} className="hub-lfg-row" style={{ borderColor:`${p.color}20` }}>
+              <div className="hub-lfg-av" style={{ background:`${p.color}22`, borderColor:`${p.color}50`, color:p.color }}>
+                {p.user.charAt(0)}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div className="hub-lfg-user">{p.user}</div>
+                <div className="hub-lfg-game" style={{ color:p.color }}>{p.game} • {p.rank}</div>
+              </div>
+              <div style={{ textAlign:"end", flexShrink:0 }}>
+                <div className="hub-lfg-need">{p.need} مقاعد</div>
+                <div className="hub-lfg-ago">{p.ago}</div>
+              </div>
+              <button className="hub-lfg-btn" style={{ borderColor:p.color, color:p.color }}>انضم</button>
+            </div>
+          ))}
+          <div className="hub-see-all">عرض كل الطلبات ↗</div>
+        </div>
+      )}
+
+      {/* News */}
+      {tab === "news" && (
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{ fontSize:9,color:"#555" }}>آخر الأخبار</span>
+            <span style={{ fontSize:9,color:"#22C55E" }}>Gaming News</span>
+          </div>
+          {NEWS_ITEMS.map((n,i) => (
+            <div key={i} className="hub-news-row">
+              <span className="hub-news-tag" style={{ color:n.color, borderColor:`${n.color}40`, background:`${n.color}10` }}>
+                {n.tag}
+              </span>
+              <span className="hub-news-text">{n.text}</span>
+            </div>
+          ))}
+          <div className="hub-see-all">المزيد من الأخبار ↗</div>
+        </div>
+      )}
+
+      {/* Live Parties */}
+      {tab === "party" && (
+        <div className="hub-pane">
+          <div className="hub-pane-hd">
+            <span style={{ fontSize:9,color:"#555" }}>بارتيات نشطة الآن</span>
+            <span className="hub-live-dot-wrap"><span className="online-dot"/>LIVE</span>
+          </div>
+          {LIVE_PARTIES.map((p,i) => (
+            <div key={i} className="hub-party-row" style={{ borderColor:`${p.color}20` }}>
+              <div style={{ flex:1 }}>
+                <div className="hub-party-game" style={{ color:p.color }}>{p.game}</div>
+                <div className="hub-party-mode">{p.mode} • {p.slots} أماكن فارغة</div>
+                <div className="hub-party-avs">
+                  {p.players.map((pl,j) => (
+                    <div key={j} className="hub-party-av" style={{ background:`${p.color}30`, borderColor:p.color, color:p.color }}>
+                      {pl}
+                    </div>
+                  ))}
+                  {[...Array(p.slots)].map((_,j) => (
+                    <div key={`e${j}`} className="hub-party-av hub-party-av--empty">+</div>
+                  ))}
+                </div>
+              </div>
+              <button className="hub-party-btn" style={{ background:p.color }}>انضم</button>
+            </div>
+          ))}
+          <div className="hub-see-all">استعراض كل البارتيات ↗</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tournaments ────────────────────────────────────────────────────────────────
 function TournamentCard() {
   const [joined, setJoined] = useState<number|null>(null);
@@ -703,13 +844,11 @@ export function Dashboard() {
       {/* body */}
       <div className="dash-body">
         <div className="dash-main">
-          {/* top row: spin + graph + streams */}
+          {/* top row: spin | graph | hub */}
           <div className="dash-top-row">
             <DailySpin />
-            <div style={{ display:"flex",flexDirection:"column",gap:12,flex:1 }}>
-              <WeeklyGraph />
-              <LiveStreams />
-            </div>
+            <WeeklyGraph />
+            <HubCard />
           </div>
           <FriendsGrid />
           <CommunityHighlights />

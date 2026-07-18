@@ -538,3 +538,152 @@ describe("GET /owner/export/log", () => {
     assert.strictEqual(r.status, 401);
   });
 });
+
+/* ── Owner password-reset brute-force lockout ───────────────────────────── */
+
+describe("Owner reset-password brute-force lockout", () => {
+  /**
+   * A dedicated super_admin for these tests so we don't pollute the shared
+   * `testOwnerId` state.  No email is set so reset-password-request returns
+   * `devCode` in the response (non-production behaviour).
+   */
+  let resetOwnerId = 0;
+  let resetOwnerUsername = "";
+
+  const STRONG_NEW_PASSWORD = "Str0ng!NewPassword#Test99";
+
+  /** Helper: request a reset code for the reset owner and return the devCode. */
+  async function requestCode(): Promise<string> {
+    const r = await post("/owner/reset-password-request", { username: resetOwnerUsername });
+    assert.strictEqual(r.status, 200, `reset-password-request failed: ${JSON.stringify(r.body)}`);
+    const body = r.body as { ok: boolean; devCode?: string };
+    assert.ok(typeof body.devCode === "string", "devCode must be returned in non-production mode");
+    return body.devCode!;
+  }
+
+  before(async () => {
+    const [row] = await db
+      .insert(superAdminsTable)
+      .values({ username: `owner_bf_${SUFFIX}`, passwordHash: "x" })
+      .returning({ id: superAdminsTable.id });
+    resetOwnerId = row.id;
+    resetOwnerUsername = `owner_bf_${SUFFIX}`;
+  });
+
+  after(async () => {
+    await db.delete(superAdminsTable).where(eq(superAdminsTable.id, resetOwnerId)).catch(() => {});
+  });
+
+  // ── 1. Brute-force lockout ──────────────────────────────────────────────
+
+  test("valid code is rejected after MAX_RESET_ATTEMPTS wrong guesses", async () => {
+    const validCode = await requestCode();
+
+    // Advance the attempt counter to MAX_RESET_ATTEMPTS (5) directly in the DB
+    // so the test does not need to wait for 5 × bcrypt.compare round-trips.
+    await db
+      .update(superAdminsTable)
+      .set({ passwordResetAttempts: 5 })
+      .where(eq(superAdminsTable.id, resetOwnerId));
+
+    // Now submitting the correct code must be refused because attempts == 5 == MAX.
+    const r = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: validCode,
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(r.status, 400, `expected 400 after lockout, got ${r.status}: ${JSON.stringify(r.body)}`);
+    assert.ok(
+      (r.body as { error?: string }).error?.toLowerCase().includes("invalid") ||
+      (r.body as { error?: string }).error?.toLowerCase().includes("expired"),
+      `error message should mention invalid/expired; got: ${JSON.stringify(r.body)}`,
+    );
+  });
+
+  test("each wrong code increments the attempt counter", async () => {
+    const _validCode = await requestCode();
+
+    // Submit one deliberately wrong code.
+    const r = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: "000000",
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(r.status, 400);
+
+    // Attempt counter must now be 1.
+    const [owner] = await db
+      .select({ attempts: superAdminsTable.passwordResetAttempts })
+      .from(superAdminsTable)
+      .where(eq(superAdminsTable.id, resetOwnerId))
+      .limit(1);
+    assert.strictEqual(owner?.attempts, 1, `expected attempts=1, got ${owner?.attempts}`);
+  });
+
+  // ── 2. Expired code ─────────────────────────────────────────────────────
+
+  test("expired reset code is rejected with 400", async () => {
+    const validCode = await requestCode();
+
+    // Back-date the expiry so the code appears expired.
+    await db
+      .update(superAdminsTable)
+      .set({ passwordResetExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(superAdminsTable.id, resetOwnerId));
+
+    const r = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: validCode,
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(r.status, 400, `expected 400 for expired code, got ${r.status}`);
+  });
+
+  // ── 3. Code consumed on first use, cannot be reused ─────────────────────
+
+  test("reset code is consumed on success and cannot be reused", async () => {
+    // Re-issue a fresh code (the previous tests may have dirtied state).
+    const validCode = await requestCode();
+
+    // First use — must succeed.
+    const first = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: validCode,
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(first.status, 200, `first use should succeed, got ${first.status}: ${JSON.stringify(first.body)}`);
+    assert.strictEqual((first.body as { ok: boolean }).ok, true);
+
+    // Second use of the same code — must fail (hash cleared on success).
+    const second = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: validCode,
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(second.status, 400, `reused code should be rejected, got ${second.status}`);
+  });
+
+  test("after successful reset, DB hash and expiry are cleared", async () => {
+    const validCode = await requestCode();
+
+    await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: validCode,
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+
+    const [owner] = await db
+      .select({
+        hash: superAdminsTable.passwordResetCodeHash,
+        expiresAt: superAdminsTable.passwordResetExpiresAt,
+        attempts: superAdminsTable.passwordResetAttempts,
+      })
+      .from(superAdminsTable)
+      .where(eq(superAdminsTable.id, resetOwnerId))
+      .limit(1);
+
+    assert.strictEqual(owner?.hash, null, "passwordResetCodeHash must be null after successful reset");
+    assert.strictEqual(owner?.expiresAt, null, "passwordResetExpiresAt must be null after successful reset");
+    assert.strictEqual(owner?.attempts, 0, "passwordResetAttempts must be reset to 0 after successful reset");
+  });
+});

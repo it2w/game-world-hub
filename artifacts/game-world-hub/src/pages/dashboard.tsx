@@ -504,13 +504,45 @@ function CommunityHighlights({ activity }: { activity:any[] }) {
 }
 
 // ── SmartMatch ─────────────────────────────────────────────────────────────────
-function SmartMatch({ friends }: { friends:any[] }) {
+function SmartMatch({ friends, openParties }: { friends:any[]; openParties:any[] }) {
+  const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
   const [cd, setCd] = useState(180);
-  useEffect(()=>{if(joined)return;const id=setInterval(()=>setCd(c=>c>0?c-1:0),1000);return()=>clearInterval(id);},[joined]);
+  const [, nav] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // Pick the first real open party, fall back to null
+  const party = openParties?.[0] ?? null;
+
+  useEffect(()=>{
+    if (joined) return;
+    const id = setInterval(()=>setCd(c=>c>0?c-1:0),1000);
+    return ()=>clearInterval(id);
+  },[joined]);
+
   const mm=String(Math.floor(cd/60)).padStart(2,"0"), ss=String(cd%60).padStart(2,"0");
   const pct=(cd/180)*100;
-  const shown=friends.slice(0,3);
+  const shown = friends.slice(0,3);
+
+  const handleJoin = async () => {
+    if (joining || joined) return;
+    if (!party) { nav("/parties"); return; }
+    setJoining(true);
+    try {
+      await customFetch(`/api/parties/${party.id}/join`, { method:"POST" });
+      setJoined(true);
+      qc.invalidateQueries({ queryKey: ["parties-active-dash"] });
+      toast({ title:"✓ انضممت للبارتي!" });
+      setTimeout(()=>nav(`/party/${party.id}`), 900);
+    } catch (e:any) {
+      const msg = e?.data?.error ?? "تعذّر الانضمام";
+      toast({ title:"تعذّر الانضمام", description: msg, variant:"destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
   return (
     <div className="section-box match-box">
       <div className="match-pulse-ring"/>
@@ -518,17 +550,32 @@ function SmartMatch({ friends }: { friends:any[] }) {
         <span className="section-title">🎯 فرصة انضمام</span>
         <div className="match-live-badge"><span className="match-live-dot"/>LIVE</div>
       </div>
-      <div className="match-game">Valorant</div>
-      <div className="match-meta">"Rush Squad" • {shown.length||3} لاعبين ينتظرون</div>
+      <div className="match-game">{party?.game ?? "Valorant"}</div>
+      <div className="match-meta">"{party?.name ?? "Rush Squad"}" • {(party?.memberCount ?? shown.length) || 3} لاعبين</div>
       <div className="match-avatars">
-        {shown.length?shown.map((e:any)=>{const f=e.friend;const color=fColor(f.id);return(
+        {shown.length ? shown.map((e:any)=>{const f=e.friend;const color=fColor(f.id);return(
           <div key={f.id} className="match-av" style={{background:`linear-gradient(135deg,${color}88,${color}33)`,borderColor:color}}>
             {f.avatarUrl?<img src={f.avatarUrl} alt=""/>:f.displayName.charAt(0)}
           </div>
-        )}):[<div key="a" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>K</div>,<div key="b" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>S</div>,<div key="c" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>F</div>]}
+        )}) : [
+          <div key="a" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>K</div>,
+          <div key="b" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>S</div>,
+          <div key="c" className="match-av" style={{background:"#1a1a1a",borderColor:"#333"}}>F</div>,
+        ]}
       </div>
-      {!joined&&<div className="match-countdown"><div className="match-cd-track"><div className="match-cd-fill" style={{width:`${pct}%`,background:pct<30?"#EF4444":pct<60?"#FFD700":"#22C55E"}}/></div><span className="match-cd-time" style={{color:pct<30?"#EF4444":"#ccc"}}>⏱ {mm}:{ss}</span></div>}
-      <button className={`match-btn${joined?" match-btn--done":""}`} onClick={()=>setJoined(j=>!j)}>{joined?"✓ انضممت!":"⚡ انضم الآن"}</button>
+      {!joined && <div className="match-countdown">
+        <div className="match-cd-track">
+          <div className="match-cd-fill" style={{width:`${pct}%`,background:pct<30?"#EF4444":pct<60?"#FFD700":"#22C55E"}}/>
+        </div>
+        <span className="match-cd-time" style={{color:pct<30?"#EF4444":"#ccc"}}>⏱ {mm}:{ss}</span>
+      </div>}
+      <button
+        className={`match-btn${(joined||joining)?" match-btn--done":""}`}
+        onClick={handleJoin}
+        disabled={joining||joined}
+      >
+        {joining?"جاري الانضمام…":joined?"✓ انضممت!":"⚡ انضم الآن"}
+      </button>
     </div>
   );
 }
@@ -917,7 +964,7 @@ export default function Dashboard() {
         </div>
 
         <div className="dash-side">
-          <SmartMatch friends={friends}/>
+          <SmartMatch friends={friends} openParties={parties??[]}/>
           <ChallengeVs me={me} friends={friends}/>
           <TournamentCard/>
           <ChallengeCard challenges={challenges??[]}/>

@@ -13,7 +13,7 @@ import {
   Activity, UserX, UserCheck, TrendingUp, Clock,
   FileText, Zap, MessageSquare, Swords, Megaphone,
   Trophy, Filter, Flag, Lock, Power, SlidersHorizontal, Trash2, Check,
-  Download, Layers,
+  Download, Layers, Cpu, MemoryStick, Globe, Timer, ArrowUpDown, ServerCrash,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { getApiUrl } from "@/lib/api";
@@ -85,6 +85,12 @@ interface AnalyticsData {
 }
 interface ContentLfg   { id: number; game: string; description: string; status: string; author_id: number; author_username: string | null; response_count: number; created_at: string }
 interface ContentParty { id: number; name: string; game: string | null; leader_id: number; leader_username: string | null; member_count: number; max_size: number; created_at: string }
+interface SystemHealth {
+  cpu:  { cores: number; loadavg: number[]; usedPct: number };
+  ram:  { totalMb: number; usedMb: number; freeMb: number; usedPct: number };
+  heap: { usedMb: number; totalMb: number; rssMb: number };
+  uptime: number; region: string; requestsPerMin: number; avgResponseMs: number;
+}
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -1946,10 +1952,28 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
 
 /* ─── Analytics Tab ──────────────────────────────────────────────────────── */
 
+function fmtUptime(s: number): string {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function GaugeBar({ pct }: { pct: number }) {
+  const color = pct >= 85 ? "bg-red-500" : pct >= 65 ? "bg-yellow-400" : "bg-green-400";
+  return (
+    <div className="w-full h-1.5 bg-border/40 relative overflow-hidden">
+      <div className={`h-full ${color} transition-all duration-700`} style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
+  );
+}
+
 function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
   const [range,   setRange]   = useState<30 | 90>(30);
   const [data,    setData]    = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [health,  setHealth]  = useState<SystemHealth | null>(null);
+  const [hErr,    setHErr]    = useState(false);
 
   const load = useCallback(async (r: number) => {
     setLoading(true);
@@ -1958,7 +1982,18 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
     finally { setLoading(false); }
   }, [session.token]);
 
+  const loadHealth = useCallback(async () => {
+    try { setHealth(await ownerFetch<SystemHealth>("owner/system", session.token)); setHErr(false); }
+    catch { setHErr(true); }
+  }, [session.token]);
+
   useEffect(() => { load(range); }, [range, load]);
+
+  useEffect(() => {
+    loadHealth();
+    const id = setInterval(loadHealth, 5_000);
+    return () => clearInterval(id);
+  }, [loadHealth]);
 
   const exportCsv = async (type: "users" | "log") => {
     try {
@@ -2050,6 +2085,126 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
             )}
           </div>
         ))}
+      </div>
+
+      {/* ── Server Health ── */}
+      <div className="border border-border bg-background p-4 space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ServerCrash className="w-3.5 h-3.5 text-primary" />
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              {t("analytics.serverHealth")}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {hErr
+              ? <span className="font-mono text-[9px] text-red-400 uppercase">{t("analytics.healthError")}</span>
+              : <><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                 <span className="font-mono text-[9px] text-green-400 uppercase">{t("analytics.healthLive")}</span></>
+            }
+          </div>
+        </div>
+
+        {health && !hErr ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+
+            {/* CPU */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Cpu className="w-3 h-3 text-muted-foreground" />
+                  <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.cpu")}</span>
+                </div>
+                <span className={`font-mono text-xs font-bold ${health.cpu.usedPct >= 85 ? "text-red-400" : health.cpu.usedPct >= 65 ? "text-yellow-400" : "text-green-400"}`}>
+                  {health.cpu.usedPct}%
+                </span>
+              </div>
+              <GaugeBar pct={health.cpu.usedPct} />
+              <div className="flex justify-between font-mono text-[9px] text-muted-foreground/60">
+                <span>{health.cpu.cores} {t("analytics.cores")}</span>
+                <span>1m {health.cpu.loadavg[0]} · 5m {health.cpu.loadavg[1]} · 15m {health.cpu.loadavg[2]}</span>
+              </div>
+            </div>
+
+            {/* RAM */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <MemoryStick className="w-3 h-3 text-muted-foreground" />
+                  <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.ram")}</span>
+                </div>
+                <span className={`font-mono text-xs font-bold ${health.ram.usedPct >= 85 ? "text-red-400" : health.ram.usedPct >= 65 ? "text-yellow-400" : "text-blue-400"}`}>
+                  {health.ram.usedPct}%
+                </span>
+              </div>
+              <GaugeBar pct={health.ram.usedPct} />
+              <div className="flex justify-between font-mono text-[9px] text-muted-foreground/60">
+                <span>{health.ram.usedMb} MB {t("analytics.used")}</span>
+                <span>{t("analytics.of")} {health.ram.totalMb} MB</span>
+              </div>
+            </div>
+
+            {/* Node heap */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3 h-3 text-muted-foreground" />
+                  <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.heap")}</span>
+                </div>
+                <span className="font-mono text-xs font-bold text-violet-400">{health.heap.usedMb} MB</span>
+              </div>
+              <GaugeBar pct={Math.round((health.heap.usedMb / health.heap.totalMb) * 100)} />
+              <div className="flex justify-between font-mono text-[9px] text-muted-foreground/60">
+                <span>RSS {health.heap.rssMb} MB</span>
+                <span>{t("analytics.of")} {health.heap.totalMb} MB</span>
+              </div>
+            </div>
+
+            {/* Traffic */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+                  <span className="font-mono text-[10px] uppercase text-muted-foreground">{t("analytics.traffic")}</span>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div>
+                  <div className="font-mono text-lg font-bold text-cyan-400">{health.requestsPerMin}</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.reqPerMin")}</div>
+                </div>
+                <div>
+                  <div className="font-mono text-lg font-bold text-sky-400">{health.avgResponseMs} ms</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/60">{t("analytics.avgResponse")}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta row */}
+            <div className="sm:col-span-2 flex flex-wrap gap-4 pt-1 border-t border-border/40">
+              <div className="flex items-center gap-1.5">
+                <Globe className="w-3 h-3 text-muted-foreground" />
+                <span className="font-mono text-[10px] text-muted-foreground uppercase">{t("analytics.region")}:</span>
+                <span className="font-mono text-[10px] text-foreground">{health.region}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Timer className="w-3 h-3 text-muted-foreground" />
+                <span className="font-mono text-[10px] text-muted-foreground uppercase">{t("analytics.uptime")}:</span>
+                <span className="font-mono text-[10px] text-foreground">{fmtUptime(health.uptime)}</span>
+              </div>
+            </div>
+
+          </div>
+        ) : !hErr ? (
+          <div className="h-24 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="h-16 flex items-center justify-center font-mono text-xs text-red-400">
+            {t("analytics.healthError")}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, like, or, desc, sql, inArray, ne, and, gte } from "drizzle-orm";
+import os from "node:os";
+import { getMetrics } from "../lib/metrics";
 import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable, messagesTable, partiesTable, notificationsTable } from "@workspace/db";
 import { requireOwner, signOwnerToken, verifyOwnerToken } from "../middlewares/owner";
 import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
@@ -939,6 +941,47 @@ router.delete("/owner/notes/:noteId", requireOwner, async (req, res): Promise<vo
 });
 
 /* ─── Content Moderation ──────────────────────────────────────────────────── */
+
+/* ─── System Health ───────────────────────────────────────────────────────── */
+
+router.get("/owner/system", requireOwner, (_req, res): void => {
+  const cpus   = os.cpus();
+  const load   = os.loadavg();                    // [1m, 5m, 15m]
+  const total  = os.totalmem();
+  const free   = os.freemem();
+  const used   = total - free;
+  const heap   = process.memoryUsage();
+  const { requestsPerMin, avgResponseMs } = getMetrics();
+
+  const region =
+    process.env["REPLIT_CLUSTER"] ??
+    process.env["FLY_REGION"] ??
+    process.env["RAILWAY_REGION"] ??
+    "replit-us";
+
+  res.json({
+    cpu: {
+      cores:   cpus.length,
+      loadavg: load.map((v) => Math.round(v * 100) / 100),
+      usedPct: Math.min(100, Math.round((load[0]! / cpus.length) * 100)),
+    },
+    ram: {
+      totalMb: Math.round(total / 1024 / 1024),
+      usedMb:  Math.round(used  / 1024 / 1024),
+      freeMb:  Math.round(free  / 1024 / 1024),
+      usedPct: Math.round((used / total) * 100),
+    },
+    heap: {
+      usedMb:  Math.round(heap.heapUsed  / 1024 / 1024),
+      totalMb: Math.round(heap.heapTotal / 1024 / 1024),
+      rssMb:   Math.round(heap.rss       / 1024 / 1024),
+    },
+    uptime:         Math.round(process.uptime()),
+    region,
+    requestsPerMin,
+    avgResponseMs,
+  });
+});
 
 router.get("/owner/content", requireOwner, async (req, res): Promise<void> => {
   const type   = typeof req.query.type   === "string" ? req.query.type   : "lfg";

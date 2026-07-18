@@ -29,7 +29,10 @@
     "online": "متصل",
     "away": "بعيد",
     "busy": "مشغول",
-    "offline": "غير متصل"
+    "offline": "غير متصل",
+    "dontClear": "لا تمسح",
+    "clearStatus": "مسح الحالة",
+    "emoji": "إيموجي"
   },
   "rank": {
     "label": "الرتبة"

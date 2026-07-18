@@ -1,0 +1,353 @@
+/* ── Root ───────────────────────────────────────────────────────────────────── */
+.dashboard-root {
+  min-height: 100vh;
+  background: #0a0a0a;
+  color: #e5e5e5;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  padding-bottom: 40px;
+}
+
+/* ── Live Ticker ─────────────────────────────────────────────────────────────── */
+.ticker-bar {
+  display: flex;
+  align-items: center;
+  background: #111;
+  border-bottom: 1px solid #1f1f1f;
+  height: 32px;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.ticker-label {
+  flex-shrink: 0;
+  background: #22c55e;
+  color: #000;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  padding: 0 10px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  animation: pulse-bg 2s infinite;
+}
+@keyframes pulse-bg {
+  0%, 100% { background: #22c55e; }
+  50% { background: #16a34a; }
+}
+.ticker-track {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+}
+.ticker-text {
+  display: inline-block;
+  font-size: 11px;
+  color: #888;
+  letter-spacing: 0.5px;
+  transition: none;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid #1a1a1a;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dash-title {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  text-transform: uppercase;
+  color: #fff;
+}
+.dash-name { color: #22c55e; }
+.dash-sub { font-size: 10px; color: #555; letter-spacing: 2px; margin-top: 2px; text-transform: uppercase; }
+
+/* ── Stats ───────────────────────────────────────────────────────────────────── */
+.stats-row {
+  display: flex;
+  gap: 10px;
+}
+.stat-card {
+  position: relative;
+  background: #111;
+  border: 1px solid #1f1f1f;
+  padding: 10px 16px;
+  min-width: 90px;
+  overflow: hidden;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.stat-card:hover { border-color: var(--accent, #22c55e); }
+.stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.stat-unit { font-size: 12px; opacity: 0.7; }
+.stat-label { font-size: 9px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+.stat-glow {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 16px;
+  filter: blur(10px);
+  opacity: 0.3;
+  border-radius: 50%;
+}
+
+/* ── Quick Dock ──────────────────────────────────────────────────────────────── */
+.quick-dock {
+  display: flex;
+  gap: 6px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #1a1a1a;
+  overflow-x: auto;
+}
+.dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #111;
+  border: 1px solid #222;
+  color: #888;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.dock-btn:hover, .dock-btn--active {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px #22c55e40;
+}
+.dock-icon { font-size: 14px; }
+.dock-label { font-weight: 700; text-transform: uppercase; }
+
+/* ── Main Grid ───────────────────────────────────────────────────────────────── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 12px;
+  padding: 14px 24px 0;
+}
+
+/* ── Section Card ────────────────────────────────────────────────────────────── */
+.section-card {
+  background: #0d0d0d;
+  border: 1px solid #1c1c1c;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #1a1a1a;
+  background: #111;
+}
+.section-icon { font-size: 14px; }
+.section-header h2 {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #22c55e;
+  flex: 1;
+}
+.badge-count {
+  font-size: 9px;
+  background: #22c55e22;
+  color: #22c55e;
+  border: 1px solid #22c55e44;
+  padding: 2px 6px;
+  letter-spacing: 1px;
+}
+
+/* ── Friends Grid ────────────────────────────────────────────────────────────── */
+.friends-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 10px;
+}
+.friend-card {
+  position: relative;
+  background: #111;
+  border: 1px solid #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+  overflow: hidden;
+}
+.friend-card--hovered {
+  border-color: var(--fc);
+  transform: translateY(-2px);
+}
+.friend-banner { height: 32px; width: 100%; flex-shrink: 0; }
+.friend-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  border: 2px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 15px;
+  color: #fff;
+  margin-top: -14px;
+  z-index: 2;
+  transition: box-shadow 0.2s;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  position: absolute; top: 28px; right: 12px;
+  border: 2px solid #0d0d0d; z-index: 3;
+}
+.status-dot--online { background: #22c55e; }
+.status-dot--away { background: #f59e0b; }
+.status-dot--busy { background: #ef4444; }
+.status-dot--offline { background: #555; }
+.friend-info { text-align: center; padding: 4px 6px 0; width: 100%; }
+.friend-name { font-size: 11px; font-weight: 700; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friend-user { font-size: 9px; color: #444; }
+.friend-game { font-size: 9px; color: #22c55e; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friend-status { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+.friend-actions {
+  display: flex; gap: 4px; margin-top: 6px;
+  opacity: 0; transition: opacity 0.15s;
+}
+.friend-card--hovered .friend-actions { opacity: 1; }
+.fa-btn {
+  background: #1a1a1a; border: 1px solid #2a2a2a;
+  cursor: pointer; font-size: 12px; padding: 3px 7px;
+  transition: background 0.15s;
+}
+.fa-btn:hover { background: #22c55e22; border-color: #22c55e; }
+
+/* ── Side Column ─────────────────────────────────────────────────────────────── */
+.side-col { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Challenge ───────────────────────────────────────────────────────────────── */
+.timer-badge {
+  font-size: 9px; color: #f59e0b;
+  background: #f59e0b1a; border: 1px solid #f59e0b44;
+  padding: 2px 6px; letter-spacing: 1px;
+}
+.challenge-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.challenge-title { font-size: 14px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+.challenge-desc { font-size: 10px; color: #666; line-height: 1.5; }
+.progress-track {
+  position: relative;
+  background: #1a1a1a; height: 20px;
+  border: 1px solid #252525;
+  overflow: hidden;
+}
+.progress-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+  transition: width 0.8s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 12px #22c55e80;
+}
+.progress-text {
+  position: absolute; right: 8px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px; font-weight: 900; color: #fff;
+  text-shadow: 0 1px 4px #000;
+}
+.challenge-reward { font-size: 10px; color: #888; }
+
+/* ── Smart Match ─────────────────────────────────────────────────────────────── */
+.match-card { border-color: #22c55e30; }
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #22c55e;
+  animation: pulse-dot 1.5s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+.match-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.match-game { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -1px; }
+.match-party { font-size: 10px; color: #555; }
+.match-players { display: flex; flex-wrap: wrap; gap: 4px; }
+.match-player-chip {
+  font-size: 9px; background: #1a1a1a; border: 1px solid #2a2a2a;
+  color: #888; padding: 2px 7px; letter-spacing: 0.5px;
+}
+.match-player-chip--count { color: #22c55e; border-color: #22c55e40; background: #22c55e0d; }
+.join-btn {
+  background: #22c55e; color: #000; border: none;
+  font-family: inherit; font-size: 11px; font-weight: 900;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 10px; cursor: pointer; width: 100%;
+  transition: all 0.15s;
+}
+.join-btn:hover { background: #4ade80; transform: translateY(-1px); box-shadow: 0 4px 20px #22c55e50; }
+.join-btn--joined { background: #1a1a1a; color: #22c55e; border: 1px solid #22c55e; }
+
+/* ── Pro Card ────────────────────────────────────────────────────────────────── */
+.pro-card {
+  position: relative;
+  border-color: #fbbf2440;
+  overflow: hidden;
+}
+.pro-glow-bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at top right, #fbbf2408, transparent 60%);
+  pointer-events: none;
+}
+.pro-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid #1f1f1f;
+}
+.pro-crown { font-size: 20px; }
+.pro-title { font-size: 13px; font-weight: 900; color: #fbbf24; letter-spacing: 3px; }
+.pro-exp { font-size: 9px; color: #666; margin-top: 1px; }
+.pro-badge-pill {
+  margin-start: auto; font-size: 8px; font-weight: 900;
+  letter-spacing: 2px; color: #000;
+  background: #fbbf24; padding: 2px 8px;
+}
+.pro-features { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.pro-feat {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: #666; padding: 5px 0;
+  border-bottom: 1px solid #141414;
+}
+.pro-feat span { color: #22c55e; font-weight: 700; }
+.pro-manage-btn {
+  display: block; margin: 6px 14px 14px;
+  background: transparent; border: 1px solid #fbbf2440;
+  color: #fbbf24; font-family: inherit; font-size: 10px;
+  font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  padding: 8px; cursor: pointer; text-decoration: none;
+  text-align: center; transition: all 0.15s;
+}
+.pro-manage-btn:hover {
+  background: #fbbf2415; border-color: #fbbf24;
+  box-shadow: 0 0 16px #fbbf2420;
+}

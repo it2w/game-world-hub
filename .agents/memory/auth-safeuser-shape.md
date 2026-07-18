@@ -12,3 +12,5 @@ description: The safeUser() in auth.ts drives the /api/auth/me response — the 
 ```ts
 const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
 ```
+
+**Preferred Pro-gate pattern:** For UI that gates on Pro status, call `useGetMePro()` (hits `/api/me/pro` → `computeProStatus`) instead of reading `me?.isPro` from `useGetMe()`. The `ProStatus` schema has `isPro: boolean` (required), while the `User` schema has `isPro?: boolean` (optional). Avoids false-negative locks when the User schema is stale.

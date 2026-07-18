@@ -1,4 +1,4 @@
-import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, useRedeemActivationCode, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, customFetch } from "@workspace/api-client-react";
+import { useGetMe, useGetMePro, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, useRedeemActivationCode, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, customFetch } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -853,7 +853,8 @@ export default function Settings() {
 // ── Pro Profile ────────────────────────────────────────────────────────────────
 
 function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
-  const isPro = !!me?.isPro;
+  const { data: proStatus } = useGetMePro();
+  const isPro = !!proStatus?.isPro;
   const { toast } = useToast();
   const [frameColor, setFrameColor] = useState<string>(me?.profileFrameColor ?? "");
   const [bgUrl, setBgUrl] = useState<string>(me?.profileBgUrl ?? "");
@@ -945,7 +946,8 @@ function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
 // ── LFG Bot ────────────────────────────────────────────────────────────────────
 
 function LfgBotSection({ me }: { me: any }) {
-  const isPro = !!me?.isPro;
+  const { data: proStatus } = useGetMePro();
+  const isPro = !!proStatus?.isPro;
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -1062,7 +1064,8 @@ function LfgBotSection({ me }: { me: any }) {
 // ── Gift Pro ───────────────────────────────────────────────────────────────────
 
 function GiftProSection({ me }: { me: any }) {
-  const isPro = !!me?.isPro;
+  const { data: proStatus } = useGetMePro();
+  const isPro = !!proStatus?.isPro;
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(0);

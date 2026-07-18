@@ -8,6 +8,12 @@ import { recordRequest } from "./lib/metrics";
 
 const app: Express = express();
 
+// Trust the first hop of X-Forwarded-For so req.ip reflects the real
+// client IP when the server runs behind a reverse proxy (Nginx, Cloudflare,
+// the Replit edge, etc.).  Without this, req.ip is the proxy's IP and every
+// client shares the same rate-limit bucket.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

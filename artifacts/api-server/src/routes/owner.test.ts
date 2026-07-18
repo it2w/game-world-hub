@@ -1019,10 +1019,9 @@ describe("POST /owner/reset-password-request — rate limiting", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Override the IP by using the X-Forwarded-For header via express's
-        // trust proxy. In tests the app doesn't set trust proxy, so we drive
-        // the counter via the real loopback IP — we reset before/after to
-        // ensure isolation.
+        // Override the client IP via X-Forwarded-For.  app.set('trust proxy', 1)
+        // causes Express to read this header as req.ip, so the rate limiter
+        // keys on fakeIp rather than the loopback address.
         "X-Forwarded-For": fakeIp,
       },
       body: JSON.stringify({ username }),
@@ -1102,5 +1101,72 @@ describe("POST /owner/reset-password — rate limiting", () => {
     assert.ok(Number(retryAfter) > 0, "Retry-After must be a positive number of seconds");
     const body = await res.json() as { error?: string };
     assert.ok(typeof body.error === "string", "response body must include an error string");
+  });
+});
+
+/* ── Proxy-aware IP isolation (X-Forwarded-For) ─────────────────────────── */
+
+describe("Reset rate limit — IP isolation via X-Forwarded-For", () => {
+  /**
+   * With app.set('trust proxy', 1), Express promotes the first value of
+   * X-Forwarded-For to req.ip.  This suite confirms that:
+   *  1. IP-A can be throttled without affecting IP-B.
+   *  2. The bucket key comes from the spoofed header, not the loopback address.
+   */
+  const ipA = `192.0.2.${Math.floor(Math.random() * 200) + 10}`;   // TEST-NET-1
+  const ipB = `198.51.100.${Math.floor(Math.random() * 200) + 10}`; // TEST-NET-2
+
+  function bucketKey(prefix: string, ip: string) { return `${prefix}:${ip}`; }
+
+  before(() => {
+    _resetResetRateBucket(bucketKey("reset-req", ipA));
+    _resetResetRateBucket(bucketKey("reset-req", ipB));
+  });
+
+  after(() => {
+    _resetResetRateBucket(bucketKey("reset-req", ipA));
+    _resetResetRateBucket(bucketKey("reset-req", ipB));
+  });
+
+  async function resetReqFrom(ip: string) {
+    return fetch(`${baseUrl}/owner/reset-password-request`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-For": ip,
+      },
+      body: JSON.stringify({ username: `no_such_xff_user_${SUFFIX}` }),
+    });
+  }
+
+  test("IP-A: first 5 requests are allowed", async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await resetReqFrom(ipA);
+      assert.notStrictEqual(
+        res.status,
+        429,
+        `IP-A request ${i + 1} must not be rate-limited yet, got ${res.status}`,
+      );
+    }
+  });
+
+  test("IP-A: 6th request is throttled (429)", async () => {
+    const res = await resetReqFrom(ipA);
+    assert.strictEqual(
+      res.status,
+      429,
+      `IP-A 6th request must be throttled, got ${res.status}`,
+    );
+  });
+
+  test("IP-B: first request is NOT throttled even though IP-A is at limit", async () => {
+    // IP-A has exhausted its bucket; IP-B must have an independent bucket and
+    // therefore must NOT be blocked.
+    const res = await resetReqFrom(ipB);
+    assert.notStrictEqual(
+      res.status,
+      429,
+      `IP-B must not be blocked by IP-A's exhausted bucket; got ${res.status}`,
+    );
   });
 });

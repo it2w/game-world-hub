@@ -6,7 +6,7 @@ import { WebSocket } from "ws";
 import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, partiesTable, partyMembersTable, pool } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
-import { attachSignaling } from "./signaling";
+import { attachSignaling, disconnectUser } from "./signaling";
 
 /**
  * Integration tests for the WebSocket signaling server.
@@ -336,5 +336,122 @@ describe("multi-session direct calls", () => {
     caller.close();
     s1.close();
     s2.close();
+  });
+});
+
+// ─── Suspension enforcement ────────────────────────────────────────────────────
+
+describe("suspension blocks WebSocket connections", () => {
+  let suspendedUserId = 0;
+
+  before(async () => {
+    const [u] = await db
+      .insert(usersTable)
+      .values({
+        username: `sigtest_suspended_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Suspended",
+        status: "suspended" as const,
+      })
+      .returning({ id: usersTable.id });
+    suspendedUserId = u.id;
+    createdUserIds.push(suspendedUserId);
+  });
+
+  test("a suspended user is rejected at the upgrade handshake (403)", async () => {
+    const token = signToken({ userId: suspendedUserId, username: `sigtest_suspended_${SUFFIX}` });
+    const ws = new WebSocket(`${baseUrl}?token=${encodeURIComponent(token)}`);
+
+    const code = await new Promise<number>((resolve, reject) => {
+      ws.once("unexpected-response", (_req, res) => resolve(res.statusCode ?? 0));
+      ws.once("open", () => resolve(0)); // Should not open
+      ws.once("error", reject);
+    });
+
+    assert.equal(code, 403, "suspended user must receive HTTP 403 during upgrade");
+    ws.terminate();
+  });
+
+  test("bulk-suspending a connected user terminates their WS session immediately", async () => {
+    // Use memberA: insert a fresh active user and connect them first.
+    const [fresh] = await db
+      .insert(usersTable)
+      .values({
+        username: `sigtest_fresh_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Fresh",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id });
+    createdUserIds.push(fresh.id);
+
+    const client = new TestClient(fresh.id, `sigtest_fresh_${SUFFIX}`);
+    await client.open();
+
+    // Suspend the user in the DB, then call disconnectUser (mimicking what the
+    // bulk-suspend route does after the DB update).
+    await db
+      .update(usersTable)
+      .set({ status: "suspended" })
+      .where(eq(usersTable.id, fresh.id));
+    disconnectUser(fresh.id);
+
+    // The socket should close.
+    const closed = await new Promise<boolean>((resolve) => {
+      if (
+        client.ws.readyState === WebSocket.CLOSED ||
+        client.ws.readyState === WebSocket.CLOSING
+      ) {
+        resolve(true);
+        return;
+      }
+      client.ws.once("close", () => resolve(true));
+      setTimeout(() => resolve(false), 2000);
+    });
+
+    assert.ok(closed, "socket must be closed after disconnectUser() is called");
+  });
+
+  test("a message sent after suspension is rejected and the socket is closed", async () => {
+    // Create a fresh active user and connect them.
+    const [fresh2] = await db
+      .insert(usersTable)
+      .values({
+        username: `sigtest_fresh2_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Fresh2",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id });
+    createdUserIds.push(fresh2.id);
+
+    const client = new TestClient(fresh2.id, `sigtest_fresh2_${SUFFIX}`);
+    await client.open();
+
+    // Suspend the user in the DB (simulate what the owner route does), but do
+    // NOT call disconnectUser — instead confirm the per-message check closes
+    // the socket on the next message.
+    await db
+      .update(usersTable)
+      .set({ status: "suspended" })
+      .where(eq(usersTable.id, fresh2.id));
+
+    // Send any message to trigger the per-message suspension check.
+    client.send({ type: "ping" });
+
+    // The server should terminate the connection and send a `suspended` frame.
+    const suspended = await new Promise<boolean>((resolve) => {
+      // Either we receive a `suspended` message or the socket closes.
+      client.ws.once("close", () => resolve(true));
+      client.ws.on("message", (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "suspended") resolve(true);
+        } catch { /* ignore */ }
+      });
+      setTimeout(() => resolve(false), 3000);
+    });
+
+    assert.ok(suspended, "server must close the socket when a suspended user sends a message");
   });
 });

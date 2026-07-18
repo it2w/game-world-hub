@@ -8,6 +8,7 @@ import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { disconnectUser } from "../ws/signaling";
 import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
 
@@ -1127,7 +1128,7 @@ router.post("/owner/users/bulk", requireOwner, async (req, res): Promise<void> =
       switch (action as BulkAction) {
         case "activate_pro":   await activateProForUser(uid, { provider: "owner_bulk", durationDays: days }); break;
         case "deactivate_pro": await deactivatePro(uid); break;
-        case "suspend":        await db.update(usersTable).set({ status: "suspended"                }).where(eq(usersTable.id, uid)); break;
+        case "suspend":        await db.update(usersTable).set({ status: "suspended"                }).where(eq(usersTable.id, uid)); disconnectUser(uid); break;
         case "unsuspend":      await db.update(usersTable).set({ status: "offline"                  }).where(eq(usersTable.id, uid)); break;
         case "force_logout":   await db.update(usersTable).set({ sessionsInvalidatedBefore: new Date() }).where(eq(usersTable.id, uid)); break;
       }

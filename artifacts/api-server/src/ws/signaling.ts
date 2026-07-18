@@ -271,6 +271,30 @@ async function handleTyping(client: Client, conversationId: number): Promise<voi
 // ─── Message dispatch ─────────────────────────────────────────────────────────
 
 async function handleMessage(client: Client, raw: RawData): Promise<void> {
+  // Defense-in-depth: re-check suspension on every incoming message.
+  // This ensures that a user who is suspended while already connected is
+  // rejected on their next message rather than having their session persist
+  // until the next heartbeat or manual disconnect.
+  try {
+    const [user] = await db
+      .select({ status: usersTable.status })
+      .from(usersTable)
+      .where(eq(usersTable.id, client.userId))
+      .limit(1);
+    if (!user || user.status === "suspended") {
+      send(client.ws, { type: "suspended" });
+      client.ws.terminate();
+      logger.info({ userId: client.userId }, "ws: terminated suspended user mid-session");
+      return;
+    }
+  } catch (err) {
+    // Fail closed: if the DB is unavailable we cannot confirm the user is
+    // still active, so terminate the connection.
+    logger.error({ err, userId: client.userId }, "ws: suspension check failed; closing connection");
+    client.ws.terminate();
+    return;
+  }
+
   let msg: any;
   try {
     msg = JSON.parse(raw.toString());
@@ -355,12 +379,27 @@ export function evictUserFromRoom(userId: number, room: string): void {
   }
 }
 
+/**
+ * Terminate every open WebSocket connection for the given user.
+ * Call this immediately after suspending a user so their existing WS session
+ * is closed without waiting for the next message or heartbeat cycle.
+ */
+export function disconnectUser(userId: number): void {
+  const sessions = clientsByUser.get(userId);
+  if (!sessions) return;
+  for (const client of sessions) {
+    send(client.ws, { type: "suspended" });
+    client.ws.terminate();
+    logger.info({ userId }, "ws: terminated session due to suspension");
+  }
+}
+
 // ─── Server attachment ────────────────────────────────────────────────────────
 
 export function attachSignaling(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
-  server.on("upgrade", (req, socket, head) => {
+  server.on("upgrade", async (req, socket, head) => {
     let pathname: string;
     let token: string | null;
     try {
@@ -385,6 +424,28 @@ export function attachSignaling(server: Server): void {
       payload = verifyToken(token);
     } catch {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    // Check suspension in the DB before completing the upgrade.
+    // verifyToken only validates the JWT signature — it does not query the DB.
+    // A suspended user must be rejected here so they cannot establish a new
+    // WS session even with a valid token.
+    try {
+      const [user] = await db
+        .select({ status: usersTable.status })
+        .from(usersTable)
+        .where(eq(usersTable.id, payload.userId))
+        .limit(1);
+      if (!user || user.status === "suspended") {
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "ws: suspension check failed during upgrade; rejecting connection");
+      socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
       socket.destroy();
       return;
     }

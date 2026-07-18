@@ -842,14 +842,10 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* ── Pro-only sections ─────────────────────────────────────────────── */}
-      {me?.isPro && (
-        <>
-          <ProProfileSection me={me} onSave={refreshMe} />
-          <LfgBotSection />
-          <GiftProSection me={me} />
-        </>
-      )}
+      {/* ── Pro sections (visible to all; locked for non-Pro) ─────────────── */}
+      <ProProfileSection me={me} onSave={refreshMe} />
+      <LfgBotSection me={me} />
+      <GiftProSection me={me} />
     </div>
   );
 }
@@ -857,14 +853,16 @@ export default function Settings() {
 // ── Pro Profile ────────────────────────────────────────────────────────────────
 
 function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
+  const isPro = !!me?.isPro;
   const { toast } = useToast();
-  const [frameColor, setFrameColor] = useState<string>(me.profileFrameColor ?? "");
-  const [bgUrl, setBgUrl] = useState<string>(me.profileBgUrl ?? "");
+  const [frameColor, setFrameColor] = useState<string>(me?.profileFrameColor ?? "");
+  const [bgUrl, setBgUrl] = useState<string>(me?.profileBgUrl ?? "");
   const [saving, setSaving] = useState(false);
 
   const PRESET_COLORS = ["#FFD700", "#A855F7", "#06B6D4", "#EF4444", "#22C55E", "#F97316", "#EC4899"];
 
   const handleSave = async () => {
+    if (!isPro) return;
     setSaving(true);
     try {
       await customFetch(`/api/users/${me.id}/profile`, {
@@ -882,7 +880,13 @@ function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
   };
 
   return (
-    <div className="bg-card border border-primary/30 p-6 space-y-4">
+    <div className={`bg-card border p-6 space-y-4 relative ${isPro ? "border-primary/30" : "border-border opacity-80"}`}>
+      {!isPro && (
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center gap-2">
+          <Crown className="w-6 h-6 text-yellow-400" />
+          <p className="font-mono text-xs uppercase tracking-widest text-foreground">يتطلب اشتراك Pro</p>
+        </div>
+      )}
       <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
         <Palette className="w-4 h-4" /> ملف Pro المخصص <Crown className="w-3 h-3 text-yellow-400" />
       </h2>
@@ -940,7 +944,8 @@ function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
 
 // ── LFG Bot ────────────────────────────────────────────────────────────────────
 
-function LfgBotSection() {
+function LfgBotSection({ me }: { me: any }) {
+  const isPro = !!me?.isPro;
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -989,7 +994,13 @@ function LfgBotSection() {
   };
 
   return (
-    <div className="bg-card border border-primary/30 p-6 space-y-4">
+    <div className={`bg-card border p-6 space-y-4 relative ${isPro ? "border-primary/30" : "border-border opacity-80"}`}>
+      {!isPro && (
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center gap-2">
+          <Crown className="w-6 h-6 text-yellow-400" />
+          <p className="font-mono text-xs uppercase tracking-widest text-foreground">يتطلب اشتراك Pro</p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
           <Bot className="w-4 h-4" /> بوت LFG التلقائي <Crown className="w-3 h-3 text-yellow-400" />
@@ -1051,15 +1062,16 @@ function LfgBotSection() {
 // ── Gift Pro ───────────────────────────────────────────────────────────────────
 
 function GiftProSection({ me }: { me: any }) {
+  const isPro = !!me?.isPro;
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(0);
   const [gifting, setGifting] = useState(false);
 
   const { data: friends } = useQuery<any[]>({
-    queryKey: ["gift-pro-friends", me.id],
-    queryFn: () => customFetch(`/api/users/${me.id}/friends`),
-    enabled: !!me.id,
+    queryKey: ["gift-pro-friends", me?.id],
+    queryFn: () => customFetch(`/api/users/${me?.id}/friends`),
+    enabled: !!me?.id,
   });
 
   const { data: gifts } = useQuery<{ sent: any[]; received: any[] }>({
@@ -1094,7 +1106,13 @@ function GiftProSection({ me }: { me: any }) {
   };
 
   return (
-    <div className="bg-card border border-primary/30 p-6 space-y-4">
+    <div className={`bg-card border p-6 space-y-4 relative ${isPro ? "border-primary/30" : "border-border opacity-80"}`}>
+      {!isPro && (
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center gap-2">
+          <Crown className="w-6 h-6 text-yellow-400" />
+          <p className="font-mono text-xs uppercase tracking-widest text-foreground">يتطلب اشتراك Pro</p>
+        </div>
+      )}
       <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
         <Gift className="w-4 h-4" /> إهداء Pro <Crown className="w-3 h-3 text-yellow-400" />
       </h2>

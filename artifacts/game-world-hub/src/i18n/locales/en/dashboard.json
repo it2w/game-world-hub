@@ -7,7 +7,8 @@
     "greetingMorning": "🌅 Good Morning",
     "greetingAfternoon": "☀️ Good Afternoon",
     "greetingEvening": "🌙 Good Evening",
-    "greetingNight": "🌙 Good Night"
+    "greetingNight": "🌙 Good Night",
+    "hello": "Hello, {{name}} 👋"
   },
   "invites": {
     "title_one": "PENDING INVITE ({{count}})",
@@ -57,16 +58,161 @@
     "messages": "MESSAGES",
     "challenges": "CHALLENGES",
     "achievements": "ACHIEVEMENTS",
-    "invites": "INVITES"
+    "invites": "INVITES",
+    "streakDays": "Days"
   },
   "pro": {
     "myRoom": "My Voice Room",
     "lfgBot": "LFG Bot",
     "active": "ACTIVE",
     "enabled": "ENABLED",
-    "manage": "MANAGE PRO"
+    "manage": "MANAGE PRO",
+    "activeMembership": "Active membership",
+    "customFrame": "Custom Frame",
+    "giftPro": "Gift Pro",
+    "available": "Available",
+    "manageLink": "Manage Pro ←"
   },
   "toasts": {
     "inviteAccepted": "Invite accepted"
+  },
+  "ticker": {
+    "welcome": "🎮 Welcome to Game World Hub"
+  },
+  "mood": {
+    "label": "Mood:",
+    "playing": "Let's Play",
+    "casual": "Casual",
+    "training": "Training",
+    "ranked": "Ranked",
+    "sleeping": "Going to Sleep"
+  },
+  "spin": {
+    "title": "🎰 Daily Spin",
+    "comeBack": "Back Tomorrow",
+    "free": "FREE!",
+    "miss": "😅 Better luck tomorrow!",
+    "won": "🎉 You won {{prize}}!",
+    "prizeProDay": "Pro Day",
+    "prizeMiss": "MISS",
+    "prizeRareBadge": "Rare Badge"
+  },
+  "graph": {
+    "title": "📈 Weekly Wins",
+    "vsLastWeek": "vs last week",
+    "wins": "Wins",
+    "best": "🏆 Best",
+    "today": "TODAY",
+    "days_0": "SUN",
+    "days_1": "MON",
+    "days_2": "TUE",
+    "days_3": "WED",
+    "days_4": "THU",
+    "days_5": "FRI",
+    "days_6": "SAT"
+  },
+  "hub": {
+    "tabToday": "Today",
+    "tabNews": "News",
+    "tabParties": "Parties",
+    "todayTag": "🔥 Game of the Day",
+    "joinNow": "JOIN NOW ↗",
+    "openRequests": "Open requests",
+    "live": "Live",
+    "slots": "{{count}} slots",
+    "noRequests": "No requests right now",
+    "viewAll": "View all requests ↗",
+    "respond": "Join",
+    "respondedToast": "✓ Signal sent",
+    "respondedToastDesc": "Waiting for host response — go to LFG to follow up",
+    "respondError": "An error occurred",
+    "activeParties": "Active parties now",
+    "noParties": "No active parties",
+    "viewAllParties": "Browse all parties ↗",
+    "freeSlots": "{{count}} slots open",
+    "joinParty": "Join",
+    "gameActive": "4.2M active",
+    "gameUpdate": "Episode 9 update available!"
+  },
+  "friends": {
+    "title": "🗺️ Friends",
+    "active": "{{count}} active",
+    "viewAll": "View all →",
+    "empty": "No friends online right now",
+    "away": "Away",
+    "busy": "Busy",
+    "call": "📞 Call",
+    "chat": "💬 Chat",
+    "block": "🚫 Block"
+  },
+  "highlights": {
+    "title": "🔥 Hot Moments",
+    "watch": "▶ Watch",
+    "created": "created",
+    "joined": "joined",
+    "left": "left"
+  },
+  "smartMatch": {
+    "title": "🎯 Join Opportunity",
+    "players": "{{count}} players",
+    "joining": "Joining...",
+    "joined": "✓ Joined!",
+    "joinNow": "⚡ Join Now",
+    "joinedToast": "✓ Joined the party!",
+    "joinError": "Could not join",
+    "joinErrorDefault": "Please try again"
+  },
+  "challengeVs": {
+    "title": "⚔️ 1v1 Challenge",
+    "live": "LIVE",
+    "you": "You",
+    "pickOpponent": "Pick opponent",
+    "sent": "✓ Sent!",
+    "sending": "Sending...",
+    "sendBtn": "⚔️ Send Challenge",
+    "sentBtn": "✓ Challenge Sent!",
+    "sentToast": "✓ Challenge sent!",
+    "errorToast": "Failed to send challenge",
+    "errorDefault": "Try again"
+  },
+  "tournament": {
+    "title": "🏟️ Upcoming Tournaments",
+    "register": "Register",
+    "registered": "✓ Registered",
+    "tomorrow8": "Tomorrow 8PM",
+    "friday9": "Friday 9PM",
+    "saturday7": "Saturday 7PM"
+  },
+  "challenge": {
+    "title": "⚡ Weekly Challenge",
+    "timer": "🔥 2 Days",
+    "badge": "🏅 Exclusive Badge",
+    "proPrize": "👑 Pro Week",
+    "fallbackTitle": "Party Starter",
+    "fallbackDesc": "Join 5 different parties this week"
+  },
+  "leaderboard": {
+    "title": "🏆 Rankings",
+    "thisWeek": "This Week",
+    "you": "YOU"
+  },
+  "achievements": {
+    "title": "🎖️ Your Achievements",
+    "fallback0Name": "Apex Predator",
+    "fallback0Desc": "Reached the highest rank in Apex",
+    "fallback1Name": "Rush Master",
+    "fallback1Desc": "Won 10 consecutive matches",
+    "fallback2Name": "Party Leader",
+    "fallback2Desc": "Led 50 parties to victory"
+  },
+  "stats": {
+    "weeklyLabel": "This Week",
+    "weeklyHint": "+{{h}}h from yesterday",
+    "rankLabel": "Rank",
+    "rankHint": "Among friends",
+    "onlineLabel": "Online Now",
+    "onlineHint": "of {{total}}",
+    "streakLabel": "Streak",
+    "streakHint": "Consecutive days"
   }
 }

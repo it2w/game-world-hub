@@ -7,7 +7,8 @@
     "greetingMorning": "🌅 صباح الخير",
     "greetingAfternoon": "☀️ مساء النور",
     "greetingEvening": "🌙 مساء الخير",
-    "greetingNight": "🌙 ليلة طيبة"
+    "greetingNight": "🌙 ليلة طيبة",
+    "hello": "مرحباً، {{name}} 👋"
   },
   "invites": {
     "title_one": "دعوة معلقة ({{count}})",
@@ -57,16 +58,161 @@
     "messages": "الرسائل",
     "challenges": "التحديات",
     "achievements": "الإنجازات",
-    "invites": "دعوات"
+    "invites": "دعوات",
+    "streakDays": "يوم"
   },
   "pro": {
     "myRoom": "غرفتي الصوتية",
     "lfgBot": "بوت LFG",
     "active": "نشطة",
     "enabled": "مفعّل",
-    "manage": "إدارة Pro"
+    "manage": "إدارة Pro",
+    "activeMembership": "عضوية نشطة",
+    "customFrame": "إطار مخصص",
+    "giftPro": "إهداء Pro",
+    "available": "متاح",
+    "manageLink": "إدارة Pro ←"
   },
   "toasts": {
     "inviteAccepted": "تم قبول الدعوة"
+  },
+  "ticker": {
+    "welcome": "🎮 مرحباً في Game World Hub"
+  },
+  "mood": {
+    "label": "حالتك:",
+    "playing": "يلا نلعب",
+    "casual": "كاجوال",
+    "training": "تدريب",
+    "ranked": "Ranked",
+    "sleeping": "سأنام"
+  },
+  "spin": {
+    "title": "🎰 عجلة اليوم",
+    "comeBack": "عودة غداً",
+    "free": "مجاناً!",
+    "miss": "😅 حظاً أوفر غداً!",
+    "won": "🎉 فزت بـ {{prize}}!",
+    "prizeProDay": "يوم Pro",
+    "prizeMiss": "MISS",
+    "prizeRareBadge": "شارة نادرة"
+  },
+  "graph": {
+    "title": "📈 انتصارات الأسبوع",
+    "vsLastWeek": "vs الأسبوع الماضي",
+    "wins": "انتصار",
+    "best": "🏆 أفضل",
+    "today": "اليوم",
+    "days_0": "أح",
+    "days_1": "إث",
+    "days_2": "ث",
+    "days_3": "أر",
+    "days_4": "خ",
+    "days_5": "ج",
+    "days_6": "س"
+  },
+  "hub": {
+    "tabToday": "اليوم",
+    "tabNews": "أخبار",
+    "tabParties": "بارتيات",
+    "todayTag": "🔥 لعبة اليوم",
+    "joinNow": "انضم الآن ↗",
+    "openRequests": "طلبات مفتوحة",
+    "live": "مباشر",
+    "slots": "{{count}} مقاعد",
+    "noRequests": "لا يوجد طلبات الآن",
+    "viewAll": "عرض كل الطلبات ↗",
+    "respond": "انضم",
+    "respondedToast": "✓ تم إرسال الإشارة",
+    "respondedToastDesc": "بانتظار رد المضيف — اذهب للـ LFG لمتابعة",
+    "respondError": "حدث خطأ",
+    "activeParties": "بارتيات نشطة الآن",
+    "noParties": "لا يوجد بارتيات نشطة",
+    "viewAllParties": "استعراض كل البارتيات ↗",
+    "freeSlots": "{{count}} أماكن فارغة",
+    "joinParty": "انضم",
+    "gameActive": "4.2M نشط",
+    "gameUpdate": "تحديث Episode 9 متاح!"
+  },
+  "friends": {
+    "title": "🗺️ الأصدقاء",
+    "active": "{{count}} نشط",
+    "viewAll": "عرض الكل →",
+    "empty": "لا يوجد أصدقاء أونلاين الآن",
+    "away": "بعيد",
+    "busy": "مشغول",
+    "call": "📞 اتصال",
+    "chat": "💬 دردشة",
+    "block": "🚫 حظر"
+  },
+  "highlights": {
+    "title": "🔥 لحظات حماسية",
+    "watch": "▶ شاهد",
+    "created": "أنشأ",
+    "joined": "انضم لـ",
+    "left": "غادر"
+  },
+  "smartMatch": {
+    "title": "🎯 فرصة انضمام",
+    "players": "{{count}} لاعبين",
+    "joining": "جاري الانضمام…",
+    "joined": "✓ انضممت!",
+    "joinNow": "⚡ انضم الآن",
+    "joinedToast": "✓ انضممت للبارتي!",
+    "joinError": "تعذّر الانضمام",
+    "joinErrorDefault": "حاول مجدداً"
+  },
+  "challengeVs": {
+    "title": "⚔️ تحدي 1v1",
+    "live": "مباشر",
+    "you": "أنت",
+    "pickOpponent": "اختر خصماً",
+    "sent": "✓ تم الإرسال!",
+    "sending": "جاري الإرسال…",
+    "sendBtn": "⚔️ أرسل التحدي",
+    "sentBtn": "✓ تحدي مُرسل!",
+    "sentToast": "✓ تم إرسال التحدي!",
+    "errorToast": "فشل إرسال التحدي",
+    "errorDefault": "حاول مجدداً"
+  },
+  "tournament": {
+    "title": "🏟️ البطولات القادمة",
+    "register": "سجّل الآن",
+    "registered": "✓ مسجّل",
+    "tomorrow8": "غداً 8م",
+    "friday9": "الجمعة 9م",
+    "saturday7": "السبت 7م"
+  },
+  "challenge": {
+    "title": "⚡ تحدي الأسبوع",
+    "timer": "🔥 يومان",
+    "badge": "🏅 شارة حصرية",
+    "proPrize": "👑 Pro أسبوع",
+    "fallbackTitle": "فاتح البارتيات",
+    "fallbackDesc": "انضم لـ 5 بارتيات مختلفة هذا الأسبوع"
+  },
+  "leaderboard": {
+    "title": "🏆 الترتيب",
+    "thisWeek": "هذا الأسبوع",
+    "you": "أنت"
+  },
+  "achievements": {
+    "title": "🎖️ إنجازاتك",
+    "fallback0Name": "Apex Predator",
+    "fallback0Desc": "وصلت للرتبة الأعلى في Apex",
+    "fallback1Name": "Rush Master",
+    "fallback1Desc": "فزت بـ 10 مباريات متتالية",
+    "fallback2Name": "Party Leader",
+    "fallback2Desc": "قدت 50 بارتي للفوز"
+  },
+  "stats": {
+    "weeklyLabel": "هذا الأسبوع",
+    "weeklyHint": "+{{h}}h من أمس",
+    "rankLabel": "الرتبة",
+    "rankHint": "بين الأصدقاء",
+    "onlineLabel": "Online الآن",
+    "onlineHint": "من {{total}}",
+    "streakLabel": "Streak",
+    "streakHint": "أيام متتالية"
   }
 }

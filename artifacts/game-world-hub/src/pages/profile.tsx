@@ -304,7 +304,7 @@ export default function Profile() {
               <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
                 {user.displayName}
               </h1>
-              {user.isPro && <ProBadge size="lg" />}
+              {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
             </div>
             <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
           </div>

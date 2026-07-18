@@ -186,7 +186,7 @@ export function AppSidebar() {
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-bold leading-none text-foreground">{user.displayName}</span>
-                  {user.isPro && <ProBadge size="sm" />}
+                  {user.isPro && <ProBadge size="icon" />}
                 </div>
                 <span className="text-xs text-muted-foreground font-mono leading-none mt-1">@{user.username}</span>
               </div>

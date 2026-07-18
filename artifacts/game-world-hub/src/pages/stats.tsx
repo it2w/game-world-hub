@@ -88,7 +88,7 @@ export default function StatsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {stats.isPro && <ProBadge size="sm" />}
+          {stats.isPro && <ProBadge size="icon" />}
           <TierBadge tier={stats.xpProgress.tier as any} level={stats.xpProgress.tierLevel} xpIntoLevel={stats.xpProgress.xpIntoLevel ?? 0} xpForNext={stats.xpProgress.xpForNext ?? 100} size="sm" showXpBar={false} />
         </div>
       </div>
@@ -132,7 +132,7 @@ export default function StatsPage() {
         <div className="bg-card border border-border p-6 space-y-4">
           <h2 className="font-mono text-sm uppercase text-primary tracking-widest flex items-center gap-2">
             <Crown className="w-4 h-4" />
-            النشاط الأسبوعي <ProBadge size="sm" />
+            النشاط الأسبوعي <ProBadge size="icon" />
           </h2>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>

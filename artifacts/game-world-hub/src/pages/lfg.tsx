@@ -462,7 +462,7 @@ export default function Lfg() {
                     <div className="text-xs font-mono text-muted-foreground truncate flex items-center gap-2">
                       @{post.author.username}
                       {post.author.tier && <TierPip tier={post.author.tier} />}
-                      {post.author.isPro && <ProBadge size="sm" />}
+                      {post.author.isPro && <ProBadge size="icon" />}
                     </div>
                   </div>
                   {remaining && !isClosed && (

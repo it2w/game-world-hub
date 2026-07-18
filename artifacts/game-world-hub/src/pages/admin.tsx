@@ -199,7 +199,7 @@ function UsersPanel() {
                   <TableCell className="font-mono text-xs">{u.status}</TableCell>
                   <TableCell className="font-mono text-xs">{u.tier ?? "-"}</TableCell>
                   <TableCell>
-                    {u.isPro ? <ProBadge size="sm" /> : <span className="text-muted-foreground text-sm">-</span>}
+                    {u.isPro ? <ProBadge size="icon" /> : <span className="text-muted-foreground text-sm">-</span>}
                   </TableCell>
                   <TableCell>
                     {u.isAdmin ? (

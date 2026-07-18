@@ -859,8 +859,24 @@ function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
   const [frameColor, setFrameColor] = useState<string>(me?.profileFrameColor ?? "");
   const [bgUrl, setBgUrl] = useState<string>(me?.profileBgUrl ?? "");
   const [saving, setSaving] = useState(false);
+  const bgFileRef = useRef<HTMLInputElement>(null);
+  const { upload, isUploading } = useImageUpload();
 
   const PRESET_COLORS = ["#FFD700", "#A855F7", "#06B6D4", "#EF4444", "#22C55E", "#F97316", "#EC4899"];
+
+  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const path = await upload(file);
+      setBgUrl(path);
+      toast({ title: "تم رفع الصورة — اضغط حفظ لتطبيقها" });
+    } catch (err: any) {
+      toast({ title: err?.message ?? "فشل رفع الصورة", variant: "destructive" });
+    } finally {
+      if (bgFileRef.current) bgFileRef.current.value = "";
+    }
+  };
 
   const handleSave = async () => {
     if (!isPro) return;
@@ -920,23 +936,66 @@ function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
         </div>
       </div>
 
-      {/* Background URL */}
+      {/* Background — URL or upload from device */}
       <div className="space-y-2">
-        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">رابط خلفية الملف (GIF أو صورة)</label>
-        <Input
-          value={bgUrl}
-          onChange={(e) => setBgUrl(e.target.value)}
-          placeholder="https://example.com/bg.gif"
-          className="font-mono rounded-none border-border bg-background"
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">
+          خلفية الملف الشخصي
+        </label>
+
+        {/* Upload button */}
+        <input
+          ref={bgFileRef}
+          type="file"
+          accept="image/*,image/gif,video/webm,video/mp4"
+          className="hidden"
+          onChange={handleBgUpload}
         />
+        <div className="flex gap-2">
+          <Input
+            value={bgUrl}
+            onChange={(e) => setBgUrl(e.target.value)}
+            placeholder="رابط خارجي  https://... أو ارفع من الجهاز"
+            className="font-mono rounded-none border-border bg-background text-xs flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="font-mono rounded-none shrink-0 gap-1"
+            onClick={() => bgFileRef.current?.click()}
+            disabled={isUploading}
+          >
+            <Upload className="w-3 h-3" />
+            {isUploading ? "جاري..." : "رفع"}
+          </Button>
+          {bgUrl && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="font-mono rounded-none text-muted-foreground px-2 shrink-0"
+              onClick={() => setBgUrl("")}
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+
+        {/* Preview */}
         {bgUrl && (
-          <div className="h-20 border border-border overflow-hidden">
-            <img src={bgUrl} alt="" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
+          <div className="relative h-24 border border-border overflow-hidden bg-muted">
+            <img
+              src={displayImageUrl(bgUrl) ?? bgUrl}
+              alt="معاينة الخلفية"
+              className="w-full h-full object-cover"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+            <span className="absolute bottom-1 end-1 font-mono text-[10px] bg-black/60 text-white px-1">معاينة</span>
           </div>
         )}
       </div>
 
-      <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving}>
+      <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving || isUploading}>
         {saving ? "جاري الحفظ..." : "حفظ التخصيص"}
       </Button>
     </div>
@@ -1072,8 +1131,8 @@ function GiftProSection({ me }: { me: any }) {
   const [gifting, setGifting] = useState(false);
 
   const { data: friends } = useQuery<any[]>({
-    queryKey: ["gift-pro-friends", me?.id],
-    queryFn: () => customFetch(`/api/users/${me?.id}/friends`),
+    queryKey: ["gift-pro-friends"],
+    queryFn: () => customFetch("/api/friends"),
     enabled: !!me?.id,
   });
 

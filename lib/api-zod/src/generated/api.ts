@@ -37,7 +37,7 @@ export const RegisterBody = zod.object({
   "password": zod.string().min(registerBodyPasswordMin).describe('Must be at least 12 characters and include uppercase, lowercase, number, and symbol.'),
   "displayName": zod.string().min(1).max(registerBodyDisplayNameMax),
   "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax),
-  "region": zod.string().optional()
+  "region": zod.string().optional().describe('ISO 3166-1 alpha-2 country code (e.g. \"SA\", \"US\"). Optional.')
 })
 
 export const RegisterResponse = zod.object({
@@ -62,7 +62,9 @@ export const RegisterResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -101,7 +103,9 @@ export const LoginResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -142,7 +146,9 @@ export const GetMeResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -175,7 +181,9 @@ export const UpdateMyStatusResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -395,7 +403,9 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -473,7 +483,9 @@ export const SetMyEmailResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -510,7 +522,9 @@ export const VerifyMyEmailResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -562,7 +576,9 @@ export const EnableTwoFactorResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -594,7 +610,9 @@ export const DisableTwoFactorResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -623,6 +641,8 @@ export const GetUserResponse = zod.object({
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
   "games": zod.array(zod.object({
   "id": zod.number(),
   "game": zod.object({
@@ -684,6 +704,8 @@ export const UpdateProfileResponse = zod.object({
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
   "games": zod.array(zod.object({
   "id": zod.number(),
   "game": zod.object({
@@ -734,7 +756,9 @@ export const SearchUsersResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
 
@@ -878,7 +902,9 @@ export const DeleteMyAvatarResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -906,7 +932,9 @@ export const DeleteMyBannerResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })
 
 
@@ -986,7 +1014,9 @@ export const ListFriendsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "since": zod.string()
 })
@@ -1019,7 +1049,9 @@ export const ListFriendRequestsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1042,7 +1074,9 @@ export const ListFriendRequestsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1080,7 +1114,9 @@ export const SendFriendRequestResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1103,7 +1139,9 @@ export const SendFriendRequestResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1187,7 +1225,9 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "since": zod.string()
 }))
@@ -1222,7 +1262,9 @@ export const ListConversationsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1248,7 +1290,9 @@ export const ListConversationsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1276,7 +1320,9 @@ export const ListConversationsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1349,7 +1395,9 @@ export const GetMessagesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1377,7 +1425,9 @@ export const GetMessagesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1431,7 +1481,9 @@ export const SendMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1459,7 +1511,9 @@ export const SendMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1512,7 +1566,9 @@ export const EditMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1540,7 +1596,9 @@ export const EditMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1601,7 +1659,9 @@ export const PinMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1629,7 +1689,9 @@ export const PinMessageResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1716,7 +1778,9 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1742,7 +1806,9 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1770,7 +1836,9 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1817,7 +1885,9 @@ export const ListPartiesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1840,7 +1910,9 @@ export const ListPartiesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1898,7 +1970,9 @@ export const CreatePartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1921,7 +1995,9 @@ export const CreatePartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -1964,7 +2040,9 @@ export const GetPartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1987,7 +2065,9 @@ export const GetPartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2048,7 +2128,9 @@ export const UpdatePartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2071,7 +2153,9 @@ export const UpdatePartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2142,7 +2226,9 @@ export const JoinPartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2165,7 +2251,9 @@ export const JoinPartyResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2234,7 +2322,9 @@ export const TransferPartyLeadershipResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2257,7 +2347,9 @@ export const TransferPartyLeadershipResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2298,7 +2390,9 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2321,7 +2415,9 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2349,7 +2445,9 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "action": zod.enum(['created', 'joined', 'left', 'invited']),
   "createdAt": zod.string()
@@ -2389,7 +2487,9 @@ export const ListPartyInvitesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2412,7 +2512,9 @@ export const ListPartyInvitesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2440,7 +2542,9 @@ export const ListPartyInvitesResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "createdAt": zod.string()
 })
@@ -2481,7 +2585,9 @@ export const AcceptPartyInviteResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2504,7 +2610,9 @@ export const AcceptPartyInviteResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2774,7 +2882,9 @@ export const ListBlockedUsersResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "createdAt": zod.string()
 })
@@ -2996,7 +3106,9 @@ export const ListLfgPostsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3027,7 +3139,9 @@ export const ListLfgPostsResponseItem = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3083,7 +3197,9 @@ export const CreateLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3114,7 +3230,9 @@ export const CreateLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3160,7 +3278,9 @@ export const RespondToLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3191,7 +3311,9 @@ export const RespondToLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3229,7 +3351,9 @@ export const CloseLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3260,7 +3384,9 @@ export const CloseLfgPostResponse = zod.object({
   "tierLevel": zod.number().nullish(),
   "totalXp": zod.number().nullish(),
   "xpIntoLevel": zod.number().nullish(),
-  "xpForNext": zod.number().nullish()
+  "xpForNext": zod.number().nullish(),
+  "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
+  "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),

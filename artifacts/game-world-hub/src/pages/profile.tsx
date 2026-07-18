@@ -13,6 +13,7 @@ import { ProBadge } from "@/components/pro-badge";
 import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
+import { displayImageUrl } from "@/lib/image-url";
 
 export default function Profile() {
   const { t } = useTranslation("profile");
@@ -188,10 +189,18 @@ export default function Profile() {
 
         {/* BANNER — tall, identity anchored to bottom */}
         <div className="relative h-52 overflow-hidden group">
+          {/* Pro profile background (behind banner) */}
+          {user.profileBgUrl && (
+            <img
+              src={displayImageUrl(user.profileBgUrl) ?? user.profileBgUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
           {user.bannerUrl ? (
-            <img src={user.bannerUrl} alt="" className="w-full h-full object-cover" data-testid="img-profile-banner" />
+            <img src={user.bannerUrl} alt="" className="w-full h-full object-cover relative z-[1]" data-testid="img-profile-banner" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-primary/10 via-muted/20 to-background" />
+            !user.profileBgUrl && <div className="w-full h-full bg-gradient-to-br from-primary/10 via-muted/20 to-background" />
           )}
           {/* gradient layers */}
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
@@ -255,8 +264,11 @@ export default function Profile() {
         {/* AVATAR + IDENTITY ROW — overlaps banner */}
         <div className="px-6 -mt-14 relative z-10 flex items-end gap-5">
           <div className="relative shrink-0 group">
-            {/* Avatar circle — simple border, no glow */}
-            <div className="w-28 h-28 rounded-full border-4 border-card bg-muted overflow-hidden flex items-center justify-center">
+            {/* Avatar circle — Pro frame color or default card border */}
+            <div
+              className="w-28 h-28 rounded-full border-4 bg-muted overflow-hidden flex items-center justify-center"
+              style={{ borderColor: user.profileFrameColor ?? undefined }}
+            >
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (

@@ -110,6 +110,16 @@ export interface User {
   xpIntoLevel?: number | null;
   /** @nullable */
   xpForNext?: number | null;
+  /**
+     * Pro avatar frame border color (CSS hex or named color)
+     * @nullable
+     */
+  profileFrameColor?: string | null;
+  /**
+     * Pro profile background image/GIF path or URL
+     * @nullable
+     */
+  profileBgUrl?: string | null;
 }
 
 export interface LfgPost {
@@ -203,8 +213,8 @@ export interface RegisterInput {
      */
   username: string;
   /**
-     * Must be at least 16 characters and include uppercase, lowercase, number, and symbol.
-     * @minLength 16
+     * Must be at least 12 characters and include uppercase, lowercase, number, and symbol.
+     * @minLength 12
      */
   password: string;
   /**
@@ -217,6 +227,8 @@ export interface RegisterInput {
      * @maxLength 255
      */
   email: string;
+  /** ISO 3166-1 alpha-2 country code (e.g. "SA", "US"). Optional. */
+  region?: string;
 }
 
 export interface LoginInput {
@@ -480,6 +492,16 @@ export interface UserProfile {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /**
+     * Pro avatar frame border color
+     * @nullable
+     */
+  profileFrameColor?: string | null;
+  /**
+     * Pro profile background image/GIF path or URL
+     * @nullable
+     */
+  profileBgUrl?: string | null;
   games: UserGame[];
   platforms: PlatformLink[];
 }

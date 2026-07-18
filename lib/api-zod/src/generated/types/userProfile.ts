@@ -39,6 +39,16 @@ export interface UserProfile {
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
+  /**
+     * Pro avatar frame border color
+     * @nullable
+     */
+  profileFrameColor?: string | null;
+  /**
+     * Pro profile background image/GIF path or URL
+     * @nullable
+     */
+  profileBgUrl?: string | null;
   games: UserGame[];
   platforms: PlatformLink[];
 }

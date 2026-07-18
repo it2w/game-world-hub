@@ -2565,6 +2565,12 @@ components:
           type: ["integer", "null"]
         xpForNext:
           type: ["integer", "null"]
+        profileFrameColor:
+          type: ["string", "null"]
+          description: Pro avatar frame border color (CSS hex or named color)
+        profileBgUrl:
+          type: ["string", "null"]
+          description: Pro profile background image/GIF path or URL
 
     ProStatus:
       type: object
@@ -2777,6 +2783,12 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        profileFrameColor:
+          type: ["string", "null"]
+          description: Pro avatar frame border color
+        profileBgUrl:
+          type: ["string", "null"]
+          description: Pro profile background image/GIF path or URL
         games:
           type: array
           items:

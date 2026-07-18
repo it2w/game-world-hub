@@ -50,4 +50,14 @@ export interface User {
   xpIntoLevel?: number | null;
   /** @nullable */
   xpForNext?: number | null;
+  /**
+     * Pro avatar frame border color (CSS hex or named color)
+     * @nullable
+     */
+  profileFrameColor?: string | null;
+  /**
+     * Pro profile background image/GIF path or URL
+     * @nullable
+     */
+  profileBgUrl?: string | null;
 }

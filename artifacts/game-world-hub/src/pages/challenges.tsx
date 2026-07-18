@@ -142,8 +142,8 @@ export default function ChallengesPage() {
   });
 
   const { data: friends } = useQuery<any[]>({
-    queryKey: ["friends-list", myId],
-    queryFn: () => customFetch(`/api/users/${myId}/friends`),
+    queryKey: ["friends-list"],
+    queryFn: () => customFetch("/api/friends"),
     enabled: !!myId,
   });
 

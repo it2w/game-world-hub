@@ -35,8 +35,13 @@ export const usersTable = pgTable("users", {
   proProvider: text("pro_provider").notNull().default("salla"),
   // User's self-reported country / region (e.g. "SA", "US"). Optional, set at registration.
   region: text("region"),
+  // Pro profile customization (Pro users only).
+  profileFrameColor: text("profile_frame_color"), // e.g. "#ff00cc" or "gold"
+  profileBgUrl: text("profile_bg_url"),           // animated GIF / video URL for profile background
   // Admin flag. Bootstrapped via ADMIN_USERNAMES env var; can also be promoted from the admin dashboard.
   isAdmin: boolean("is_admin").notNull().default(false),
+  // Friend-online notification opt-in: comma-separated friend user IDs to watch, or "*" for all.
+  friendOnlineWatchlist: text("friend_online_watchlist"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

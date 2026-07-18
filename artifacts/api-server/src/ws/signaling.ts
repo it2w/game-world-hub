@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
 import { eq } from "drizzle-orm";
-import { db, usersTable, partiesTable, conversationParticipantsTable } from "@workspace/db";
+import { db, usersTable, partiesTable, conversationParticipantsTable, friendshipsTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -317,6 +317,28 @@ function handleClose(client: Client): void {
   logger.info({ userId: client.userId }, "voice: client disconnected");
 }
 
+// ─── Friend-online notification ───────────────────────────────────────────────
+
+async function notifyFriendsOnline(client: Client): Promise<void> {
+  const rows = await db
+    .select({ friendId: friendshipsTable.friendId })
+    .from(friendshipsTable)
+    .where(eq(friendshipsTable.userId, client.userId));
+
+  for (const { friendId } of rows) {
+    const sessions = clientsByUser.get(friendId);
+    if (!sessions) continue;
+    for (const c of sessions) {
+      send(c.ws, {
+        type: "friend-online",
+        userId: client.userId,
+        displayName: client.displayName,
+        avatarUrl: client.avatarUrl,
+      });
+    }
+  }
+}
+
 // ─── External eviction API ────────────────────────────────────────────────────
 
 /**
@@ -396,6 +418,9 @@ export function attachSignaling(server: Server): void {
     registerClient(client);
     send(ws, { type: "ready", userId: client.userId });
     logger.info({ userId: client.userId }, "voice: client connected");
+
+    // Fire-and-forget: notify friends that this user came online
+    void notifyFriendsOnline(client).catch(() => {});
 
     ws.on("pong", () => { client.isAlive = true; });
     ws.on("message", (data) => {

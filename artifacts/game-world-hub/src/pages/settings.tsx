@@ -1,5 +1,5 @@
-import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, useRedeemActivationCode, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useGetMe, useUpdateProfile, useUpdateMyStatus, useLinkPlatform, useUnlinkPlatform, useGetUserPlatforms, useGetUserContentLinks, useLinkContent, useUnlinkContent, useSetMyEmail, useVerifyMyEmail, useSetupTwoFactor, useEnableTwoFactor, useDisableTwoFactor, useRedeemActivationCode, getGetUserQueryKey, getGetMeQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, customFetch } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, Ticket } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, Ticket, Crown, Gift, Bot, Palette } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONTENT_PLATFORMS, CONTENT_PLATFORM_KEYS, contentMeta } from "@/lib/content-platforms";
@@ -841,6 +841,303 @@ export default function Settings() {
           </Button>
         </form>
       </div>
+
+      {/* ── Pro-only sections ─────────────────────────────────────────────── */}
+      {me?.isPro && (
+        <>
+          <ProProfileSection me={me} onSave={refreshMe} />
+          <LfgBotSection />
+          <GiftProSection me={me} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Pro Profile ────────────────────────────────────────────────────────────────
+
+function ProProfileSection({ me, onSave }: { me: any; onSave: () => void }) {
+  const { toast } = useToast();
+  const [frameColor, setFrameColor] = useState<string>(me.profileFrameColor ?? "");
+  const [bgUrl, setBgUrl] = useState<string>(me.profileBgUrl ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const PRESET_COLORS = ["#FFD700", "#A855F7", "#06B6D4", "#EF4444", "#22C55E", "#F97316", "#EC4899"];
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await customFetch(`/api/users/${me.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({ profileFrameColor: frameColor || null, profileBgUrl: bgUrl || null }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: "تم حفظ بيانات الملف الشخصي" });
+      onSave();
+    } catch {
+      toast({ title: "فشل الحفظ", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-primary/30 p-6 space-y-4">
+      <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
+        <Palette className="w-4 h-4" /> ملف Pro المخصص <Crown className="w-3 h-3 text-yellow-400" />
+      </h2>
+
+      {/* Frame Color */}
+      <div className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">لون إطار الصورة</label>
+        <div className="flex items-center gap-2 flex-wrap">
+          {PRESET_COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => setFrameColor(c)}
+              className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${frameColor === c ? "border-foreground scale-110" : "border-transparent"}`}
+              style={{ background: c }}
+              title={c}
+            />
+          ))}
+          <Input
+            value={frameColor}
+            onChange={(e) => setFrameColor(e.target.value)}
+            placeholder="#hex"
+            className="font-mono rounded-none border-border bg-background w-24 text-xs"
+          />
+          {frameColor && (
+            <div
+              className="w-9 h-9 rounded-full border-4 bg-muted"
+              style={{ borderColor: frameColor }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Background URL */}
+      <div className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">رابط خلفية الملف (GIF أو صورة)</label>
+        <Input
+          value={bgUrl}
+          onChange={(e) => setBgUrl(e.target.value)}
+          placeholder="https://example.com/bg.gif"
+          className="font-mono rounded-none border-border bg-background"
+        />
+        {bgUrl && (
+          <div className="h-20 border border-border overflow-hidden">
+            <img src={bgUrl} alt="" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
+          </div>
+        )}
+      </div>
+
+      <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving}>
+        {saving ? "جاري الحفظ..." : "حفظ التخصيص"}
+      </Button>
+    </div>
+  );
+}
+
+// ── LFG Bot ────────────────────────────────────────────────────────────────────
+
+function LfgBotSection() {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const { data: botSettings } = useQuery<any>({
+    queryKey: ["lfg-bot-settings"],
+    queryFn: () => customFetch("/api/lfg/bot"),
+  });
+
+  const [enabled, setEnabled] = useState(false);
+  const [game, setGame] = useState("");
+  const [platform, setPlatform] = useState("");
+  const [description, setDescription] = useState("");
+  const [intervalMinutes, setIntervalMinutes] = useState(60);
+
+  useEffect(() => {
+    if (botSettings) {
+      setEnabled(botSettings.enabled ?? false);
+      setGame(botSettings.game ?? "");
+      setPlatform(botSettings.platform ?? "");
+      setDescription(botSettings.description ?? "");
+      setIntervalMinutes(botSettings.intervalMinutes ?? 60);
+    }
+  }, [botSettings]);
+
+  const handleSave = async () => {
+    if (!game || !description) { toast({ title: "اللعبة والوصف مطلوبان", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await customFetch("/api/lfg/bot", {
+        method: "PUT",
+        body: JSON.stringify({ game, platform: platform || undefined, description, intervalMinutes, enabled }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: enabled ? "تم تفعيل بوت LFG" : "تم حفظ إعدادات البوت" });
+    } catch (e: any) {
+      toast({ title: "فشل الحفظ", description: e?.data?.error, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    await customFetch("/api/lfg/bot", { method: "DELETE" });
+    setEnabled(false);
+    toast({ title: "تم تعطيل البوت" });
+  };
+
+  return (
+    <div className="bg-card border border-primary/30 p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+          <Bot className="w-4 h-4" /> بوت LFG التلقائي <Crown className="w-3 h-3 text-yellow-400" />
+        </h2>
+        <button
+          onClick={() => setEnabled(!enabled)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? "bg-primary" : "bg-muted"}`}
+        >
+          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${enabled ? "translate-x-5" : "translate-x-1"}`} />
+        </button>
+      </div>
+      <p className="font-mono text-xs text-muted-foreground">ينشر بوت LFG منشورًا تلقائيًا بشكل دوري نيابةً عنك.</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">اللعبة</label>
+          <Input value={game} onChange={(e) => setGame(e.target.value)} className="font-mono rounded-none border-border bg-background" placeholder="Valorant" />
+        </div>
+        <div className="space-y-1">
+          <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">المنصة</label>
+          <Input value={platform} onChange={(e) => setPlatform(e.target.value)} className="font-mono rounded-none border-border bg-background" placeholder="PC" />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">الوصف</label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="font-mono rounded-none border-border bg-background resize-none" rows={2} maxLength={500} />
+      </div>
+
+      <div className="space-y-1">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">فترة النشر</label>
+        <div className="flex gap-0">
+          {([["30", 30], ["60", 60], ["120", 120], ["240", 240]] as [string, number][]).map(([label, val]) => (
+            <button
+              key={val}
+              onClick={() => setIntervalMinutes(val)}
+              className={`flex-1 font-mono text-xs py-2 border transition-colors ${intervalMinutes === val ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:bg-muted"}`}
+            >
+              {label === "30" ? "30د" : label === "60" ? "ساعة" : label === "120" ? "ساعتين" : "4س"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button className="font-mono rounded-none flex-1" onClick={handleSave} disabled={saving}>
+          {saving ? "جاري الحفظ..." : "حفظ الإعدادات"}
+        </Button>
+        {botSettings?.enabled && (
+          <Button variant="outline" className="font-mono rounded-none" onClick={handleDisable}>
+            تعطيل البوت
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Gift Pro ───────────────────────────────────────────────────────────────────
+
+function GiftProSection({ me }: { me: any }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState(0);
+  const [gifting, setGifting] = useState(false);
+
+  const { data: friends } = useQuery<any[]>({
+    queryKey: ["gift-pro-friends", me.id],
+    queryFn: () => customFetch(`/api/users/${me.id}/friends`),
+    enabled: !!me.id,
+  });
+
+  const { data: gifts } = useQuery<{ sent: any[]; received: any[] }>({
+    queryKey: ["pro-gifts"],
+    queryFn: () => customFetch("/api/pro/gifts"),
+  });
+
+  const lastGift = gifts?.sent?.[0];
+  const now = Date.now();
+  const daysUntilNext = lastGift
+    ? Math.ceil(90 - (now - new Date(lastGift.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const canGift = !lastGift || daysUntilNext <= 0;
+
+  const handleGift = async () => {
+    if (!selectedId) return;
+    setGifting(true);
+    try {
+      const res = await customFetch<{ success: boolean; giftedTo: any }>("/api/pro/gift", {
+        method: "POST",
+        body: JSON.stringify({ toUserId: selectedId }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: `تم إهداء Pro لـ ${res.giftedTo.displayName} 🎁` });
+      setOpen(false);
+      setSelectedId(0);
+    } catch (e: any) {
+      toast({ title: "فشل الإهداء", description: e?.data?.error, variant: "destructive" });
+    } finally {
+      setGifting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-primary/30 p-6 space-y-4">
+      <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+        <Gift className="w-4 h-4" /> إهداء Pro <Crown className="w-3 h-3 text-yellow-400" />
+      </h2>
+      <p className="font-mono text-xs text-muted-foreground">أهدِ صديقًا شهرًا من Pro مجانًا — مرة واحدة كل 90 يومًا.</p>
+
+      {lastGift ? (
+        <p className="font-mono text-xs text-muted-foreground">
+          آخر إهداء: {new Date(lastGift.createdAt).toLocaleDateString("ar")} → {lastGift.toUser?.displayName}
+          {!canGift && ` (متاح بعد ${daysUntilNext} يوم)`}
+        </p>
+      ) : null}
+
+      <Button
+        className="font-mono rounded-none"
+        onClick={() => setOpen(true)}
+        disabled={!canGift}
+      >
+        <Gift className="w-4 h-4 me-2" />
+        {canGift ? "إهداء شهر Pro لصديق" : `متاح بعد ${daysUntilNext} يوم`}
+      </Button>
+
+      {/* Gift Dialog */}
+      {open && (
+        <div className="border border-border bg-background p-4 space-y-3 mt-2">
+          <p className="font-mono text-xs uppercase text-muted-foreground tracking-widest">اختر صديقًا</p>
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(Number(e.target.value))}
+            className="w-full bg-background border border-border font-mono text-sm p-2 rounded-none"
+          >
+            <option value={0}>-- اختر --</option>
+            {(friends ?? []).map((f: any) => (
+              <option key={f.id} value={f.id}>{f.displayName} (@{f.username})</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <Button className="font-mono rounded-none flex-1" onClick={handleGift} disabled={gifting || !selectedId}>
+              {gifting ? "جاري الإهداء..." : "تأكيد الإهداء 🎁"}
+            </Button>
+            <Button variant="outline" className="font-mono rounded-none" onClick={() => setOpen(false)}>إلغاء</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

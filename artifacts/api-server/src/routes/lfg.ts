@@ -74,6 +74,29 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
   };
 }
 
+// GET /lfg/suggestions — up to 5 open posts matching the viewer's currentGame
+router.get("/lfg/suggestions", requireAuth, async (req, res): Promise<void> => {
+  const myId = req.auth!.userId;
+  const [me] = await db.select({ currentGame: usersTable.currentGame }).from(usersTable).where(eq(usersTable.id, myId));
+  if (!me?.currentGame) { res.json([]); return; }
+
+  const now = new Date();
+  const suggestions = await db
+    .select()
+    .from(lfgPostsTable)
+    .where(
+      and(
+        eq(lfgPostsTable.game, me.currentGame),
+        eq(lfgPostsTable.status, "open"),
+        or(isNull(lfgPostsTable.expiresAt), gt(lfgPostsTable.expiresAt, now)),
+      ),
+    )
+    .orderBy(desc(lfgPostsTable.createdAt))
+    .limit(5);
+
+  res.json(await Promise.all(suggestions.filter((p) => p.authorId !== myId).map((p) => buildPost(p, myId))));
+});
+
 // GET /lfg — list open, non-expired posts; also includes the viewer's own closed/expired posts
 router.get("/lfg", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
@@ -117,7 +140,15 @@ router.get("/lfg", requireAuth, async (req, res): Promise<void> => {
   }
   merged.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-  res.json(await Promise.all(merged.map((p) => buildPost(p, myId))));
+  const builtPosts = await Promise.all(merged.map((p) => buildPost(p, myId)));
+  // Pro users appear first
+  builtPosts.sort((a, b) => {
+    const aIsPro = a.author.isPro ? 1 : 0;
+    const bIsPro = b.author.isPro ? 1 : 0;
+    if (bIsPro !== aIsPro) return bIsPro - aIsPro;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  res.json(builtPosts);
 });
 
 // POST /lfg — create a post

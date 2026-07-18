@@ -12,8 +12,9 @@ import {
   getListPartiesQueryKey,
   useInviteToParty,
   useCreateParty,
+  customFetch,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -26,7 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock, UserPlus } from "lucide-react";
+import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock, UserPlus, Zap, Globe } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TierPip } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
@@ -97,6 +98,13 @@ export default function Lfg() {
 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+
+  const { data: suggestions } = useQuery<any[]>({
+    queryKey: ["lfg-suggestions"],
+    queryFn: () => customFetch("/api/lfg/suggestions"),
+    refetchInterval: 30000,
+  });
   // Track which responder the "create party & invite" popover is open for
   const [createPartyFor, setCreatePartyFor] = useState<{ id: number; displayName: string } | null>(null);
   const [newPartyName, setNewPartyName] = useState("");
@@ -181,18 +189,30 @@ export default function Lfg() {
     );
   };
 
+  const REGIONS = ["SA", "US", "EU", "MENA", "ASIA"];
+
   const filtered = useMemo(() => {
     if (!posts) return [];
+    let result = posts;
     const q = filter.trim().toLowerCase();
-    if (!q) return posts;
-    return posts.filter(
-      (p) =>
-        p.game.toLowerCase().includes(q) ||
-        (p.platform ?? "").toLowerCase().includes(q) ||
-        p.author.displayName.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q),
-    );
-  }, [posts, filter]);
+    if (q) {
+      result = result.filter(
+        (p) =>
+          p.game.toLowerCase().includes(q) ||
+          (p.platform ?? "").toLowerCase().includes(q) ||
+          p.author.displayName.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q),
+      );
+    }
+    if (regionFilter) {
+      result = result.filter(
+        (p) =>
+          p.description.toUpperCase().includes(regionFilter) ||
+          (p.platform ?? "").toUpperCase().includes(regionFilter),
+      );
+    }
+    return result;
+  }, [posts, filter, regionFilter]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -351,15 +371,61 @@ export default function Lfg() {
         </Dialog>
       </div>
 
-      <div className="relative">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder={t("filter.placeholder")}
-          className="font-mono bg-background border-border rounded-none ps-10 focus-visible:ring-primary uppercase text-xs tracking-wider"
-        />
+      {/* Search + Region filter */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t("filter.placeholder")}
+            className="font-mono bg-background border-border rounded-none ps-10 focus-visible:ring-primary uppercase text-xs tracking-wider"
+          />
+        </div>
+        <div className="relative">
+          <Globe className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <select
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+            className="h-10 bg-background border border-border font-mono text-xs ps-8 pe-3 rounded-none focus:outline-none focus:ring-1 focus:ring-primary uppercase appearance-none min-w-[90px]"
+          >
+            <option value="">كل المناطق</option>
+            {REGIONS.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Suggestions — based on your current game */}
+      {suggestions && suggestions.length > 0 && (
+        <div className="border border-primary/30 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" />
+            <span className="font-mono text-xs uppercase tracking-widest text-primary">مقترح لك</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {suggestions.map((post: any) => (
+              <div key={post.id} className="bg-card border border-primary/20 p-3 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-sm bg-muted flex items-center justify-center font-mono text-xs overflow-hidden border border-border shrink-0">
+                  {post.author.avatarUrl ? (
+                    <img src={post.author.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    post.author.displayName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-primary truncate">
+                    <Gamepad2 className="w-3 h-3 shrink-0" /> {post.game}
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono truncate">@{post.author.username}</p>
+                  <p className="text-xs mt-1 line-clamp-1">{post.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isLoading ? (

@@ -906,6 +906,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           source: Track.Source.ScreenShareAudio,
         });
       }
+
+      // Auto voice status: announce screen sharing to friends
+      const authToken = localStorage.getItem("gwh_token");
+      void fetch(`${getApiBase()}/api/auth/me/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+        body: JSON.stringify({ currentGame: "📡 يشارك شاشته" }),
+      }).catch(() => {});
     } catch {
       setError("Screen share was cancelled");
       if (screenTrackRef.current) {
@@ -937,6 +945,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       screenAudioTrackRef.current = null;
     }
     setScreenAudioEnabled(true); // reset for next share session
+
+    // Clear auto voice status
+    const authToken = localStorage.getItem("gwh_token");
+    void fetch(`${getApiBase()}/api/auth/me/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+      body: JSON.stringify({ currentGame: null }),
+    }).catch(() => {});
   }, []);
 
   /**

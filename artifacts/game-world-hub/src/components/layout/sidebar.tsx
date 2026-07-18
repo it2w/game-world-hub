@@ -12,7 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -99,6 +99,22 @@ export function AppSidebar() {
                   <Link href="/ranks">
                     <Trophy className="w-4 h-4" />
                     <span>{t("sidebar.ranks")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/stats")}>
+                  <Link href="/stats">
+                    <BarChart2 className="w-4 h-4" />
+                    <span>إحصائياتي</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/challenges")}>
+                  <Link href="/challenges">
+                    <Swords className="w-4 h-4" />
+                    <span>التحديات</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

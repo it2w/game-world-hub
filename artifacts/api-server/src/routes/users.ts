@@ -56,6 +56,8 @@ function safeUser(
     totalXp: progress?.totalXp ?? null,
     xpIntoLevel: progress?.xpIntoLevel ?? null,
     xpForNext: progress?.xpForNext ?? null,
+    profileFrameColor: u.profileFrameColor ?? null,
+    profileBgUrl: u.profileBgUrl ?? null,
   };
 }
 
@@ -181,15 +183,24 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const updates: typeof parsed.data = { ...parsed.data };
-  if (typeof updates.avatarUrl === "string" && updates.avatarUrl.length > 0) {
-    updates.avatarUrl = await normalizeStoredImagePath(userId, updates.avatarUrl);
+  const updates: Record<string, unknown> = { ...parsed.data };
+  if (typeof updates.avatarUrl === "string" && (updates.avatarUrl as string).length > 0) {
+    updates.avatarUrl = await normalizeStoredImagePath(userId, updates.avatarUrl as string);
   }
-  if (typeof updates.bannerUrl === "string" && updates.bannerUrl.length > 0) {
-    updates.bannerUrl = await normalizeStoredImagePath(userId, updates.bannerUrl);
+  if (typeof updates.bannerUrl === "string" && (updates.bannerUrl as string).length > 0) {
+    updates.bannerUrl = await normalizeStoredImagePath(userId, updates.bannerUrl as string);
+  }
+  // Pro-only: profile frame color and background URL
+  const [currentUser] = await db.select({ isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt }).from(usersTable).where(eq(usersTable.id, userId));
+  const now = new Date();
+  const proActive = currentUser?.isPro && (!currentUser.proExpiresAt || currentUser.proExpiresAt > now);
+  if (proActive) {
+    if (typeof req.body.profileFrameColor === "string") updates.profileFrameColor = req.body.profileFrameColor;
+    if (typeof req.body.profileBgUrl === "string") updates.profileBgUrl = req.body.profileBgUrl;
   }
   const [user] = await db.update(usersTable)
-    .set({ ...updates })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .set(updates as any)
     .where(eq(usersTable.id, userId))
     .returning();
 

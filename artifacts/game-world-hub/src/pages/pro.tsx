@@ -45,6 +45,8 @@ function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
 // ── Pro Status Banner ──────────────────────────────────────────────────────────
 
 function ProStatusBanner({ isPro, expiresAt }: { isPro: boolean; expiresAt: string | null }) {
+  const { i18n } = useTranslation("common");
+  const locale = i18n.resolvedLanguage?.startsWith("ar") ? "ar-SA" : "en-US";
   if (!isPro) return null;
   return (
     <div className="relative overflow-hidden border border-primary/40 bg-card p-5">
@@ -64,8 +66,9 @@ function ProStatusBanner({ isPro, expiresAt }: { isPro: boolean; expiresAt: stri
         <div>
           <p className="font-mono font-black text-sm uppercase tracking-widest text-primary">اشتراك Pro نشط</p>
           {expiresAt && (
-            <p className="font-mono text-sm font-bold text-foreground mt-1">
-              ينتهي في {new Date(expiresAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })}
+            <p className="font-mono text-xs font-semibold text-foreground/80 mt-1 tracking-wide">
+              {locale === "ar-SA" ? "ينتهي" : "Expires"}{" "}
+              {new Date(expiresAt).toLocaleDateString(locale)}
             </p>
           )}
         </div>

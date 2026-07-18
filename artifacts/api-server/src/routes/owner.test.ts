@@ -20,7 +20,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
 import { signToken } from "../middlewares/auth";
-import { _resetLoginBucket } from "./owner";
+import { _resetLoginBucket, _resetResetRateBucket } from "./owner";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -578,11 +578,24 @@ describe("Owner reset-password brute-force lockout", () => {
       .set({ passwordResetExpiresAt: new Date(Date.now() - 1000) })
       .where(eq(superAdminsTable.id, resetOwnerId));
 
+    // Clear the per-IP rate-limit buckets so this helper never hits the
+    // IP-level throttle regardless of how many times it is called per suite.
+    clearResetBuckets();
+
     const r = await post("/owner/reset-password-request", { username: resetOwnerUsername });
     assert.strictEqual(r.status, 200, `reset-password-request failed: ${JSON.stringify(r.body)}`);
     const body = r.body as { ok: boolean; devCode?: string };
     assert.ok(typeof body.devCode === "string", "devCode must be returned in non-production mode");
     return body.devCode!;
+  }
+
+  /** Clear the per-IP rate-limit buckets used by this test suite. */
+  function clearResetBuckets() {
+    for (const prefix of ["reset-req", "reset"]) {
+      _resetResetRateBucket(`${prefix}:::1`);
+      _resetResetRateBucket(`${prefix}:127.0.0.1`);
+      _resetResetRateBucket(`${prefix}:::ffff:127.0.0.1`);
+    }
   }
 
   before(async () => {
@@ -592,10 +605,12 @@ describe("Owner reset-password brute-force lockout", () => {
       .returning({ id: superAdminsTable.id });
     resetOwnerId = row.id;
     resetOwnerUsername = `owner_bf_${SUFFIX}`;
+    clearResetBuckets();
   });
 
   after(async () => {
     await db.delete(superAdminsTable).where(eq(superAdminsTable.id, resetOwnerId)).catch(() => {});
+    clearResetBuckets();
   });
 
   // ── 1. Brute-force lockout ──────────────────────────────────────────────
@@ -824,5 +839,110 @@ describe("POST /owner/login brute-force lockout", () => {
     // (not 429) because the rate-limiter key is fresh.
     const r = await post("/owner/login", { username: `unknown_user_${SUFFIX}`, password: "wrong-password" });
     assert.notStrictEqual(r.status, 429, "an unrelated username must not be locked out");
+  });
+});
+
+/* ── Reset endpoint rate limiting ───────────────────────────────────────── */
+
+describe("POST /owner/reset-password-request — rate limiting", () => {
+  // Use a unique IP-like key per test run so parallel suites don't collide.
+  const fakeIp = `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+
+  before(() => {
+    _resetResetRateBucket(`reset-req:${fakeIp}`);
+  });
+
+  after(() => {
+    _resetResetRateBucket(`reset-req:${fakeIp}`);
+  });
+
+  async function resetReq(username = "any_user") {
+    return fetch(`${baseUrl}/owner/reset-password-request`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Override the IP by using the X-Forwarded-For header via express's
+        // trust proxy. In tests the app doesn't set trust proxy, so we drive
+        // the counter via the real loopback IP — we reset before/after to
+        // ensure isolation.
+        "X-Forwarded-For": fakeIp,
+      },
+      body: JSON.stringify({ username }),
+    });
+  }
+
+  test("first 5 requests are allowed (200 or 400)", async () => {
+    // Reset bucket so this sub-suite starts clean regardless of order.
+    _resetResetRateBucket(`reset-req:${fakeIp}`);
+    // We can't control the real IP in tests, so we drive against localhost
+    // which shares the bucket. Reset it and fire 5 fresh requests against
+    // the loopback address used by the test server.
+    _resetResetRateBucket("reset-req:::1");
+    _resetResetRateBucket("reset-req:127.0.0.1");
+    _resetResetRateBucket("reset-req:::ffff:127.0.0.1");
+
+    for (let i = 0; i < 5; i++) {
+      const res = await post("/owner/reset-password-request", { username: `no_such_user_rl_${SUFFIX}_${i}` });
+      assert.notStrictEqual(res.status, 429, `request ${i + 1} must not be rate-limited yet`);
+    }
+  });
+
+  test("6th request within the window returns 429 with Retry-After", async () => {
+    // The previous test consumed 5 requests; the 6th must be blocked.
+    const res = await fetch(`${baseUrl}/owner/reset-password-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: `no_such_user_rl_${SUFFIX}` }),
+    });
+    assert.strictEqual(res.status, 429, `expected 429 on 6th request, got ${res.status}`);
+    const retryAfter = res.headers.get("retry-after");
+    assert.ok(retryAfter !== null, "Retry-After header must be present");
+    assert.ok(Number(retryAfter) > 0, "Retry-After must be a positive number of seconds");
+    const body = await res.json() as { error?: string };
+    assert.ok(typeof body.error === "string", "response body must include an error string");
+  });
+});
+
+describe("POST /owner/reset-password — rate limiting", () => {
+  before(() => {
+    // Pre-clear the loopback bucket so the reset-password limiter starts fresh.
+    _resetResetRateBucket("reset:::1");
+    _resetResetRateBucket("reset:127.0.0.1");
+    _resetResetRateBucket("reset:::ffff:127.0.0.1");
+  });
+
+  after(() => {
+    _resetResetRateBucket("reset:::1");
+    _resetResetRateBucket("reset:127.0.0.1");
+    _resetResetRateBucket("reset:::ffff:127.0.0.1");
+  });
+
+  test("first 5 requests return non-429 (validation / bad code errors are fine)", async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await post("/owner/reset-password", {
+        username: `no_such_user_rp_${SUFFIX}`,
+        code: "000000",
+        newPassword: "ValidPass1234!@#$",
+      });
+      assert.notStrictEqual(res.status, 429, `request ${i + 1} must not be rate-limited yet`);
+    }
+  });
+
+  test("6th request within the window returns 429 with Retry-After", async () => {
+    const res = await fetch(`${baseUrl}/owner/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: `no_such_user_rp_${SUFFIX}`,
+        code: "000000",
+        newPassword: "ValidPass1234!@#$",
+      }),
+    });
+    assert.strictEqual(res.status, 429, `expected 429 on 6th request, got ${res.status}`);
+    const retryAfter = res.headers.get("retry-after");
+    assert.ok(retryAfter !== null, "Retry-After header must be present");
+    assert.ok(Number(retryAfter) > 0, "Retry-After must be a positive number of seconds");
+    const body = await res.json() as { error?: string };
+    assert.ok(typeof body.error === "string", "response body must include an error string");
   });
 });

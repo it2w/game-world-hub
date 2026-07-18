@@ -74,6 +74,38 @@ async function verifyOwnerResetCode(ownerId: number, code: string): Promise<bool
   return true;
 }
 
+/* ─── Reset endpoint rate limiting ──────────────────────────────────────── */
+
+const RESET_RATE_MAX      = 5;
+const RESET_RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+interface RateBucket { count: number; windowStart: number }
+const resetRateBuckets = new Map<string, RateBucket>();
+
+/** Exposed for tests to reset state between runs. */
+export function _resetResetRateBucket(key: string): void {
+  resetRateBuckets.delete(key);
+}
+
+/**
+ * Returns true if the request is within the allowed rate.
+ * Always increments the counter — call on every request to these endpoints.
+ */
+function checkResetRate(key: string): { allowed: boolean; retryAfterSecs: number } {
+  const now = Date.now();
+  const bucket = resetRateBuckets.get(key);
+  if (!bucket || now - bucket.windowStart > RESET_RATE_WINDOW_MS) {
+    resetRateBuckets.set(key, { count: 1, windowStart: now });
+    return { allowed: true, retryAfterSecs: 0 };
+  }
+  bucket.count += 1;
+  if (bucket.count > RESET_RATE_MAX) {
+    const retryAfterSecs = Math.ceil((RESET_RATE_WINDOW_MS - (now - bucket.windowStart)) / 1000);
+    return { allowed: false, retryAfterSecs };
+  }
+  return { allowed: true, retryAfterSecs: 0 };
+}
+
 /* ─── Login brute-force protection ──────────────────────────────────────── */
 
 const LOGIN_MAX_ATTEMPTS = 5;
@@ -174,6 +206,14 @@ router.post("/owner/set-email", requireOwner, async (req, res): Promise<void> =>
 });
 
 router.post("/owner/reset-password-request", async (req, res): Promise<void> => {
+  const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown");
+  const { allowed, retryAfterSecs } = checkResetRate(`reset-req:${ip}`);
+  if (!allowed) {
+    res.setHeader("Retry-After", String(retryAfterSecs));
+    res.status(429).json({ error: "Too many reset requests. Please try again later." });
+    return;
+  }
+
   const { username } = req.body as { username?: string };
   if (!username || typeof username !== "string") { res.status(400).json({ error: "Username is required" }); return; }
   const owner = await findOwnerByUsername(username.trim());
@@ -236,6 +276,14 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
 });
 
 router.post("/owner/reset-password", async (req, res): Promise<void> => {
+  const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown");
+  const { allowed, retryAfterSecs } = checkResetRate(`reset:${ip}`);
+  if (!allowed) {
+    res.setHeader("Retry-After", String(retryAfterSecs));
+    res.status(429).json({ error: "Too many reset requests. Please try again later." });
+    return;
+  }
+
   const { username, code, newPassword } = req.body as { username?: string; code?: string; newPassword?: string };
   if (!username || !code || !newPassword || typeof username !== "string" || typeof code !== "string" || typeof newPassword !== "string") {
     res.status(400).json({ error: "Username, code and new password are required" }); return;

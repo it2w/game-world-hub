@@ -84,3 +84,9 @@ id = "Y6oiUQw0lPsU9wiOGL8du"
 uri = "file://screenshots/dm-premium-preview.jpg"
 type = "image"
 title = "Premium DM — voice & screen-share call stage"
+
+[[outputs]]
+id = "0hlPhI7CUpRw4OBseS9Js"
+uri = "file://screenshots/pro-badge-variants.png"
+type = "image"
+title = "أشكال بادج Pro — اختر واحداً"

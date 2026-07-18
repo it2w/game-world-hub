@@ -19,6 +19,8 @@
     "activatePro": "Activate Pro",
     "deactivatePro": "Deactivate Pro",
     "makeAdmin": "Make Admin",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
     "empty": "No users found."
   },
   "codes": {
@@ -58,6 +60,9 @@
     "codeCreated": "Activation code created and copied.",
     "codeCreateFailed": "Could not create code.",
     "codeDisabled": "Activation code disabled.",
-    "codeDisableFailed": "Could not disable code."
+    "codeDisableFailed": "Could not disable code.",
+    "suspended": "User suspended.",
+    "unsuspended": "User unsuspended.",
+    "suspendFailed": "Could not update suspension status."
   }
 }

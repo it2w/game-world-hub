@@ -596,6 +596,9 @@ router.delete("/conversations/:conversationId/messages/:messageId", requireAuth,
     .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)));
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
 
+  // Only the message author may delete it.
+  if (msg.senderId !== myId) { res.status(403).json({ error: "Forbidden" }); return; }
+
   // Record the per-user soft-delete (ignore duplicate if already deleted)
   await db.insert(messageDeletionsTable)
     .values({ messageId, userId: myId })

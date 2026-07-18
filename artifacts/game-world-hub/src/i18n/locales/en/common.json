@@ -6,7 +6,10 @@
     "english": "English"
   },
   "shell": {
-    "initializing": "Initializing Core Systems..."
+    "initializing": "Initializing Core Systems...",
+    "suspended": "Account Suspended",
+    "suspendedDesc": "Your account has been suspended. Please contact support if you believe this is a mistake.",
+    "suspendedLogout": "Sign out"
   },
   "topBar": {
     "systemOnline": "SYSTEM_ONLINE",

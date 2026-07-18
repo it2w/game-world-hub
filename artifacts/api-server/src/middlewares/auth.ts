@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const _jwtSecretRaw = process.env.JWT_SECRET;
 if (!_jwtSecretRaw) {
@@ -70,17 +72,42 @@ export function verifyChallengeToken(token: string): TwoFactorChallengePayload {
   return { userId: payload.userId, purpose: "2fa", jti: payload.jti };
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
   const token = header.slice(7);
+  let auth: AuthPayload;
   try {
-    req.auth = verifyToken(token);
-    next();
+    auth = verifyToken(token);
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
+    return;
   }
+  // Check suspension via a lightweight primary-key lookup.
+  // Fail CLOSED on any error: a suspended user must never slip through.
+  try {
+    const [user] = await db
+      .select({ status: usersTable.status })
+      .from(usersTable)
+      .where(eq(usersTable.id, auth.userId))
+      .limit(1);
+    if (!user) {
+      // Token is for a user that no longer exists in the database.
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+    if (user.status === "suspended") {
+      res.status(403).json({ error: "suspended" });
+      return;
+    }
+  } catch {
+    // DB failure — fail closed so a transient error cannot bypass suspension.
+    res.status(503).json({ error: "Service temporarily unavailable" });
+    return;
+  }
+  req.auth = auth;
+  next();
 }

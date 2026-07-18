@@ -69,7 +69,7 @@ function useCallAutoNavigate() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation("common");
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isSuspended, logout } = useAuth();
   useActivityHeartbeat(isAuthenticated);
   const inlineStageActive = useInlineStageActive();
   useCallAutoNavigate();
@@ -79,6 +79,33 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 font-mono text-primary text-sm uppercase tracking-widest">
         <AnimatedLogo className="h-12 w-auto" />
         {t("shell.initializing")}
+      </div>
+    );
+  }
+
+  if (isSuspended) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-6 p-6">
+        <AnimatedLogo className="h-12 w-auto opacity-50" />
+        <div className="max-w-sm w-full border border-destructive/40 bg-destructive/5 p-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center mx-auto">
+            <span className="text-destructive text-2xl">⊘</span>
+          </div>
+          <h2 className="font-mono font-bold text-lg uppercase tracking-widest text-destructive">
+            {t("shell.suspended")}
+          </h2>
+          <p className="font-mono text-xs text-muted-foreground leading-relaxed">
+            {t("shell.suspendedDesc")}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-mono rounded-none text-xs"
+            onClick={logout}
+          >
+            {t("shell.suspendedLogout")}
+          </Button>
+        </div>
       </div>
     );
   }

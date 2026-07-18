@@ -31,6 +31,8 @@ import {
   CreditCard,
   Copy,
   Check,
+  Ban,
+  CheckCircle,
 } from "lucide-react";
 import {
   useListAdminUsers,
@@ -45,6 +47,7 @@ import {
   getListActivationCodesQueryKey,
   getListAdminProSubscriptionsQueryKey,
   getGetMeQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { ProBadge } from "@/components/pro-badge";
 
@@ -105,6 +108,7 @@ function UsersPanel() {
   const activate = useAdminActivatePro();
   const deactivate = useAdminDeactivatePro();
   const promote = useAdminPromoteUser();
+  const [suspendingId, setSuspendingId] = useState<number | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,6 +149,21 @@ function UsersPanel() {
       },
       onError: () => toast({ title: t("toasts.adminPromoteFailed"), variant: "destructive" }),
     });
+  };
+
+  const onSuspend = async (userId: number, isSuspended: boolean) => {
+    setSuspendingId(userId);
+    try {
+      await customFetch(`/api/admin/users/${userId}/suspend`, {
+        method: isSuspended ? "DELETE" : "POST",
+      });
+      toast({ title: isSuspended ? t("toasts.unsuspended") : t("toasts.suspended") });
+      refresh();
+    } catch {
+      toast({ title: t("toasts.suspendFailed"), variant: "destructive" });
+    } finally {
+      setSuspendingId(null);
+    }
   };
 
   return (
@@ -211,7 +230,7 @@ function UsersPanel() {
                     )}
                   </TableCell>
                   <TableCell className="text-end">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
                       {u.isPro ? (
                         <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onDeactivate(u.id)}>
                           <Crown className="w-3 h-3 me-1" /> {t("users.deactivatePro")}
@@ -224,6 +243,27 @@ function UsersPanel() {
                       {!u.isAdmin && (
                         <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onPromote(u.id)}>
                           <UserCog className="w-3 h-3 me-1" /> {t("users.makeAdmin")}
+                        </Button>
+                      )}
+                      {u.status === "suspended" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none font-mono text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
+                          disabled={suspendingId === u.id}
+                          onClick={() => onSuspend(u.id, true)}
+                        >
+                          <CheckCircle className="w-3 h-3 me-1" /> {t("users.unsuspend")}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none font-mono text-xs h-7 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                          disabled={suspendingId === u.id}
+                          onClick={() => onSuspend(u.id, false)}
+                        >
+                          <Ban className="w-3 h-3 me-1" /> {t("users.suspend")}
                         </Button>
                       )}
                     </div>

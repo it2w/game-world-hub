@@ -19,6 +19,8 @@
     "activatePro": "تفعيل Pro",
     "deactivatePro": "إلغاء Pro",
     "makeAdmin": "جعله مديرًا",
+    "suspend": "إيقاف",
+    "unsuspend": "رفع الإيقاف",
     "empty": "لم يُعثر على مستخدمين."
   },
   "codes": {
@@ -58,6 +60,9 @@
     "codeCreated": "تم إنشاء كود التفعيل ونسخه.",
     "codeCreateFailed": "تعذّر إنشاء الكود.",
     "codeDisabled": "تم تعطيل كود التفعيل.",
-    "codeDisableFailed": "تعذّر تعطيل الكود."
+    "codeDisableFailed": "تعذّر تعطيل الكود.",
+    "suspended": "تم إيقاف المستخدم.",
+    "unsuspended": "تم رفع إيقاف المستخدم.",
+    "suspendFailed": "تعذّر تحديث حالة الإيقاف."
   }
 }

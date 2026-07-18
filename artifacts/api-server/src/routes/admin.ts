@@ -84,6 +84,24 @@ router.delete("/admin/users/:userId/pro", async (req, res): Promise<void> => {
   res.status(200).json({ ok: true });
 });
 
+router.post("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
+  const userId = Number(req.params.userId);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set({ status: "suspended" }).where(eq(usersTable.id, userId));
+  logger.info({ userId, by: req.adminUser?.id }, "admin: suspended user");
+  res.status(200).json({ ok: true });
+});
+
+router.delete("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
+  const userId = Number(req.params.userId);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set({ status: "offline" }).where(eq(usersTable.id, userId));
+  logger.info({ userId, by: req.adminUser?.id }, "admin: unsuspended user");
+  res.status(200).json({ ok: true });
+});
+
 router.post("/admin/users/:userId/admin", async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);

@@ -128,6 +128,7 @@ vi.mock("@workspace/api-client-react", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: h.invalidateQueries }),
+  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 vi.mock("wouter", () => ({

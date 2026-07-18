@@ -20,6 +20,7 @@ import {
   conversationsTable,
   conversationParticipantsTable,
   messagesTable,
+  messageDeletionsTable,
 } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
@@ -171,12 +172,17 @@ describe("DELETE /conversations/:conversationId/messages/:messageId", () => {
     );
     assert.equal(res.status, 204, "owner should be able to delete their message");
 
-    // Verify it's gone from the DB
-    const rows = await db
+    // The implementation is a per-user soft-delete: the message row stays in
+    // messagesTable but a deletion record is created in messageDeletionsTable.
+    const deletions = await db
       .select()
-      .from(messagesTable)
-      .where(eq(messagesTable.id, msgId));
-    assert.equal(rows.length, 0, "message should be removed from the DB");
+      .from(messageDeletionsTable)
+      .where(and(eq(messageDeletionsTable.messageId, msgId), eq(messageDeletionsTable.userId, senderUser)));
+    assert.equal(deletions.length, 1, "a deletion record should be created for the sender");
+
+    // Clean up the deletion record and message
+    await db.delete(messageDeletionsTable).where(and(eq(messageDeletionsTable.messageId, msgId), eq(messageDeletionsTable.userId, senderUser)));
+    await db.delete(messagesTable).where(eq(messagesTable.id, msgId));
   });
 
   test("non-owner cannot delete another user's message", async () => {

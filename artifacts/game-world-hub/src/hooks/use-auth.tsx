@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSuspended: boolean;
   login: (token: string) => void;
   logout: () => void;
 };
@@ -14,6 +15,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
+  isSuspended: false,
   login: () => {},
   logout: () => {},
 });
@@ -22,9 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const [token, setToken] = useState<string | null>(localStorage.getItem("gwh_token"));
+  const [isSuspended, setIsSuspended] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: user, isLoading, isError } = useGetMe({
+  const { data: user, isLoading, isError, error } = useGetMe({
     query: {
       enabled: !!token,
       retry: false,
@@ -34,6 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!user;
 
+  // Detect suspension: the API returns 403 { error: "suspended" } via requireAuth
+  useEffect(() => {
+    if (isError && error) {
+      const err = error as { status?: number; data?: { error?: string } };
+      if (err.status === 403 && err.data?.error === "suspended") {
+        setIsSuspended(true);
+        return;
+      }
+    }
+    setIsSuspended(false);
+  }, [isError, error]);
+
   useEffect(() => {
     // "/" is the public landing page for guests; signed-in users see the dashboard there.
     // "/owner" is the hidden owner panel — it manages its own auth, never redirected away.
@@ -42,12 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!token) {
       setLocation("/login");
-    } else if (isError) {
+    } else if (isError && !isSuspended) {
       localStorage.removeItem("gwh_token");
       setToken(null);
       setLocation("/login");
     }
-  }, [token, isError, location, setLocation]);
+  }, [token, isError, isSuspended, location, setLocation]);
 
   // Keep Electron's main process in sync with the current user status
   useEffect(() => {
@@ -85,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading: isLoading && !!token, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading: isLoading && !!token, isSuspended, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

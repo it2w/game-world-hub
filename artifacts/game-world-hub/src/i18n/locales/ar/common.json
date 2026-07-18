@@ -6,7 +6,10 @@
     "english": "English"
   },
   "shell": {
-    "initializing": "جارٍ تشغيل الأنظمة الأساسية..."
+    "initializing": "جارٍ تشغيل الأنظمة الأساسية...",
+    "suspended": "الحساب موقوف",
+    "suspendedDesc": "تم إيقاف حسابك. يُرجى التواصل مع الدعم إذا كنت تعتقد أن هذا خطأ.",
+    "suspendedLogout": "تسجيل الخروج"
   },
   "topBar": {
     "systemOnline": "النظام متصل",

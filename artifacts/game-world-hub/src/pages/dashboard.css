@@ -181,26 +181,26 @@
 .trn-join-btn--done { color:#000!important; }
 
 /* ── Friends Grid ─────────────────────────────────────────────────────────────── */
-.friends-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px;padding:10px; }
+.friends-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:12px; }
 .fc { position:relative;background:#0f0f0f;border:1px solid #1e1e1e;display:flex;flex-direction:column;align-items:center;cursor:pointer;overflow:hidden;transition:border-color .2s,transform .15s; }
 .fc:hover,.fc--hov { border-color:var(--fc);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.7); }
-.fc-top { height:68px;width:100%;position:relative;display:flex;align-items:flex-start;justify-content:flex-end;padding:5px 6px;flex-shrink:0; }
-.fc-rank-tag { font-size:7px;font-weight:900;letter-spacing:1px;border:1px solid;padding:2px 4px; }
-.fc-av-wrap { position:relative;margin-top:-24px;z-index:2; }
-.fc-av { width:54px;height:54px;border-radius:50%;background:#1a1a1a;border:2px solid;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:21px;color:#fff;transition:box-shadow .2s;overflow:hidden; }
+.fc-top { height:82px;width:100%;position:relative;display:flex;align-items:flex-start;justify-content:flex-end;padding:6px 7px;flex-shrink:0; }
+.fc-rank-tag { font-size:8px;font-weight:900;letter-spacing:1px;border:1px solid;padding:2px 5px; }
+.fc-av-wrap { position:relative;margin-top:-28px;z-index:2; }
+.fc-av { width:64px;height:64px;border-radius:50%;background:#1a1a1a;border:3px solid;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:25px;color:#fff;transition:box-shadow .2s;overflow:hidden; }
 .fc-av img { width:100%;height:100%;object-fit:cover; }
-.fc-dot { width:11px;height:11px;border-radius:50%;position:absolute;bottom:2px;right:2px;border:2px solid #0f0f0f; }
+.fc-dot { width:13px;height:13px;border-radius:50%;position:absolute;bottom:2px;right:2px;border:2px solid #0f0f0f; }
 .fc-dot--online { background:#22C55E;box-shadow:0 0 6px #22C55E; }
 .fc-dot--away   { background:#F59E0B; }
 .fc-dot--busy   { background:#EF4444; }
 .fc-dot--offline { background:#333; }
-.fc-info { text-align:center;padding:6px 8px 2px;width:100%; }
-.fc-name { font-size:12px;font-weight:700;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.fc-user { font-size:9px;color:#555;margin-top:2px; }
-.fc-game { font-size:9px;margin-top:2px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.fc-idle { font-size:9px;color:#444;text-transform:uppercase;letter-spacing:1px;margin-top:2px; }
-.fc-actions { display:flex;gap:4px;padding:7px 7px 9px;width:100%;border-top:1px solid #1a1a1a;margin-top:6px; }
-.fc-act { flex:1;background:transparent;border:1px solid;font-family:inherit;font-size:9px;font-weight:700;padding:5px 2px;cursor:pointer;transition:background .15s;text-align:center; }
+.fc-info { text-align:center;padding:8px 10px 2px;width:100%; }
+.fc-name { font-size:13px;font-weight:700;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.fc-user { font-size:10px;color:#555;margin-top:3px; }
+.fc-game { font-size:10px;margin-top:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.fc-idle { font-size:10px;color:#444;text-transform:uppercase;letter-spacing:1px;margin-top:3px; }
+.fc-actions { display:flex;gap:4px;padding:8px 8px 10px;width:100%;border-top:1px solid #1a1a1a;margin-top:8px; }
+.fc-act { flex:1;background:transparent;border:1px solid;font-family:inherit;font-size:10px;font-weight:700;padding:6px 2px;cursor:pointer;transition:background .15s;text-align:center; }
 .fc-act:hover { background:rgba(255,255,255,.06); }
 
 /* ── Leaderboard ──────────────────────────────────────────────────────────────── */

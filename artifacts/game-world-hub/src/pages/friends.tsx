@@ -206,39 +206,39 @@ export default function Friends() {
                     >
                       {/* banner + avatar header */}
                       <Link href={`/profile/${f.id}`} className="block">
-                        {/* banner */}
-                        <div className="relative h-[76px] overflow-hidden">
-                          {(f as any).profileBgUrl && (
-                            <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                          )}
-                          {(f as any).bannerUrl ? (
-                            <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
-                          ) : (
-                            !((f as any).profileBgUrl) && (
-                              <div
-                                className="w-full h-full"
-                                style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.16) 0%, hsl(var(--primary)/0.03) 100%)" }}
-                              />
-                            )
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/10 to-transparent" />
-                        </div>
+                        {/* banner with avatar absolutely anchored — RTL-safe */}
+                        <div className="relative h-[72px] overflow-visible">
+                          <div className="h-full overflow-hidden">
+                            {(f as any).profileBgUrl && (
+                              <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            )}
+                            {(f as any).bannerUrl ? (
+                              <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
+                            ) : (
+                              !((f as any).profileBgUrl) && (
+                                <div
+                                  className="w-full h-full"
+                                  style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
+                                />
+                              )
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-card/20 to-transparent" />
+                          </div>
 
-                        {/* avatar + badges row */}
-                        <div className="px-4 -mt-7 flex items-end gap-3">
-                          <div className="relative shrink-0">
+                          {/* avatar — absolute bottom-start, half-overlapping banner */}
+                          <div className="absolute bottom-0 translate-y-1/2 start-4 z-10">
                             {f.avatarUrl ? (
                               <img
                                 src={f.avatarUrl}
                                 alt=""
                                 className="w-14 h-14 object-cover rounded-full ring-[3px] ring-card border-2"
-                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.4)" }}
+                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
                               />
                             ) : (
                               <div
                                 className="w-14 h-14 rounded-full ring-[3px] ring-card border-2 flex items-center justify-center font-mono font-bold text-xl"
                                 style={{
-                                  borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.4)",
+                                  borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)",
                                   background: isOnline ? "hsl(var(--primary)/0.15)" : "hsl(var(--muted))",
                                 }}
                               >
@@ -247,16 +247,22 @@ export default function Friends() {
                             )}
                             <StatusBadge status={f.status} className="absolute -bottom-1 -end-1" />
                           </div>
-                          <div className="flex items-center gap-1.5 pb-1.5">
-                            {f.tier && <TierPip tier={f.tier} />}
-                            {f.isPro && <ProBadge size="sm" />}
-                          </div>
+
+                          {/* Pro badge top-end */}
+                          {f.isPro && (
+                            <div className="absolute top-2 end-2 z-10">
+                              <ProBadge size="sm" />
+                            </div>
+                          )}
                         </div>
 
-                        {/* info */}
-                        <div className="px-4 pb-3 pt-2">
-                          <div className="font-bold text-base truncate leading-tight hover:text-primary transition-colors">
-                            {f.displayName}
+                        {/* info — pt accounts for avatar overlap (h-14/2 = 28px) */}
+                        <div className="pt-9 px-4 pb-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-bold text-base truncate leading-tight hover:text-primary transition-colors">
+                              {f.displayName}
+                            </span>
+                            {f.tier && <TierPip tier={f.tier} />}
                           </div>
                           <div className="text-[11px] text-muted-foreground font-mono mt-0.5">@{f.username}</div>
                           {f.currentGame ? (

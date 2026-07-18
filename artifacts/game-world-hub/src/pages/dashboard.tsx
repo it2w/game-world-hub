@@ -175,65 +175,51 @@ export default function Dashboard() {
                     return (
                       <div
                         key={entry.id}
-                        className="group relative flex flex-col border border-border bg-background hover:border-primary/40 transition-all duration-200 overflow-hidden"
+                        className="group relative flex flex-col border border-border bg-card hover:border-primary/40 transition-all duration-200 overflow-hidden"
                       >
-                        {/* profile link area */}
-                        <Link href={`/profile/${f.id}`} className="flex flex-col flex-1">
-                          {/* banner */}
-                          <div className="relative h-[60px] overflow-hidden shrink-0">
-                            {(f as any).profileBgUrl && (
-                              <img src={(f as any).profileBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                            )}
-                            {(f as any).bannerUrl ? (
-                              <img src={(f as any).bannerUrl} alt="" className="relative w-full h-full object-cover z-[1]" />
+                        {/* top accent strip — banner/bg image or gradient */}
+                        <div className="h-1.5 shrink-0 w-full" style={{
+                          background: (f as any).profileFrameColor
+                            ? (f as any).profileFrameColor
+                            : "hsl(var(--primary)/0.35)",
+                        }} />
+
+                        {/* profile link */}
+                        <Link href={`/profile/${f.id}`} className="flex items-center gap-3 p-3 flex-1 min-w-0">
+                          {/* avatar */}
+                          <div className="relative shrink-0">
+                            {f.avatarUrl ? (
+                              <img
+                                src={f.avatarUrl}
+                                alt=""
+                                className="w-11 h-11 object-cover rounded-full border-2"
+                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border))" }}
+                              />
                             ) : (
-                              !((f as any).profileBgUrl) && (
-                                <div
-                                  className="w-full h-full"
-                                  style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.18) 0%, hsl(var(--primary)/0.04) 100%)" }}
-                                />
-                              )
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
-                            {f.isPro && (
-                              <div className="absolute top-1.5 end-1.5">
-                                <ProBadge size="sm" />
+                              <div
+                                className="w-11 h-11 rounded-full border-2 bg-muted flex items-center justify-center font-mono font-bold text-base"
+                                style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border))" }}
+                              >
+                                {f.displayName.charAt(0).toUpperCase()}
                               </div>
                             )}
-                          </div>
-
-                          {/* avatar — overlaps banner */}
-                          <div className="px-3 -mt-5">
-                            <div className="relative inline-block">
-                              {f.avatarUrl ? (
-                                <img
-                                  src={f.avatarUrl}
-                                  alt=""
-                                  className="w-10 h-10 object-cover rounded-full ring-[3px] ring-background border-2"
-                                  style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
-                                />
-                              ) : (
-                                <div
-                                  className="w-10 h-10 rounded-full ring-[3px] ring-background border-2 bg-muted flex items-center justify-center font-mono font-bold text-sm"
-                                  style={{ borderColor: (f as any).profileFrameColor ?? "hsl(var(--border)/0.5)" }}
-                                >
-                                  {f.displayName.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <StatusBadge status={f.status} className="absolute -bottom-0.5 -end-0.5 scale-90" />
-                            </div>
+                            <StatusBadge status={f.status} className="absolute -bottom-0.5 -end-0.5" />
                           </div>
 
                           {/* info */}
-                          <div className="px-3 pb-3 pt-1.5">
-                            <div className="font-bold text-sm truncate leading-tight">{f.displayName}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-bold text-sm truncate leading-tight">{f.displayName}</span>
+                              {f.isPro && <ProBadge size="sm" />}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
                             {f.currentGame ? (
-                              <div className="text-[10px] text-primary font-mono truncate flex items-center gap-1 mt-1">
+                              <div className="text-[10px] text-primary font-mono truncate flex items-center gap-1 mt-0.5">
                                 <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
                                 {f.currentGame}
                               </div>
                             ) : (
-                              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">
+                              <div className="text-[10px] text-muted-foreground font-mono uppercase mt-0.5 tracking-wider">
                                 {f.status}
                               </div>
                             )}
@@ -242,7 +228,6 @@ export default function Dashboard() {
 
                         {/* action bar */}
                         {isConfirmingBlock ? (
-                          /* block confirm */
                           <div className="flex items-center border-t border-border bg-destructive/10">
                             <span className="flex-1 text-[10px] text-destructive font-mono px-2 leading-tight">
                               {t("network.confirmBlock")}
@@ -264,9 +249,8 @@ export default function Dashboard() {
                           </div>
                         ) : (
                           <div className="flex border-t border-border">
-                            {/* voice call */}
                             <button
-                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-e border-border"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-e border-border text-[9px] font-mono uppercase tracking-wider"
                               title={activeRoom ? t("network.leaveFirst") : t("network.call")}
                               disabled={!!activeRoom}
                               onClick={(e) => {
@@ -274,30 +258,28 @@ export default function Dashboard() {
                                 callUser({ userId: f.id, username: f.username, displayName: f.displayName, avatarUrl: f.avatarUrl ?? null });
                               }}
                             >
-                              <Phone className="w-3.5 h-3.5" />
-                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.call")}</span>
+                              <Phone className="w-3 h-3" />
+                              {t("network.call")}
                             </button>
-                            {/* DM */}
                             <button
-                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border text-[9px] font-mono uppercase tracking-wider"
                               title={t("network.openChat")}
                               onClick={(e) => openDm(e, f.id)}
                               disabled={openingDm === f.id}
                             >
                               {openingDm === f.id
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                : <MessageSquare className="w-3.5 h-3.5" />
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <MessageSquare className="w-3 h-3" />
                               }
-                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.chat")}</span>
+                              {t("network.chat")}
                             </button>
-                            {/* block */}
                             <button
-                              className="flex-1 flex flex-col items-center gap-1 py-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors text-[9px] font-mono uppercase tracking-wider"
                               title={t("network.block")}
                               onClick={(e) => handleBlock(e, f.id)}
                             >
-                              <ShieldOff className="w-3.5 h-3.5" />
-                              <span className="text-[9px] font-mono uppercase tracking-wider">{t("network.block")}</span>
+                              <ShieldOff className="w-3 h-3" />
+                              {t("network.block")}
                             </button>
                           </div>
                         )}

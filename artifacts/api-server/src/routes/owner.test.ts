@@ -423,6 +423,18 @@ describe("POST /owner/users/bulk", () => {
     assert.strictEqual(u?.status, "offline");
   });
 
+  test("unsuspend action — previously suspended user's token is immediately accepted (200)", async () => {
+    /* bulkUserId was suspended by the earlier test and just unsuspended above.
+       Sign a JWT for them and confirm that requireAuth no longer rejects it —
+       the middleware re-reads the DB on every request, so the lift takes effect
+       on the very next call without any cache invalidation step. */
+    const userToken = signToken({ userId: bulkUserId, username: `own_bulk_${SUFFIX}` });
+    const res = await fetch(`${baseUrl}/users/search?q=x`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert.strictEqual(res.status, 200, "unsuspended user must be accepted with 200 on the very next request");
+  });
+
   test("activate_pro action — succeeded array contains userId", async () => {
     const r = await post("/owner/users/bulk", { userIds: [bulkUserId], action: "activate_pro", durationDays: 7 }, ownerToken);
     assert.strictEqual(r.status, 200);

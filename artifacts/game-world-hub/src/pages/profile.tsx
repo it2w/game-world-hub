@@ -331,14 +331,14 @@ export default function Profile() {
 
         </div>
 
-        {/* AVATAR ROW — overlaps banner */}
-        <div className="px-6 -mt-14 relative z-10 flex items-end gap-5">
+        {/* AVATAR + STATUS TEXT ROW — overlaps banner */}
+        <div className="px-6 -mt-14 relative z-10 flex items-end gap-4">
+          {/* Avatar */}
           <div
             className={`relative shrink-0 group${isOwner ? " cursor-pointer" : ""}`}
             onClick={() => { if (isOwner) avatarUploadRef.current?.click(); }}
             title={isOwner ? t("uploadAvatar") : undefined}
           >
-            {/* Avatar circle — Pro frame color or default card border */}
             <div
               className="w-28 h-28 rounded-full border-4 bg-muted overflow-hidden flex items-center justify-center"
               style={{ borderColor: user.profileFrameColor ?? undefined }}
@@ -350,7 +350,6 @@ export default function Profile() {
                   {user.displayName.charAt(0).toUpperCase()}
                 </span>
               )}
-              {/* Upload overlay (owner, on hover) */}
               {isOwner && (
                 <div className="absolute inset-0 rounded-full bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                   {isUploading ? (
@@ -361,7 +360,6 @@ export default function Profile() {
                 </div>
               )}
             </div>
-            {/* Delete avatar button — separate corner button, stops propagation */}
             {isOwner && user.avatarUrl && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleDeleteAvatar(); }}
@@ -373,7 +371,7 @@ export default function Profile() {
                 <X className="w-3 h-3" />
               </button>
             )}
-            {/* Status pill — fully OUTSIDE the avatar, below it */}
+            {/* Status pill below avatar */}
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-full whitespace-nowrap shadow-sm">
               <StatusBadge status={user.status} className="w-2 h-2 shrink-0" />
               <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
@@ -381,18 +379,19 @@ export default function Profile() {
               </span>
             </div>
           </div>
-        </div>
 
-        {/* IDENTITY — below banner, above name */}
-        <div className="px-6 pt-6">
-          {/* Custom Status Text — above name/username */}
+          {/* Status text bubble — beside avatar, bottom-aligned */}
           {user.statusText && (
-            <div className="mb-3">
-              <div className="inline-block bg-muted border border-border px-3 py-1.5 rounded-xl text-sm font-mono text-foreground/90 max-w-sm">
+            <div className="mb-1 max-w-xs">
+              <div className="bg-muted border border-border px-3 py-2 rounded-xl rounded-bl-none text-sm font-mono text-foreground/90 break-words">
                 {user.statusText}
               </div>
             </div>
           )}
+        </div>
+
+        {/* NAME + USERNAME + BUTTONS — below avatar row */}
+        <div className="px-6 pt-6">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
               {user.displayName}

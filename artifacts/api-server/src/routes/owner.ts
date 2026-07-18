@@ -73,6 +73,41 @@ async function verifyOwnerResetCode(ownerId: number, code: string): Promise<bool
   return true;
 }
 
+/* ─── Login brute-force protection ──────────────────────────────────────── */
+
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS    = 15 * 60 * 1000; // 15 minutes
+
+interface LoginBucket { count: number; windowStart: number }
+const loginBuckets = new Map<string, LoginBucket>();
+
+/** Exposed for tests to reset state between runs. */
+export function _resetLoginBucket(key: string): void {
+  loginBuckets.delete(key);
+}
+
+/**
+ * Returns true if the request is allowed (under the limit).
+ * Increments the failure counter — call only on failed attempts.
+ */
+function recordFailedLogin(key: string): { allowed: boolean } {
+  const now = Date.now();
+  const bucket = loginBuckets.get(key);
+  if (!bucket || now - bucket.windowStart > LOGIN_WINDOW_MS) {
+    loginBuckets.set(key, { count: 1, windowStart: now });
+    return { allowed: true };
+  }
+  bucket.count += 1;
+  return { allowed: bucket.count <= LOGIN_MAX_ATTEMPTS };
+}
+
+function isLoginBlocked(key: string): boolean {
+  const now = Date.now();
+  const bucket = loginBuckets.get(key);
+  if (!bucket || now - bucket.windowStart > LOGIN_WINDOW_MS) return false;
+  return bucket.count >= LOGIN_MAX_ATTEMPTS;
+}
+
 /* ─── Auth ───────────────────────────────────────────────────────────────── */
 
 router.post("/owner/login", async (req, res): Promise<void> => {
@@ -80,10 +115,25 @@ router.post("/owner/login", async (req, res): Promise<void> => {
   if (!username || !password || typeof username !== "string" || typeof password !== "string") {
     res.status(400).json({ error: "Username and password are required" }); return;
   }
+
+  const key = username.trim().toLowerCase();
+
+  if (isLoginBlocked(key)) {
+    res.status(429).json({ error: "Too many failed login attempts. Please try again later." }); return;
+  }
+
   const owner = await findOwnerByUsername(username.trim());
   if (!owner || !(await verifyPassword(password, owner.passwordHash))) {
+    const { allowed } = recordFailedLogin(key);
+    if (!allowed) {
+      res.status(429).json({ error: "Too many failed login attempts. Please try again later." }); return;
+    }
     res.status(401).json({ error: "Invalid credentials" }); return;
   }
+
+  // Successful login — clear the failure bucket.
+  loginBuckets.delete(key);
+
   const token = signOwnerToken({ ownerId: owner.id, username: owner.username, purpose: "owner" });
   logger.info({ ownerId: owner.id }, "owner: logged in");
   res.json({ token, owner: { id: owner.id, username: owner.username, email: owner.email ?? null } });

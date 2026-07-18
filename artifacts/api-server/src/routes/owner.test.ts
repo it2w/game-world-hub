@@ -20,6 +20,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
 import { signToken } from "../middlewares/auth";
+import { _resetLoginBucket } from "./owner";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -697,5 +698,71 @@ describe("Owner reset-password brute-force lockout", () => {
     assert.strictEqual(owner?.hash, null, "passwordResetCodeHash must be null after successful reset");
     assert.strictEqual(owner?.expiresAt, null, "passwordResetExpiresAt must be null after successful reset");
     assert.strictEqual(owner?.attempts, 0, "passwordResetAttempts must be reset to 0 after successful reset");
+  });
+});
+
+/* ── Owner login brute-force lockout ────────────────────────────────────── */
+
+describe("POST /owner/login brute-force lockout", () => {
+  /**
+   * A dedicated super_admin row for these tests.  passwordHash is set to a
+   * non-bcrypt value ("x") so every login attempt fails with invalid
+   * credentials — which is exactly what we need to exercise the lockout.
+   */
+  let loginOwnerId = 0;
+  let loginOwnerUsername = "";
+
+  before(async () => {
+    loginOwnerUsername = `owner_lk_${SUFFIX}`;
+    const [row] = await db
+      .insert(superAdminsTable)
+      .values({ username: loginOwnerUsername, passwordHash: "x" })
+      .returning({ id: superAdminsTable.id });
+    loginOwnerId = row.id;
+    // Reset the in-memory bucket in case a previous test run left state.
+    _resetLoginBucket(loginOwnerUsername.toLowerCase());
+  });
+
+  after(async () => {
+    await db.delete(superAdminsTable).where(eq(superAdminsTable.id, loginOwnerId)).catch(() => {});
+    _resetLoginBucket(loginOwnerUsername.toLowerCase());
+  });
+
+  test("first 5 failed attempts return 401 (not yet locked)", async () => {
+    for (let i = 0; i < 5; i++) {
+      const r = await post("/owner/login", { username: loginOwnerUsername, password: "wrong-password" });
+      assert.strictEqual(
+        r.status,
+        401,
+        `attempt ${i + 1}: expected 401 before lockout, got ${r.status}: ${JSON.stringify(r.body)}`,
+      );
+    }
+  });
+
+  test("6th failed attempt within the window returns 429", async () => {
+    // The previous test consumed 5 attempts; the 6th must be blocked.
+    const r = await post("/owner/login", { username: loginOwnerUsername, password: "wrong-password" });
+    assert.strictEqual(r.status, 429, `expected 429 on 6th attempt, got ${r.status}: ${JSON.stringify(r.body)}`);
+    assert.ok(
+      typeof (r.body as { error?: string }).error === "string",
+      "response must include an error message",
+    );
+  });
+
+  test("subsequent attempts while locked also return 429", async () => {
+    const r = await post("/owner/login", { username: loginOwnerUsername, password: "wrong-password" });
+    assert.strictEqual(r.status, 429, `expected 429 while locked, got ${r.status}`);
+  });
+
+  test("missing password returns 400 even while locked (input validation runs first)", async () => {
+    const r = await post("/owner/login", { username: loginOwnerUsername });
+    assert.strictEqual(r.status, 400);
+  });
+
+  test("lockout is per-username — a different username is not affected", async () => {
+    // Use an unknown username; the server should still check and return 401
+    // (not 429) because the rate-limiter key is fresh.
+    const r = await post("/owner/login", { username: `unknown_user_${SUFFIX}`, password: "wrong-password" });
+    assert.notStrictEqual(r.status, 429, "an unrelated username must not be locked out");
   });
 });

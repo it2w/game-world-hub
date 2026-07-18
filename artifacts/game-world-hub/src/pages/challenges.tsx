@@ -214,7 +214,7 @@ export default function ChallengesPage() {
           <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase flex items-center gap-3">
             <Swords className="w-8 h-8 text-primary" /> التحديات
           </h1>
-          <p className="text-xs text-muted-foreground font-mono mt-1 uppercase tracking-widest">FRIEND CHALLENGES — WEEKLY COMPETITIONS</p>
+          <p className="text-xs text-muted-foreground font-mono mt-1 tracking-widest">تحديات الأصدقاء — منافسات أسبوعية</p>
         </div>
         <Button className="font-mono rounded-none" onClick={() => setNewOpen(true)}>
           <Plus className="w-4 h-4 me-1" /> تحدي جديد

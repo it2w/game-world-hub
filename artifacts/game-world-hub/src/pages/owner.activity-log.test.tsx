@@ -1,27 +1,18 @@
 import { describe, test, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ACTION_LABELS, ACTION_COLOR } from "./owner";
+import { ACTION_LABELS, ACTION_COLOR, ActivityLogRow } from "./owner";
 
 /**
- * Confirms that the Activity Log renders a `reset_bypass_attempt` log entry
- * with the human-readable label "⚠ Password reset probed", the amber colour
- * class (text-amber-400), and the detail field (IP address).
+ * Confirms that the Activity Log renders log entries correctly using the
+ * real production ActivityLogRow component exported from owner.tsx.
  *
- * These tests use the exported ACTION_LABELS / ACTION_COLOR maps and reproduce
- * the exact markup from LogTab's log-row template — keeping the test focused
- * and free from Owner's authentication / fetch side-effects.
+ * Covers three cases:
+ *   1. A known action (reset_bypass_attempt) — human-readable label + amber colour
+ *   2. Bulk security actions — correct labels and colour classes
+ *   3. An unknown / future action — raw action string + fallback text-foreground colour
  */
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ACTION        = "reset_bypass_attempt";
-const BYPASS_LABEL  = "⚠ Password reset probed";
-const AMBER_CLASS   = "text-amber-400";
-const DETAIL_IP     = "192.168.1.42";
-
-// ─── Minimal replica of the LogTab log-row markup ────────────────────────────
-// This mirrors the JSX in LogTab (owner.tsx ~line 1380-1399) so any
-// divergence in the real component would also break this test.
+// ─── Shared LogRow type (mirrors owner.tsx interface) ─────────────────────────
 
 interface LogRow {
   id: number;
@@ -34,42 +25,16 @@ interface LogRow {
   createdAt: string;
 }
 
-function ActivityLogEntry({ log }: { log: LogRow }) {
-  return (
-    <div
-      key={log.id}
-      className="flex items-start gap-3 border border-border/50 bg-background px-3 py-2.5 hover:border-border transition-colors"
-    >
-      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary/60" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`font-mono text-xs font-semibold ${
-              ACTION_COLOR[log.action] ?? "text-foreground"
-            }`}
-          >
-            {ACTION_LABELS[log.action] ?? log.action}
-          </span>
-          {log.targetName && (
-            <span className="font-mono text-[11px] text-muted-foreground">
-              → @{log.targetName}
-            </span>
-          )}
-          {log.detail && (
-            <span className="font-mono text-[10px] text-muted-foreground/70 border border-border/50 px-1.5 py-0.5">
-              {log.detail}
-            </span>
-          )}
-        </div>
-        <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
-          by {log.ownerName} · {new Date(log.createdAt).toLocaleDateString()}
-        </div>
-      </div>
-    </div>
-  );
-}
+// Minimal no-op translation function — the log-row content under test doesn't
+// use translated strings (labels come from ACTION_LABELS map, not i18n).
+const t = (k: string) => k;
 
-// ─── Shared test fixture ──────────────────────────────────────────────────────
+// ─── Known action: reset_bypass_attempt ──────────────────────────────────────
+
+const ACTION        = "reset_bypass_attempt";
+const BYPASS_LABEL  = "⚠ Password reset probed";
+const AMBER_CLASS   = "text-amber-400";
+const DETAIL_IP     = "192.168.1.42";
 
 const BYPASS_LOG_ROW: LogRow = {
   id: 101,
@@ -81,8 +46,6 @@ const BYPASS_LOG_ROW: LogRow = {
   ownerName: "owner",
   createdAt: new Date().toISOString(),
 };
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 // ─── Bulk-action parameterised test cases ────────────────────────────────────
 
@@ -130,18 +93,18 @@ describe("ActivityLog — bulk security action entries", () => {
       });
 
       test("renders the human-readable label text in the log row", () => {
-        render(<ActivityLogEntry log={logRow} />);
+        render(<ActivityLogRow log={logRow} t={t} />);
         expect(screen.getByText(label)).toBeInTheDocument();
       });
 
       test(`label element carries the correct colour class (${colorClass})`, () => {
-        render(<ActivityLogEntry log={logRow} />);
+        render(<ActivityLogRow log={logRow} t={t} />);
         const labelEl = screen.getByText(label);
         expect(labelEl).toHaveClass(colorClass);
       });
 
       test("renders the detail field", () => {
-        render(<ActivityLogEntry log={logRow} />);
+        render(<ActivityLogRow log={logRow} t={t} />);
         expect(screen.getByText(detail)).toBeInTheDocument();
       });
     });
@@ -158,18 +121,60 @@ describe("ActivityLog — reset_bypass_attempt entry", () => {
   });
 
   test("renders the human-readable label text in the log row", () => {
-    render(<ActivityLogEntry log={BYPASS_LOG_ROW} />);
+    render(<ActivityLogRow log={BYPASS_LOG_ROW} t={t} />);
     expect(screen.getByText(BYPASS_LABEL)).toBeInTheDocument();
   });
 
   test("label element carries the amber colour class (text-amber-400)", () => {
-    render(<ActivityLogEntry log={BYPASS_LOG_ROW} />);
+    render(<ActivityLogRow log={BYPASS_LOG_ROW} t={t} />);
     const label = screen.getByText(BYPASS_LABEL);
     expect(label).toHaveClass(AMBER_CLASS);
   });
 
   test("renders the detail field (IP address)", () => {
-    render(<ActivityLogEntry log={BYPASS_LOG_ROW} />);
+    render(<ActivityLogRow log={BYPASS_LOG_ROW} t={t} />);
     expect(screen.getByText(DETAIL_IP)).toBeInTheDocument();
+  });
+});
+
+// ─── Unknown / future action code fallback ────────────────────────────────────
+
+const UNKNOWN_ACTION = "some_future_action";
+
+const UNKNOWN_LOG_ROW: LogRow = {
+  id: 202,
+  action: UNKNOWN_ACTION,
+  targetId: null,
+  targetName: null,
+  detail: null,
+  ownerId: 1,
+  ownerName: "owner",
+  createdAt: new Date().toISOString(),
+};
+
+describe("ActivityLog — unknown / future action code fallback", () => {
+  test("ACTION_LABELS has no entry for an unrecognised action", () => {
+    expect(ACTION_LABELS[UNKNOWN_ACTION]).toBeUndefined();
+  });
+
+  test("ACTION_COLOR has no entry for an unrecognised action", () => {
+    expect(ACTION_COLOR[UNKNOWN_ACTION]).toBeUndefined();
+  });
+
+  test("real ActivityLogRow renders the raw action string when no label is defined", () => {
+    render(<ActivityLogRow log={UNKNOWN_LOG_ROW} t={t} />);
+    expect(screen.getByText(UNKNOWN_ACTION)).toBeInTheDocument();
+  });
+
+  test("real ActivityLogRow applies the fallback colour class (text-foreground) to the label", () => {
+    render(<ActivityLogRow log={UNKNOWN_LOG_ROW} t={t} />);
+    const label = screen.getByText(UNKNOWN_ACTION);
+    expect(label).toHaveClass("text-foreground");
+  });
+
+  test("raw action string displayed is not empty", () => {
+    render(<ActivityLogRow log={UNKNOWN_LOG_ROW} t={t} />);
+    const label = screen.getByText(UNKNOWN_ACTION);
+    expect(label.textContent).not.toBe("");
   });
 });

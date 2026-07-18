@@ -185,6 +185,32 @@ export const ACTION_COLOR: Record<string, string> = {
   bulk_force_logout:    "text-orange-400",
 };
 
+/* ─── Activity Log Row (exported so tests can render the real component) ─── */
+
+export function ActivityLogRow({ log, t }: { log: LogRow; t: (k: string) => string }) {
+  return (
+    <div className="flex items-start gap-3 border border-border/50 bg-background px-3 py-2.5 hover:border-border transition-colors">
+      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary/60" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`font-mono text-xs font-semibold ${ACTION_COLOR[log.action] ?? "text-foreground"}`}>
+            {ACTION_LABELS[log.action] ?? log.action}
+          </span>
+          {log.targetName && (
+            <span className="font-mono text-[11px] text-muted-foreground">→ @{log.targetName}</span>
+          )}
+          {log.detail && (
+            <span className="font-mono text-[10px] text-muted-foreground/70 border border-border/50 px-1.5 py-0.5">{log.detail}</span>
+          )}
+        </div>
+        <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
+          {t("log.by")} {log.ownerName} · {fmtDateTime(log.createdAt)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Root ───────────────────────────────────────────────────────────────── */
 
 export default function Owner() {
@@ -1378,25 +1404,7 @@ function LogTab({ session, t }: { session: OwnerSession; t: (k: string) => strin
       ) : (
         <div className="space-y-1">
           {logs.map((l) => (
-            <div key={l.id} className="flex items-start gap-3 border border-border/50 bg-background px-3 py-2.5 hover:border-border transition-colors">
-              <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary/60" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`font-mono text-xs font-semibold ${ACTION_COLOR[l.action] ?? "text-foreground"}`}>
-                    {ACTION_LABELS[l.action] ?? l.action}
-                  </span>
-                  {l.targetName && (
-                    <span className="font-mono text-[11px] text-muted-foreground">→ @{l.targetName}</span>
-                  )}
-                  {l.detail && (
-                    <span className="font-mono text-[10px] text-muted-foreground/70 border border-border/50 px-1.5 py-0.5">{l.detail}</span>
-                  )}
-                </div>
-                <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
-                  {t("log.by")} {l.ownerName} · {fmtDateTime(l.createdAt)}
-                </div>
-              </div>
-            </div>
+            <ActivityLogRow key={l.id} log={l} t={t} />
           ))}
           {!loading && logs.length < total && (
             <Button variant="outline" className="w-full rounded-none font-mono text-xs mt-2" onClick={loadMore}>

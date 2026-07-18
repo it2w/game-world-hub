@@ -134,6 +134,9 @@ function timeAgo(iso: string | null): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
+  // Security alerts
+  reset_bypass_attempt: "⚠ Password reset probed",
+  // Owner actions
   activate_pro:         "Activated Pro",
   deactivate_pro:       "Deactivated Pro",
   grant_admin:          "Granted Admin",
@@ -157,20 +160,29 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLOR: Record<string, string> = {
-  activate_pro:    "text-yellow-400",
-  deactivate_pro:  "text-orange-400",
-  grant_admin:     "text-purple-400",
-  revoke_admin:    "text-red-400",
-  suspend_user:    "text-red-400",
-  unsuspend_user:  "text-green-400",
-  create_code:     "text-blue-400",
-  disable_code:    "text-muted-foreground",
-  force_logout:    "text-orange-400",
-  set_permissions: "text-violet-400",
-  denylist_add:    "text-red-400",
-  denylist_remove: "text-green-400",
-  update_settings: "text-cyan-400",
-  broadcast:       "text-primary",
+  // Security alerts — always amber to stand out
+  reset_bypass_attempt: "text-amber-400",
+  // Owner actions
+  activate_pro:         "text-yellow-400",
+  deactivate_pro:       "text-orange-400",
+  grant_admin:          "text-purple-400",
+  revoke_admin:         "text-red-400",
+  suspend_user:         "text-red-400",
+  unsuspend_user:       "text-green-400",
+  create_code:          "text-blue-400",
+  disable_code:         "text-muted-foreground",
+  force_logout:         "text-orange-400",
+  set_permissions:      "text-violet-400",
+  denylist_add:         "text-red-400",
+  denylist_remove:      "text-green-400",
+  update_settings:      "text-cyan-400",
+  broadcast:            "text-primary",
+  delete_content:       "text-red-400",
+  bulk_activate_pro:    "text-yellow-400",
+  bulk_deactivate_pro:  "text-orange-400",
+  bulk_suspend:         "text-red-400",
+  bulk_unsuspend:       "text-green-400",
+  bulk_force_logout:    "text-orange-400",
 };
 
 /* ─── Root ───────────────────────────────────────────────────────────────── */

@@ -565,8 +565,19 @@ describe("Owner reset-password brute-force lockout", () => {
 
   const STRONG_NEW_PASSWORD = "Str0ng!NewPassword#Test99";
 
-  /** Helper: request a reset code for the reset owner and return the devCode. */
+  /**
+   * Clear any active reset state for the reset owner, then request a fresh code.
+   * This is necessary because the fix refuses to issue a new code while a
+   * non-expired one is already active (the very bypass we are preventing).
+   * Each test that needs a clean slate calls this instead of the endpoint directly.
+   */
   async function requestCode(): Promise<string> {
+    // Expire any existing code so the endpoint will issue a fresh one.
+    await db
+      .update(superAdminsTable)
+      .set({ passwordResetExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(superAdminsTable.id, resetOwnerId));
+
     const r = await post("/owner/reset-password-request", { username: resetOwnerUsername });
     assert.strictEqual(r.status, 200, `reset-password-request failed: ${JSON.stringify(r.body)}`);
     const body = r.body as { ok: boolean; devCode?: string };
@@ -698,6 +709,55 @@ describe("Owner reset-password brute-force lockout", () => {
     assert.strictEqual(owner?.hash, null, "passwordResetCodeHash must be null after successful reset");
     assert.strictEqual(owner?.expiresAt, null, "passwordResetExpiresAt must be null after successful reset");
     assert.strictEqual(owner?.attempts, 0, "passwordResetAttempts must be reset to 0 after successful reset");
+  });
+
+  // ── 4. Bypass: re-requesting a code must not reset the attempt counter ───
+
+  test("re-requesting a code while one is active does NOT reset the attempt counter", async () => {
+    // Ensure no active code exists (clear state from prior test sub-runs).
+    await db
+      .update(superAdminsTable)
+      .set({ passwordResetCodeHash: null, passwordResetExpiresAt: null, passwordResetAttempts: 0 })
+      .where(eq(superAdminsTable.id, resetOwnerId));
+
+    // Step 1: Issue an initial code.
+    const _firstCode = await requestCode();
+
+    // Step 2: Simulate an attacker exhausting the attempt limit via DB.
+    const MAX_ATTEMPTS = 5;
+    await db
+      .update(superAdminsTable)
+      .set({ passwordResetAttempts: MAX_ATTEMPTS })
+      .where(eq(superAdminsTable.id, resetOwnerId));
+
+    // Step 3: Attacker tries to bypass the lock by requesting a fresh code.
+    //         The endpoint must return silently (ok: true) but NOT issue a new
+    //         code, so the attempt counter remains at MAX_ATTEMPTS.
+    const bypassAttempt = await post("/owner/reset-password-request", { username: resetOwnerUsername });
+    assert.strictEqual(bypassAttempt.status, 200, "re-request should return 200 (silent ok)");
+    const bypassBody = bypassAttempt.body as { ok: boolean; devCode?: string };
+    assert.ok(!bypassBody.devCode, "re-request must NOT return a new devCode while a non-expired code is active");
+
+    // Step 4: Confirm the attempt counter was NOT reset.
+    const [owner] = await db
+      .select({ attempts: superAdminsTable.passwordResetAttempts })
+      .from(superAdminsTable)
+      .where(eq(superAdminsTable.id, resetOwnerId))
+      .limit(1);
+    assert.strictEqual(
+      owner?.attempts,
+      MAX_ATTEMPTS,
+      `attempt counter must remain at ${MAX_ATTEMPTS} after a bypass re-request; got ${owner?.attempts}`,
+    );
+
+    // Step 5: Confirm the lock holds — even with the original valid code, reset
+    //         must be refused because attempts == MAX_ATTEMPTS.
+    const lockCheck = await post("/owner/reset-password", {
+      username: resetOwnerUsername,
+      code: "000000", // any code — lock check happens before bcrypt compare
+      newPassword: STRONG_NEW_PASSWORD,
+    });
+    assert.strictEqual(lockCheck.status, 400, "reset must be refused while attempts == MAX_ATTEMPTS");
   });
 });
 

@@ -178,6 +178,16 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
   const owner = await findOwnerByUsername(username.trim());
   if (!owner) { res.json({ ok: true }); return; }
 
+  // If a non-expired code already exists, do NOT issue a new one.
+  // Issuing a new code would reset passwordResetAttempts to 0, allowing the
+  // brute-force cap to be bypassed by repeatedly requesting fresh codes.
+  const now = new Date();
+  if (owner.passwordResetExpiresAt && owner.passwordResetExpiresAt > now) {
+    // Return silently so the caller can't distinguish "code exists" from "code sent".
+    res.json({ ok: true });
+    return;
+  }
+
   const isProd = process.env.NODE_ENV === "production";
 
   // No email configured — block in prod with a clear message; expose code in dev.

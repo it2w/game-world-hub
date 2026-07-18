@@ -185,6 +185,21 @@ router.post("/owner/reset-password-request", async (req, res): Promise<void> => 
   const now = new Date();
   if (owner.passwordResetExpiresAt && owner.passwordResetExpiresAt > now) {
     // Return silently so the caller can't distinguish "code exists" from "code sent".
+    // But log the probe attempt so the owner has visibility into active attacks.
+    const probeIp = req.ip ?? "unknown";
+    const probeDetail = `username=${owner.username} ip=${probeIp}`;
+    await logOwnerAction(owner.id, owner.username, "reset_bypass_attempt", { detail: probeDetail });
+    logger.warn({ ownerId: owner.id, ip: probeIp }, "owner: reset bypass attempt detected");
+
+    // Send an alert email if the owner has one configured.
+    if (owner.email) {
+      sendEmail({
+        to: owner.email,
+        subject: "Security alert: owner password reset probed",
+        text: `Someone requested a new owner password reset code while one was already active.\n\nDetails:\n  Username: ${owner.username}\n  IP address: ${probeIp}\n  Time: ${new Date().toUTCString()}\n\nIf this was not you, your owner panel may be under attack.`,
+      }).catch((e) => logger.error(e, "owner: failed to send reset probe alert email"));
+    }
+
     res.json({ ok: true });
     return;
   }

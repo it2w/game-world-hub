@@ -57,6 +57,7 @@
     "respond": "RESPOND"
   },
   "toasts": {
+    "signalSentSuccess": "✓ Signal sent — waiting for the host to respond",
     "signalClosed": "Signal closed — this post is no longer open",
     "signalExpired": "Signal expired — this post is no longer accepting responses"
   },

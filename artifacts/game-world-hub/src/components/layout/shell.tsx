@@ -167,6 +167,8 @@ function TopBar() {
       navigate("/friends");
     } else if (n.type === "party_invite" && n.relatedId) {
       navigate(`/party/${n.relatedId}`);
+    } else if (n.type === "lfg_response") {
+      navigate("/lfg");
     }
     setOpen(false);
   };
@@ -206,7 +208,8 @@ function TopBar() {
                     const isClickable = (n.type === "message" && n.relatedId) ||
                       n.type === "challenge_invite" || n.type === "challenge_accepted" || n.type === "challenge_declined" ||
                       n.type === "friend_request" || n.type === "friend_online" ||
-                      (n.type === "party_invite" && n.relatedId);
+                      (n.type === "party_invite" && n.relatedId) ||
+                      n.type === "lfg_response";
                     return (
                       <div
                         key={n.id}

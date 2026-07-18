@@ -543,7 +543,10 @@ export default function Lfg() {
                           respond.mutate(
                             { postId: post.id, data: {} },
                             {
-                              onSuccess: invalidate,
+                              onSuccess: () => {
+                                invalidate();
+                                toast({ title: t("toasts.signalSentSuccess") });
+                              },
                               onError: (err: unknown) => {
                                 const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response?.status;
                                 const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "";

@@ -133,7 +133,7 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-const ACTION_LABELS: Record<string, string> = {
+export const ACTION_LABELS: Record<string, string> = {
   // Security alerts
   reset_bypass_attempt: "⚠ Password reset probed",
   // Owner actions
@@ -159,7 +159,7 @@ const ACTION_LABELS: Record<string, string> = {
   bulk_force_logout:    "Bulk — Force Logout",
 };
 
-const ACTION_COLOR: Record<string, string> = {
+export const ACTION_COLOR: Record<string, string> = {
   // Security alerts — always amber to stand out
   reset_bypass_attempt: "text-amber-400",
   // Owner actions

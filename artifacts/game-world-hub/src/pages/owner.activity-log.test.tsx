@@ -84,6 +84,70 @@ const BYPASS_LOG_ROW: LogRow = {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+// ─── Bulk-action parameterised test cases ────────────────────────────────────
+
+const BULK_CASES = [
+  {
+    action:     "bulk_suspend",
+    label:      "Bulk — Suspended",
+    colorClass: "text-red-400",
+    detail:     "3 users",
+  },
+  {
+    action:     "bulk_force_logout",
+    label:      "Bulk — Force Logout",
+    colorClass: "text-orange-400",
+    detail:     "5 users",
+  },
+  {
+    action:     "bulk_unsuspend",
+    label:      "Bulk — Unsuspended",
+    colorClass: "text-green-400",
+    detail:     "2 users",
+  },
+] as const;
+
+describe("ActivityLog — bulk security action entries", () => {
+  BULK_CASES.forEach(({ action, label, colorClass, detail }) => {
+    const logRow: LogRow = {
+      id: 200,
+      action,
+      targetId: null,
+      targetName: null,
+      detail,
+      ownerId: 1,
+      ownerName: "owner",
+      createdAt: new Date().toISOString(),
+    };
+
+    describe(`action: ${action}`, () => {
+      test("ACTION_LABELS maps to the correct human-readable label", () => {
+        expect(ACTION_LABELS[action]).toBe(label);
+      });
+
+      test("ACTION_COLOR maps to the correct colour class", () => {
+        expect(ACTION_COLOR[action]).toBe(colorClass);
+      });
+
+      test("renders the human-readable label text in the log row", () => {
+        render(<ActivityLogEntry log={logRow} />);
+        expect(screen.getByText(label)).toBeInTheDocument();
+      });
+
+      test(`label element carries the correct colour class (${colorClass})`, () => {
+        render(<ActivityLogEntry log={logRow} />);
+        const labelEl = screen.getByText(label);
+        expect(labelEl).toHaveClass(colorClass);
+      });
+
+      test("renders the detail field", () => {
+        render(<ActivityLogEntry log={logRow} />);
+        expect(screen.getByText(detail)).toBeInTheDocument();
+      });
+    });
+  });
+});
+
 describe("ActivityLog — reset_bypass_attempt entry", () => {
   test("ACTION_LABELS maps reset_bypass_attempt to the human-readable label", () => {
     expect(ACTION_LABELS[ACTION]).toBe(BYPASS_LABEL);

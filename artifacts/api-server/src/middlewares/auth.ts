@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, revokedTokensTable } from "@workspace/db";
 
 const _jwtSecretRaw = process.env.JWT_SECRET;
 if (!_jwtSecretRaw) {
@@ -86,6 +86,26 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: "Invalid or expired token" });
     return;
   }
+  // Defense-in-depth: check the token denylist before the main existence/suspension check.
+  // Tokens for deleted users are inserted here at deletion time. This ensures that even
+  // if the DB existence check below were ever bypassed (e.g. a caching layer), a deleted
+  // user's long-lived JWT is still rejected at the denylist.
+  try {
+    const [denied] = await db
+      .select({ userId: revokedTokensTable.userId })
+      .from(revokedTokensTable)
+      .where(eq(revokedTokensTable.userId, auth.userId))
+      .limit(1);
+    if (denied) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+  } catch {
+    // DB failure — fail closed.
+    res.status(503).json({ error: "Service temporarily unavailable" });
+    return;
+  }
+
   // Check suspension and existence via a lightweight primary-key lookup.
   // Fail CLOSED on any error: a suspended user must never slip through.
   try {

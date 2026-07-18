@@ -23,6 +23,7 @@ import {
   AddProfilePhotoBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { revokedTokensTable } from "@workspace/db";
 import { isBlockedBetween } from "./blocks";
 import { ObjectStorageService, toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -443,11 +444,16 @@ router.delete("/users/me/banner", requireAuth, async (req, res): Promise<void> =
 // DELETE /users/me — permanently deletes the authenticated user's account
 router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
   const userId = req.auth!.userId;
+  // Defense-in-depth: add the user_id to the token denylist BEFORE deleting
+  // the user row. This ensures that any still-valid JWT for this user is
+  // rejected by the denylist check in requireAuth even if the primary DB
+  // existence check were ever bypassed (e.g. by a caching layer). We use
+  // ON CONFLICT DO NOTHING in case of a re-try.
+  await db
+    .insert(revokedTokensTable)
+    .values({ userId })
+    .onConflictDoNothing();
   await db.delete(usersTable).where(eq(usersTable.id, userId));
-  // Session invalidation: this API uses JWT tokens (no server-side sessions).
-  // The requireAuth middleware performs a live DB existence check on every
-  // request, so deleting the user row immediately causes all subsequent
-  // authenticated requests with the same token to receive a 401.
   res.status(204).end();
 });
 

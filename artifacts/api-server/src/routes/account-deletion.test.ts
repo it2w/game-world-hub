@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest, type Server, type IncomingMessage } from "node:http";
 import { AddressInfo } from "node:net";
 import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, revokedTokensTable } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
 
@@ -119,6 +119,80 @@ describe("DELETE /users/me — session invalidation after account deletion", () 
       401,
       "token should be rejected with 401 after the account is deleted",
     );
+  });
+
+  test("denylist entry alone blocks the token even if the user row still exists", async () => {
+    // This test specifically validates the defense-in-depth layer: the revoked_tokens
+    // table must block a valid JWT even when the primary DB existence check would
+    // otherwise pass (simulating a future caching layer that skips the existence check).
+
+    // 1. Create a fresh user directly in the DB.
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        username: `denylist_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Denylist Test",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+
+    // 2. Issue a JWT token.
+    const token = signToken({ userId: user.id, username: user.username });
+
+    // 3. Confirm the token works before denylist insertion.
+    const before = await makeRequest("GET", "/auth/me", token);
+    assert.equal(before.status, 200, "token should be valid before denylist entry");
+
+    // 4. Insert the user_id into the denylist WITHOUT deleting the user row.
+    //    This simulates the denylist check operating independently of the existence check.
+    await db.insert(revokedTokensTable).values({ userId: user.id });
+
+    try {
+      // 5. The token must now be rejected by the denylist — even though the user row
+      //    still exists in the DB.
+      const after = await makeRequest("GET", "/auth/me", token);
+      assert.equal(
+        after.status,
+        401,
+        "token should be rejected by denylist even when user row still exists",
+      );
+    } finally {
+      // Clean up: remove denylist entry and user row.
+      await db.delete(revokedTokensTable).where(eq(revokedTokensTable.userId, user.id));
+      await db.delete(usersTable).where(eq(usersTable.id, user.id));
+    }
+  });
+
+  test("DELETE /users/me populates the token denylist", async () => {
+    // Verifies that the DELETE handler inserts a revoked_tokens row so the
+    // denylist check has data to work with.
+
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        username: `denylist_del_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Denylist Del Test",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+
+    const token = signToken({ userId: user.id, username: user.username });
+
+    const deleteRes = await makeRequest("DELETE", "/users/me", token);
+    assert.equal(deleteRes.status, 204, "DELETE /users/me should return 204");
+
+    // The revoked_tokens entry must have been created.
+    const [entry] = await db
+      .select()
+      .from(revokedTokensTable)
+      .where(eq(revokedTokensTable.userId, user.id));
+    assert.ok(entry, "revoked_tokens entry should exist after account deletion");
+    assert.equal(entry.userId, user.id);
+
+    // Clean up the denylist entry (user row was already deleted by the route).
+    await db.delete(revokedTokensTable).where(eq(revokedTokensTable.userId, user.id));
   });
 
   test("DELETE /users/me requires authentication", async () => {

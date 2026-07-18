@@ -331,7 +331,7 @@ export default function Profile() {
 
         </div>
 
-        {/* AVATAR + IDENTITY ROW — overlaps banner */}
+        {/* AVATAR ROW — overlaps banner */}
         <div className="px-6 -mt-14 relative z-10 flex items-end gap-5">
           <div
             className={`relative shrink-0 group${isOwner ? " cursor-pointer" : ""}`}
@@ -381,45 +381,45 @@ export default function Profile() {
               </span>
             </div>
           </div>
+        </div>
 
-          {/* Identity — beside the avatar */}
-          <div className="flex-1 min-w-0 pb-1">
-            {/* Custom Status Text — above name/username, next to avatar */}
-            {user.statusText && (
-              <div className="relative inline-block max-w-full mb-2">
-                <div className="bg-muted/50 border border-border px-3 py-1.5 rounded-xl rounded-tl-none text-sm font-mono text-foreground/90 max-w-sm">
-                  {user.statusText}
-                </div>
+        {/* IDENTITY — below banner, above name */}
+        <div className="px-6 pt-6">
+          {/* Custom Status Text — above name/username */}
+          {user.statusText && (
+            <div className="mb-3">
+              <div className="inline-block bg-muted border border-border px-3 py-1.5 rounded-xl text-sm font-mono text-foreground/90 max-w-sm">
+                {user.statusText}
               </div>
-            )}
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
-                {user.displayName}
-              </h1>
-              {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
             </div>
-            <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
-            {isOwner && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
-                  onClick={() => setEditOpen(true)}
-                  data-testid="button-edit-profile"
-                >
-                  <Pencil className="w-3 h-3" /> {t("editProfile.button")}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
-                  onClick={() => setStatusOpen(true)}
-                  data-testid="button-set-status"
-                >
-                  <Smile className="w-3 h-3" /> {t("setStatus.button")}
-                </button>
-              </div>
-            )}
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
+              {user.displayName}
+            </h1>
+            {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
           </div>
+          <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
+          {isOwner && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                onClick={() => setEditOpen(true)}
+                data-testid="button-edit-profile"
+              >
+                <Pencil className="w-3 h-3" /> {t("editProfile.button")}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                onClick={() => setStatusOpen(true)}
+                data-testid="button-set-status"
+              >
+                <Smile className="w-3 h-3" /> {t("setStatus.button")}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* BODY */}

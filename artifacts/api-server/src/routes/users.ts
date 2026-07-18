@@ -444,6 +444,10 @@ router.delete("/users/me/banner", requireAuth, async (req, res): Promise<void> =
 router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
   const userId = req.auth!.userId;
   await db.delete(usersTable).where(eq(usersTable.id, userId));
+  // Session invalidation: this API uses JWT tokens (no server-side sessions).
+  // The requireAuth middleware performs a live DB existence check on every
+  // request, so deleting the user row immediately causes all subsequent
+  // authenticated requests with the same token to receive a 401.
   res.status(204).end();
 });
 

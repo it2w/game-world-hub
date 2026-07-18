@@ -18,6 +18,19 @@
     "saveButton": "SAVE CHANGES",
     "saving": "SAVING..."
   },
+  "setStatus": {
+    "button": "SET STATUS",
+    "title": "Set your status",
+    "placeholder": "What's on your mind?",
+    "statusLabel": "STATUS",
+    "statusTextLabel": "STATUS MESSAGE",
+    "saveButton": "Save",
+    "saving": "Saving...",
+    "online": "Online",
+    "away": "Away",
+    "busy": "Busy",
+    "offline": "Offline"
+  },
   "rank": {
     "label": "Rank"
   },
@@ -82,7 +95,9 @@
     "bannerDeleted": "Banner removed",
     "deleteFailed": "Couldn't delete",
     "profileUpdated": "Profile updated",
-    "profileUpdateFailed": "Couldn't update profile"
+    "profileUpdateFailed": "Couldn't update profile",
+    "statusSaved": "Status updated",
+    "statusSaveFailed": "Couldn't update status"
   },
   "noBanner": "No banner image"
 }

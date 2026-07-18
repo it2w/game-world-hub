@@ -18,6 +18,19 @@
     "saveButton": "حفظ التغييرات",
     "saving": "جارٍ الحفظ..."
   },
+  "setStatus": {
+    "button": "تعيين الحالة",
+    "title": "تعيين حالتك",
+    "placeholder": "ما الذي يدور في ذهنك؟",
+    "statusLabel": "الحالة",
+    "statusTextLabel": "رسالة الحالة",
+    "saveButton": "حفظ",
+    "saving": "جارٍ الحفظ...",
+    "online": "متصل",
+    "away": "بعيد",
+    "busy": "مشغول",
+    "offline": "غير متصل"
+  },
   "rank": {
     "label": "الرتبة"
   },
@@ -82,7 +95,9 @@
     "bannerDeleted": "تمت إزالة الغلاف",
     "deleteFailed": "تعذّر الحذف",
     "profileUpdated": "تم تحديث الملف الشخصي",
-    "profileUpdateFailed": "تعذّر تحديث الملف الشخصي"
+    "profileUpdateFailed": "تعذّر تحديث الملف الشخصي",
+    "statusSaved": "تم تحديث الحالة",
+    "statusSaveFailed": "تعذّر تحديث الحالة"
   },
   "noBanner": "لا توجد صورة غلاف"
 }

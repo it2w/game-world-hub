@@ -49,6 +49,7 @@ function safeUser(
     rank: u.rank ?? null,
     allowProfileComments: u.allowProfileComments,
     status: u.status,
+    statusText: u.statusText ?? null,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
     isPro: proActive,

@@ -7,8 +7,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X, Pencil, Loader2 } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X, Pencil, Loader2, Smile } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TierBadge, DivisionBadge, TierPip, getDivision, TIER_CONFIG, type TierName } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
 import { format } from "date-fns";
@@ -89,6 +90,11 @@ export default function Profile() {
   const [editBio, setEditBio] = useState("");
   const [editFrameColor, setEditFrameColor] = useState("");
 
+  // Set Status dialog
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [editStatusValue, setEditStatusValue] = useState<"online" | "away" | "busy" | "offline">("online");
+  const [editStatusText, setEditStatusText] = useState("");
+
   const refreshPhotos = () => queryClient.invalidateQueries({ queryKey: getListProfilePhotosQueryKey(userId) });
   const refreshWall = () => queryClient.invalidateQueries({ queryKey: getListProfileCommentsQueryKey(userId) });
 
@@ -97,7 +103,9 @@ export default function Profile() {
     if (user) {
       setEditName(user.displayName);
       setEditBio(user.bio ?? "");
-      setEditFrameColor((user as Record<string, unknown>).profileFrameColor as string ?? "");
+      setEditFrameColor(user.profileFrameColor ?? "");
+      setEditStatusValue(user.status ?? "offline");
+      setEditStatusText(user.statusText ?? "");
     }
   }, [user]);
 
@@ -121,7 +129,7 @@ export default function Profile() {
     if (!trimmedName) return;
     const data: Record<string, string> = { displayName: trimmedName, bio: editBio.trim() };
     // Always send profileFrameColor for Pro users so empty string (reset) actually clears it server-side
-    if ((user as Record<string, unknown>)?.isPro) data.profileFrameColor = editFrameColor;
+    if (user?.isPro) data.profileFrameColor = editFrameColor;
     updateProfile.mutate({ userId, data }, {
       onSuccess: () => {
         toast({ title: t("toasts.profileUpdated") });
@@ -130,6 +138,21 @@ export default function Profile() {
       },
       onError: () => toast({ title: t("toasts.profileUpdateFailed"), variant: "destructive" }),
     });
+  };
+
+  const handleSaveStatus = () => {
+    updateStatus.mutate(
+      { data: { status: editStatusValue, statusText: editStatusText.trim() || null } },
+      {
+        onSuccess: () => {
+          toast({ title: t("toasts.statusSaved") });
+          setStatusOpen(false);
+          refreshUser();
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        },
+        onError: () => toast({ title: t("toasts.statusSaveFailed"), variant: "destructive" }),
+      }
+    );
   };
 
   const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -318,7 +341,7 @@ export default function Profile() {
             {/* Avatar circle — Pro frame color or default card border */}
             <div
               className="w-28 h-28 rounded-full border-4 bg-muted overflow-hidden flex items-center justify-center"
-              style={{ borderColor: (user as Record<string, unknown>).profileFrameColor as string ?? undefined }}
+              style={{ borderColor: user.profileFrameColor ?? undefined }}
             >
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -369,20 +392,42 @@ export default function Profile() {
             </div>
             <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
             {isOwner && (
-              <button
-                type="button"
-                className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
-                onClick={() => setEditOpen(true)}
-                data-testid="button-edit-profile"
-              >
-                <Pencil className="w-3 h-3" /> {t("editProfile.button")}
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                  onClick={() => setEditOpen(true)}
+                  data-testid="button-edit-profile"
+                >
+                  <Pencil className="w-3 h-3" /> {t("editProfile.button")}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                  onClick={() => setStatusOpen(true)}
+                  data-testid="button-set-status"
+                >
+                  <Smile className="w-3 h-3" /> {t("setStatus.button")}
+                </button>
+              </div>
             )}
           </div>
         </div>
 
         {/* BODY */}
         <div className="px-6 pt-8 pb-6 space-y-4">
+
+          {/* Custom Status Text */}
+          {user.statusText && (
+            <div className="flex items-start gap-3">
+              <div className="relative bg-muted/50 border border-border px-4 py-2 rounded-lg rounded-tl-none max-w-sm">
+                <p className="text-sm font-mono text-foreground/90">
+                  {user.statusText}
+                </p>
+              </div>
+              <StatusBadge status={user.status} className="w-2.5 h-2.5 mt-1.5 shrink-0" />
+            </div>
+          )}
 
           {/* Bio */}
           {user.bio && (
@@ -725,6 +770,105 @@ export default function Profile() {
       {/* Hidden file inputs */}
       <input ref={avatarUploadRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} data-testid="input-avatar-upload" />
 
+      {/* Set Status Dialog (own profile only) */}
+      {isOwner && (
+        <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
+          <DialogContent className="font-mono bg-card border-border rounded-none p-0 max-w-sm">
+            <DialogHeader className="p-6 pb-0">
+              <DialogTitle className="font-mono text-base">{t("setStatus.title")}</DialogTitle>
+            </DialogHeader>
+
+            {/* Mini profile preview */}
+            <div className="px-6 pt-4 pb-2">
+              <div className="bg-muted/30 border border-border p-4 flex items-start gap-3">
+                <div className="relative shrink-0">
+                  <div
+                    className="w-14 h-14 rounded-full border-2 bg-muted overflow-hidden flex items-center justify-center"
+                    style={{ borderColor: user.profileFrameColor ?? undefined }}
+                  >
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-mono text-2xl text-muted-foreground select-none">
+                        {user.displayName.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute -bottom-1 -end-1">
+                    <StatusBadge status={editStatusValue} className="w-3.5 h-3.5 border-2 border-card rounded-full" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  {editStatusText ? (
+                    <div className="relative bg-background border border-border px-3 py-1.5 rounded-lg rounded-tl-none mb-2 text-sm">
+                      {editStatusText}
+                    </div>
+                  ) : (
+                    <div className="relative bg-background border border-border border-dashed px-3 py-1.5 rounded-lg rounded-tl-none mb-2 text-sm text-muted-foreground">
+                      {t("setStatus.placeholder")}
+                    </div>
+                  )}
+                  <p className="font-bold text-sm truncate">{user.displayName}</p>
+                  <p className="text-primary text-xs font-mono">@{user.username}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Form */}
+            <div className="px-6 pb-2 space-y-4">
+              {/* Status selector */}
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-2">
+                  {t("setStatus.statusLabel")}
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(["online", "away", "busy", "offline"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setEditStatusValue(s)}
+                      className={`flex items-center gap-2 px-3 py-2 border text-xs font-mono transition-colors ${
+                        editStatusValue === s
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground"
+                      }`}
+                    >
+                      <StatusBadge status={s} className="w-2.5 h-2.5 shrink-0" />
+                      {t(`setStatus.${s}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status message input */}
+              <div>
+                <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1.5">
+                  {t("setStatus.statusTextLabel")}
+                </label>
+                <input
+                  value={editStatusText}
+                  onChange={(e) => setEditStatusText(e.target.value.slice(0, 100))}
+                  placeholder={t("setStatus.placeholder")}
+                  className="w-full bg-background border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary transition-colors rounded-none"
+                />
+                <div className="text-[10px] text-muted-foreground font-mono mt-1">{editStatusText.length}/100</div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-2 flex justify-end">
+              <Button
+                className="font-mono rounded-none px-8"
+                onClick={handleSaveStatus}
+                disabled={updateStatus.isPending}
+              >
+                {updateStatus.isPending ? t("setStatus.saving") : t("setStatus.saveButton")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Edit Profile Sheet (own profile only) */}
       {isOwner && (
         <Sheet open={editOpen} onOpenChange={setEditOpen}>
@@ -760,7 +904,7 @@ export default function Profile() {
                 />
                 <div className="text-[10px] text-muted-foreground font-mono mt-1">{editBio.length}/500</div>
               </div>
-              {(user as Record<string, unknown>).isPro && (
+              {user.isPro && (
                 <div>
                   <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1.5">
                     {t("editProfile.frameColor")}

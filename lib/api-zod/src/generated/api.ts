@@ -160,7 +160,8 @@ export const GetMeResponse = zod.object({
  */
 export const UpdateMyStatusBody = zod.object({
   "status": zod.enum(['online', 'away', 'busy', 'offline']).optional(),
-  "currentGame": zod.string().nullish()
+  "currentGame": zod.string().nullish(),
+  "statusText": zod.string().max(100).nullish()
 })
 
 export const UpdateMyStatusResponse = zod.object({
@@ -176,6 +177,7 @@ export const UpdateMyStatusResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish(),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -648,6 +650,7 @@ export const GetUserResponse = zod.object({
   "xpForNext": zod.number(),
   "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish(),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color'),

@@ -582,9 +582,11 @@ router.patch("/auth/me/status", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const data: { status?: string; currentGame?: string | null; lastActiveAt?: Date } = {
+  const data: { status?: string; currentGame?: string | null; statusText?: string | null; lastActiveAt?: Date } = {
     ...parsed.data,
   };
+  // Clamp statusText to 100 chars defensively.
+  if (typeof data.statusText === "string") data.statusText = data.statusText.slice(0, 100) || null;
   // Going offline automatically clears your active game.
   if (data.status === "offline") data.currentGame = null;
   // Enforce the invariant even when the request only sets a game and leaves

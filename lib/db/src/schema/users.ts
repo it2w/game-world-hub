@@ -21,6 +21,8 @@ export const usersTable = pgTable("users", {
   // Whether other users may write on this user's profile wall.
   allowProfileComments: boolean("allow_profile_comments").notNull().default(true),
   status: text("status").notNull().default("offline"), // online | away | busy | offline
+  // User's custom status message ("What's on your mind?"). Max 100 chars.
+  statusText: text("status_text"),
   currentGame: text("current_game"),
   // User's self-reported competitive rank (e.g. "Gold", "Platinum III", etc.)
   rank: text("rank"),

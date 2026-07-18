@@ -90,6 +90,11 @@ export interface User {
   twoFactorMethod?: UserTwoFactorMethod;
   allowProfileComments?: boolean;
   status: UserStatus;
+  /**
+   * Custom status message set by the user
+   * @nullable
+   */
+  statusText?: string | null;
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
@@ -271,6 +276,11 @@ export interface StatusUpdate {
   status?: StatusUpdateStatus;
   /** @nullable */
   currentGame?: string | null;
+  /**
+   * Custom status message ("What's on your mind?")
+   * @nullable
+   */
+  statusText?: string | null;
 }
 
 export interface ProStatus {
@@ -494,6 +504,11 @@ export interface UserProfile {
   xpForNext: number;
   allowProfileComments: boolean;
   status: UserProfileStatus;
+  /**
+   * Custom status message set by the user
+   * @nullable
+   */
+  statusText?: string | null;
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;

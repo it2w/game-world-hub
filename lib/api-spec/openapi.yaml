@@ -2510,6 +2510,10 @@ components:
           enum: [online, away, busy, offline]
         currentGame:
           type: ["string", "null"]
+        statusText:
+          type: ["string", "null"]
+          maxLength: 100
+          description: Custom status message ("What's on your mind?")
 
     # ── Users ────────────────────────────────────────────────────────────────
     User:
@@ -2543,6 +2547,9 @@ components:
         status:
           type: string
           enum: [online, away, busy, offline]
+        statusText:
+          type: ["string", "null"]
+          description: Custom status message set by the user
         currentGame:
           type: ["string", "null"]
         createdAt:

@@ -96,6 +96,10 @@ let lapsedGifId = 0; let lapsedGifUsername = "";
 let lfgTextId = 0; let lfgTextUsername = "";
 let tradeTextId = 0; let tradeTextUsername = "";
 
+// gifUrl stripping when messageType is not 'gif' — dedicated users (free; each makes one POST)
+let gifTextId = 0; let gifTextUsername = "";
+let gifLfgId  = 0; let gifLfgUsername  = "";
+
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
 const createdPinIds:     number[] = [];
@@ -269,6 +273,8 @@ before(async () => {
       free("lfgtxt"),
       free("tradetxt"),
       pro("lappin"),
+      free("giftxt"),
+      free("giflfg"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -299,6 +305,8 @@ before(async () => {
     [lfgTextId,    lfgTextUsername],
     [tradeTextId,  tradeTextUsername],
     [lapPinId,     lapPinUsername],
+    [gifTextId,    gifTextUsername],
+    [gifLfgId,     gifLfgUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -620,6 +628,70 @@ describe("gifUrl domain stripping", () => {
       body.metadata.gifUrl,
       validUrl,
       `expected gifUrl to be preserved, got: ${JSON.stringify(body.metadata)}`,
+    );
+  });
+
+  test("gifUrl is stripped when messageType is 'text'", async () => {
+    const res = await postMsg(gifTextId, gifTextUsername, {
+      content:     "just a text message",
+      messageType: "text",
+      metadata:    { gifUrl: "https://media.giphy.com/media/abc123/giphy.gif" },
+      channel:     "general",
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    assert.equal(
+      body.metadata.gifUrl,
+      undefined,
+      `gifUrl must be absent from text message response metadata, got: ${JSON.stringify(body.metadata)}`,
+    );
+
+    // Verify at DB level
+    const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+      `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+      [body.id],
+    );
+    const stored = rows[0]?.metadata ?? {};
+    assert.equal(
+      stored.gifUrl,
+      undefined,
+      `gifUrl must not persist in DB for text message: ${JSON.stringify(stored)}`,
+    );
+  });
+
+  test("gifUrl is stripped when messageType is 'lfg_signal'", async () => {
+    const res = await postMsg(gifLfgId, gifLfgUsername, {
+      content:     "looking for group",
+      messageType: "lfg_signal",
+      metadata:    {
+        gifUrl:   "https://media.giphy.com/media/abc123/giphy.gif",
+        game:     "Valorant",
+        platform: "PC",
+      },
+      channel:     "general",
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    assert.equal(
+      body.metadata.gifUrl,
+      undefined,
+      `gifUrl must be absent from lfg_signal response metadata, got: ${JSON.stringify(body.metadata)}`,
+    );
+
+    // Verify at DB level
+    const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+      `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+      [body.id],
+    );
+    const stored = rows[0]?.metadata ?? {};
+    assert.equal(
+      stored.gifUrl,
+      undefined,
+      `gifUrl must not persist in DB for lfg_signal message: ${JSON.stringify(stored)}`,
     );
   });
 });

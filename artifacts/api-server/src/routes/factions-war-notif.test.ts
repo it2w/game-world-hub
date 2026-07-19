@@ -414,4 +414,58 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
       `faction A (prior-week activity at NOW()-10d, 100 pts) must be declared winner; notifications: ${JSON.stringify(rows)}`,
     );
   });
+
+  test("notification body contains an entry for every faction including the three default factions", async () => {
+    // The standings query does a LEFT JOIN over ALL factions, so every faction
+    // (including the three production factions — Shadows, Titans, Ghosts — and
+    // the two isolated test factions) must appear in the summary string.
+    const { rows } = await pool.query<{ body: string }>(
+      `SELECT body FROM notifications WHERE user_id = $1 AND type = 'faction_war_result' ORDER BY id DESC LIMIT 1`,
+      [userAId],
+    );
+    assert.equal(rows.length, 1, `userA should have a faction_war_result notification`);
+    const body = rows[0].body;
+
+    const requiredNames = [
+      "Shadows",
+      "Titans",
+      "Ghosts",
+      `FWNotifFactionA_${SUFFIX}`,
+      `FWNotifFactionB_${SUFFIX}`,
+    ];
+    for (const name of requiredNames) {
+      assert.ok(
+        body.includes(name),
+        `notification body must include faction "${name}"; got body: "${body}"`,
+      );
+    }
+  });
+
+  test("notification body lists factions in medal emoji order (🥇 🥈 🥉)", async () => {
+    // The summary is built with standings.map((f, i) => `${medals[i]} ${f.name}: …`).join(" | ")
+    // so the three medal emojis must appear in order within the body string.
+    const { rows } = await pool.query<{ body: string }>(
+      `SELECT body FROM notifications WHERE user_id = $1 AND type = 'faction_war_result' ORDER BY id DESC LIMIT 1`,
+      [userAId],
+    );
+    assert.equal(rows.length, 1, `userA should have a faction_war_result notification`);
+    const body = rows[0].body;
+
+    const goldIdx   = body.indexOf("🥇");
+    const silverIdx = body.indexOf("🥈");
+    const bronzeIdx = body.indexOf("🥉");
+
+    assert.ok(goldIdx   !== -1, `body must contain 🥇 gold medal; got: "${body}"`);
+    assert.ok(silverIdx !== -1, `body must contain 🥈 silver medal; got: "${body}"`);
+    assert.ok(bronzeIdx !== -1, `body must contain 🥉 bronze medal; got: "${body}"`);
+
+    assert.ok(
+      goldIdx < silverIdx,
+      `🥇 must appear before 🥈 in the body; got: "${body}"`,
+    );
+    assert.ok(
+      silverIdx < bronzeIdx,
+      `🥈 must appear before 🥉 in the body; got: "${body}"`,
+    );
+  });
 });

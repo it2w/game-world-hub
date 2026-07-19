@@ -48,6 +48,8 @@ import enBattlePass from './locales/en/battle-pass.json';
 import arBattlePass from './locales/ar/battle-pass.json';
 import enTournaments from './locales/en/tournaments.json';
 import arTournaments from './locales/ar/tournaments.json';
+import enBounties from './locales/en/bounties.json';
+import arBounties from './locales/ar/bounties.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -77,6 +79,7 @@ const resources = {
     quests: enQuests,
     "battle-pass": enBattlePass,
     tournaments: enTournaments,
+    bounties: enBounties,
   },
   ar: {
     common: arCommon,
@@ -102,6 +105,7 @@ const resources = {
     quests: arQuests,
     "battle-pass": arBattlePass,
     tournaments: arTournaments,
+    bounties: arBounties,
   },
 };
 

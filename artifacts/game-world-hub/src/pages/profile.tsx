@@ -57,6 +57,16 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  const { data: bountiesData } = useQuery<{
+    posted: Array<{ id: number; game: string; title: string; xpReward: number; status: string; applicantCount: number; createdAt: string }>;
+    applied: Array<{ id: number; game: string; title: string; xpReward: number; status: string; applicationStatus: string; appliedAt: string }>;
+  }>({
+    queryKey: ["user-bounties", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/bounties`),
+    staleTime: 30_000,
+    enabled: !!userId,
+  });
+
   const { data: trophiesData } = useQuery<Array<{
     id: number; tournamentId: number; wonAt: string;
     tournamentName: string; game: string; maxParticipants: number;
@@ -759,6 +769,58 @@ export default function Profile() {
         </div>
       )}
 
+      {/* ── MY BOUNTIES ─────────────────────────────────────────────────── */}
+      {bountiesData && (bountiesData.posted.length > 0 || bountiesData.applied.length > 0) && (
+        <div className="bg-card border border-border p-5 space-y-5">
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+            <Zap className="w-4 h-4" /> Bounties
+          </h2>
+          {bountiesData.posted.length > 0 && (
+            <div className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Posted</p>
+              <div className="space-y-1.5">
+                {bountiesData.posted.slice(0, 5).map(b => (
+                  <div key={b.id} className="flex items-center gap-3 border border-border px-3 py-2">
+                    <span className="font-mono text-xs text-primary truncate flex-1">{b.title}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{b.game}</span>
+                    <span className="flex items-center gap-1 font-mono text-[10px] text-primary shrink-0">
+                      <Zap className="w-2.5 h-2.5" /> {b.xpReward}
+                    </span>
+                    <span className={`font-mono text-[9px] uppercase px-1.5 py-0.5 shrink-0 ${
+                      b.status === "open" ? "bg-primary/10 text-primary"
+                      : b.status === "in_progress" ? "bg-yellow-500/10 text-yellow-400"
+                      : b.status === "completed" ? "bg-green-500/10 text-green-400"
+                      : "bg-muted text-muted-foreground"
+                    }`}>{b.status.replace("_", " ")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {bountiesData.applied.length > 0 && (
+            <div className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Applied To</p>
+              <div className="space-y-1.5">
+                {bountiesData.applied.slice(0, 5).map(b => (
+                  <div key={`app-${b.id}`} className="flex items-center gap-3 border border-border px-3 py-2">
+                    <span className="font-mono text-xs truncate flex-1">{b.title}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{b.game}</span>
+                    <span className="flex items-center gap-1 font-mono text-[10px] text-primary shrink-0">
+                      <Zap className="w-2.5 h-2.5" /> {b.xpReward}
+                    </span>
+                    <span className={`font-mono text-[9px] uppercase px-1.5 py-0.5 shrink-0 ${
+                      b.applicationStatus === "accepted" ? "bg-green-500/10 text-green-400"
+                      : b.applicationStatus === "rejected" ? "bg-muted text-muted-foreground"
+                      : "bg-primary/10 text-primary"
+                    }`}>{b.applicationStatus}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── TROPHIES ────────────────────────────────────────────────────── */}
       {trophiesData && trophiesData.length > 0 && (
         <div className="bg-card border border-border p-5">
@@ -1119,4 +1181,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library, Play, Award, Trophy } from "lucide-react";
+import { Library, Play, Award, Trophy, Zap } from "lucide-react";

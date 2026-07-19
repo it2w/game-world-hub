@@ -12,7 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -131,6 +131,14 @@ export function AppSidebar() {
                   <Link href="/tournaments">
                     <Trophy className="w-4 h-4" />
                     <span>{t("sidebar.tournaments")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/bounties")}>
+                  <Link href="/bounties">
+                    <Zap className="w-4 h-4" />
+                    <span>{t("sidebar.bounties")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

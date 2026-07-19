@@ -1,0 +1,90 @@
+{
+  "header": {
+    "title": "BOUNTY BOARD",
+    "subtitle": "Post a job, find a player, earn XP",
+    "postBounty": "Post Bounty"
+  },
+  "tabs": {
+    "all": "All",
+    "open": "Open",
+    "in_progress": "In Progress",
+    "completed": "Completed"
+  },
+  "filter": {
+    "searchPlaceholder": "Search by game or title…",
+    "xpRange": "XP Range",
+    "any": "Any XP"
+  },
+  "card": {
+    "xpReward": "{{xp}} XP",
+    "applicants": "{{count}} applicant",
+    "applicants_other": "{{count}} applicants",
+    "timeLeft": "{{time}} left",
+    "expired": "Expired",
+    "viewDetails": "View Details",
+    "apply": "Apply",
+    "applied": "Applied",
+    "yourBounty": "Your Bounty",
+    "open": "OPEN",
+    "in_progress": "IN PROGRESS",
+    "completed": "DONE",
+    "expired_badge": "EXPIRED",
+    "cancelled": "CANCELLED"
+  },
+  "dialog": {
+    "title": "Post a Bounty",
+    "subtitle": "Costs {{cost}} XP escrow (refunded on completion)",
+    "game": "Game",
+    "gamePlaceholder": "e.g. Valorant",
+    "titleLabel": "Title",
+    "titlePlaceholder": "e.g. Need a carry for ranked climb",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe what you need and what you offer…",
+    "xpReward": "XP Reward",
+    "duration": "Duration",
+    "duration24h": "24 hours",
+    "duration48h": "48 hours",
+    "duration72h": "72 hours",
+    "submit": "Post Bounty (costs {{cost}} XP)",
+    "submitting": "Posting…"
+  },
+  "apply": {
+    "title": "Apply to Bounty",
+    "subtitle": "Tell the poster why you're a great fit",
+    "bountyTitle": "Bounty: {{title}}",
+    "message": "Your Message",
+    "messagePlaceholder": "I'm ready because…",
+    "submit": "Submit Application",
+    "submitting": "Submitting…"
+  },
+  "detail": {
+    "applicants": "Applicants",
+    "noApplicants": "No applicants yet",
+    "accept": "Accept",
+    "accepting": "Accepting…",
+    "completeTitle": "Confirm Completion",
+    "completeDesc": "Mark this bounty as complete. {{xp}} XP will be sent to the completer and your {{escrow}} XP escrow will be refunded.",
+    "confirmComplete": "Confirm & Award XP",
+    "completing": "Confirming…",
+    "cancelBounty": "Cancel Bounty",
+    "cancelConfirm": "Cancel this bounty? Your {{escrow}} XP escrow will be refunded.",
+    "confirmCancel": "Yes, Cancel",
+    "cancelling": "Cancelling…"
+  },
+  "toast": {
+    "posted": "Bounty posted! {{cost}} XP escrow reserved.",
+    "postFailed": "Failed to post bounty",
+    "applied": "Application submitted!",
+    "applyFailed": "Failed to apply",
+    "accepted": "Applicant accepted",
+    "acceptFailed": "Failed to accept",
+    "completed": "+{{xp}} XP awarded to completer!",
+    "completeFailed": "Failed to complete bounty",
+    "cancelled": "Bounty cancelled, escrow refunded",
+    "cancelFailed": "Failed to cancel",
+    "withdrawn": "Application withdrawn"
+  },
+  "empty": "No bounties found",
+  "loading": "Scanning bounty board…",
+  "insufficientXp": "You need at least {{min}} XP to post a bounty (you have {{current}} XP)"
+}

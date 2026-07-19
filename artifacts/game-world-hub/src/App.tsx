@@ -30,6 +30,7 @@ import Pro from '@/pages/pro';
 import BattlePass from '@/pages/battle-pass';
 import Tournaments from '@/pages/tournaments';
 import TournamentDetail from '@/pages/tournament-detail';
+import Bounties from '@/pages/bounties';
 import Admin from '@/pages/admin';
 import Owner from '@/pages/owner';
 import NotFound from '@/pages/not-found';
@@ -106,6 +107,7 @@ function Router() {
             <Route path="/battle-pass" component={BattlePass} />
             <Route path="/tournaments" component={Tournaments} />
             <Route path="/tournaments/:id" component={TournamentDetail} />
+            <Route path="/bounties" component={Bounties} />
             <Route path="/admin" component={Admin} />
             <Route component={NotFound} />
           </Switch>

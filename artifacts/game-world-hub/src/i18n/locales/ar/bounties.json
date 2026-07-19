@@ -1,0 +1,90 @@
+{
+  "header": {
+    "title": "لوحة المكافآت",
+    "subtitle": "انشر طلباً، ابحث عن لاعب، اكسب XP",
+    "postBounty": "نشر طلب"
+  },
+  "tabs": {
+    "all": "الكل",
+    "open": "مفتوح",
+    "in_progress": "جارٍ",
+    "completed": "مكتمل"
+  },
+  "filter": {
+    "searchPlaceholder": "ابحث حسب اللعبة أو العنوان…",
+    "xpRange": "نطاق XP",
+    "any": "أي XP"
+  },
+  "card": {
+    "xpReward": "{{xp}} XP",
+    "applicants": "{{count}} متقدم",
+    "applicants_other": "{{count}} متقدمين",
+    "timeLeft": "{{time}} متبقي",
+    "expired": "انتهى",
+    "viewDetails": "عرض التفاصيل",
+    "apply": "تقدّم",
+    "applied": "تقدّمت",
+    "yourBounty": "طلبك",
+    "open": "مفتوح",
+    "in_progress": "جارٍ",
+    "completed": "مكتمل",
+    "expired_badge": "منتهي",
+    "cancelled": "ملغي"
+  },
+  "dialog": {
+    "title": "نشر طلب مكافأة",
+    "subtitle": "يكلف {{cost}} XP تأمين (يُعاد عند الإتمام)",
+    "game": "اللعبة",
+    "gamePlaceholder": "مثال: Valorant",
+    "titleLabel": "العنوان",
+    "titlePlaceholder": "مثال: محتاج كاري لتصعيد الرانك",
+    "description": "الوصف",
+    "descriptionPlaceholder": "اشرح ما تحتاجه وما تقدمه…",
+    "xpReward": "مكافأة XP",
+    "duration": "المدة",
+    "duration24h": "24 ساعة",
+    "duration48h": "48 ساعة",
+    "duration72h": "72 ساعة",
+    "submit": "نشر الطلب (يكلف {{cost}} XP)",
+    "submitting": "جارٍ النشر…"
+  },
+  "apply": {
+    "title": "التقدم للطلب",
+    "subtitle": "أخبر صاحب الطلب لماذا أنت الخيار المثالي",
+    "bountyTitle": "الطلب: {{title}}",
+    "message": "رسالتك",
+    "messagePlaceholder": "أنا مستعد لأني…",
+    "submit": "إرسال الطلب",
+    "submitting": "جارٍ الإرسال…"
+  },
+  "detail": {
+    "applicants": "المتقدمون",
+    "noApplicants": "لا يوجد متقدمون بعد",
+    "accept": "قبول",
+    "accepting": "جارٍ القبول…",
+    "completeTitle": "تأكيد الإتمام",
+    "completeDesc": "اضغط لتأكيد الإتمام. سيحصل المنجز على {{xp}} XP وسيُعاد تأمينك البالغ {{escrow}} XP.",
+    "confirmComplete": "تأكيد ومنح XP",
+    "completing": "جارٍ التأكيد…",
+    "cancelBounty": "إلغاء الطلب",
+    "cancelConfirm": "هل تريد إلغاء الطلب؟ سيُعاد تأمينك {{escrow}} XP.",
+    "confirmCancel": "نعم، إلغاء",
+    "cancelling": "جارٍ الإلغاء…"
+  },
+  "toast": {
+    "posted": "تم نشر الطلب! تم حجز {{cost}} XP كتأمين.",
+    "postFailed": "فشل نشر الطلب",
+    "applied": "تم إرسال طلبك!",
+    "applyFailed": "فشل التقديم",
+    "accepted": "تم قبول المتقدم",
+    "acceptFailed": "فشل القبول",
+    "completed": "تم منح +{{xp}} XP للمنجز!",
+    "completeFailed": "فشل تأكيد الإتمام",
+    "cancelled": "تم إلغاء الطلب واسترداد التأمين",
+    "cancelFailed": "فشل الإلغاء",
+    "withdrawn": "تم سحب طلبك"
+  },
+  "empty": "لا توجد طلبات",
+  "loading": "جارٍ تحميل لوحة المكافآت…",
+  "insufficientXp": "تحتاج {{min}} XP على الأقل لنشر طلب (لديك {{current}} XP)"
+}

@@ -102,5 +102,11 @@
     "statusSaved": "Status updated",
     "statusSaveFailed": "Couldn't update status"
   },
-  "noBanner": "No banner image"
+  "noBanner": "No banner image",
+  "streak": {
+    "sectionTitle": "Activity Streak",
+    "currentLabel": "Current streak",
+    "longestLabel": "Longest streak",
+    "shieldsLabel": "Shields"
+  }
 }

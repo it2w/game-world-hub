@@ -102,5 +102,11 @@
     "statusSaved": "تم تحديث الحالة",
     "statusSaveFailed": "تعذّر تحديث الحالة"
   },
-  "noBanner": "لا توجد صورة غلاف"
+  "noBanner": "لا توجد صورة غلاف",
+  "streak": {
+    "sectionTitle": "سلسلة النشاط",
+    "currentLabel": "السلسلة الحالية",
+    "longestLabel": "أطول سلسلة",
+    "shieldsLabel": "الدروع"
+  }
 }

@@ -27,6 +27,7 @@ import ownerRouter from "./owner";
 import reportsRouter from "./reports";
 import downloadRouter from "./download";
 import roomsRouter from "./rooms";
+import questsRouter from "./quests";
 
 const router: IRouter = Router();
 
@@ -84,5 +85,6 @@ router.use(ownerRouter);
 router.use(reportsRouter);
 router.use(downloadRouter);
 router.use(roomsRouter);
+router.use(questsRouter);
 
 export default router;

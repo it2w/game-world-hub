@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, count } from "drizzle-orm";
 import {
   db,
+  pool,
   usersTable,
   lfgPostsTable,
   lfgResponsesTable,
@@ -39,6 +40,25 @@ router.get("/stats/me", requireAuth, async (req, res): Promise<void> => {
   const now = new Date();
   const proActive = user.isPro && (!user.proExpiresAt || user.proExpiresAt > now);
 
+  // Streak data
+  let streakData = { currentStreak: 0, longestStreak: 0, shieldCount: 0, bonusXp: 0 };
+  try {
+    const { rows } = await pool.query<{
+      current_streak: number;
+      longest_streak: number;
+      shield_count: number;
+      bonus_xp: number;
+    }>(`SELECT current_streak, longest_streak, shield_count, bonus_xp FROM user_streaks WHERE user_id = $1`, [myId]);
+    if (rows[0]) {
+      streakData = {
+        currentStreak: rows[0].current_streak,
+        longestStreak: rows[0].longest_streak,
+        shieldCount: rows[0].shield_count,
+        bonusXp: rows[0].bonus_xp,
+      };
+    }
+  } catch { /* table may not exist yet */ }
+
   res.json({
     totalLfgPosts,
     totalLfgResponses,
@@ -48,6 +68,10 @@ router.get("/stats/me", requireAuth, async (req, res): Promise<void> => {
     memberSince: user.createdAt.toISOString(),
     isPro: proActive,
     xpProgress,
+    streak: streakData.currentStreak,
+    longestStreak: streakData.longestStreak,
+    shieldCount: streakData.shieldCount,
+    questBonusXp: streakData.bonusXp,
   });
 });
 

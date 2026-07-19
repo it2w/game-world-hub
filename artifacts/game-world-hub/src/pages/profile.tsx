@@ -1,8 +1,8 @@
 import { Link, useRoute } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useUpdateProfile, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useUpdateProfile, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey, customFetch } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +49,13 @@ export default function Profile() {
   const deleteAvatar = useDeleteMyAvatar();
   const deleteBanner = useDeleteMyBanner();
   const isOwner = !!me && me.id === userId;
+
+  const { data: streakData } = useQuery<{ currentStreak: number; longestStreak: number; shieldCount?: number; bonusXp?: number }>({
+    queryKey: ["user-streak", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/streak`),
+    staleTime: 60_000,
+    enabled: !!userId,
+  });
 
   const refreshUser = () => {
     queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
@@ -574,6 +581,58 @@ export default function Profile() {
         {/* Bottom accent line */}
         <div className="h-0.5 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
       </div>
+
+      {/* Streak section — always shown when data is available, including zero values */}
+      {streakData && (
+        <div className="bg-card border border-border p-5 flex flex-wrap items-center gap-6">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl leading-none select-none">🔥</span>
+            <div>
+              <div className="font-mono text-2xl font-black text-foreground leading-none">
+                {streakData.currentStreak}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                {t("streak.currentLabel")}
+              </div>
+            </div>
+          </div>
+
+          <div className="w-px h-10 bg-border hidden sm:block" />
+
+          <div className="flex items-center gap-3">
+            <span className="text-2xl leading-none select-none opacity-50">🔥</span>
+            <div>
+              <div className="font-mono text-xl font-black text-muted-foreground leading-none">
+                {streakData.longestStreak}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                {t("streak.longestLabel")}
+              </div>
+            </div>
+          </div>
+
+          {isOwner && streakData.shieldCount !== undefined && (
+            <>
+              <div className="w-px h-10 bg-border hidden sm:block" />
+              <div className="flex items-center gap-3">
+                <span className="text-2xl leading-none select-none">🛡️</span>
+                <div>
+                  <div className="font-mono text-xl font-black text-foreground leading-none">
+                    {streakData.shieldCount}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                    {t("streak.shieldsLabel")}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="ms-auto font-mono text-[10px] text-muted-foreground uppercase tracking-widest hidden md:block">
+            {t("streak.sectionTitle")}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Linked Platforms */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { DailyQuestsWidget } from "@/components/daily-quests-widget";
 import { ProBadge } from "@/components/pro-badge";
 import "./dashboard.css";
 import {
@@ -9,7 +10,7 @@ import {
   getListPartyInvitesQueryKey, getGetMeQueryKey,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useVoice } from "@/voice/voice-context";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -990,6 +991,7 @@ export default function Dashboard() {
         </div>
 
         <div className="dash-side">
+          <DailyQuestsWidget me={me}/>
           <SmartMatch friends={friends} openParties={parties??[]}/>
           <ChallengeVs me={me} friends={friends}/>
           <TournamentCard/>

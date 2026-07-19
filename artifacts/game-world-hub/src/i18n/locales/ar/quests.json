@@ -1,0 +1,34 @@
+{
+  "widget": {
+    "title": "مهام اليوم",
+    "subtitle": "تتجدد عند منتصف الليل",
+    "completeBtn": "أنجزتها",
+    "doneLabel": "مكتملة",
+    "xpReward": "+{{xp}} XP",
+    "progressOf": "{{current}} / {{target}}",
+    "allDone": "أنجزت كل المهام! عُد غداً 🎉",
+    "completed": "مكتملة!",
+    "confetti": "🎉 كسبت +{{xp}} XP!"
+  },
+  "streak": {
+    "title": "السلسلة",
+    "current": "الحالية",
+    "longest": "الأطول",
+    "days": "يوم",
+    "shieldTitle": "درع السلسلة",
+    "shieldDesc": "يحمي سلسلتك إذا فوّتَّ يوماً",
+    "shieldCount": "{{count}} درع",
+    "shieldCount_plural": "{{count}} دروع",
+    "buyShield": "اشتري درعاً (50 XP)",
+    "notEnoughXp": "XP المهام غير كافٍ",
+    "shieldBought": "تم شراء الدرع! 🛡️",
+    "bonusXp": "XP المهام: {{xp}}"
+  },
+  "toasts": {
+    "questDone": "مهمة مكتملة! +{{xp}} XP 🎉",
+    "alreadyDone": "أكملتها اليوم مسبقاً",
+    "streakSaved": "الدرع أنقذ سلسلتك! 🛡️",
+    "streakBroken": "انكسرت السلسلة — عُد غداً",
+    "error": "تعذّر إكمال المهمة"
+  }
+}

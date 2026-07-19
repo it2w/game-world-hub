@@ -124,6 +124,17 @@ export async function getUserProgress(userId: number): Promise<{
     return Number(r?.c ?? 0);
   };
 
+  // Quest bonus XP stored in user_streaks
+  let bonusXp = 0;
+  try {
+    const { pool } = await import("@workspace/db");
+    const { rows } = await pool.query<{ bonus_xp: number }>(
+      `SELECT bonus_xp FROM user_streaks WHERE user_id = $1`,
+      [userId],
+    );
+    bonusXp = rows[0]?.bonus_xp ?? 0;
+  } catch { /* table may not exist on first deploy */ }
+
   const [friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games, platforms] =
     await Promise.all([
       cw(friendshipsTable, friendshipsTable.userId),
@@ -136,7 +147,7 @@ export async function getUserProgress(userId: number): Promise<{
       cw(platformLinksTable, platformLinksTable.userId),
     ]);
 
-  const totalXp = computeXp({
+  const activityXp = computeXp({
     friends,
     partiesCreated,
     partiesJoined,
@@ -146,6 +157,7 @@ export async function getUserProgress(userId: number): Promise<{
     games,
     platforms,
   });
+  const totalXp = activityXp + bonusXp;
   const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
   return { totalXp, level, xpIntoLevel, xpForNext, tier: getTier(level) };
 }

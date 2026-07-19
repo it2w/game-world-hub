@@ -42,6 +42,8 @@ import enAchievements from './locales/en/achievements.json';
 import arAchievements from './locales/ar/achievements.json';
 import enGames from './locales/en/games.json';
 import arGames from './locales/ar/games.json';
+import enQuests from './locales/en/quests.json';
+import arQuests from './locales/ar/quests.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -68,6 +70,7 @@ const resources = {
     pro: enPro,
     achievements: enAchievements,
     games: enGames,
+    quests: enQuests,
   },
   ar: {
     common: arCommon,
@@ -90,6 +93,7 @@ const resources = {
     pro: arPro,
     achievements: arAchievements,
     games: arGames,
+    quests: arQuests,
   },
 };
 

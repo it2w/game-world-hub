@@ -1,0 +1,34 @@
+{
+  "widget": {
+    "title": "DAILY QUESTS",
+    "subtitle": "Refreshes at midnight UTC",
+    "completeBtn": "Complete",
+    "doneLabel": "Done",
+    "xpReward": "+{{xp}} XP",
+    "progressOf": "{{current}} / {{target}}",
+    "allDone": "All done! Come back tomorrow 🎉",
+    "completed": "Completed!",
+    "confetti": "🎉 +{{xp}} XP earned!"
+  },
+  "streak": {
+    "title": "STREAK",
+    "current": "Current",
+    "longest": "Longest",
+    "days": "days",
+    "shieldTitle": "Streak Shield",
+    "shieldDesc": "Protects your streak if you miss a day",
+    "shieldCount": "{{count}} shield",
+    "shieldCount_plural": "{{count}} shields",
+    "buyShield": "Buy Shield (50 XP)",
+    "notEnoughXp": "Not enough quest XP",
+    "shieldBought": "Shield purchased! 🛡️",
+    "bonusXp": "Quest XP: {{xp}}"
+  },
+  "toasts": {
+    "questDone": "Quest Complete! +{{xp}} XP 🎉",
+    "alreadyDone": "Already completed today",
+    "streakSaved": "Streak saved by shield! 🛡️",
+    "streakBroken": "Streak reset — come back tomorrow",
+    "error": "Could not complete quest"
+  }
+}

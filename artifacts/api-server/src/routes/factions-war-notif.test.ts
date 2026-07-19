@@ -469,3 +469,116 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
     );
   });
 });
+
+// ─── Catch-up scenario: server offline when the week turned ──────────────────
+//
+// Simulates the case where the hourly sweep was NOT running over a Monday
+// boundary (server offline), so the notification for the previous week was
+// never sent.  The sweep is called later — on a Tuesday — and must:
+//   1. Detect the missing prior-week log entry and write it.
+//   2. Key the log entry to prevWeekKey(tuesday), NOT the current week.
+//   3. Be a strict no-op on a second call with the same tuesday override.
+//
+// Reference "now": 2026-01-20T12:00:00Z (Tuesday, week W04 of 2026).
+//   prevWeekKey(tuesday) = "2026-W03"  (the week the server missed)
+//   currentWeekKey       = "2026-W04"  (the week the server is now in)
+
+describe("sweepWeeklyWarNotifications — catch-up after server offline over week boundary", () => {
+  // Tuesday of a week the server "missed" starting
+  const TUESDAY_OVERRIDE = new Date("2026-01-20T12:00:00Z");
+
+  // The week key the sweep must write (the PRIOR week, not the current one)
+  const TUESDAY_PREV_WEEK_KEY = prevWeekKey(TUESDAY_OVERRIDE); // "2026-W03"
+
+  // Ensure no stale log entry exists before the catch-up tests run
+  before(async () => {
+    await pool.query(
+      `DELETE FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+  });
+
+  after(async () => {
+    // Clean up the log entry written during these tests
+    await pool.query(
+      `DELETE FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+    // Clean up any notifications emitted for the test users during the catch-up sweep
+    await pool.query(
+      `DELETE FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userBId]],
+    );
+  });
+
+  test("catch-up: sweep called on Tuesday writes a log entry keyed to the PRIOR ISO week, not the current week", async () => {
+    // Pre-condition: no log entry for the prior week
+    const { rows: before } = await pool.query(
+      `SELECT 1 FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+    assert.equal(
+      before.length,
+      0,
+      `no log entry for ${TUESDAY_PREV_WEEK_KEY} should exist before the catch-up sweep`,
+    );
+
+    await sweepWeeklyWarNotifications(TUESDAY_OVERRIDE);
+
+    // The log entry must be keyed to the PREVIOUS week (not the current week)
+    const { rows: after } = await pool.query<{ week_key: string }>(
+      `SELECT week_key FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+    assert.equal(
+      after.length,
+      1,
+      `faction_war_notif_log must have an entry for prior week ${TUESDAY_PREV_WEEK_KEY} after the catch-up sweep`,
+    );
+    assert.equal(
+      after[0].week_key,
+      TUESDAY_PREV_WEEK_KEY,
+      `log entry week_key must equal ${TUESDAY_PREV_WEEK_KEY} (previous ISO week), not the current week`,
+    );
+  });
+
+  test("catch-up: second call with the same Tuesday override is a strict no-op — no duplicate log entries or notifications", async () => {
+    // Log entry and notifications already exist from the first catch-up call
+    const { rows: logBefore } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+    const { rows: notifBefore } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userBId]],
+    );
+    const logCountBefore   = parseInt(logBefore[0].cnt, 10);
+    const notifCountBefore = parseInt(notifBefore[0].cnt, 10);
+
+    assert.equal(logCountBefore, 1, `exactly 1 log entry expected before second call`);
+    assert.ok(notifCountBefore >= 0, `notification count must be non-negative`);
+
+    // Second sweep call with the same Tuesday override — must be a no-op
+    await sweepWeeklyWarNotifications(TUESDAY_OVERRIDE);
+
+    const { rows: logAfter } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM faction_war_notif_log WHERE week_key = $1`,
+      [TUESDAY_PREV_WEEK_KEY],
+    );
+    const { rows: notifAfter } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userBId]],
+    );
+
+    assert.equal(
+      parseInt(logAfter[0].cnt, 10),
+      logCountBefore,
+      `second sweep must not add duplicate log entries for week ${TUESDAY_PREV_WEEK_KEY}`,
+    );
+    assert.equal(
+      parseInt(notifAfter[0].cnt, 10),
+      notifCountBefore,
+      `second sweep must not send duplicate notifications`,
+    );
+  });
+});

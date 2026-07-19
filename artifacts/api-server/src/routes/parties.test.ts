@@ -1096,11 +1096,18 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
   });
 
   after(async () => {
-    // Clean up invites and their associated notifications created during this block
+    // Clean up invites and their associated notifications created during this block.
+    // Since relatedId now stores partyId (not inviteId), we delete by partyId + user + type.
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
+        )
+      );
     if (inviteIds.length) {
-      await db
-        .delete(notificationsTable)
-        .where(inArray(notificationsTable.relatedId, inviteIds));
       await db
         .delete(partyInvitesTable)
         .where(inArray(partyInvitesTable.id, inviteIds));
@@ -1131,13 +1138,15 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
     assert.equal(inviteRows.length, 1, "exactly one pending invite row after first invite");
     inviteIds.push(inviteRows[0].id);
 
+    // relatedId now stores partyId (so the frontend can navigate to /party/:id)
     const notifRows = await db
       .select()
       .from(notificationsTable)
       .where(
         and(
           eq(notificationsTable.userId, outsiderId),
-          eq(notificationsTable.relatedId, inviteRows[0].id)
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(notifRows.length, 1, "exactly one notification after first invite");
@@ -1168,7 +1177,7 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
       );
     assert.equal(inviteRows.length, 1, "still exactly one pending invite row after second invite");
 
-    // Still exactly one notification tied to the original invite
+    // Still exactly one notification — relatedId now stores partyId
     assert.equal(inviteIds.length, 1, "inviteIds should contain the id from the first invite");
     const notifRows = await db
       .select()
@@ -1176,7 +1185,8 @@ describe("POST /parties/:partyId/invite — deduplication", () => {
       .where(
         and(
           eq(notificationsTable.userId, outsiderId),
-          eq(notificationsTable.relatedId, inviteIds[0])
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(notifRows.length, 1, "still exactly one notification after second invite");
@@ -1212,9 +1222,15 @@ describe("POST /parties then POST /parties/:partyId/invite — LFG close-dialog 
         .from(partyInvitesTable)
         .where(eq(partyInvitesTable.partyId, newPartyId));
       if (inviteRows.length) {
+        // relatedId now stores partyId, not inviteId
         await db
           .delete(notificationsTable)
-          .where(inArray(notificationsTable.relatedId, inviteRows.map((r) => r.id)));
+          .where(
+            and(
+              eq(notificationsTable.type, "party_invite"),
+              eq(notificationsTable.relatedId, newPartyId)
+            )
+          );
         await db.delete(partyInvitesTable).where(eq(partyInvitesTable.partyId, newPartyId));
       }
       await db.delete(partyMembersTable).where(eq(partyMembersTable.partyId, newPartyId));
@@ -1314,13 +1330,15 @@ describe("POST /parties then POST /parties/:partyId/invite — LFG close-dialog 
       );
     assert.equal(inviteRows.length, 1, "invite row must exist before checking notification");
 
+    // relatedId stores newPartyId (not inviteId) so the frontend can navigate to /party/:id
     const notifRows = await db
       .select()
       .from(notificationsTable)
       .where(
         and(
           eq(notificationsTable.userId, outsiderId),
-          eq(notificationsTable.relatedId, inviteRows[0].id)
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, newPartyId)
         )
       );
     assert.equal(notifRows.length, 1, "exactly one notification must be delivered to the invitee");
@@ -1359,11 +1377,18 @@ describe("POST /parties/:partyId/invite — re-invite after declined or accepted
   });
 
   after(async () => {
-    // Clean up all invites and their notifications created during this block.
+    // Clean up all invites and their notifications.
+    // relatedId now stores partyId, so delete by partyId + outsiderId + type.
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
+        )
+      );
     if (createdInviteIds.length) {
-      await db
-        .delete(notificationsTable)
-        .where(inArray(notificationsTable.relatedId, createdInviteIds));
       await db
         .delete(partyInvitesTable)
         .where(inArray(partyInvitesTable.id, createdInviteIds));
@@ -1457,14 +1482,15 @@ describe("POST /parties/:partyId/invite — re-invite after declined or accepted
     assert.notEqual(newInvite.id, firstInvite.id, "re-invite must create a distinct row, not reuse the old one");
     createdInviteIds.push(newInvite.id);
 
-    // There should be exactly one notification for the new invite.
+    // There should be exactly one notification — relatedId stores partyId
     const notifRows = await db
       .select()
       .from(notificationsTable)
       .where(
         and(
           eq(notificationsTable.userId, outsiderId),
-          eq(notificationsTable.relatedId, newInvite.id)
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(notifRows.length, 1, "a new notification must be created for the re-invite");
@@ -1573,14 +1599,15 @@ describe("POST /parties/:partyId/invite — re-invite after declined or accepted
     assert.notEqual(newInvite.id, firstInvite.id, "re-invite must create a distinct row, not reuse the accepted one");
     createdInviteIds.push(newInvite.id);
 
-    // There should be exactly one notification for the new invite.
+    // There should be exactly one notification — relatedId stores partyId
     const notifRows = await db
       .select()
       .from(notificationsTable)
       .where(
         and(
           eq(notificationsTable.userId, outsiderId),
-          eq(notificationsTable.relatedId, newInvite.id)
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(notifRows.length, 1, "a new notification must be created for the re-invite after accept");
@@ -1621,10 +1648,17 @@ describe("POST /parties/:partyId/invite — concurrent requests", () => {
   });
 
   after(async () => {
+    // relatedId stores partyId — clean up by partyId + outsider2 + type
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsider2Id),
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
+        )
+      );
     if (concurrentInviteIds.length) {
-      await db
-        .delete(notificationsTable)
-        .where(inArray(notificationsTable.relatedId, concurrentInviteIds));
       await db
         .delete(partyInvitesTable)
         .where(inArray(partyInvitesTable.id, concurrentInviteIds));
@@ -1670,14 +1704,15 @@ describe("POST /parties/:partyId/invite — concurrent requests", () => {
     assert.equal(inviteRows.length, 1, "exactly one pending invite row must exist after concurrent requests");
     concurrentInviteIds.push(inviteRows[0].id);
 
-    // Exactly one notification must exist for that invite
+    // Exactly one notification must exist — relatedId stores partyId
     const notifRows = await db
       .select()
       .from(notificationsTable)
       .where(
         and(
           eq(notificationsTable.userId, outsider2Id),
-          eq(notificationsTable.relatedId, inviteRows[0].id)
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(notifRows.length, 1, "exactly one notification must exist after concurrent requests");
@@ -1715,10 +1750,17 @@ describe("POST /party-invites/:inviteId/accept — re-invite while already a par
 
   after(async () => {
     // Clean up invites, notifications, and any membership added during this block.
+    // relatedId stores partyId — delete by partyId + outsiderId + type
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
+        )
+      );
     if (createdInviteIds.length) {
-      await db
-        .delete(notificationsTable)
-        .where(inArray(notificationsTable.relatedId, createdInviteIds));
       await db
         .delete(partyInvitesTable)
         .where(inArray(partyInvitesTable.id, createdInviteIds));
@@ -1856,10 +1898,17 @@ describe("POST /parties/:partyId/invite — stale notifications cleared on re-in
   });
 
   after(async () => {
+    // relatedId stores partyId — delete by partyId + outsiderId + type
+    await db
+      .delete(notificationsTable)
+      .where(
+        and(
+          eq(notificationsTable.userId, outsiderId),
+          eq(notificationsTable.type, "party_invite"),
+          eq(notificationsTable.relatedId, partyId)
+        )
+      );
     if (createdInviteIds.length) {
-      await db
-        .delete(notificationsTable)
-        .where(inArray(notificationsTable.relatedId, createdInviteIds));
       await db
         .delete(partyInvitesTable)
         .where(inArray(partyInvitesTable.id, createdInviteIds));
@@ -1966,6 +2015,7 @@ describe("POST /parties/:partyId/invite — stale notifications cleared on re-in
     createdInviteIds.push(invite3.id);
 
     // ── Verify exactly one party_invite notification survives ─────────────────
+    // relatedId stores partyId so the route can clear stale notifications on re-invite
     const allNotifRows = await db
       .select()
       .from(notificationsTable)
@@ -1973,7 +2023,7 @@ describe("POST /parties/:partyId/invite — stale notifications cleared on re-in
         and(
           eq(notificationsTable.userId, outsiderId),
           eq(notificationsTable.type, "party_invite"),
-          inArray(notificationsTable.relatedId, createdInviteIds)
+          eq(notificationsTable.relatedId, partyId)
         )
       );
     assert.equal(
@@ -1983,8 +2033,8 @@ describe("POST /parties/:partyId/invite — stale notifications cleared on re-in
     );
     assert.equal(
       allNotifRows[0].relatedId,
-      invite3.id,
-      "the surviving notification must belong to the most recent invite"
+      partyId,
+      "the surviving notification must point to the party (relatedId = partyId)"
     );
   });
 });

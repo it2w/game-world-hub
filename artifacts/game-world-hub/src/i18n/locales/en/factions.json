@@ -1,0 +1,47 @@
+{
+  "war": {
+    "title": "Faction War",
+    "subtitle": "Weekly war resets every Monday. Your activity earns points for your faction.",
+    "weeklyPoints": "Weekly Points",
+    "members": "Members",
+    "activeMembers": "Active",
+    "join": "Join Faction",
+    "joined": "Your Faction",
+    "alreadyJoined": "You are already a member of {{name}}",
+    "chooseTitle": "Choose Your Faction",
+    "chooseDesc": "This is a permanent choice. Choose carefully — you can never switch factions.",
+    "confirmJoin": "Join {{name}}",
+    "joinSuccess": "Welcome to {{name}}!",
+    "joinFailed": "Failed to join faction",
+    "noFaction": "No Faction",
+    "warEnds": "War resets in",
+    "pointsBreakdown": "LFG Post = 5pts · LFG Response = 3pts · Message = 1pt",
+    "totalMembers": "Total Members"
+  },
+  "seasons": {
+    "title": "Season Rankings",
+    "subtitle": "Current season leaderboard. Top 10 at season end enter the Hall of Fame.",
+    "season": "Season",
+    "endsIn": "Ends in",
+    "rank": "Rank",
+    "player": "Player",
+    "faction": "Faction",
+    "xp": "XP",
+    "loadMore": "Load More",
+    "you": "YOU",
+    "noSeason": "No active season",
+    "days": "d",
+    "hours": "h",
+    "minutes": "m"
+  },
+  "hof": {
+    "title": "Hall of Fame",
+    "subtitle": "Legends who reached the top 10 at the end of a season. These records are permanent.",
+    "season": "Season",
+    "ended": "Ended",
+    "champion": "Champion",
+    "noEntries": "No completed seasons yet. Be the first to earn your place in history.",
+    "rank": "Rank",
+    "xp": "XP"
+  }
+}

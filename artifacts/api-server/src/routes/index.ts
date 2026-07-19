@@ -32,6 +32,7 @@ import battlePassRouter from "./battle-pass";
 import vouchingRouter from "./vouching";
 import tournamentsRouter from "./tournaments";
 import bountiesRouter from "./bounties";
+import factionsRouter from "./factions";
 
 const router: IRouter = Router();
 
@@ -94,5 +95,6 @@ router.use(battlePassRouter);
 router.use(vouchingRouter);
 router.use(tournamentsRouter);
 router.use(bountiesRouter);
+router.use(factionsRouter);
 
 export default router;

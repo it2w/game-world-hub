@@ -57,6 +57,13 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  const { data: factionData } = useQuery<{ id: number; name: string; slug: string; color: string; iconEmoji: string } | null>({
+    queryKey: ["user-faction", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/faction`),
+    staleTime: 60_000,
+    enabled: !!userId,
+  });
+
   const { data: bountiesData } = useQuery<{
     posted: Array<{ id: number; game: string; title: string; xpReward: number; status: string; applicantCount: number; createdAt: string }>;
     applied: Array<{ id: number; game: string; title: string; xpReward: number; status: string; applicationStatus: string; appliedAt: string }>;
@@ -449,6 +456,14 @@ export default function Profile() {
                 {user.displayName}
               </h1>
               {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
+              {factionData && (
+                <span
+                  className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest border px-2 py-0.5"
+                  style={{ backgroundColor: `${factionData.color}22`, borderColor: `${factionData.color}55`, color: factionData.color }}
+                >
+                  {factionData.iconEmoji} {factionData.name}
+                </span>
+              )}
             </div>
             <p className="text-primary font-mono text-sm mt-1">@{user.username}</p>
           </div>
@@ -1181,4 +1196,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library, Play, Award, Trophy, Zap } from "lucide-react";
+import { Library, Play, Award, Trophy, Zap, Flame } from "lucide-react";

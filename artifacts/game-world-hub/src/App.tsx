@@ -31,6 +31,9 @@ import BattlePass from '@/pages/battle-pass';
 import Tournaments from '@/pages/tournaments';
 import TournamentDetail from '@/pages/tournament-detail';
 import Bounties from '@/pages/bounties';
+import Factions from '@/pages/factions';
+import Seasons from '@/pages/seasons';
+import HallOfFame from '@/pages/hall-of-fame';
 import Admin from '@/pages/admin';
 import Owner from '@/pages/owner';
 import NotFound from '@/pages/not-found';
@@ -108,6 +111,9 @@ function Router() {
             <Route path="/tournaments" component={Tournaments} />
             <Route path="/tournaments/:id" component={TournamentDetail} />
             <Route path="/bounties" component={Bounties} />
+            <Route path="/factions" component={Factions} />
+            <Route path="/seasons" component={Seasons} />
+            <Route path="/hall-of-fame" component={HallOfFame} />
             <Route path="/admin" component={Admin} />
             <Route component={NotFound} />
           </Switch>

@@ -233,6 +233,53 @@ async function fetchReactions(
   return map;
 }
 
+// ── GET /global-chat/preview — public; cached 10 s ────────────────────────────
+// Returns the last 12 non-system general-channel messages for the landing page.
+// No auth required; strips no private fields (avatarUrl already public).
+let _previewCache: { data: unknown; ts: number } | null = null;
+const PREVIEW_TTL_MS = 10_000;
+
+router.get("/global-chat/preview", async (_req, res): Promise<void> => {
+  const now = Date.now();
+  if (_previewCache && now - _previewCache.ts < PREVIEW_TTL_MS) {
+    res.json(_previewCache.data);
+    return;
+  }
+  try {
+    const { rows } = await pool.query<{
+      id: number; content: string; message_type: string;
+      metadata: Record<string, unknown> | null; created_at: string;
+      display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
+    }>(`
+      SELECT g.id, g.content, g.message_type, g.metadata, g.created_at,
+             u.display_name, u.username, u.avatar_url, u.is_pro
+      FROM global_chat_messages g
+      JOIN users u ON u.id = g.user_id
+      WHERE g.channel = 'general'
+        AND g.message_type IN ('text', 'gif')
+      ORDER BY g.created_at DESC
+      LIMIT 12
+    `);
+    const data = rows.reverse().map(r => ({
+      id:          r.id,
+      content:     r.content,
+      messageType: r.message_type,
+      metadata:    r.metadata ?? {},
+      createdAt:   r.created_at,
+      author: {
+        displayName: r.display_name,
+        username:    r.username,
+        avatarUrl:   toPublicImageUrl(r.avatar_url),
+        isPro:       r.is_pro,
+      },
+    }));
+    _previewCache = { data, ts: now };
+    res.json(data);
+  } catch {
+    res.json([]);
+  }
+});
+
 // ── GET /global-chat/messages ──────────────────────────────────────────────────
 router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void> => {
   const userId  = req.auth!.userId;

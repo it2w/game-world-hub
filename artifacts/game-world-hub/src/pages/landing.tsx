@@ -53,6 +53,15 @@ type MatchedUser = {
   avatarUrl: string | null; status: string; matchedGame: string | null;
 };
 
+type PreviewMessage = {
+  id: number;
+  content: string;
+  messageType: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  author: { displayName: string; username: string; avatarUrl: string | null; isPro: boolean };
+};
+
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const CONTACT_EMAIL = "info@gmes.app";
@@ -940,6 +949,178 @@ function FeatureShowcase() {
   );
 }
 
+// ─── live chat preview ────────────────────────────────────────────────────────
+
+const CHAT_PALETTE = ["#22C55E", "#EC4899", "#06B6D4", "#A855F7", "#F97316", "#FFD700", "#38BDF8"];
+function chatColor(name: string) {
+  return CHAT_PALETTE[name.charCodeAt(0) % CHAT_PALETTE.length];
+}
+
+function LiveChatSection() {
+  const { t } = useTranslation("landing");
+  const [msgs, setMsgs] = useState<PreviewMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pulse, setPulse] = useState(false);
+  const knownIds = useRef<Set<number>>(new Set());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const fetchMsgs = useCallback(async () => {
+    try {
+      const r = await fetch("/api/global-chat/preview");
+      if (!r.ok) return;
+      const data: PreviewMessage[] = await r.json();
+      if (!Array.isArray(data)) return;
+      const hasNew = data.some(m => !knownIds.current.has(m.id));
+      if (hasNew && knownIds.current.size > 0) {
+        setPulse(true);
+        setTimeout(() => setPulse(false), 900);
+      }
+      data.forEach(m => knownIds.current.add(m.id));
+      setMsgs(data.slice(-10));
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMsgs();
+    const id = setInterval(fetchMsgs, 10_000);
+    return () => clearInterval(id);
+  }, [fetchMsgs]);
+
+  // Scroll to bottom whenever messages update
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [msgs]);
+
+  return (
+    <section id="live-chat" className="py-16 md:py-24 border-b border-border">
+      <div className="max-w-6xl mx-auto px-4 md:px-6">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+
+          {/* left — copy */}
+          <Reveal variant="left">
+            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-primary mb-3">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              {t("liveChat.prompt")}
+            </div>
+            <h2 className="font-mono font-bold text-2xl md:text-3xl uppercase tracking-tight mb-4">
+              {t("liveChat.title")}
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-8 max-w-sm">
+              {t("liveChat.body")}
+            </p>
+            <Button
+              asChild size="lg"
+              className="rounded-none font-mono uppercase tracking-widest"
+              style={{ boxShadow: "0 0 18px rgba(34,197,94,0.25)" }}
+            >
+              <Link href="/register">{t("liveChat.joinCta")} →</Link>
+            </Button>
+          </Reveal>
+
+          {/* right — chat window */}
+          <Reveal variant="right">
+            <div
+              className={cn(
+                "gwh-corner-card bg-card border border-border overflow-hidden transition-all duration-500",
+                pulse && "border-primary/60 shadow-[0_0_32px_rgba(34,197,94,0.2)]"
+              )}
+            >
+              {/* window chrome */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-background/60 backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                  <MessagesSquare className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-mono text-xs text-muted-foreground">{t("liveChat.channel")}</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-red-400 bg-red-400/10 border border-red-400/30 px-2 py-0.5 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  {t("liveChat.livePill")}
+                </div>
+              </div>
+
+              {/* messages list */}
+              <div
+                ref={listRef}
+                className="h-72 overflow-y-auto px-3 py-3 flex flex-col gap-2.5"
+                style={{ scrollbarWidth: "none" }}
+              >
+                {loading && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="font-mono text-xs text-muted-foreground animate-pulse">{t("liveChat.loading")}</span>
+                  </div>
+                )}
+                {!loading && msgs.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="font-mono text-xs text-muted-foreground">{t("liveChat.emptyState")}</span>
+                  </div>
+                )}
+                {msgs.map((msg) => {
+                  const color = chatColor(msg.author.displayName);
+                  const isGif  = msg.messageType === "gif";
+                  const bgColor = msg.metadata?.msgBgColor as string | undefined;
+                  return (
+                    <div key={msg.id} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      {/* avatar */}
+                      <div
+                        className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold border overflow-hidden"
+                        style={{ background: `${color}20`, borderColor: `${color}50`, color }}
+                      >
+                        {msg.author.avatarUrl
+                          ? <img src={msg.author.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          : (msg.author.displayName || "?").charAt(0).toUpperCase()
+                        }
+                      </div>
+
+                      {/* content */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                          <span className="font-mono text-[11px] font-bold" style={{ color }}>
+                            {msg.author.displayName}
+                          </span>
+                          {msg.author.isPro && (
+                            <span className="text-[8px] font-mono font-bold text-amber-400 border border-amber-400/40 bg-amber-400/10 px-1 py-px leading-none">
+                              {t("liveChat.proTag")}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-xs text-foreground/85 leading-snug break-words"
+                          style={bgColor ? { background: `${bgColor}22`, padding: "3px 6px", borderRadius: 2 } : {}}
+                        >
+                          {isGif
+                            ? <span className="flex items-center gap-1 text-muted-foreground italic text-[11px]">🎬 {t("liveChat.gifLabel")}</span>
+                            : msg.content
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* fake input bar — CTA */}
+              <div className="px-3 py-2.5 border-t border-border bg-background/40">
+                <Link
+                  href="/register"
+                  className="flex items-center gap-2 w-full h-8 bg-input/30 border border-border/60 hover:border-primary/50 transition-colors px-3 font-mono text-[11px] text-muted-foreground hover:text-primary"
+                >
+                  <span className="flex-1">{t("liveChat.joinCta")} →</span>
+                  <span className="text-[10px] opacity-40">ENTER</span>
+                </Link>
+              </div>
+            </div>
+          </Reveal>
+
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── faction war map ──────────────────────────────────────────────────────────
 
 const FACTION_FALLBACKS: FactionScore[] = [
@@ -1542,7 +1723,7 @@ export default function Landing() {
   // Scroll to anchor hash on mount
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    const validAnchors = [...SECTION_IDS, "top", "social", "warmap", "twin"];
+    const validAnchors = [...SECTION_IDS, "top", "social", "live-chat", "warmap", "twin", "chat-pro"];
     if (hash && validAnchors.includes(hash)) {
       requestAnimationFrame(() => {
         document.getElementById(hash)?.scrollIntoView({ behavior: "auto", block: "start" });
@@ -1557,6 +1738,7 @@ export default function Landing() {
         <Hero liveStats={liveStats} />
         <SocialProofCarousel />
         <FeatureShowcase />
+        <LiveChatSection />
         <FactionWarMap liveStats={liveStats} />
         <TwinGamer />
         <PricingSection />

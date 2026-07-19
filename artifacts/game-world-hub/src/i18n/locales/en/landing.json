@@ -157,6 +157,18 @@
     "button": "Send a message",
     "mailSubject": "Inquiry — Game World Hub"
   },
+  "liveChat": {
+    "prompt": "> global-chat --live",
+    "title": "The Chat is Live Right Now",
+    "body": "Real messages from real players — no bots, no scripts. Join the conversation and find your next squad.",
+    "joinCta": "Jump In",
+    "livePill": "LIVE",
+    "gifLabel": "GIF",
+    "proTag": "PRO",
+    "emptyState": "No messages yet — be the first!",
+    "loading": "Connecting...",
+    "channel": "# general"
+  },
   "footer": {
     "tagline": "Your social platform for the gaming world.",
     "links": "Sections",

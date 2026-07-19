@@ -512,6 +512,76 @@ describe("GET /owner/export/users", () => {
     const r = await get("/owner/export/users", undefined, userToken);
     assert.strictEqual(r.status, 401);
   });
+
+  test("CSV header contains exactly the documented columns and no extras", async () => {
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!.trim();
+    const cols = header.split(",");
+    const EXPECTED = ["id", "username", "display_name", "email", "is_pro", "is_admin", "status", "created_at", "last_active_at"];
+    assert.deepStrictEqual(
+      cols,
+      EXPECTED,
+      `CSV columns must be exactly ${EXPECTED.join(",")}; got ${header}`,
+    );
+  });
+
+  test("CSV header does not contain password_hash", async () => {
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!;
+    assert.ok(!header.includes("password_hash"), `sensitive field password_hash must not appear in header; got: ${header}`);
+  });
+
+  test("CSV header does not contain pro_expires_at", async () => {
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!;
+    assert.ok(!header.includes("pro_expires_at"), `sensitive field pro_expires_at must not appear in header; got: ${header}`);
+  });
+
+  test("CSV header does not contain sessions_invalidated_before", async () => {
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!;
+    assert.ok(!header.includes("sessions_invalidated_before"), `internal field sessions_invalidated_before must not appear in header; got: ${header}`);
+  });
+
+  test("data rows contain no sensitive fields — every row maps only to documented columns", async () => {
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200);
+
+    const lines = r.text.trim().split("\n");
+    const header = lines[0]!.trim().split(",");
+    const SENSITIVE = ["password_hash", "pro_expires_at", "sessions_invalidated_before"];
+
+    // Header-level check already done above; confirm once more in this combined assertion.
+    for (const s of SENSITIVE) {
+      assert.ok(!header.includes(s), `sensitive column "${s}" must not be in CSV header`);
+    }
+
+    // For every data row verify the column count matches the header exactly.
+    // A mismatched count could indicate a hidden extra column was appended.
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]!.trim();
+      if (!line) continue;
+      // Split on commas not inside quotes (simple: count fields by parsing CSV naively)
+      const fields: string[] = [];
+      let cur = "";
+      let inQuote = false;
+      for (const ch of line) {
+        if (ch === '"') { inQuote = !inQuote; cur += ch; }
+        else if (ch === "," && !inQuote) { fields.push(cur); cur = ""; }
+        else { cur += ch; }
+      }
+      fields.push(cur);
+      assert.strictEqual(
+        fields.length,
+        header.length,
+        `row ${i} has ${fields.length} fields but header has ${header.length}: ${line}`,
+      );
+    }
+  });
 });
 
 describe("GET /owner/export/log", () => {
@@ -549,6 +619,28 @@ describe("GET /owner/export/log", () => {
   test("401 when a regular user token is used as ?token= query param", async () => {
     const r = await get("/owner/export/log", undefined, userToken);
     assert.strictEqual(r.status, 401);
+  });
+
+  test("CSV header contains exactly the documented columns and no extras", async () => {
+    const r = await get("/owner/export/log", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!.trim();
+    const cols = header.split(",");
+    const EXPECTED = ["id", "action", "target_id", "target_name", "detail", "owner_name", "created_at"];
+    assert.deepStrictEqual(
+      cols,
+      EXPECTED,
+      `CSV columns must be exactly ${EXPECTED.join(",")}; got ${header}`,
+    );
+  });
+
+  test("CSV header does not contain owner_id (raw FK — must not be exposed)", async () => {
+    const r = await get("/owner/export/log", ownerToken);
+    assert.strictEqual(r.status, 200);
+    const header = r.text.split("\n")[0]!;
+    // "owner_name" contains "owner_" so use exact-column check
+    const cols = header.split(",");
+    assert.ok(!cols.includes("owner_id"), `raw owner_id FK must not appear as a column; got: ${header}`);
   });
 });
 

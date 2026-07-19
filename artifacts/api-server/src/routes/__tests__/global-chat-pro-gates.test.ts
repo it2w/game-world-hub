@@ -67,6 +67,10 @@ let gifUrlPro2Id = 0; let gifUrlPro2Username = "";
 // Pin-expiry
 let expProId = 0; let expProUsername = "";
 
+// Message-edit gate — Pro-expiry simulation
+let editProId  = 0; let editProUsername  = "";
+let editFreeId = 0; let editFreeUsername = "";
+
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
 const createdPinIds:     number[] = [];
@@ -181,6 +185,8 @@ before(async () => {
       pro("gurl1"),
       pro("gurl2"),
       pro("exp"),
+      pro("editpro"),
+      free("editfree"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -198,6 +204,8 @@ before(async () => {
     [gifUrlPro1Id, gifUrlPro1Username],
     [gifUrlPro2Id, gifUrlPro2Username],
     [expProId,     expProUsername],
+    [editProId,    editProUsername],
+    [editFreeId,   editFreeUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -497,6 +505,127 @@ describe("Pin expiry", () => {
       res.body,
       null,
       `expected null for expired pin, got: ${JSON.stringify(res.body)}`,
+    );
+  });
+});
+
+describe("Message edit gate — Pro-only and subscription-expiry", () => {
+  // Seed messages directly in DB (no POST cooldown concerns).
+  // The PATCH route re-reads is_pro from the DB on every request, so flipping
+  // the flag simulates a mid-session Pro subscription expiry.
+
+  test("non-Pro user cannot edit any message → 403", async () => {
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'free-user-msg', 'general') RETURNING id`,
+      [editFreeId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    const res = await req(
+      "PATCH", `/global-chat/messages/${msgId}`,
+      editFreeId, editFreeUsername,
+      { content: "trying to edit" },
+    );
+    assert.equal(res.status, 403, `expected 403 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { error: string };
+    assert.ok(
+      body.error?.toLowerCase().includes("pro"),
+      `error message should mention Pro, got: ${body.error}`,
+    );
+  });
+
+  test("active Pro user can edit their own recent message → 200", async () => {
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'pro-original-content', 'general') RETURNING id`,
+      [editProId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    const res = await req(
+      "PATCH", `/global-chat/messages/${msgId}`,
+      editProId, editProUsername,
+      { content: "edited by pro" },
+    );
+    assert.equal(res.status, 200, `expected 200 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { messageId: number; content: string };
+    assert.equal(body.messageId, msgId);
+    assert.equal(body.content, "edited by pro");
+  });
+
+  test("user whose Pro lapses mid-session loses edit access immediately → 403", async () => {
+    // Seed a fresh message for this user
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'will-be-blocked', 'general') RETURNING id`,
+      [editProId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    // Simulate subscription expiry by flipping is_pro → false in the DB
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [editProId]);
+
+    try {
+      const res = await req(
+        "PATCH", `/global-chat/messages/${msgId}`,
+        editProId, editProUsername,
+        { content: "should be blocked" },
+      );
+      assert.equal(res.status, 403, `expected 403 after expiry, got ${res.status}: ${JSON.stringify(res.body)}`);
+      const body = res.body as { error: string };
+      assert.ok(
+        body.error?.toLowerCase().includes("pro"),
+        `error should mention Pro, got: ${body.error}`,
+      );
+    } finally {
+      // Restore Pro status so teardown user-deletion doesn't leave noise
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [editProId]);
+    }
+  });
+
+  test("editing another user's message is rejected → 403", async () => {
+    // Seed a message owned by the free user
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'free-user-owns-this', 'general') RETURNING id`,
+      [editFreeId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    // editProId (Pro) tries to edit a message they don't own
+    const res = await req(
+      "PATCH", `/global-chat/messages/${msgId}`,
+      editProId, editProUsername,
+      { content: "stealing the edit" },
+    );
+    assert.equal(res.status, 403, `expected 403 got ${res.status}: ${JSON.stringify(res.body)}`);
+  });
+
+  test("editing a message older than 5 minutes → 403", async () => {
+    // Insert a message with created_at forced to 6 minutes ago
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel, created_at)
+       VALUES ($1, 'old-message', 'general', NOW() - INTERVAL '6 minutes') RETURNING id`,
+      [editProId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    const res = await req(
+      "PATCH", `/global-chat/messages/${msgId}`,
+      editProId, editProUsername,
+      { content: "too late to edit" },
+    );
+    assert.equal(res.status, 403, `expected 403 for stale message, got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { error: string };
+    assert.ok(
+      body.error?.toLowerCase().includes("5 min"),
+      `error should mention time limit, got: ${body.error}`,
     );
   });
 });

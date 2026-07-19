@@ -191,6 +191,11 @@ function sanitizeMeta(
     if (raw.gifUrl && typeof raw.gifUrl === "string" && GIF_DOMAIN_RE.test(raw.gifUrl))
       m.gifUrl = raw.gifUrl;
   }
+  if (messageType === "trade_offer") {
+    if (raw.offering && typeof raw.offering === "string") m.offering = String(raw.offering).slice(0, 80);
+    if (raw.seeking  && typeof raw.seeking  === "string") m.seeking  = String(raw.seeking).slice(0, 80);
+    if (raw.price    && typeof raw.price    === "string") m.price    = String(raw.price).slice(0, 40);
+  }
   return m;
 }
 
@@ -311,7 +316,7 @@ router.post("/global-chat/messages", requireAuth, async (req, res): Promise<void
 
   const safeChannel = VALID_CHANNELS.has(channel) ? channel : "general";
 
-  if (!["text", "lfg_signal", "gif"].includes(messageType)) {
+  if (!["text", "lfg_signal", "gif", "trade_offer"].includes(messageType)) {
     res.status(400).json({ error: "Invalid message type" }); return;
   }
 

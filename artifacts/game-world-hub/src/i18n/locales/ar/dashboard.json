@@ -267,7 +267,12 @@
     "pin": "ثبّت",
     "pinned": "تم تثبيت الرسالة!",
     "pinBanner": "مثبّت",
-    "enteredTop10": "دخل إلى المرتبة {{rank}} عالمياً!"
+    "enteredTop10": "دخل إلى المرتبة {{rank}} عالمياً!",
+    "tradeOffer": "عرض تداول",
+    "offering": "أعرض",
+    "seeking": "أبحث عن",
+    "price": "السعر",
+    "tradePlaceholder": "أضف ملاحظة لصفقتك (اختياري)…"
   },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",

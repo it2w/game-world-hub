@@ -267,7 +267,12 @@
     "pin": "Pin",
     "pinned": "Message pinned!",
     "pinBanner": "Pinned",
-    "enteredTop10": "entered the Global Top {{rank}}!"
+    "enteredTop10": "entered the Global Top {{rank}}!",
+    "tradeOffer": "Trade Offer",
+    "offering": "Offering",
+    "seeking": "Seeking",
+    "price": "Price",
+    "tradePlaceholder": "Add a note to your trade (optional)…"
   },
   "stats": {
     "weeklyLabel": "This Week",

@@ -14,7 +14,7 @@ import { Link } from "wouter";
 import {
   Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink,
   X, Reply, Flag, CornerUpLeft, Pin, Search, Filter,
-  ChevronUp, ImageIcon,
+  ChevronUp, ImageIcon, ArrowLeftRight,
 } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
 
@@ -41,7 +41,7 @@ interface ChatMessage {
   userId: number;
   content: string;
   channel: string;
-  messageType: "text" | "lfg_signal" | "gif" | "system_announcement";
+  messageType: "text" | "lfg_signal" | "gif" | "system_announcement" | "trade_offer";
   metadata: {
     nameColor?: string;
     textColor?: string;
@@ -55,6 +55,9 @@ interface ChatMessage {
     gifUrl?: string;
     rank_position?: number;
     username?: string;
+    offering?: string;
+    seeking?: string;
+    price?: string;
   };
   createdAt: string;
   author: ChatAuthor;
@@ -192,6 +195,44 @@ function ReactionBar({
           {r.emoji} <span className="gc-reaction-count">{r.count}</span>
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Trade Offer card ──────────────────────────────────────────────────────────
+function TradeOfferCard({ msg, t }: { msg: ChatMessage; t: (k: string, o?: any) => string }) {
+  const { offering, seeking, price } = msg.metadata;
+  return (
+    <div className="gc-trade-card">
+      <div className="gc-trade-header">
+        <ArrowLeftRight className="w-3.5 h-3.5" style={{ color: "#F59E0B" }} />
+        <span className="gc-trade-label-title">{t("chat.tradeOffer")}</span>
+      </div>
+      <div className="gc-trade-body">
+        {msg.content && (
+          <p className="gc-trade-note">{msg.content}</p>
+        )}
+        <div className="gc-trade-fields">
+          {offering && (
+            <div className="gc-trade-field">
+              <span className="gc-trade-field-label">📦 {t("chat.offering")}</span>
+              <span className="gc-trade-field-value">{offering}</span>
+            </div>
+          )}
+          {seeking && (
+            <div className="gc-trade-field">
+              <span className="gc-trade-field-label">🔍 {t("chat.seeking")}</span>
+              <span className="gc-trade-field-value">{seeking}</span>
+            </div>
+          )}
+          {price && (
+            <div className="gc-trade-field">
+              <span className="gc-trade-field-label">💰 {t("chat.price")}</span>
+              <span className="gc-trade-field-value gc-trade-price">{price}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -457,7 +498,9 @@ function MessageRow({
         </div>
 
         {/* Content */}
-        {msg.messageType === "lfg_signal" ? (
+        {msg.messageType === "trade_offer" ? (
+          <TradeOfferCard msg={msg} t={t} />
+        ) : msg.messageType === "lfg_signal" ? (
           <LfgSignalCard msg={msg} t={t} />
         ) : msg.messageType === "gif" && msg.metadata.gifUrl ? (
           <img
@@ -740,6 +783,12 @@ export function GlobalChat({ me }: { me: any }) {
   const [lfgMode,       setLfgMode]       = useState(false);
   const [lfgGame,       setLfgGame]       = useState("");
 
+  // Trade mode
+  const [tradeMode,     setTradeMode]     = useState(false);
+  const [tradeOffering, setTradeOffering] = useState("");
+  const [tradeSeeking,  setTradeSeeking]  = useState("");
+  const [tradePrice,    setTradePrice]    = useState("");
+
   // Interactions
   const [activeCard,    setActiveCard]    = useState<{ author: ChatAuthor; rect: DOMRect } | null>(null);
   const [addedIds,      setAddedIds]      = useState<Set<number>>(new Set());
@@ -899,12 +948,21 @@ export function GlobalChat({ me }: { me: any }) {
   // ── Send text/lfg message ──────────────────────────────────────────────────
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text && !tradeMode) return;
+    if (tradeMode && !tradeOffering.trim() && !tradeSeeking.trim() && !text) return;
+    if (sending) return;
     setSending(true);
     try {
       const body: Record<string, unknown> = { content: text, channel };
       if (replyTo) body.replyToId = replyTo.id;
-      if (lfgMode) {
+      if (tradeMode) {
+        body.messageType = "trade_offer";
+        body.metadata    = {
+          offering: tradeOffering.trim() || undefined,
+          seeking:  tradeSeeking.trim()  || undefined,
+          price:    tradePrice.trim()    || undefined,
+        };
+      } else if (lfgMode) {
         body.messageType = "lfg_signal";
         body.metadata    = { game: lfgGame || undefined, slots: 5 };
       } else {
@@ -919,13 +977,14 @@ export function GlobalChat({ me }: { me: any }) {
       await customFetch("/api/global-chat/messages", { method: "POST", body: JSON.stringify(body) });
       setInput("");
       setReplyTo(null);
-      if (lfgMode) { setLfgMode(false); setLfgGame(""); }
+      if (lfgMode)   { setLfgMode(false);   setLfgGame(""); }
+      if (tradeMode) { setTradeMode(false);  setTradeOffering(""); setTradeSeeking(""); setTradePrice(""); }
     } catch (err: any) {
       toast({ title: err?.message ?? t("chat.sendError"), variant: "destructive" });
     } finally {
       setSending(false);
     }
-  }, [input, sending, replyTo, lfgMode, lfgGame, isPro, nameColor, textColor, badge, nameAnimation, channel, t, toast]);
+  }, [input, sending, replyTo, lfgMode, lfgGame, tradeMode, tradeOffering, tradeSeeking, tradePrice, isPro, nameColor, textColor, badge, nameAnimation, channel, t, toast]);
 
   // ── Send GIF ───────────────────────────────────────────────────────────────
   const sendGif = useCallback(async (gifUrl: string) => {
@@ -1220,6 +1279,40 @@ export function GlobalChat({ me }: { me: any }) {
         </div>
       )}
 
+      {/* ── Trade mode bar ────────────────────────────────────────────────── */}
+      {tradeMode && (
+        <div className="gc-trade-mode-bar">
+          <div className="gc-trade-mode-header">
+            <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" style={{ color: "#F59E0B" }} />
+            <span className="gc-trade-mode-title">{t("chat.tradeOffer")}</span>
+            <button className="gc-lfg-cancel" onClick={() => { setTradeMode(false); setTradeOffering(""); setTradeSeeking(""); setTradePrice(""); }}>✕</button>
+          </div>
+          <div className="gc-trade-mode-fields">
+            <input
+              className="gc-trade-field-input"
+              placeholder={`📦 ${t("chat.offering")}…`}
+              value={tradeOffering}
+              onChange={e => setTradeOffering(e.target.value)}
+              maxLength={80}
+            />
+            <input
+              className="gc-trade-field-input"
+              placeholder={`🔍 ${t("chat.seeking")}…`}
+              value={tradeSeeking}
+              onChange={e => setTradeSeeking(e.target.value)}
+              maxLength={80}
+            />
+            <input
+              className="gc-trade-field-input gc-trade-field-price"
+              placeholder={`💰 ${t("chat.price")}…`}
+              value={tradePrice}
+              onChange={e => setTradePrice(e.target.value)}
+              maxLength={40}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Input area ────────────────────────────────────────────────────── */}
       <div className="gc-input-area">
         <div className="gc-input-row">
@@ -1264,17 +1357,26 @@ export function GlobalChat({ me }: { me: any }) {
           {/* LFG signal */}
           <button
             className={`gc-icon-btn ${lfgMode ? "gc-icon-btn--active" : ""}`}
-            onClick={() => { setLfgMode(v => !v); }}
+            onClick={() => { setLfgMode(v => !v); setTradeMode(false); }}
             title={t("chat.lfgSignal")}
           >
             <Users className="w-4 h-4" />
+          </button>
+
+          {/* Trade offer */}
+          <button
+            className={`gc-icon-btn ${tradeMode ? "gc-icon-btn--active" : ""}`}
+            onClick={() => { setTradeMode(v => !v); setLfgMode(false); }}
+            title={t("chat.tradeOffer")}
+          >
+            <ArrowLeftRight className="w-4 h-4" />
           </button>
 
           {/* Text input */}
           <input
             ref={inputRef}
             className="gc-input"
-            placeholder={lfgMode ? t("chat.lfgPlaceholder") : t("chat.placeholder")}
+            placeholder={tradeMode ? t("chat.tradePlaceholder") : lfgMode ? t("chat.lfgPlaceholder") : t("chat.placeholder")}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={onKey}
@@ -1286,7 +1388,7 @@ export function GlobalChat({ me }: { me: any }) {
           <button
             className="gc-send-btn"
             onClick={() => void send()}
-            disabled={!input.trim() || sending}
+            disabled={sending || (!input.trim() && !(tradeMode && (tradeOffering.trim() || tradeSeeking.trim())))}
           >
             <Send className="w-4 h-4" />
           </button>

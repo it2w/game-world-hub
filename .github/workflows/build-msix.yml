@@ -35,8 +35,9 @@ jobs:
           version: 9
 
       # ── 3. Dependencies ────────────────────────────────────────────────────
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install desktop dependencies
+        working-directory: artifacts/game-world-hub-desktop
+        run: pnpm install --no-frozen-lockfile
 
       # ── 4. Version ────────────────────────────────────────────────────────
       - name: Resolve version from tag

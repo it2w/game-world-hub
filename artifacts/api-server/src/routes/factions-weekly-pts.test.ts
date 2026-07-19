@@ -43,6 +43,7 @@ let viewerUsername = "";
 let activeUserId = 0;   // will have known this-week activity
 let quietUserId = 0;    // will have no this-week activity
 let zeroUserId = 0;     // faction member but zero activity
+let staleUserId = 0;    // activity only in prior week — must contribute 0 this week
 
 let testFactionId = 0;
 let testConvId = 0;
@@ -231,6 +232,61 @@ before(async () => {
 
   // zeroUser: no activity seeded
 
+  // ── Seed staleUser: activity inserted with created_at in the PRIOR ISO week ─
+  // Compute Sunday 23:59:59 UTC of the previous week (one second before this Monday).
+  const nowForStale = new Date();
+  const dayOfWeek = nowForStale.getUTCDay() || 7; // 1=Mon..7=Sun
+  const thisMonday = new Date(Date.UTC(
+    nowForStale.getUTCFullYear(),
+    nowForStale.getUTCMonth(),
+    nowForStale.getUTCDate() - (dayOfWeek - 1),
+  ));
+  const lastSundayEnd = new Date(thisMonday.getTime() - 1000); // 1 s before Monday
+
+  const [staleInsert] = await db
+    .insert(usersTable)
+    .values(mkUser("stale"))
+    .returning({ id: usersTable.id });
+  staleUserId = staleInsert.id;
+  createdUserIds.push(staleUserId);
+
+  await pool.query(
+    `INSERT INTO user_factions (user_id, faction_id) VALUES ($1, $2)`,
+    [staleUserId, testFactionId],
+  );
+
+  // 2 stale lfg_posts (× 5 = 10 pts if counted, 0 if correctly excluded)
+  const { rows: stalePostRows } = await pool.query<{ id: number }>(
+    `INSERT INTO lfg_posts (author_id, game, description, needed_players, mic_required, status, created_at)
+     VALUES
+       ($1, 'StaleGame', 'Stale post A', 1, false, 'open', $2),
+       ($1, 'StaleGame', 'Stale post B', 1, false, 'open', $2)
+     RETURNING id`,
+    [staleUserId, lastSundayEnd],
+  );
+  createdPostIds.push(...stalePostRows.map(r => r.id));
+
+  // 1 stale lfg_response (× 3 = 3 pts if counted)
+  const { rows: staleRespRows } = await pool.query<{ id: number }>(
+    `INSERT INTO lfg_responses (post_id, user_id, message, created_at)
+     VALUES ($1, $2, 'Stale response', $3)
+     RETURNING id`,
+    [anchorPost.id, staleUserId, lastSundayEnd],
+  );
+  createdResponseIds.push(...staleRespRows.map(r => r.id));
+
+  // 3 stale messages (× 1 = 3 pts if counted)
+  const { rows: staleMsgRows } = await pool.query<{ id: number }>(
+    `INSERT INTO messages (conversation_id, sender_id, content, created_at)
+     VALUES
+       ($1, $2, 'Stale msg 1', $3),
+       ($1, $2, 'Stale msg 2', $3),
+       ($1, $2, 'Stale msg 3', $3)
+     RETURNING id`,
+    [testConvId, staleUserId, lastSundayEnd],
+  );
+  createdMessageIds.push(...staleMsgRows.map(r => r.id));
+
   // Start HTTP server
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -261,7 +317,7 @@ after(async () => {
   }
   await pool.query(
     `DELETE FROM user_factions WHERE user_id = ANY($1::int[])`,
-    [[activeUserId, quietUserId, zeroUserId]],
+    [[activeUserId, quietUserId, zeroUserId, staleUserId]],
   );
   await db.delete(usersTable).where(inArray(usersTable.id, createdUserIds));
   await pool.query(`DELETE FROM factions WHERE id = $1`, [testFactionId]);
@@ -527,6 +583,55 @@ describe("GET /factions/:id/weekly-top — consistency with GET /factions/:id/me
       activeContributor.weeklyPoints,
       ACTIVE_WEEKLY_PTS,
       `weekly-top weeklyPoints should be ${ACTIVE_WEEKLY_PTS} for activeUser, got ${activeContributor.weeklyPoints}`,
+    );
+  });
+});
+
+describe("Prior-week activity boundary — rows created before Monday 00:00 UTC contribute 0", () => {
+  test("staleUser weeklyPts is 0 even though they have prior-week activity", async () => {
+    const { status, body } = await authedGet(`/factions/${testFactionId}/members?limit=50`);
+    assert.equal(status, 200, `expected 200 but got ${status}: ${JSON.stringify(body)}`);
+
+    const resp = body as { members: Array<Record<string, unknown>> };
+    const stale = resp.members.find(m => m.userId === staleUserId);
+    assert.ok(stale, `staleUser (id=${staleUserId}) not found in members list`);
+
+    assert.equal(
+      stale.weeklyPts,
+      0,
+      `staleUser has 2 posts + 1 response + 3 messages all before the Monday boundary; weeklyPts must be 0, got ${stale.weeklyPts}`,
+    );
+  });
+
+  test("faction weekly_points in GET /factions does not include staleUser prior-week activity", async () => {
+    // Fetch faction-level points
+    const { status: fStatus, body: fBody } = await authedGet("/factions");
+    assert.equal(fStatus, 200);
+    const factions = fBody as Array<Record<string, unknown>>;
+    const testFaction = factions.find(f => f.id === testFactionId);
+    assert.ok(testFaction, `test faction (id=${testFactionId}) not found in GET /factions`);
+
+    // The stale rows (2 posts×5=10 + 1 response×3=3 + 3 messages×1=3 = 16) must NOT be included.
+    // The faction total should still equal FACTION_WEEKLY_TOTAL (active + quiet + zero), not FACTION_WEEKLY_TOTAL + 16.
+    assert.equal(
+      testFaction.weekly_points,
+      FACTION_WEEKLY_TOTAL,
+      `faction weekly_points should be ${FACTION_WEEKLY_TOTAL} (prior-week rows must be excluded); got ${testFaction.weekly_points}`,
+    );
+  });
+
+  test("staleUser prior-week activity does not appear in faction member sum", async () => {
+    const { status, body } = await authedGet(`/factions/${testFactionId}/members?limit=50`);
+    assert.equal(status, 200);
+    const resp = body as { members: Array<Record<string, unknown>> };
+
+    const memberSum = resp.members.reduce((acc, m) => acc + (m.weeklyPts as number), 0);
+
+    // memberSum must equal FACTION_WEEKLY_TOTAL — staleUser contributes 0
+    assert.equal(
+      memberSum,
+      FACTION_WEEKLY_TOTAL,
+      `sum of all member weeklyPts should be ${FACTION_WEEKLY_TOTAL} (staleUser prior-week rows excluded); got ${memberSum}`,
     );
   });
 });

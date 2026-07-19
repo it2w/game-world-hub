@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { and, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, pool, usersTable } from "@workspace/db";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seed } from "./lib/seed";
@@ -9,6 +9,12 @@ import { ensureInitialOwner } from "./lib/owner";
 import { startLfgBotRunner } from "./routes/lfg-bot";
 import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events";
 import { ensurePrestigeTables } from "./routes/prestige";
+
+async function ensureSpotlightOptOutColumn(): Promise<void> {
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS spotlight_opt_out BOOLEAN NOT NULL DEFAULT false`,
+  );
+}
 
 // How long after the last heartbeat we treat a game as no longer running.
 const PRESENCE_STALE = "4 minutes";
@@ -61,6 +67,12 @@ server.listen(port, async () => {
     await ensurePrestigeTables();
   } catch (e) {
     logger.error({ err: e }, "Prestige tables initialization failed");
+  }
+
+  try {
+    await ensureSpotlightOptOutColumn();
+  } catch (e) {
+    logger.error({ err: e }, "Spotlight opt-out column initialization failed");
   }
 
   try {

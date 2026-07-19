@@ -139,6 +139,7 @@ export const GetMeResponse = zod.object({
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
+  "spotlightOptOut": zod.boolean().optional().describe('Whether the user has opted out of the Featured Players spotlight'),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -699,7 +700,8 @@ export const UpdateProfileBody = zod.object({
   "bio": zod.string().max(updateProfileBodyBioMax).optional(),
   "avatarUrl": zod.string().optional(),
   "bannerUrl": zod.string().optional(),
-  "allowProfileComments": zod.boolean().optional()
+  "allowProfileComments": zod.boolean().optional(),
+  "spotlightOptOut": zod.boolean().optional()
 })
 
 export const UpdateProfileResponse = zod.object({

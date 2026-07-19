@@ -96,9 +96,17 @@ async function createPost(page: Page, gameTitle: string): Promise<void> {
  * `gameTitle` is used to scope the locator to the right card.
  */
 async function closePost(page: Page, gameTitle: string): Promise<void> {
-  const card = page.locator("div.border", { hasText: gameTitle }).first();
+  // Use `filter({ has: … })` so we always target the interactive post card, not
+  // the button-free "Suggested for you" preview card that also has class="border".
+  const card = page.locator("div.border", { hasText: gameTitle })
+    .filter({ has: page.locator("button") })
+    .first();
   await expect(card).toBeVisible({ timeout: 10_000 });
-  await card.getByRole("button", { name: /^close$/i }).click();
+  // The CLOSE button is author-only and rendered once `me` resolves — wait for
+  // it explicitly rather than assuming it appears the instant the card does.
+  const closeBtn = card.getByRole("button", { name: /^close$/i });
+  await expect(closeBtn).toBeVisible({ timeout: 12_000 });
+  await closeBtn.click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -125,8 +133,9 @@ test.describe("LFG post lifecycle", () => {
     await goToLfg(authorPage);
     await createPost(authorPage, gameTitle);
 
-    // Post card must appear on the author's page
-    const authorCard = authorPage.locator("div.border", { hasText: gameTitle }).first();
+    // Post card must appear on the author's page — filter to interactive cards only
+    const authorCard = authorPage.locator("div.border", { hasText: gameTitle })
+      .filter({ has: authorPage.locator("button") }).first();
     await expect(authorCard).toBeVisible({ timeout: 10_000 });
 
     // ── Responder: register and respond to the post ───────────────────────────
@@ -135,19 +144,24 @@ test.describe("LFG post lifecycle", () => {
     await registerUser(responderPage, responder);
     await goToLfg(responderPage);
 
-    const responderCard = responderPage.locator("div.border", { hasText: gameTitle }).first();
+    // Filter to the interactive card (has buttons) to avoid the button-free
+    // "Suggested for you" preview card that also carries class="border".
+    const responderCard = responderPage.locator("div.border", { hasText: gameTitle })
+      .filter({ has: responderPage.locator("button") }).first();
     await expect(responderCard).toBeVisible({ timeout: 14_000 });
     await responderCard.getByRole("button", { name: /^respond$/i }).click();
 
     // "SIGNAL SENT" badge replaces the Respond button
     await expect(responderCard.getByText(/signal sent/i)).toBeVisible({ timeout: 10_000 });
 
-    // ── Author: reload and close the post ─────────────────────────────────────
-    await goToLfg(authorPage);
+    // ── Author: close the post (already on /lfg — skip reload to save time) ───
+    // The author is still on /lfg from createPost with `me` already loaded, so
+    // the CLOSE button is immediately available without a full navigation cycle.
     await closePost(authorPage, gameTitle);
 
     // CLOSED badge must appear on the author's post card
-    const closedCard = authorPage.locator("div.border", { hasText: gameTitle }).first();
+    const closedCard = authorPage.locator("div.border", { hasText: gameTitle })
+      .filter({ has: authorPage.locator("button") }).first();
     await expect(closedCard.getByText(/\bclosed\b/i)).toBeVisible({ timeout: 10_000 });
 
     await authorCtx.close();
@@ -177,15 +191,18 @@ test.describe("LFG post lifecycle", () => {
     await registerUser(responderPage, responder);
     await goToLfg(responderPage);
 
-    const responderCard = responderPage.locator("div.border", { hasText: gameTitle }).first();
-    await expect(responderCard).toBeVisible({ timeout: 14_000 });
-
-    // Confirm the Respond button is present (post still open at this moment)
+    // Filter to the interactive card (has buttons) so the locator skips the
+    // button-free "Suggested for you" preview that also carries class="border".
+    // Combine card + button into one toBeVisible to avoid a race where the LFG
+    // list re-renders (polls every 8 s) between two separate assertions.
+    const responderCard = responderPage.locator("div.border", { hasText: gameTitle })
+      .filter({ has: responderPage.locator("button") }).first();
     const respondBtn = responderCard.getByRole("button", { name: /^respond$/i });
-    await expect(respondBtn).toBeVisible();
+    await expect(respondBtn).toBeVisible({ timeout: 16_000 });
 
-    // ── Author: close the post while the responder's page stays loaded ────────
-    await goToLfg(authorPage);
+    // ── Author: close the post (already on /lfg — skip reload to save time) ───
+    // Author is still on /lfg from createPost with `me` loaded, so the CLOSE
+    // button is immediately available without a full navigation cycle.
     await closePost(authorPage, gameTitle);
 
     // ── Responder: disable the background refetch so the stale card persists,

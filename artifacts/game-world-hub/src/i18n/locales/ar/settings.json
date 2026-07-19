@@ -23,6 +23,13 @@
     "enabled": "مفعّل",
     "disabled": "معطّل"
   },
+  "spotlight": {
+    "title": "واجهة برو المميزة",
+    "featuredPlayers": "قائمة اللاعبين المميزين",
+    "description": "الظهور في قائمة اللاعبين المميزين على لوحة التحكم (برو فقط)",
+    "featured": "مميز",
+    "hidden": "مخفي"
+  },
   "status": {
     "title": "تعديل الحالة",
     "presence": "الحالة",
@@ -142,6 +149,8 @@
     "uploadFailed": "فشل الرفع",
     "profileWallEnabled": "تم تفعيل حائط الملف الشخصي",
     "profileWallDisabled": "تم تعطيل حائط الملف الشخصي",
+    "spotlightEnabled": "ستظهر في قائمة اللاعبين المميزين",
+    "spotlightDisabled": "تم إخفاؤك من قائمة اللاعبين المميزين",
     "willLaunchOnStartup": "سيتم التشغيل عند بدء النظام",
     "startupLaunchDisabled": "تم تعطيل التشغيل عند البدء",
     "failedToUpdateStartup": "فشل تحديث إعداد بدء التشغيل",

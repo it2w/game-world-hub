@@ -66,6 +66,7 @@ function safeUser(
     emailVerified: u.emailVerified,
     twoFactorMethod: u.twoFactorMethod,
     allowProfileComments: u.allowProfileComments,
+    spotlightOptOut: u.spotlightOptOut,
     status: u.status,
     statusText: u.statusText ?? null,
     currentGame: u.currentGame ?? null,

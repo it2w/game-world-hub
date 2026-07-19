@@ -89,6 +89,8 @@ export interface User {
   emailVerified?: boolean;
   twoFactorMethod?: UserTwoFactorMethod;
   allowProfileComments?: boolean;
+  /** Whether the user has opted out of the Featured Players spotlight */
+  spotlightOptOut?: boolean;
   status: UserStatus;
   /**
    * Custom status message set by the user
@@ -542,6 +544,8 @@ export interface ProfileUpdate {
   avatarUrl?: string;
   bannerUrl?: string;
   allowProfileComments?: boolean;
+  /** Whether the user has opted out of the Featured Players spotlight */
+  spotlightOptOut?: boolean;
 }
 
 export interface SetEmailInput {

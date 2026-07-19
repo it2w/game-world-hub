@@ -23,6 +23,13 @@
     "enabled": "ENABLED",
     "disabled": "DISABLED"
   },
+  "spotlight": {
+    "title": "PRO_SPOTLIGHT",
+    "featuredPlayers": "FEATURED PLAYERS CAROUSEL",
+    "description": "Appear in the Featured Players carousel on the dashboard (Pro only)",
+    "featured": "FEATURED",
+    "hidden": "HIDDEN"
+  },
   "status": {
     "title": "STATE_OVERRIDE",
     "presence": "PRESENCE",
@@ -142,6 +149,8 @@
     "uploadFailed": "Upload failed",
     "profileWallEnabled": "Profile wall enabled",
     "profileWallDisabled": "Profile wall disabled",
+    "spotlightEnabled": "You will appear in the Featured Players carousel",
+    "spotlightDisabled": "You are now hidden from the Featured Players carousel",
     "willLaunchOnStartup": "Will launch on startup",
     "startupLaunchDisabled": "Startup launch disabled",
     "failedToUpdateStartup": "Failed to update startup setting",

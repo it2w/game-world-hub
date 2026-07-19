@@ -55,6 +55,10 @@ export const usersTable = pgTable("users", {
   // Both columns are created via ALTER TABLE IF NOT EXISTS in ensurePrestigeTables().
   prestigeLevel:    integer("prestige_level").notNull().default(0),
   prestigeXpOffset: integer("prestige_xp_offset").notNull().default(0),
+  // Pro spotlight opt-out: when true, the user will not appear in the Featured
+  // Players carousel even if they have an active Pro subscription.
+  // Column added via ALTER TABLE IF NOT EXISTS in ensureSpotlightOptOutColumn().
+  spotlightOptOut: boolean("spotlight_opt_out").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

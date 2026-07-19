@@ -63,6 +63,7 @@ function safeUser(
     profileBgUrl: u.profileBgUrl ?? null,
     usernameChangedAt: u.usernameChangedAt ? u.usernameChangedAt.toISOString() : null,
     prestigeLevel: u.prestigeLevel ?? 0,
+    spotlightOptOut: u.spotlightOptOut,
   };
 }
 
@@ -133,6 +134,7 @@ router.get("/users/spotlight", async (req, res): Promise<void> => {
     .where(
       and(
         eq(usersTable.isPro, true),
+        eq(usersTable.spotlightOptOut, false),
         or(
           ne(usersTable.status, "offline"),
           gt(usersTable.lastActiveAt as any, sevenDaysAgo),
@@ -287,6 +289,12 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
     .set(updates as any)
     .where(eq(usersTable.id, userId))
     .returning();
+
+  // Invalidate spotlight cache when opt-out status changes so the next request
+  // immediately reflects the new preference.
+  if ("spotlightOptOut" in updates) {
+    spotlightCache = null;
+  }
 
   const games = await db.select({ id: userGamesTable.id, game: gamesTable, addedAt: userGamesTable.addedAt })
     .from(userGamesTable)

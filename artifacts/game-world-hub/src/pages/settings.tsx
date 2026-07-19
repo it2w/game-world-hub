@@ -211,6 +211,21 @@ export default function Settings() {
     );
   };
 
+  // Pro-only: spotlight opt-out (false = featured, true = hidden)
+  const spotlightOptOut = me?.spotlightOptOut === true;
+  const handleToggleSpotlight = () => {
+    if (!me) return;
+    updateProfile.mutate(
+      { userId: me.id, data: { spotlightOptOut: !spotlightOptOut } },
+      {
+        onSuccess: () => {
+          toast({ title: !spotlightOptOut ? t("toasts.spotlightDisabled") : t("toasts.spotlightEnabled") });
+          refreshMe();
+        },
+      },
+    );
+  };
+
   // Desktop-only: launch at startup state
   const isElectron = !!window.electronAPI;
   const [openAtLogin, setOpenAtLogin] = useState(false);
@@ -557,6 +572,33 @@ export default function Settings() {
               </Button>
             </div>
           </div>
+
+          {/* Pro Spotlight Opt-out */}
+          {me?.isPro && (
+            <div className="bg-card border border-border p-6">
+              <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+                <Trophy className="w-4 h-4" /> {t("spotlight.title")}
+              </h2>
+              <div className="flex items-center justify-between p-3 border border-border bg-background">
+                <div>
+                  <div className="font-mono text-sm">{t("spotlight.featuredPlayers")}</div>
+                  <div className="font-mono text-xs text-muted-foreground mt-0.5">
+                    {t("spotlight.description")}
+                  </div>
+                </div>
+                <Button
+                  variant={spotlightOptOut ? "outline" : "default"}
+                  size="sm"
+                  className="font-mono rounded-none text-xs h-8 min-w-[80px]"
+                  onClick={handleToggleSpotlight}
+                  disabled={updateProfile.isPending || !me}
+                  data-testid="button-toggle-spotlight"
+                >
+                  {spotlightOptOut ? t("spotlight.hidden") : t("spotlight.featured")}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Status Override */}
           <div className="bg-card border border-border p-6">

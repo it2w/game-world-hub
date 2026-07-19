@@ -900,6 +900,11 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
   });
 
   test("alert email body includes the reset code expiry time", async () => {
+    // Reset the probe-alert cooldown so this test gets a fresh slot regardless of
+    // which test ran before it in the suite. Without this, the 5-minute in-memory
+    // rate-limiter from the previous probe-alert test blocks the email.
+    _resetProbeAlertCooldown(probeOwnerWithEmailId);
+
     // Set an active code with a known expiry so we can verify it appears in the email.
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await db

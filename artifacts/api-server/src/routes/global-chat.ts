@@ -7,6 +7,7 @@
 import { Router, type IRouter } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { requireAdmin, requireAdminPermission } from "../middlewares/admin";
 import { broadcastAll, pushToUser } from "../ws/signaling";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -739,6 +740,25 @@ router.get("/global-chat/active-count", requireAuth, async (_req, res): Promise<
   );
   res.json({ count: Number(rows[0]?.cnt ?? 0) });
 });
+
+// ── DELETE /global-chat/messages/:id — admin/moderator hard-delete ────────────
+router.delete(
+  "/global-chat/messages/:id",
+  requireAdmin,
+  requireAdminPermission("can_delete_content"),
+  async (req, res): Promise<void> => {
+    const messageId = parseInt(req.params.id, 10);
+    if (isNaN(messageId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+    const { rowCount } = await pool.query(
+      `DELETE FROM global_chat_messages WHERE id = $1`, [messageId],
+    );
+    if ((rowCount ?? 0) === 0) { res.status(404).json({ error: "Message not found" }); return; }
+
+    broadcastAll({ type: "global_chat_delete", messageId });
+    res.json({ deleted: true, messageId });
+  },
+);
 
 // ── POST /global-chat/messages/:id/report ─────────────────────────────────────
 router.post("/global-chat/messages/:id/report", requireAuth, async (req, res): Promise<void> => {

@@ -14,7 +14,7 @@ import { Link } from "wouter";
 import {
   Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink,
   X, Reply, Flag, CornerUpLeft, Pin, Search, Filter,
-  ChevronUp, ImageIcon, ArrowLeftRight, Pencil, Check,
+  ChevronUp, ImageIcon, ArrowLeftRight, Pencil, Check, Trash2,
 } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
 
@@ -408,19 +408,21 @@ function GifPicker({
 
 // ── Single message row ────────────────────────────────────────────────────────
 function MessageRow({
-  msg, meId, isPro, onUserClick, onReact, onReply, onReport, onPin, onEdit,
+  msg, meId, isPro, isAdmin, onUserClick, onReact, onReply, onReport, onPin, onEdit, onDelete,
   editingId, editInput, setEditInput, onSaveEdit, onCancelEdit,
   scrollToId, t,
 }: {
   msg: ChatMessage;
   meId: number;
   isPro: boolean;
+  isAdmin: boolean;
   onUserClick: (author: ChatAuthor, rect: DOMRect) => void;
   onReact:  (msgId: number, emoji: string) => void;
   onReply:  (msg: ChatMessage) => void;
   onReport: (msgId: number) => void;
   onPin:    (msgId: number) => void;
   onEdit:   (msg: ChatMessage) => void;
+  onDelete: (msgId: number) => void;
   editingId: number | null;
   editInput: string;
   setEditInput: (v: string) => void;
@@ -533,6 +535,15 @@ function MessageRow({
                   title={t("chat.report")}
                 >
                   <Flag className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  className="gc-toolbar-btn gc-toolbar-btn--delete"
+                  onClick={() => onDelete(msg.id)}
+                  title="Delete message (moderator)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -849,6 +860,7 @@ export function GlobalChat({ me }: { me: any }) {
   const { toast }    = useToast();
   const meId         = me?.id ?? -1;
   const isPro        = !!me?.isPro;
+  const isAdmin      = !!me?.isAdmin;
   const isRtl        = i18n.language === "ar";
 
   // ── Core state ─────────────────────────────────────────────────────────────
@@ -1052,6 +1064,17 @@ export function GlobalChat({ me }: { me: any }) {
     return () => window.removeEventListener("gwh:message-edit", handler);
   }, [channel]);
 
+  // ── WS: message delete (admin/moderator) ───────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const data = (e as CustomEvent<any>).detail;
+      if (!data?.messageId) return;
+      setMessages(prev => prev.filter(m => m.id !== data.messageId));
+    };
+    window.addEventListener("gwh:global-chat-delete", handler);
+    return () => window.removeEventListener("gwh:global-chat-delete", handler);
+  }, []);
+
   // ── Auto-scroll (only when not searching) ─────────────────────────────────
   useEffect(() => {
     if (!searchQuery) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1176,6 +1199,17 @@ export function GlobalChat({ me }: { me: any }) {
     setEditingId(null);
     setEditInput("");
   }, []);
+
+  // ── Delete message (admin/moderator) ───────────────────────────────────────
+  const handleDelete = useCallback(async (msgId: number) => {
+    try {
+      await customFetch(`/api/global-chat/messages/${msgId}`, { method: "DELETE" });
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+      toast({ title: "Message deleted" });
+    } catch (err: any) {
+      toast({ title: err?.message ?? t("chat.sendError"), variant: "destructive" });
+    }
+  }, [t, toast]);
 
   // ── User card ──────────────────────────────────────────────────────────────
   const handleUserClick = useCallback((author: ChatAuthor, rect: DOMRect) => {
@@ -1367,13 +1401,14 @@ export function GlobalChat({ me }: { me: any }) {
             ref={el => { if (el) msgRefs.current.set(msg.id, el); else msgRefs.current.delete(msg.id); }}
           >
             <MessageRow
-              msg={msg} meId={meId} isPro={isPro}
+              msg={msg} meId={meId} isPro={isPro} isAdmin={isAdmin}
               onUserClick={handleUserClick}
               onReact={handleReact}
               onReply={setReplyTo}
               onReport={handleReport}
               onPin={handlePin}
               onEdit={handleStartEdit}
+              onDelete={handleDelete}
               editingId={editingId}
               editInput={editInput}
               setEditInput={setEditInput}

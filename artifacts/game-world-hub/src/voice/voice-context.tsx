@@ -651,6 +651,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:message-edit", { detail: msg }));
           break;
 
+        case "global_chat_delete":
+          window.dispatchEvent(new CustomEvent("gwh:global-chat-delete", { detail: msg }));
+          break;
+
         default:
           break;
       }

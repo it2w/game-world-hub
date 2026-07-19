@@ -1428,6 +1428,8 @@
 /* ── Edit toolbar button ─────────────────────────────────────────────────────── */
 .gc-toolbar-btn--edit { }
 .gc-toolbar-btn--edit:hover { color: #60A5FA; border-color: #60A5FA66; background: #60A5FA12; }
+.gc-toolbar-btn--delete { }
+.gc-toolbar-btn--delete:hover { color: #EF4444; border-color: #EF444466; background: #EF444412; }
 
 /* ── Inline message edit UI ──────────────────────────────────────────────────── */
 .gc-edit-input-row {

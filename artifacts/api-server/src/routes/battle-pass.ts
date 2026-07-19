@@ -211,7 +211,7 @@ async function applyRewardTx(client: PoolClient, userId: number, tier: TierDef):
     );
   } else if (tier.rewardType === "frame_color") {
     await client.query(
-      `UPDATE users SET "profileFrameColor" = $2 WHERE id = $1`,
+      `UPDATE users SET profile_frame_color = $2 WHERE id = $1`,
       [userId, tier.rewardValue],
     );
   }

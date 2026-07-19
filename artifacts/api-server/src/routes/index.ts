@@ -29,6 +29,7 @@ import downloadRouter from "./download";
 import roomsRouter from "./rooms";
 import questsRouter from "./quests";
 import battlePassRouter from "./battle-pass";
+import vouchingRouter from "./vouching";
 
 const router: IRouter = Router();
 
@@ -88,5 +89,6 @@ router.use(downloadRouter);
 router.use(roomsRouter);
 router.use(questsRouter);
 router.use(battlePassRouter);
+router.use(vouchingRouter);
 
 export default router;

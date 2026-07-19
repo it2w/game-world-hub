@@ -108,5 +108,19 @@
     "currentLabel": "السلسلة الحالية",
     "longestLabel": "أطول سلسلة",
     "shieldsLabel": "الدروع"
+  },
+  "reputation": {
+    "title": "السمعة",
+    "empty": "لا توجد وسوم بعد",
+    "grantVouch": "امنح وسماً",
+    "alreadyVouched": "تم المنح ✓ (7 أيام)",
+    "vouchDialogTitle": "امنح وسماً",
+    "vouchDialogDesc": "اختر وسماً بناءً على تجربتك مع هذا اللاعب. يمكنك المنح مرة كل 7 أيام.",
+    "vouchSuccess": "تم منح الوسم!",
+    "vouchFailed": "تعذّر منح الوسم",
+    "proGrantersTitle": "من منحك وسوماً",
+    "toasts": {
+      "vouchGranted": "حصلت على وسم جديد!"
+    }
   }
 }

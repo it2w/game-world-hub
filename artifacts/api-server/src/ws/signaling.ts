@@ -81,6 +81,19 @@ function unregisterClient(client: Client): void {
   }
 }
 
+/**
+ * Push an arbitrary payload to all open WebSocket connections for a given user.
+ * Used by HTTP route handlers that need to send a real-time event without going
+ * through the signaling message loop (e.g. reputation vouches, quest credits).
+ */
+export function pushToUser(userId: number, payload: unknown): void {
+  const clients = clientsByUser.get(userId);
+  if (!clients) return;
+  for (const client of clients) {
+    send(client.ws, payload);
+  }
+}
+
 // ─── Direct-call handshake ───────────────────────────────────────────────────
 
 function handleCallInvite(caller: Client, targetId: number): void {

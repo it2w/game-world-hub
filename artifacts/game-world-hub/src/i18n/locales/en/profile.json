@@ -108,5 +108,19 @@
     "currentLabel": "Current streak",
     "longestLabel": "Longest streak",
     "shieldsLabel": "Shields"
+  },
+  "reputation": {
+    "title": "Reputation",
+    "empty": "No reputation vouches yet",
+    "grantVouch": "Grant Vouch",
+    "alreadyVouched": "Vouched ✓ (7d cooldown)",
+    "vouchDialogTitle": "Grant a Vouch",
+    "vouchDialogDesc": "Award a tag based on your experience with this player. You can vouch once every 7 days.",
+    "vouchSuccess": "Vouch granted!",
+    "vouchFailed": "Failed to grant vouch",
+    "proGrantersTitle": "Who vouched for you",
+    "toasts": {
+      "vouchGranted": "You received a vouch!"
+    }
   }
 }

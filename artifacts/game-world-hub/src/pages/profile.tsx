@@ -57,6 +57,19 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  const { data: reputationData, refetch: refetchReputation } = useQuery<{
+    tags: Array<{ key: string; emoji: string; color: string; label: string; count: number }>;
+    availableTags: Array<{ key: string; emoji: string; color: string; label: string }>;
+    canVouch: boolean;
+    alreadyVouched: boolean;
+    granters?: Array<{ userId: number; username: string; displayName: string; avatarUrl: string | null; tag: string; createdAt: string }>;
+  }>({
+    queryKey: ["reputation", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/reputation`),
+    staleTime: 30_000,
+    enabled: !!userId,
+  });
+
   const refreshUser = () => {
     queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
     queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -101,6 +114,28 @@ export default function Profile() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [editStatusValue, setEditStatusValue] = useState<"online" | "away" | "busy" | "offline">("online");
   const [editStatusText, setEditStatusText] = useState("");
+
+  // Vouch dialog
+  const [vouchOpen, setVouchOpen] = useState(false);
+  const [isVouching, setIsVouching] = useState(false);
+
+  const handleVouch = async (tag: string) => {
+    setIsVouching(true);
+    try {
+      await customFetch(`/api/users/${userId}/vouch`, {
+        method: "POST",
+        body: JSON.stringify({ tag }),
+      });
+      toast({ title: t("reputation.vouchSuccess") });
+      setVouchOpen(false);
+      void refetchReputation();
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? t("reputation.vouchFailed");
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsVouching(false);
+    }
+  };
 
   const refreshPhotos = () => queryClient.invalidateQueries({ queryKey: getListProfilePhotosQueryKey(userId) });
   const refreshWall = () => queryClient.invalidateQueries({ queryKey: getListProfileCommentsQueryKey(userId) });
@@ -634,6 +669,86 @@ export default function Profile() {
         </div>
       )}
 
+      {/* ── REPUTATION VOUCHES ──────────────────────────────────────── */}
+      {((reputationData?.tags.length ?? 0) > 0 || (!isOwner && reputationData?.canVouch !== undefined)) && (
+        <div className="bg-card border border-border p-5">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+              <Award className="w-4 h-4" /> {t("reputation.title")}
+            </h2>
+            {!isOwner && reputationData?.canVouch && !reputationData.alreadyVouched && (
+              <button
+                type="button"
+                onClick={() => setVouchOpen(true)}
+                className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary border border-border hover:border-primary/40 px-2.5 py-1 transition-colors"
+                data-testid="button-grant-vouch"
+              >
+                + {t("reputation.grantVouch")}
+              </button>
+            )}
+            {!isOwner && reputationData?.alreadyVouched && (
+              <span className="text-[10px] font-mono text-muted-foreground border border-border px-2.5 py-1">
+                {t("reputation.alreadyVouched")}
+              </span>
+            )}
+          </div>
+
+          {!reputationData || reputationData.tags.length === 0 ? (
+            <p className="text-sm font-mono text-muted-foreground italic">{t("reputation.empty")}</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {reputationData.tags.map(tag => (
+                <div
+                  key={tag.key}
+                  className="flex items-center gap-2.5 px-4 py-2.5 border"
+                  style={{ borderColor: tag.color + "55", background: tag.color + "0f" }}
+                  data-testid={`reputation-tag-${tag.key}`}
+                >
+                  <span className="text-2xl leading-none">{tag.emoji}</span>
+                  <div>
+                    <div className="font-mono text-xs font-bold" style={{ color: tag.color }}>{tag.label}</div>
+                    <div className="font-mono text-[10px] text-muted-foreground">×{tag.count}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pro-only granter list (own profile) */}
+          {isOwner && reputationData?.granters && reputationData.granters.length > 0 && (
+            <div className="mt-5 pt-5 border-t border-border">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+                {t("reputation.proGrantersTitle")}
+              </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {reputationData.granters.map((g, i) => {
+                  const tagDef = reputationData.availableTags.find(a => a.key === g.tag);
+                  return (
+                    <div key={i} className="flex items-center gap-3 py-1">
+                      <Link href={`/profile/${g.userId}`} className="shrink-0">
+                        <div className="w-7 h-7 border border-border bg-muted overflow-hidden flex items-center justify-center">
+                          {g.avatarUrl ? (
+                            <img src={g.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">{g.displayName.charAt(0)}</span>
+                          )}
+                        </div>
+                      </Link>
+                      <Link href={`/profile/${g.userId}`} className="font-mono text-sm hover:text-primary truncate flex-1">
+                        {g.displayName}
+                      </Link>
+                      {tagDef && (
+                        <span className="shrink-0 text-lg leading-none" title={tagDef.label}>{tagDef.emoji}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Linked Platforms */}
         <div className="bg-card border border-border p-6">
@@ -823,6 +938,45 @@ export default function Profile() {
           </div>
         )}
       </div>
+      {/* Vouch Tag Dialog */}
+      {vouchOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setVouchOpen(false)}>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+          <div
+            className="relative z-10 bg-card border border-border p-6 w-full max-w-sm mx-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-mono text-sm uppercase tracking-widest">{t("reputation.vouchDialogTitle")}</h3>
+              <button
+                type="button"
+                onClick={() => setVouchOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs font-mono text-muted-foreground mb-5 leading-relaxed">{t("reputation.vouchDialogDesc")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              {reputationData?.availableTags.map(tag => (
+                <button
+                  key={tag.key}
+                  type="button"
+                  disabled={isVouching}
+                  onClick={() => handleVouch(tag.key)}
+                  className="flex flex-col items-center gap-2 p-4 border hover:border-primary/60 transition-all disabled:opacity-50 hover:bg-muted/20 active:scale-95"
+                  style={{ borderColor: tag.color + "44" }}
+                  data-testid={`vouch-tag-${tag.key}`}
+                >
+                  <span className="text-3xl leading-none">{tag.emoji}</span>
+                  <span className="font-mono text-xs font-bold" style={{ color: tag.color }}>{tag.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden file inputs */}
       <input ref={avatarUploadRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} data-testid="input-avatar-upload" />
 
@@ -928,4 +1082,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library, Play } from "lucide-react";
+import { Library, Play, Award } from "lucide-react";

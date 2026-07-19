@@ -1,15 +1,21 @@
 /**
- * Integration tests for GET /auth/me/analytics (profile analytics).
+ * Integration tests for prestige routes.
  *
- * Covered scenarios:
+ * GET /auth/me/analytics covered scenarios:
  *  1. Non-Pro user receives 403 with { requiresPro: true }
  *  2. First visit from a new viewer creates a profile_views row with view_count = 1
  *  3. Duplicate visit from the same viewer increments view_count, not inserts a new row
- *  4. View counts (day / week / all) reflect the accumulated view_count values
+ *  4. View counts (day / week / all) reflect the accumulated view-count values
  *  5. Friend accept rate: correct percentage of accepted / total sent requests
  *  6. LFG response rate: correct percentage of posts that received at least one response
  *  7. Friend accept rate is null when no requests have been sent
  *  8. LFG response rate is null when no posts exist
+ *
+ * POST /auth/me/prestige covered scenarios:
+ *  9.  400 when user's current-cycle level is below 106 (TRANSCENDENT)
+ *  10. 400 when user is already at Prestige VI (max)
+ *  11. Successful prestige: prestige_level increments by 1 and prestige_xp_offset absorbs effective XP
+ *  12. After prestige, getUserProgress reflects a reset level (≤ 106)
  */
 
 import { test, before, after, describe } from "node:test";
@@ -312,5 +318,198 @@ describe("GET /auth/me/analytics", () => {
     const b = body as Record<string, unknown>;
     // Still 2 posts with ≥1 response out of 3 = 67% (not 75% or more)
     assert.equal(b.lfgResponseRate, 67, "multiple responses to one post should not inflate the rate");
+  });
+});
+
+// ─── POST /auth/me/prestige ────────────────────────────────────────────────────
+
+describe("POST /auth/me/prestige", () => {
+  /**
+   * XP required to reach level 106 (TRANSCENDENT):
+   *   sum(k=1..105) of (400 + k*200) = 400*105 + 200*(105*106/2) = 42 000 + 1 113 000 = 1 155 000
+   * We use 1 200 000 to sit safely above the threshold.
+   */
+  const XP_FOR_LEVEL_106 = 1_200_000;
+
+  const SUFFIX2 = `pst_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+  let server2: Server;
+  let baseUrl2: string;
+
+  /** User with no activity — stays at level 1. */
+  let lowUserId = 0;
+  let lowUsername = "";
+
+  /** User seeded with enough bonus_xp to be at level 106+. */
+  let highUserId = 0;
+  let highUsername = "";
+
+  /** User whose prestige_level is pre-set to 6 (MAX). */
+  let maxUserId = 0;
+  let maxUsername = "";
+
+  const createdUserIds2: number[] = [];
+
+  function mkUser2(label: string) {
+    return {
+      username: `${SUFFIX2}_${label}`,
+      passwordHash: "x",
+      displayName: `Prestige Test ${label}`,
+      status: "online" as const,
+    };
+  }
+
+  /** POST helper that sends JSON and returns { status, body }. */
+  async function post(
+    path: string,
+    userId: number,
+    username: string,
+    payload: Record<string, unknown> = {},
+  ): Promise<{ status: number; body: unknown }> {
+    const token = signToken({ userId, username });
+    const body = JSON.stringify(payload);
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${baseUrl2}${path}`);
+      const req = httpRequest(
+        {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname + url.search,
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(body),
+          },
+        },
+        (res: IncomingMessage) => {
+          let data = "";
+          res.on("data", (chunk: Buffer) => (data += chunk));
+          res.on("end", () => {
+            try {
+              resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+            } catch {
+              resolve({ status: res.statusCode ?? 0, body: data });
+            }
+          });
+        },
+      );
+      req.on("error", reject);
+      req.write(body);
+      req.end();
+    });
+  }
+
+  before(async () => {
+    // Insert three test users
+    const inserted = await db
+      .insert(usersTable)
+      .values([mkUser2("low"), mkUser2("high"), mkUser2("max")])
+      .returning({ id: usersTable.id, username: usersTable.username });
+
+    [lowUserId,  lowUsername]  = [inserted[0].id, inserted[0].username];
+    [highUserId, highUsername] = [inserted[1].id, inserted[1].username];
+    [maxUserId,  maxUsername]  = [inserted[2].id, inserted[2].username];
+    createdUserIds2.push(lowUserId, highUserId, maxUserId);
+
+    // Give the "high" user enough bonus XP to be at level 106
+    await pool.query(
+      `INSERT INTO user_streaks
+         (user_id, current_streak, longest_streak, last_active_date, shield_count, bonus_xp, updated_at)
+       VALUES ($1, 0, 0, CURRENT_DATE, 0, $2, NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET bonus_xp = $2, updated_at = NOW()`,
+      [highUserId, XP_FOR_LEVEL_106],
+    );
+
+    // Pre-set the "max" user to prestige_level = 6
+    await pool.query(
+      `UPDATE users SET prestige_level = 6 WHERE id = $1`,
+      [maxUserId],
+    );
+
+    // Start the HTTP server
+    server2 = createServer(app);
+    await new Promise<void>((resolve) => server2.listen(0, resolve));
+    const { port } = server2.address() as AddressInfo;
+    baseUrl2 = `http://127.0.0.1:${port}/api`;
+  });
+
+  after(async () => {
+    await new Promise<void>((resolve) => server2.close(() => resolve()));
+
+    // Remove user_streaks rows
+    if (createdUserIds2.length) {
+      await pool.query(
+        `DELETE FROM user_streaks WHERE user_id = ANY($1::int[])`,
+        [createdUserIds2],
+      );
+      await db.delete(usersTable).where(inArray(usersTable.id, createdUserIds2));
+    }
+  });
+
+  test("400 when user is below level 106 (TRANSCENDENT)", async () => {
+    // lowUser has no activity → level 1
+    const { status, body } = await post("/auth/me/prestige", lowUserId, lowUsername);
+    assert.equal(status, 400);
+    const b = body as Record<string, unknown>;
+    assert.ok(
+      typeof b.error === "string" && b.error.includes("106"),
+      `expected error mentioning level 106, got: ${JSON.stringify(b.error)}`,
+    );
+  });
+
+  test("400 when user is already at Prestige VI (max)", async () => {
+    // maxUser has prestige_level = 6 in the DB
+    const { status, body } = await post("/auth/me/prestige", maxUserId, maxUsername);
+    assert.equal(status, 400);
+    const b = body as Record<string, unknown>;
+    assert.ok(
+      typeof b.error === "string" && b.error.toLowerCase().includes("maximum"),
+      `expected 'maximum prestige' error, got: ${JSON.stringify(b.error)}`,
+    );
+  });
+
+  test("successful prestige increments prestige_level and sets prestige_xp_offset", async () => {
+    // Fetch the user's effective XP before prestiging so we can verify the offset
+    const { getUserProgress } = await import("../lib/xp");
+    const progressBefore = await getUserProgress(highUserId);
+    assert.ok(
+      progressBefore.level >= 106,
+      `highUser should be at level ≥ 106 before prestige, got level ${progressBefore.level}`,
+    );
+
+    const { status, body } = await post("/auth/me/prestige", highUserId, highUsername);
+    assert.equal(status, 200);
+
+    const b = body as Record<string, unknown>;
+    assert.equal(b.prestigeLevel, 1, "first prestige should set prestigeLevel to 1");
+    assert.ok(b.tier !== null, "tier should be populated");
+
+    // Verify DB state
+    const { rows } = await pool.query<{ prestige_level: number; prestige_xp_offset: string }>(
+      `SELECT prestige_level, prestige_xp_offset FROM users WHERE id = $1`,
+      [highUserId],
+    );
+    assert.equal(rows[0].prestige_level, 1);
+    // The offset must equal the effective XP the user had before prestige
+    const recordedOffset = parseInt(rows[0].prestige_xp_offset, 10);
+    assert.equal(
+      recordedOffset,
+      progressBefore.totalXp,
+      "prestige_xp_offset should equal the totalXp from the prestige cycle",
+    );
+  });
+
+  test("after prestige getUserProgress reflects a reset level (back to 1)", async () => {
+    // highUser just prestiged — effective XP is now 0 → level 1
+    const { getUserProgress } = await import("../lib/xp");
+    const progressAfter = await getUserProgress(highUserId);
+    assert.ok(
+      progressAfter.level < 106,
+      `level after prestige should be < 106, got ${progressAfter.level}`,
+    );
+    assert.equal(progressAfter.level, 1, "level should reset to 1 immediately after prestige");
+    assert.equal(progressAfter.totalXp, 0, "effective XP should be 0 right after prestige");
   });
 });

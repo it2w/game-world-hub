@@ -649,6 +649,159 @@ describe("POST /lfg/:postId/respond — invalid body", () => {
   });
 });
 
+describe("POST /lfg/:postId/boost — cooldown enforcement", () => {
+  let proUserId = 0;
+  let nonProUserId = 0;
+  let boostPostId = 0;
+  let nonProPostId = 0;
+
+  before(async () => {
+    // Pro user — isPro=true, no expiry
+    const [proUser] = await db
+      .insert(usersTable)
+      .values({ ...makeUser("boost_pro"), isPro: true })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    proUserId = proUser.id;
+    createdUserIds.push(proUserId);
+
+    // Non-Pro user
+    const [nonProUser] = await db
+      .insert(usersTable)
+      .values(makeUser("boost_nonpro"))
+      .returning({ id: usersTable.id, username: usersTable.username });
+    nonProUserId = nonProUser.id;
+    createdUserIds.push(nonProUserId);
+
+    // Open post owned by the Pro user
+    const [boostPost] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId: proUserId,
+        game: "BoostGame",
+        description: "Post for boost tests",
+        neededPlayers: 1,
+        micRequired: false,
+        status: "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    boostPostId = boostPost.id;
+    createdPostIds.push(boostPostId);
+
+    // Open post owned by the non-Pro user
+    const [nonProPost] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId: nonProUserId,
+        game: "BoostGame",
+        description: "Non-pro post",
+        neededPlayers: 1,
+        micRequired: false,
+        status: "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    nonProPostId = nonProPost.id;
+    createdPostIds.push(nonProPostId);
+  });
+
+  test("non-Pro user gets 403", async () => {
+    const res = await fetch(`${baseUrl}/api/lfg/${nonProPostId}/boost`, {
+      method: "POST",
+      headers: authHeader(nonProUserId, `lfgtest_boost_nonpro_${SUFFIX}`),
+    });
+    assert.equal(res.status, 403, "non-Pro user must receive 403");
+    const body = await res.json() as { error?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+  });
+
+  test("first boost succeeds and sets boostedUntil ~30 min ahead", async () => {
+    // Ensure no prior boost state
+    await pool.query(
+      `UPDATE lfg_posts SET boosted_until = NULL, last_boosted_at = NULL WHERE id = $1`,
+      [boostPostId],
+    );
+
+    const before = new Date();
+    const res = await fetch(`${baseUrl}/api/lfg/${boostPostId}/boost`, {
+      method: "POST",
+      headers: authHeader(proUserId, `lfgtest_boost_pro_${SUFFIX}`),
+    });
+    const after = new Date();
+
+    assert.equal(res.status, 200, "first boost must return 200");
+    const body = await res.json() as { boostedUntil: string; lastBoostedAt: string };
+
+    // boostedUntil must be ~30 min (1800 s) in the future
+    const boostedUntilMs = new Date(body.boostedUntil).getTime();
+    const expectedMin = before.getTime() + 29 * 60 * 1000;
+    const expectedMax = after.getTime()  + 31 * 60 * 1000;
+    assert.ok(
+      boostedUntilMs >= expectedMin && boostedUntilMs <= expectedMax,
+      `boostedUntil (${body.boostedUntil}) must be ~30 min after the request time`,
+    );
+
+    // lastBoostedAt must be close to now
+    const lastBoostedMs = new Date(body.lastBoostedAt).getTime();
+    assert.ok(
+      lastBoostedMs >= before.getTime() - 1000 && lastBoostedMs <= after.getTime() + 1000,
+      `lastBoostedAt (${body.lastBoostedAt}) must be close to now`,
+    );
+  });
+
+  test("second boost within 6 hours returns 429 with nextAllowedAt", async () => {
+    // The first boost test already set last_boosted_at to now, so we're within the 6-hour window
+    const res = await fetch(`${baseUrl}/api/lfg/${boostPostId}/boost`, {
+      method: "POST",
+      headers: authHeader(proUserId, `lfgtest_boost_pro_${SUFFIX}`),
+    });
+    assert.equal(res.status, 429, "second boost within 6 h must return 429");
+    const body = await res.json() as { error?: string; nextAllowedAt?: string };
+    assert.ok(
+      typeof body.error === "string" && body.error.length > 0,
+      "expected an error message in the body",
+    );
+    assert.ok(
+      typeof body.nextAllowedAt === "string" && body.nextAllowedAt.length > 0,
+      "expected nextAllowedAt in the 429 response",
+    );
+
+    // nextAllowedAt must be ~6 hours from the last boost
+    const nextAllowedMs = new Date(body.nextAllowedAt!).getTime();
+    const now = Date.now();
+    // Should be between 5h 59m and 6h 1m from now
+    assert.ok(
+      nextAllowedMs > now + 5 * 60 * 60 * 1000,
+      `nextAllowedAt (${body.nextAllowedAt}) must be more than 5h 59m in the future`,
+    );
+    assert.ok(
+      nextAllowedMs < now + 7 * 60 * 60 * 1000,
+      `nextAllowedAt (${body.nextAllowedAt}) must be less than 7h in the future`,
+    );
+  });
+
+  test("boost succeeds again after the 6-hour cooldown has elapsed", async () => {
+    // Simulate the cooldown being over by backdating last_boosted_at by 7 hours
+    const sevenHoursAgo = new Date(Date.now() - 7 * 60 * 60 * 1000);
+    await pool.query(
+      `UPDATE lfg_posts SET last_boosted_at = $1 WHERE id = $2`,
+      [sevenHoursAgo, boostPostId],
+    );
+
+    const res = await fetch(`${baseUrl}/api/lfg/${boostPostId}/boost`, {
+      method: "POST",
+      headers: authHeader(proUserId, `lfgtest_boost_pro_${SUFFIX}`),
+    });
+    assert.equal(res.status, 200, "boost after cooldown must return 200");
+    const body = await res.json() as { boostedUntil?: string; lastBoostedAt?: string };
+    assert.ok(
+      typeof body.boostedUntil === "string",
+      "response must include boostedUntil after successful re-boost",
+    );
+  });
+});
+
 describe("GET /lfg — closed-post visibility", () => {
   test("excludes closed posts that belong to other users", async () => {
     // responderId is NOT the author, so the author's closed post must not appear

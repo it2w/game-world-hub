@@ -14,7 +14,7 @@
     "build": "pnpm run build:main",
     "build:win": "pnpm run build:server && pnpm run build:main && electron-builder --win",
     "build:win:portable": "pnpm run build:server && pnpm run build:main && electron-builder --win portable",
-    "build:win:msix": "pnpm run build:server && pnpm run build:main && electron-builder --win appx",
+    "build:win:msix": "pnpm run build:main && electron-builder --win appx",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

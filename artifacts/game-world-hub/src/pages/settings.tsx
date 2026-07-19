@@ -221,6 +221,9 @@ export default function Settings() {
         onSuccess: () => {
           toast({ title: !spotlightOptOut ? t("toasts.spotlightDisabled") : t("toasts.spotlightEnabled") });
           refreshMe();
+          // Also invalidate the spotlight carousel cache so the dashboard pill
+          // updates immediately without waiting for the 10-minute refetch interval.
+          queryClient.invalidateQueries({ queryKey: ["spotlight"] });
         },
       },
     );

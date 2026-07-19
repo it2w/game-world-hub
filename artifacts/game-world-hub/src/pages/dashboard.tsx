@@ -819,7 +819,7 @@ function AchievementShowcase({ achievements }: { achievements:any[] }) {
 }
 
 // ── SpotlightCarousel ─────────────────────────────────────────────────────────
-function SpotlightCarousel({ me }: { me?: any }) {
+export function SpotlightCarousel({ me }: { me?: any }) {
   const { t } = useTranslation("dashboard");
   const isAr = i18n.resolvedLanguage?.startsWith("ar");
   const { data: spotlightUsers, isLoading } = useQuery<any[]>({
@@ -829,8 +829,11 @@ function SpotlightCarousel({ me }: { me?: any }) {
     staleTime: 60_000 * 60,
   });
 
-  // True only when the user's own card is actually in the live carousel sample
-  const isFeatured = !!(me?.id && spotlightUsers?.some((u: any) => u.id === me.id));
+  // True only when the user's own card is in the live carousel sample AND they
+  // haven't opted out.  The opt-out flag is checked locally (from the me cache)
+  // so the pill disappears the moment settings invalidates the me query — no
+  // manual reload required.
+  const isFeatured = !!(me?.id && !me?.spotlightOptOut && spotlightUsers?.some((u: any) => u.id === me.id));
 
   return (
     <div className="border border-yellow-400/30 bg-card p-4 space-y-3">

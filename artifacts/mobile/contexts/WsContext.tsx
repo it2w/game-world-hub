@@ -116,6 +116,10 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   }, [emit, isAuthenticated]);
 
   useEffect(() => {
+    // Reset mount flag on each effect invocation so Strict Mode's
+    // double-fire (cleanup then re-run) doesn't permanently gate connect().
+    mountedRef.current = true;
+
     if (isAuthenticated) {
       connect();
     } else {

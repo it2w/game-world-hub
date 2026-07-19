@@ -14,7 +14,9 @@ import {
   MessagesSquare,
   Mic,
   MonitorUp,
+  Pencil,
   Shield,
+  Smile,
   Swords,
   Target,
   Trophy,
@@ -57,7 +59,9 @@ const CONTACT_EMAIL = "info@gmes.app";
 
 const TICKER_ITEMS = [
   "FRIENDS", "PARTIES", "VOICE", "SCREEN SHARE",
-  "LFG", "STEAM LIBRARY", "RANKS", "CHAT", "2FA", "FACTIONS", "BATTLE PASS",
+  "LFG", "STEAM LIBRARY", "RANKS", "GLOBAL CHAT",
+  "GIF", "REACTIONS", "EDIT MSGS", "800 CHARS",
+  "64 EMOJIS", "PIN MSG", "2FA", "FACTIONS", "BATTLE PASS",
 ];
 
 const SECTION_IDS = ["features", "download", "pricing", "support", "contact"] as const;
@@ -886,12 +890,12 @@ function FeatureShowcase() {
   const { t } = useTranslation("landing");
 
   const FEATURES = [
-    { key: "lfg",         Icon: Crosshair,   color: "#EC4899" },
-    { key: "voice",       Icon: Mic,          color: "#06B6D4" },
-    { key: "quests",      Icon: Target,       color: "#22C55E" },
-    { key: "tournaments", Icon: Trophy,       color: "#FFD700" },
-    { key: "factions",    Icon: Swords,       color: "#A855F7" },
-    { key: "battlepass",  Icon: Shield,       color: "#F97316" },
+    { key: "lfg",         Icon: Crosshair,      color: "#EC4899" },
+    { key: "voice",       Icon: Mic,            color: "#06B6D4" },
+    { key: "quests",      Icon: Target,         color: "#22C55E" },
+    { key: "tournaments", Icon: Trophy,         color: "#FFD700" },
+    { key: "factions",    Icon: Swords,         color: "#A855F7" },
+    { key: "chat",        Icon: MessagesSquare, color: "#6366F1" },
   ] as const;
 
   const variants: RevealVariant[] = ["left", "up", "right", "left", "up", "right"];
@@ -1164,7 +1168,7 @@ function TwinGamer() {
 function PricingSection() {
   const { t } = useTranslation("landing");
   const freeFeatures = ["freeF1", "freeF2", "freeF3", "freeF4"] as const;
-  const proFeatures  = ["proF1",  "proF2",  "proF3",  "proF4",  "proF5",  "proF6"] as const;
+  const proFeatures  = ["proF1",  "proF2",  "proF3",  "proF4",  "proF5",  "proF6",  "proF7",  "proF8"] as const;
 
   return (
     <Section
@@ -1229,6 +1233,79 @@ function PricingSection() {
         </Reveal>
       </div>
       <p className="mt-6 font-mono text-xs text-muted-foreground">{t("pricing.note")}</p>
+    </Section>
+  );
+}
+
+// ─── pro chat showcase ────────────────────────────────────────────────────────
+
+function ProChatSection() {
+  const { t } = useTranslation("landing");
+
+  const PERKS = [
+    { key: "chars",  emoji: "💬", color: "#3B82F6" },
+    { key: "gif",    emoji: "🎬", color: "#EC4899" },
+    { key: "pin",    emoji: "📌", color: "#FFD700" },
+    { key: "edit",   emoji: "✏️",  color: "#60A5FA" },
+    { key: "bubble", emoji: "🫧",  color: "#A855F7" },
+    { key: "emoji",  emoji: "✨",  color: "#F59E0B" },
+  ] as const;
+
+  return (
+    <Section
+      id="chat-pro"
+      prompt={t("chatPro.prompt")}
+      title={t("chatPro.title")}
+      body={t("chatPro.body")}
+      className="bg-gradient-to-b from-amber-950/5 to-transparent"
+    >
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {PERKS.map((p, i) => (
+          <Reveal key={p.key} delay={i * 70} variant="up" className="h-full">
+            <div
+              className="gwh-corner-card relative h-full bg-card border border-border p-6 hover:border-amber-400/40 transition-all group"
+              style={{ "--fc": p.color } as React.CSSProperties}
+            >
+              <div className="text-4xl mb-4">{p.emoji}</div>
+              <h3
+                className="font-mono font-bold uppercase tracking-wider text-sm mb-2"
+                style={{ color: p.color }}
+              >
+                {t(`chatPro.${p.key}.title` as any)}
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {t(`chatPro.${p.key}.desc` as any)}
+              </p>
+              {/* hover glow */}
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                style={{ boxShadow: `inset 0 0 40px ${p.color}10` }}
+              />
+            </div>
+          </Reveal>
+        ))}
+      </div>
+
+      <Reveal delay={450} variant="up">
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <div className="font-mono text-xs text-muted-foreground tracking-wider">
+            {t("pricing.proName")} · {t("pricing.proPrice")} / {t("pricing.freeTag").replace("Available now", "month").replace("متاح الآن", "شهرياً")}
+          </div>
+          <Button
+            asChild size="lg"
+            className="rounded-none font-mono uppercase tracking-widest bg-gradient-to-r from-amber-500 to-yellow-300 text-black hover:from-amber-400 hover:to-yellow-200 px-12"
+            style={{ boxShadow: "0 0 30px rgba(251,191,36,0.25)" }}
+          >
+            <a
+              href="https://sashoop.com/pro-subscription-game-world-hub/p1404499967"
+              target="_blank" rel="noreferrer"
+            >
+              <Crown className="w-4 h-4 me-2" />
+              {t("pricing.proCta")}
+            </a>
+          </Button>
+        </div>
+      </Reveal>
     </Section>
   );
 }
@@ -1483,6 +1560,7 @@ export default function Landing() {
         <FactionWarMap liveStats={liveStats} />
         <TwinGamer />
         <PricingSection />
+        <ProChatSection />
         <FomoSection liveStats={liveStats} />
         <DownloadSection />
         <SupportSection />

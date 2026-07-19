@@ -16,7 +16,7 @@
     "status": "SYSTEM_ONLINE",
     "title": "Your squad is waiting right now",
     "typed": "Gaming alone? Wrong.",
-    "sub": "One second and you know who's online, who's playing what. Join the party, share your screen, find your squad — GWH is the only place you need.",
+    "sub": "One second and you know who's online, who's playing what. Join the party, share your screen, find your squad. Now with global chat, GIFs, emoji reactions, and Pro bubble colours — one place for everything.",
     "start": "Start for free",
     "login": "Log in",
     "scroll": "Scroll to explore",
@@ -32,13 +32,13 @@
   "features": {
     "prompt": "> features --list",
     "title": "Everything your squad needs",
-    "body": "Six powerful features, one platform. Built for the gaming world.",
+    "body": "Six core features, one platform. Includes live global chat with GIFs and emoji reactions.",
     "lfg": { "title": "Looking for Group", "desc": "Post a request or respond to teammates searching for one more in your game." },
     "voice": { "title": "Voice Rooms", "desc": "One-click voice rooms for your party. Low latency, no limit on conversation." },
     "quests": { "title": "Daily Quests", "desc": "Complete daily missions, earn XP, and level up your profile every day." },
     "tournaments": { "title": "Tournaments", "desc": "Compete in brackets, track results live, and claim trophies for your profile." },
     "factions": { "title": "Faction Wars", "desc": "Join Shadows, Titans, or Ghosts and fight for weekly faction supremacy." },
-    "battlepass": { "title": "Battle Pass", "desc": "Season-long rewards track with exclusive badges, titles, and cosmetics." }
+    "chat": { "title": "Global Chat", "desc": "Three channels (#General, #LFG, #Trading) with GIFs, emoji reactions, mentions, and live updates." }
   },
   "warmap": {
     "prompt": "> faction-war --live",
@@ -100,7 +100,7 @@
   "pricing": {
     "prompt": "> plans --compare",
     "title": "Free vs Pro",
-    "body": "Every core feature is free. Upgrade to PRO for the full gaming command center.",
+    "body": "All core features are free forever. Upgrade to PRO for the full command center — now at SAR 20.",
     "freeName": "PLAYER",
     "freePrice": "Free",
     "freeTag": "Available now",
@@ -109,17 +109,30 @@
     "freeF3": "LFG matchmaking and ranks",
     "freeF4": "Steam library sync and 2FA security",
     "proName": "PRO",
-    "proPrice": "SAR 120",
-    "proTag": "Upgrade now",
-    "proF1": "Animated PRO badge and custom profile",
+    "proPrice": "SAR 20",
+    "proTag": "🔥 Best value",
+    "proF1": "Animated PRO badge and custom profile frame",
     "proF2": "Squad tools: bigger voice rooms, roles, scheduled LFG",
     "proF3": "Clans, tournaments, and game highlights",
     "proF4": "Boosted LFG posts and verified ranks",
     "proF5": "Profile analytics: views, visitors, acceptance rate",
     "proF6": "Prestige system: earn coloured star badges",
+    "proF7": "Global Chat Pro: GIFs, message pinning & 5-min editing",
+    "proF8": "800-char messages, coloured bubble glow & 64 exclusive emojis",
     "note": "Pay securely through Salla. Enter your GWH username at checkout.",
     "cta": "Create your free account",
     "proCta": "Upgrade to PRO"
+  },
+  "chatPro": {
+    "prompt": "> pro --chat-perks",
+    "title": "Pro Chat — Full Power Unlocked",
+    "body": "Upgrade to Pro and every message becomes a power play. Six chat superpowers included.",
+    "chars": { "title": "800 Characters", "desc": "Express more — Pro raises the standard 300-character cap to a full 800. Long strats, long reactions, no cutting short." },
+    "gif": { "title": "Send GIFs", "desc": "Search Giphy and drop animated GIFs into any channel. Free users can react to them — only Pro can launch them." },
+    "pin": { "title": "Pin Messages", "desc": "Anchor your message to the top of a channel for 10 minutes. Perfect for match calls, raid announcements, and squad rallies." },
+    "edit": { "title": "Edit Messages", "desc": "Typo? Change of plan? Edit your own messages within 5 minutes of sending. Everyone sees the update live." },
+    "bubble": { "title": "Coloured Bubble", "desc": "Choose a glow tint for your messages. Your squad spots you instantly in a packed channel — no scrolling needed." },
+    "emoji": { "title": "64 Exclusive Emojis", "desc": "Unlock a full second tier of Pro-only emojis plus 12 quick-reaction buttons. More expression, zero extra typing." }
   },
   "support": {
     "prompt": "> support --faq",

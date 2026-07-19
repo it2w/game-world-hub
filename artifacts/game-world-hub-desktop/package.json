@@ -14,6 +14,7 @@
     "build": "pnpm run build:main",
     "build:win": "pnpm run build:server && pnpm run build:main && electron-builder --win",
     "build:win:portable": "pnpm run build:server && pnpm run build:main && electron-builder --win portable",
+    "build:win:msix": "pnpm run build:server && pnpm run build:main && electron-builder --win appx",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -47,6 +48,10 @@
         {
           "target": "nsis",
           "arch": ["x64"]
+        },
+        {
+          "target": "appx",
+          "arch": ["x64"]
         }
       ],
       "icon": "build/icon.ico",
@@ -69,6 +74,17 @@
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "artifactName": "GameWorldHubSetup.exe"
+    },
+    "appx": {
+      "identityName": "GameWorldHub.Desktop",
+      "publisher": "CN=GameWorldHub",
+      "publisherDisplayName": "Game World Hub",
+      "applicationId": "GameWorldHub",
+      "displayName": "Game World Hub",
+      "backgroundColor": "#0a0a0a",
+      "showNameOnTiles": true,
+      "languages": ["ar-SA", "en-US"],
+      "artifactName": "GameWorldHub-${version}-x64.msix"
     },
     "publish": {
       "provider": "github",

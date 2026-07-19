@@ -160,3 +160,90 @@ with your final branding before shipping.
 
 - **NSIS installer**: `makensis` may not be available in the binary cache. If not, build the ZIP instead (see above) or run `makensis installer.nsi` locally/on Windows.
 - **Code signing**: `electron-builder` requires Wine on Linux for the EXE code-signing step. The ZIP contains the unsigned app which runs fine — Windows SmartScreen may warn on first launch.
+
+---
+
+## Microsoft Store — MSIX Submission Guide
+
+### What you need before starting
+
+| Requirement | Where to get it |
+|---|---|
+| Microsoft Partner Center account | https://partner.microsoft.com — one-time $19 registration fee |
+| App reservation | Partner Center → Apps & Games → Create new app → reserve name "Game World Hub" |
+| Publisher Identity | Partner Center → App identity page — three values below |
+
+Once your app is reserved in Partner Center, go to **App identity** and copy:
+
+| Partner Center field | Maps to `package.json` → `appx` |
+|---|---|
+| Package/Identity/Name | `identityName` |
+| Package/Properties/PublisherDisplayName | `publisherDisplayName` |
+| Package/Identity/Publisher | `publisher` (the full `CN=…` string) |
+
+Update `package.json` → `build.appx` with these exact values — they must match Partner Center or the upload will be rejected.
+
+---
+
+### Build the MSIX (run on Windows)
+
+```bash
+# From the monorepo root:
+cd artifacts/game-world-hub-desktop
+pnpm run build:win:msix
+```
+
+This produces `dist-electron/GameWorldHub-<version>-x64.msix`.
+
+> **Why Windows only?** electron-builder's appx target invokes the Windows SDK's `makeappx.exe` and `signtool.exe`. Cross-compilation from Linux is not supported for MSIX.
+
+---
+
+### Store asset sizes required
+
+Partner Center requires these image sizes (PNG, no transparency for tiles):
+
+| Asset | Size |
+|---|---|
+| Store logo | 300 × 300 |
+| Small tile | 71 × 71 |
+| Medium tile | 150 × 150 |
+| Wide tile | 310 × 150 |
+| Large tile | 310 × 310 |
+| App icon (44 × 44) | 44 × 44 |
+| Splash screen | 620 × 300 |
+| Screenshots | 1366 × 768 minimum (up to 2560 × 1440) — Partner Center requires at least one |
+
+Place Store assets in `build/store-assets/` and reference them in `appx.additionalAssets` if needed.
+
+---
+
+### Submit to Partner Center
+
+1. Build the MSIX on Windows as above.
+2. In Partner Center → your app → **Submissions** → **Start submission**.
+3. Fill in: Age rating (IARC questionnaire), Pricing (Free), Store listing (description, screenshots, keywords).
+4. Upload `GameWorldHub-<version>-x64.msix` under **Packages**.
+5. Click **Submit to the Store** — review takes 1–3 business days.
+
+---
+
+### Version bumping
+
+Before each Store submission, increment the version in `package.json`:
+
+```json
+"version": "1.0.1"
+```
+
+The MSIX version must always be higher than the previously published version or Partner Center will reject the package.
+
+---
+
+### Add MSIX build script
+
+Add this to `package.json` → `scripts`:
+
+```json
+"build:win:msix": "pnpm run build:server && pnpm run build:main && electron-builder --win appx"
+```

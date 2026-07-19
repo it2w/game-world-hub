@@ -277,6 +277,7 @@
     "saveEdit": "Save",
     "cancelEdit": "Cancel",
     "edited": "edited",
+    "editedAt": "Edited",
     "msgBgColor": "Bubble Color"
   },
   "stats": {

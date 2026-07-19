@@ -1485,6 +1485,7 @@
   font-style: italic;
   margin-top: 2px;
   display: block;
+  cursor: help;
 }
 
 /* ── Bubble color "none" swatch ──────────────────────────────────────────────── */

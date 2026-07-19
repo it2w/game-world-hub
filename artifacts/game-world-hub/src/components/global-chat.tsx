@@ -596,7 +596,14 @@ function MessageRow({
           reactions={msg.reactions}
           onReact={emoji => onReact(msg.id, emoji)}
         />
-        {msg.editedAt && <span className="gc-edited-label">{t("chat.edited")}</span>}
+        {msg.editedAt && (
+          <span
+            className="gc-edited-label"
+            title={`${t("chat.editedAt")} ${timeAgo(msg.editedAt)} · ${new Date(msg.editedAt).toLocaleString()}`}
+          >
+            {t("chat.edited")}
+          </span>
+        )}
       </div>
 
       {isMe && <Avatar author={msg.author} />}

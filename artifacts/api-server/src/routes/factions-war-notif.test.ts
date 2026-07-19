@@ -582,3 +582,235 @@ describe("sweepWeeklyWarNotifications — catch-up after server offline over wee
     );
   });
 });
+
+// ─── Monday 00:01 rollover scenario ──────────────────────────────────────────
+//
+// Exercises the sweep at the exact moment the ISO-week clock ticks over:
+//   nowOverride = 2026-01-12T00:01:00Z  (Monday, first minute of the new week)
+//
+// With this reference:
+//   thisMonday  = date_trunc('week', 2026-01-12T00:01) = 2026-01-12 00:00 UTC
+//   prevMonday  = thisMonday - 7d                      = 2026-01-05 00:00 UTC
+//   prior-week window = [2026-01-05, 2026-01-12)
+//   prevWeekKey = "2026-W02"
+//
+// Fixture:
+//   - userA (faction A) already has 20 posts on 2026-01-08 (Thu, inside prior week)
+//     worth 100 pts — reused from the outer before() fixture.
+//   - userC (faction C, new) has 20 posts on 2025-12-28 (15 days before the Monday,
+//     inside week 2025-W52 — strictly before the prior-week window) worth 0 pts.
+//   - The test asserts faction A wins and faction C has no winning title.
+
+describe("sweepWeeklyWarNotifications — Monday 00:01 UTC week rollover", () => {
+  // Monday 00:01 UTC — the exact first sweep after a week boundary
+  const MONDAY_OVERRIDE = new Date("2026-01-12T00:01:00Z");
+
+  // prevWeekKey at this moment should be "2026-W02" (the week Mon 5 Jan – Sun 11 Jan)
+  const MONDAY_PREV_WEEK_KEY = prevWeekKey(MONDAY_OVERRIDE);
+
+  let factionCId = 0;
+  let userCId    = 0;
+  const mondayPostIds: number[] = [];
+
+  before(async () => {
+    // Verify prevWeekKey computes as expected at the rollover point
+    assert.equal(
+      MONDAY_PREV_WEEK_KEY,
+      "2026-W02",
+      `prevWeekKey at Monday 00:01 must be "2026-W02"; got "${MONDAY_PREV_WEEK_KEY}"`,
+    );
+
+    // Create an isolated faction C for the even-earlier exclusion check
+    const { rows: fRows } = await pool.query<{ id: number }>(`
+      INSERT INTO factions (name, slug, color, icon_emoji, description) VALUES
+        ($1, $2, '#00aa00', '🟢', 'War notif test — even-earlier week, must score 0')
+      RETURNING id
+    `, [
+      `FWNotifFactionC_${SUFFIX}`, `fwnotif_c_${SUFFIX}`,
+    ]);
+    factionCId = fRows[0].id;
+
+    // Create userC and enrol in faction C
+    const [insertedC] = await db
+      .insert(usersTable)
+      .values({
+        username:    `fwnotif_userC_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: `FWNotif UserC`,
+        status:      "online" as const,
+      })
+      .returning({ id: usersTable.id });
+    userCId = insertedC.id;
+    createdUserIds.push(userCId);
+
+    await pool.query(
+      `INSERT INTO user_factions (user_id, faction_id) VALUES ($1, $2)`,
+      [userCId, factionCId],
+    );
+
+    // Seed userC with 20 posts on 2025-12-28 (15 days before Monday 2026-01-12).
+    // 2025-12-28 is in ISO week 2025-W52, which is strictly BEFORE the prior-week
+    // window [2026-01-05, 2026-01-12).  These posts must score 0 in the sweep.
+    const earlierTs = new Date("2025-12-28T12:00:00Z");
+    const { rows: cPostRows } = await pool.query<{ id: number }>(
+      `INSERT INTO lfg_posts
+         (author_id, game, description, needed_players, mic_required, status, created_at)
+       VALUES
+         ($1,'GameC','Earlier post 1', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 2', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 3', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 4', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 5', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 6', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 7', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 8', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 9', 1,false,'open',$2),
+         ($1,'GameC','Earlier post 10',1,false,'open',$2),
+         ($1,'GameC','Earlier post 11',1,false,'open',$2),
+         ($1,'GameC','Earlier post 12',1,false,'open',$2),
+         ($1,'GameC','Earlier post 13',1,false,'open',$2),
+         ($1,'GameC','Earlier post 14',1,false,'open',$2),
+         ($1,'GameC','Earlier post 15',1,false,'open',$2),
+         ($1,'GameC','Earlier post 16',1,false,'open',$2),
+         ($1,'GameC','Earlier post 17',1,false,'open',$2),
+         ($1,'GameC','Earlier post 18',1,false,'open',$2),
+         ($1,'GameC','Earlier post 19',1,false,'open',$2),
+         ($1,'GameC','Earlier post 20',1,false,'open',$2)
+       RETURNING id`,
+      [userCId, earlierTs],
+    );
+    mondayPostIds.push(...cPostRows.map(r => r.id));
+
+    // Clear any stale notif-log entry for MONDAY_PREV_WEEK_KEY so the sweep runs fresh.
+    // (The Wednesday tests in this file write the same "2026-W02" key; we must reset it.)
+    await pool.query(
+      `DELETE FROM faction_war_notif_log WHERE week_key = $1`,
+      [MONDAY_PREV_WEEK_KEY],
+    );
+  });
+
+  after(async () => {
+    // Notifications emitted for the test users during the Monday sweep
+    await pool.query(
+      `DELETE FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userBId, userCId]],
+    );
+
+    // Notif log entry
+    await pool.query(
+      `DELETE FROM faction_war_notif_log WHERE week_key = $1`,
+      [MONDAY_PREV_WEEK_KEY],
+    );
+
+    // Even-earlier posts
+    if (mondayPostIds.length) {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, mondayPostIds));
+    }
+
+    // Faction C membership and user
+    await pool.query(
+      `DELETE FROM user_factions WHERE user_id = $1`,
+      [userCId],
+    );
+
+    // Faction C itself
+    await pool.query(
+      `DELETE FROM factions WHERE id = $1`,
+      [factionCId],
+    );
+  });
+
+  test("sweep at Monday 00:01 writes a log entry keyed to the correct prior ISO week", async () => {
+    // Pre-condition: no log entry for the prior week
+    const { rows: before } = await pool.query(
+      `SELECT 1 FROM faction_war_notif_log WHERE week_key = $1`,
+      [MONDAY_PREV_WEEK_KEY],
+    );
+    assert.equal(
+      before.length,
+      0,
+      `no log entry for ${MONDAY_PREV_WEEK_KEY} should exist before the Monday sweep`,
+    );
+
+    await sweepWeeklyWarNotifications(MONDAY_OVERRIDE);
+
+    const { rows: after } = await pool.query<{ week_key: string }>(
+      `SELECT week_key FROM faction_war_notif_log WHERE week_key = $1`,
+      [MONDAY_PREV_WEEK_KEY],
+    );
+    assert.equal(
+      after.length,
+      1,
+      `faction_war_notif_log must contain an entry for week ${MONDAY_PREV_WEEK_KEY} after the Monday sweep`,
+    );
+    assert.equal(
+      after[0].week_key,
+      MONDAY_PREV_WEEK_KEY,
+      `log entry week_key must equal ${MONDAY_PREV_WEEK_KEY}`,
+    );
+  });
+
+  test("prior-week activity (2026-01-08, Thursday) is captured at the Monday rollover point", async () => {
+    // sweep() was already called by the previous test; log entry present → no-op on re-call.
+    // Faction A has 20 posts on 2026-01-08 (Thu, inside [2026-01-05, 2026-01-12)).
+    // Its member (userA) must receive a winning faction_war_result notification.
+    const { rows } = await pool.query<{ title: string }>(
+      `SELECT title FROM notifications WHERE user_id = $1 AND type = 'faction_war_result' ORDER BY id DESC LIMIT 1`,
+      [userAId],
+    );
+    assert.ok(
+      rows.length > 0,
+      `userA (faction A, prior-week activity on 2026-01-08) must have a faction_war_result notification after Monday sweep`,
+    );
+    const factionAName = `FWNotifFactionA_${SUFFIX}`;
+    assert.ok(
+      rows[0].title.includes(factionAName) && rows[0].title.includes("wins"),
+      `faction A member notification must declare faction A as winner at Monday rollover; got: "${rows[0].title}"`,
+    );
+  });
+
+  test("even-earlier activity (2025-12-28, 15 days before Monday) is excluded from the prior-week window", async () => {
+    // Faction C has 20 posts on 2025-12-28 (week 2025-W52), which is strictly
+    // before the prior-week window [2026-01-05, 2026-01-12). It must score 0 and
+    // its member must NOT receive a winning-faction title.
+    const { rows } = await pool.query<{ title: string }>(
+      `SELECT title FROM notifications WHERE user_id = $1 AND type = 'faction_war_result'`,
+      [userCId],
+    );
+    assert.ok(
+      rows.length > 0,
+      `userC (faction C) must have received a faction_war_result notification (all faction members are notified)`,
+    );
+    const factionCName = `FWNotifFactionC_${SUFFIX}`;
+    for (const row of rows) {
+      assert.equal(
+        row.title.includes(factionCName) && row.title.includes("wins"),
+        false,
+        `faction C (even-earlier activity at 2025-12-28) must NOT be declared prior-week winner; title: "${row.title}"`,
+      );
+    }
+  });
+
+  test("Monday sweep is idempotent — second call does not create duplicate log entries or notifications", async () => {
+    // First sweep already ran; count current notifications
+    const { rows: notifBefore } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userCId]],
+    );
+    const countBefore = parseInt(notifBefore[0].cnt, 10);
+    assert.ok(countBefore >= 2, `at least 2 notifications expected after first Monday sweep`);
+
+    // Second call with the same Monday override — must be a no-op
+    await sweepWeeklyWarNotifications(MONDAY_OVERRIDE);
+
+    const { rows: notifAfter } = await pool.query<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
+      [[userAId, userCId]],
+    );
+    assert.equal(
+      parseInt(notifAfter[0].cnt, 10),
+      countBefore,
+      `second Monday sweep must not add duplicate notifications (before: ${countBefore}, after: ${parseInt(notifAfter[0].cnt, 10)})`,
+    );
+  });
+});

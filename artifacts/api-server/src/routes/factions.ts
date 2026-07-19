@@ -405,12 +405,15 @@ router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void>
 
   const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10) || 20, 50);
   const offset = parseInt((req.query.offset as string) ?? "0", 10) || 0;
+  const sortByWeeklyPts = (req.query.sort as string) === "weekly_pts";
 
   const { rows: factionRows } = await pool.query<{ id: number }>(
     `SELECT id FROM factions WHERE id = $1`,
     [factionId],
   );
   if (!factionRows[0]) { res.status(404).json({ error: "Faction not found" }); return; }
+
+  const orderBy = sortByWeeklyPts ? "weekly_pts DESC, uf.joined_at DESC" : "uf.joined_at DESC";
 
   const { rows } = await pool.query<{
     user_id: number; display_name: string; username: string;
@@ -433,7 +436,7 @@ router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void>
     FROM user_factions uf
     JOIN users u ON u.id = uf.user_id
     WHERE uf.faction_id = $1
-    ORDER BY uf.joined_at DESC
+    ORDER BY ${orderBy}
     LIMIT $2 OFFSET $3
   `, [factionId, limit, offset]);
 

@@ -35,7 +35,7 @@ function FactionRosterModal({ roster, onClose }: { roster: RosterState; onClose:
   const loadPage = useCallback(async (off: number) => {
     setLoading(true);
     try {
-      const data = await customFetch(`/api/factions/${roster.factionId}/members?limit=20&offset=${off}`) as { total: number; members: RosterMember[] };
+      const data = await customFetch(`/api/factions/${roster.factionId}/members?limit=20&offset=${off}&sort=weekly_pts`) as { total: number; members: RosterMember[] };
       setTotal(data.total);
       setMembers(prev => off === 0 ? data.members : [...prev, ...data.members]);
       setOffset(off + data.members.length);

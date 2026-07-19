@@ -191,8 +191,8 @@ async function sweepSeasons(): Promise<void> {
 // ── Weekly war notification cron ──────────────────────────────────────────────
 
 /** Returns ISO year-week string like "2026-W29" for the *previous* ISO week */
-function prevWeekKey(): string {
-  const now = new Date();
+export function prevWeekKey(nowOverride?: Date): string {
+  const now = nowOverride ?? new Date();
   // Go back 7 days to reliably land in the previous week
   const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const day = d.getUTCDay() || 7; // 1=Mon, 7=Sun
@@ -203,8 +203,8 @@ function prevWeekKey(): string {
 }
 
 /** Current ISO week key */
-function currentWeekKey(): string {
-  const now = new Date();
+function currentWeekKey(nowOverride?: Date): string {
+  const now = nowOverride ?? new Date();
   const day = now.getUTCDay() || 7;
   const thursday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + (4 - day)));
   const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
@@ -212,9 +212,9 @@ function currentWeekKey(): string {
   return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-async function sweepWeeklyWarNotifications(): Promise<void> {
+export async function sweepWeeklyWarNotifications(nowOverride?: Date): Promise<void> {
   try {
-    const wk = prevWeekKey();
+    const wk = prevWeekKey(nowOverride);
     // Check if already sent for this week
     const { rows: already } = await pool.query(
       `SELECT 1 FROM faction_war_notif_log WHERE week_key = $1`,

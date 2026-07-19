@@ -238,7 +238,10 @@
     "textColor": "Text colour",
     "sendError": "Failed to send message",
     "empty": "Be the first to say something…",
-    "tooFast": "Too fast — slow down"
+    "tooFast": "Too fast — slow down",
+    "addFriend": "Add Friend",
+    "requestSent": "Request Sent",
+    "viewProfile": "View Profile"
   },
   "stats": {
     "weeklyLabel": "This Week",

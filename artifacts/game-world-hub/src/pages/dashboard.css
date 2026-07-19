@@ -732,3 +732,90 @@
   transition: background .1s;
 }
 .gc-emoji-btn:hover { background: hsl(var(--muted)); }
+
+/* ── Chat user card popover ─────────────────────────────────────────── */
+.gc-user-card {
+  position: fixed;
+  z-index: 100;
+  width: 210px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 6px 32px #0009;
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: gc-fade-in .15s ease;
+}
+.gc-uc-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid hsl(var(--border));
+  align-self: center;
+  color: #fff;
+}
+.gc-uc-info {
+  text-align: center;
+}
+.gc-uc-name {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.gc-uc-username {
+  font-family: monospace;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 2px;
+}
+.gc-uc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.gc-uc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none;
+  color: hsl(var(--foreground));
+}
+.gc-uc-btn--add {
+  border-color: hsl(var(--primary)/0.6);
+  color: hsl(var(--primary));
+}
+.gc-uc-btn--add:hover:not(:disabled) { background: hsl(var(--primary)/0.12); }
+.gc-uc-btn--sent {
+  border-color: #22C55E66;
+  color: #22C55E;
+  cursor: default;
+}
+.gc-uc-btn--profile:hover { background: hsl(var(--muted)); }
+.gc-msg-name--clickable {
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.gc-msg-name--clickable:hover { opacity: .8; }

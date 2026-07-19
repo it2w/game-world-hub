@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Send, Smile, Zap, Users } from "lucide-react";
+import { Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -73,16 +73,23 @@ function timeAgo(iso: string): string {
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
-function Avatar({ author }: { author: ChatAuthor }) {
+function Avatar({
+  author,
+  onClick,
+}: {
+  author: ChatAuthor;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
   const initial = author.displayName?.[0]?.toUpperCase() ?? "?";
   const hue = (author.id * 47) % 360;
   return (
     <div
-      className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold border"
+      className={`w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold border${onClick ? " cursor-pointer" : ""}`}
       style={{
         background: author.avatarUrl ? undefined : `hsl(${hue},70%,30%)`,
         borderColor: author.isPro ? "#FFD700" : "transparent",
       }}
+      onClick={onClick}
     >
       {author.avatarUrl
         ? <img src={author.avatarUrl} alt={author.displayName} className="w-full h-full object-cover" />
@@ -116,18 +123,39 @@ function LfgSignalCard({ msg, t }: { msg: ChatMessage; t: (k: string, o?: any) =
 }
 
 // ── Single message row ────────────────────────────────────────────────────────
-function MessageRow({ msg, meId, t }: { msg: ChatMessage; meId: number; t: (k: string, o?: any) => string }) {
+function MessageRow({
+  msg,
+  meId,
+  onUserClick,
+  t,
+}: {
+  msg: ChatMessage;
+  meId: number;
+  onUserClick: (author: ChatAuthor, rect: DOMRect) => void;
+  t: (k: string, o?: any) => string;
+}) {
   const isMe = msg.author.id === meId;
   const nameColor = msg.metadata.nameColor ?? (msg.author.isPro ? "#FFD700" : undefined);
   const textColor = msg.metadata.textColor ?? undefined;
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (isMe) return;
+    onUserClick(msg.author, (e.currentTarget as HTMLElement).getBoundingClientRect());
+  };
+
   return (
     <div className={`gc-msg-row ${isMe ? "gc-msg-row--me" : ""}`}>
-      {!isMe && <Avatar author={msg.author} />}
+      {!isMe && (
+        <Avatar author={msg.author} onClick={handleClick} />
+      )}
       <div className="gc-msg-body">
         {/* Name row */}
         <div className="gc-msg-meta">
-          <span className="gc-msg-name" style={nameColor ? { color: nameColor } : undefined}>
+          <span
+            className={`gc-msg-name${!isMe ? " gc-msg-name--clickable" : ""}`}
+            style={nameColor ? { color: nameColor } : undefined}
+            onClick={!isMe ? handleClick : undefined}
+          >
             {msg.author.displayName}
           </span>
           {msg.author.isPro && <ProBadge size="icon" className="w-4 h-4" />}
@@ -251,6 +279,8 @@ export function GlobalChat({ me }: { me: any }) {
   const [textColor, setTextColor] = useState("");
   const [lfgMode, setLfgMode] = useState(false);
   const [lfgGame, setLfgGame] = useState("");
+  const [activeCard, setActiveCard] = useState<{ author: ChatAuthor; rect: DOMRect } | null>(null);
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const isPro = !!me?.isPro;
@@ -310,6 +340,26 @@ export function GlobalChat({ me }: { me: any }) {
     }
   }, [input, sending, lfgMode, lfgGame, isPro, nameColor, textColor, t, toast]);
 
+  // ── User card ─────────────────────────────────────────────────────────────
+  const handleUserClick = useCallback((author: ChatAuthor, rect: DOMRect) => {
+    setActiveCard(prev => (prev?.author.id === author.id ? null : { author, rect }));
+  }, []);
+
+  const addFriend = useCallback(async () => {
+    if (!activeCard) return;
+    const { author } = activeCard;
+    try {
+      await customFetch("/api/friends/request", {
+        method: "POST",
+        body: JSON.stringify({ toUserId: author.id }),
+      });
+      setAddedIds(prev => new Set(prev).add(author.id));
+      toast({ title: t("chat.requestSent") });
+    } catch (err: any) {
+      toast({ title: err?.message ?? t("chat.sendError"), variant: "destructive" });
+    }
+  }, [activeCard, t, toast]);
+
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
   };
@@ -349,7 +399,7 @@ export function GlobalChat({ me }: { me: any }) {
           <p className="gc-empty">{t("chat.empty")}</p>
         )}
         {messages.map(msg => (
-          <MessageRow key={msg.id} msg={msg} meId={me?.id ?? -1} t={t} />
+          <MessageRow key={msg.id} msg={msg} meId={me?.id ?? -1} onUserClick={handleUserClick} t={t} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -428,6 +478,18 @@ export function GlobalChat({ me }: { me: any }) {
           </div>
         )}
       </div>
+
+      {/* User card popover — rendered outside scroll container so it's never clipped */}
+      {activeCard && (
+        <ChatUserCard
+          author={activeCard.author}
+          anchorRect={activeCard.rect}
+          added={addedIds.has(activeCard.author.id)}
+          onAdd={() => void addFriend()}
+          onClose={() => setActiveCard(null)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

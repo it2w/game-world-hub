@@ -1425,6 +1425,74 @@
 .gc-toolbar-btn--pin { }
 .gc-toolbar-btn--pin:hover { color: #FFD700; border-color: #FFD70066; background: #FFD70012; }
 
+/* ── Edit toolbar button ─────────────────────────────────────────────────────── */
+.gc-toolbar-btn--edit { }
+.gc-toolbar-btn--edit:hover { color: #60A5FA; border-color: #60A5FA66; background: #60A5FA12; }
+
+/* ── Inline message edit UI ──────────────────────────────────────────────────── */
+.gc-edit-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.gc-edit-input {
+  width: 100%;
+  background: hsl(var(--muted)/0.6);
+  border: 1px solid #60A5FA66;
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 9px;
+  outline: none;
+  transition: border-color .15s;
+}
+.gc-edit-input:focus { border-color: #60A5FA; }
+.gc-edit-actions {
+  display: flex;
+  gap: 5px;
+}
+.gc-edit-save {
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px 10px;
+  background: #3B82F6;
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.gc-edit-save:hover { background: #2563EB; }
+.gc-edit-cancel {
+  padding: 3px 8px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+  font-size: 10px;
+  cursor: pointer;
+  transition: color .15s;
+}
+.gc-edit-cancel:hover { color: hsl(var(--foreground)); }
+
+/* ── Edited label ────────────────────────────────────────────────────────────── */
+.gc-edited-label {
+  font-size: 9px;
+  color: hsl(var(--muted-foreground));
+  opacity: .7;
+  font-style: italic;
+  margin-top: 2px;
+  display: block;
+}
+
+/* ── Bubble color "none" swatch ──────────────────────────────────────────────── */
+.gc-swatch--none {
+  font-size: 8px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted)) !important;
+  display: flex; align-items: center; justify-content: center;
+}
+
 /* ── Trade Offer card (message bubble) ───────────────────────────────────────── */
 .gc-trade-card {
   margin-top: 4px;

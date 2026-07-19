@@ -647,6 +647,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:pin-update", { detail: msg }));
           break;
 
+        case "message_edit":
+          window.dispatchEvent(new CustomEvent("gwh:message-edit", { detail: msg }));
+          break;
+
         default:
           break;
       }

@@ -272,7 +272,12 @@
     "offering": "أعرض",
     "seeking": "أبحث عن",
     "price": "السعر",
-    "tradePlaceholder": "أضف ملاحظة لصفقتك (اختياري)…"
+    "tradePlaceholder": "أضف ملاحظة لصفقتك (اختياري)…",
+    "editMessage": "تعديل",
+    "saveEdit": "حفظ",
+    "cancelEdit": "إلغاء",
+    "edited": "معدّل",
+    "msgBgColor": "لون الفقاعة"
   },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",

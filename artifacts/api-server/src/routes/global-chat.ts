@@ -19,7 +19,12 @@ const lastSent = new Map<number, number>();
 // ── Constants ──────────────────────────────────────────────────────────────────
 const HEX_RE          = /^#[0-9a-fA-F]{6}$/;
 const MENTION_RE      = /@([a-zA-Z0-9_]{3,30})/g;
-const VALID_REACTIONS = new Set(["👍", "❤️", "😂", "💀", "🔥", "👏"]);
+const VALID_REACTIONS = new Set([
+  "👍","❤️","😂","💀","🔥","👏",
+  "😮","😢","😡","🎉","💯","🤔",
+  "👀","🙏","💪","✨","🤣","😍",
+  "💎","👑","⚡","🏆","🎯","🤝",
+]);
 const VALID_CHANNELS  = new Set(["general", "lfg", "trading"]);
 // Allow Giphy CDN and Tenor CDN gif URLs
 const GIF_DOMAIN_RE   = /^https:\/\/media\d*\.(giphy|tenor)\.com\//;
@@ -74,6 +79,9 @@ async function ensureTables(): Promise<void> {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS gcp_channel_idx ON global_chat_pins(channel, pinned_until DESC);
+
+    ALTER TABLE global_chat_messages
+      ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
 
     CREATE TABLE IF NOT EXISTS global_chat_top10_cache (
       user_id INTEGER NOT NULL PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
@@ -179,6 +187,8 @@ function sanitizeMeta(
       m.badge = raw.badge.trim();
     if (typeof raw.nameAnimation === "boolean")
       m.nameAnimation = raw.nameAnimation;
+    if (raw.msgBgColor && typeof raw.msgBgColor === "string" && HEX_RE.test(raw.msgBgColor))
+      m.msgBgColor = raw.msgBgColor;
   }
   if (messageType === "lfg_signal") {
     if (raw.game     && typeof raw.game     === "string") m.game     = String(raw.game).slice(0, 60);
@@ -241,12 +251,12 @@ router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void>
 
   const { rows } = await pool.query<{
     id: number; user_id: number; content: string; message_type: string;
-    metadata: Record<string, unknown> | null; created_at: string; channel: string;
+    metadata: Record<string, unknown> | null; created_at: string; edited_at: string | null; channel: string;
     display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
     reply_to_id: number | null;
     reply_content: string | null; reply_author: string | null;
   }>(`
-    SELECT g.id, g.user_id, g.content, g.message_type, g.metadata, g.created_at, g.channel,
+    SELECT g.id, g.user_id, g.content, g.message_type, g.metadata, g.created_at, g.edited_at, g.channel,
            u.display_name, u.username, u.avatar_url, u.is_pro,
            g.reply_to_id,
            rg.content       AS reply_content,
@@ -273,6 +283,7 @@ router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void>
       messageType: r.message_type,
       metadata:    r.metadata ?? {},
       createdAt:   r.created_at,
+      editedAt:    r.edited_at ?? undefined,
       reactions:   reactionMap.get(r.id) ?? [],
       replyTo:     r.reply_to_id
         ? { id: r.reply_to_id, content: r.reply_content ?? "", authorName: r.reply_author ?? "" }
@@ -291,14 +302,6 @@ router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void>
 // ── POST /global-chat/messages ─────────────────────────────────────────────────
 router.post("/global-chat/messages", requireAuth, async (req, res): Promise<void> => {
   const userId = req.auth!.userId;
-
-  const now  = Date.now();
-  const last = lastSent.get(userId) ?? 0;
-  if (now - last < 1000) {
-    res.status(429).json({ error: "Too fast — wait a moment" });
-    return;
-  }
-  lastSent.set(userId, now);
 
   const {
     content, messageType = "text", metadata,
@@ -326,7 +329,17 @@ router.post("/global-chat/messages", requireAuth, async (req, res): Promise<void
   if (!ur[0]) { res.status(404).json({ error: "User not found" }); return; }
   const user = ur[0];
 
-  const maxLen = user.is_pro ? 400 : 200;
+  // Pro gets faster cooldown (500 ms) — regular users wait 1 s
+  const now      = Date.now();
+  const last     = lastSent.get(userId) ?? 0;
+  const cooldown = user.is_pro ? 500 : 1000;
+  if (now - last < cooldown) {
+    res.status(429).json({ error: "Too fast — wait a moment" });
+    return;
+  }
+  lastSent.set(userId, now);
+
+  const maxLen = user.is_pro ? 800 : 300;
   if (content.length > maxLen) {
     res.status(400).json({ error: `Message too long (max ${maxLen} chars)` }); return;
   }
@@ -501,6 +514,55 @@ router.post("/global-chat/messages/:id/pin", requireAuth, async (req, res): Prom
   };
   broadcastAll(pinPayload);
   res.json(pinPayload.pin);
+});
+
+// ── PATCH /global-chat/messages/:id — edit own message (Pro, ≤5 min) ─────────
+router.patch("/global-chat/messages/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId    = req.auth!.userId;
+  const messageId = parseInt(req.params.id, 10);
+  if (isNaN(messageId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { content } = req.body as { content?: string };
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    res.status(400).json({ error: "Content required" }); return;
+  }
+
+  const { rows: ur } = await pool.query<{ is_pro: boolean }>(
+    `SELECT is_pro FROM users WHERE id = $1`, [userId],
+  );
+  if (!ur[0]?.is_pro) { res.status(403).json({ error: "Pro required to edit messages" }); return; }
+
+  const { rows: mr } = await pool.query<{
+    user_id: number; created_at: string; channel: string;
+  }>(
+    `SELECT user_id, created_at, channel FROM global_chat_messages WHERE id = $1`, [messageId],
+  );
+  if (!mr[0]) { res.status(404).json({ error: "Message not found" }); return; }
+  if (mr[0].user_id !== userId) {
+    res.status(403).json({ error: "Can only edit your own messages" }); return;
+  }
+
+  const ageMs = Date.now() - new Date(mr[0].created_at).getTime();
+  if (ageMs > 5 * 60 * 1000) {
+    res.status(403).json({ error: "Can no longer edit (5 min limit)" }); return;
+  }
+
+  const trimmed = content.trim().slice(0, 800);
+  const { rows } = await pool.query<{ edited_at: string }>(
+    `UPDATE global_chat_messages SET content = $1, edited_at = NOW()
+     WHERE id = $2 RETURNING edited_at`,
+    [trimmed, messageId],
+  );
+
+  const payload = {
+    type: "message_edit",
+    messageId,
+    content: trimmed,
+    editedAt: rows[0]?.edited_at ?? new Date().toISOString(),
+    channel: mr[0].channel,
+  };
+  broadcastAll(payload);
+  res.json(payload);
 });
 
 // ── GET /global-chat/pinned — active pinned message for a channel ──────────────

@@ -272,7 +272,12 @@
     "offering": "Offering",
     "seeking": "Seeking",
     "price": "Price",
-    "tradePlaceholder": "Add a note to your trade (optional)…"
+    "tradePlaceholder": "Add a note to your trade (optional)…",
+    "editMessage": "Edit",
+    "saveEdit": "Save",
+    "cancelEdit": "Cancel",
+    "edited": "edited",
+    "msgBgColor": "Bubble Color"
   },
   "stats": {
     "weeklyLabel": "This Week",

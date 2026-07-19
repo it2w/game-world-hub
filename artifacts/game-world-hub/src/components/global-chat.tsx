@@ -14,7 +14,7 @@ import { Link } from "wouter";
 import {
   Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink,
   X, Reply, Flag, CornerUpLeft, Pin, Search, Filter,
-  ChevronUp, ImageIcon, ArrowLeftRight,
+  ChevronUp, ImageIcon, ArrowLeftRight, Pencil, Check,
 } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
 
@@ -58,8 +58,10 @@ interface ChatMessage {
     offering?: string;
     seeking?: string;
     price?: string;
+    msgBgColor?: string;
   };
   createdAt: string;
+  editedAt?: string;
   author: ChatAuthor;
   reactions: ReactionCount[];
   replyTo: ReplyPreview | null;
@@ -79,7 +81,10 @@ interface GifResult {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "💀", "🔥", "👏"];
+const QUICK_REACTIONS = [
+  "👍","❤️","😂","💀","🔥","👏",
+  "😮","🎉","💯","🤔","👀","✨",
+];
 const CHANNELS = [
   { id: "general", label: "#عام",    labelEn: "#General" },
   { id: "lfg",     label: "#LFG",    labelEn: "#LFG" },
@@ -92,12 +97,24 @@ const FREE_EMOJIS = [
   "🛡️","⚔️","🎲","💪","🚀","😎","😈","🤝",
   "👊","🔝","🌟","🎖️","💯","🦁","🎁","🏅",
   "💫","🤖","🦊","🐉","😂","🤣",
+  "🕹️","🧨","🎴","🃏","🏹","🗡️","🪃","🧲",
+  "🎰","🎳","🥇","🥊","🧠","👾","🐯","🦈",
+  "🌋","⛩️","🗺️","🎻",
 ];
 const PRO_EXTRA_EMOJIS = [
   "👑","💎","🌈","✨","🦋","🔮","🌙","🔱",
   "🎭","🎨","🎵","💜","💖","🌸","🦄","🎊",
-  "🎉","🦅","🐺","⚜️","🌊","🏰","🌺","💫",
-  "🎪","🦸","🧙","🐲","🌠","🎆","🏮","⭐",
+  "🎉","🦅","🐺","⚜️","🌊","🏰","🌺","🪄",
+  "🎪","🦸","🧙","🔯","🌌","🎆","🏮","🌀",
+  "🎇","🧿","💠","🔵","🟣","⚗️","🧬","🪬",
+  "🛸","🌐","🗝️","🔭","🧪","💡","🎠","🪐",
+  "🌠","🏔️","🦚","🦜","🦩","🎑","🌋","🪩",
+  "🎸","🎺","🥁","🪘","🌟","💥","🧲","👻",
+];
+const MSG_BG_COLORS = [
+  "#6366F1","#8B5CF6","#EC4899","#F59E0B",
+  "#10B981","#06B6D4","#EF4444","#F97316",
+  "#DC2626","#1D4ED8","#047857","#7C3AED",
 ];
 const NAME_COLORS = [
   "#FF4655","#A855F7","#FFD700","#22C55E",
@@ -391,7 +408,9 @@ function GifPicker({
 
 // ── Single message row ────────────────────────────────────────────────────────
 function MessageRow({
-  msg, meId, isPro, onUserClick, onReact, onReply, onReport, onPin, scrollToId, t,
+  msg, meId, isPro, onUserClick, onReact, onReply, onReport, onPin, onEdit,
+  editingId, editInput, setEditInput, onSaveEdit, onCancelEdit,
+  scrollToId, t,
 }: {
   msg: ChatMessage;
   meId: number;
@@ -401,15 +420,26 @@ function MessageRow({
   onReply:  (msg: ChatMessage) => void;
   onReport: (msgId: number) => void;
   onPin:    (msgId: number) => void;
+  onEdit:   (msg: ChatMessage) => void;
+  editingId: number | null;
+  editInput: string;
+  setEditInput: (v: string) => void;
+  onSaveEdit: (msgId: number) => void;
+  onCancelEdit: () => void;
   scrollToId: (id: number) => void;
   t: (k: string, o?: any) => string;
 }) {
   const [hovered, setHovered] = useState(false);
   const isMe      = msg.author.id === meId;
+  const isEditing = editingId === msg.id;
   const nameColor = msg.metadata.nameColor ?? (msg.author.isPro ? "#FFD700" : undefined);
   const textColor = msg.metadata.textColor ?? undefined;
   const badge     = msg.metadata.badge;
   const animated  = msg.metadata.nameAnimation;
+  const bgColor   = msg.metadata.msgBgColor;
+  // Edit window: Pro only, own msg, within 5 minutes
+  const canEdit   = isMe && isPro && msg.messageType === "text"
+                  && (Date.now() - new Date(msg.createdAt).getTime()) < 5 * 60 * 1000;
 
   // system_announcement — full-width card, skip the row structure
   if (msg.messageType === "system_announcement") {
@@ -429,7 +459,10 @@ function MessageRow({
     >
       {!isMe && <Avatar author={msg.author} onClick={handleAvatarClick} />}
 
-      <div className="gc-msg-body">
+      <div
+        className="gc-msg-body"
+        style={bgColor ? { background: `${bgColor}1A`, borderLeft: `2px solid ${bgColor}55`, paddingInlineStart: "6px" } : undefined}
+      >
         {/* Reply quote */}
         {msg.replyTo && (
           <button
@@ -484,6 +517,15 @@ function MessageRow({
                   <Pin className="w-3.5 h-3.5" />
                 </button>
               )}
+              {canEdit && !isEditing && (
+                <button
+                  className="gc-toolbar-btn gc-toolbar-btn--edit"
+                  onClick={() => onEdit(msg)}
+                  title={t("chat.editMessage")}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
               {!isMe && (
                 <button
                   className="gc-toolbar-btn gc-toolbar-btn--report"
@@ -509,6 +551,26 @@ function MessageRow({
             alt="GIF"
             loading="lazy"
           />
+        ) : isEditing ? (
+          <div className="gc-edit-input-row">
+            <input
+              className="gc-edit-input"
+              value={editInput}
+              onChange={e => setEditInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSaveEdit(msg.id); }
+                if (e.key === "Escape") onCancelEdit();
+              }}
+              maxLength={800}
+              autoFocus
+            />
+            <div className="gc-edit-actions">
+              <button className="gc-edit-save" onClick={() => onSaveEdit(msg.id)}>
+                <Check className="w-3 h-3" />{t("chat.saveEdit")}
+              </button>
+              <button className="gc-edit-cancel" onClick={onCancelEdit}>{t("chat.cancelEdit")}</button>
+            </div>
+          </div>
         ) : (
           <p
             className={`gc-msg-text ${isMe ? "gc-msg-text--me" : ""}`}
@@ -523,6 +585,7 @@ function MessageRow({
           reactions={msg.reactions}
           onReact={emoji => onReact(msg.id, emoji)}
         />
+        {msg.editedAt && <span className="gc-edited-label">{t("chat.edited")}</span>}
       </div>
 
       {isMe && <Avatar author={msg.author} />}
@@ -552,35 +615,46 @@ function EmojiPicker({
 
   return (
     <div ref={ref} className="gc-emoji-picker">
-      {isPro && (
-        <div className="gc-emoji-pro-label">
-          <ProBadge size="icon" className="w-3.5 h-3.5" />
-          <span>{t("chat.proEmoji")}</span>
-        </div>
-      )}
+      <div className="gc-emoji-section-label">🎮 {t("chat.emoji")}</div>
       <div className="gc-emoji-grid">
-        {all.map((em, i) => (
-          <button key={i} className="gc-emoji-btn" onClick={() => { onPick(em); onClose(); }}>
+        {FREE_EMOJIS.map((em, i) => (
+          <button key={`f${i}`} className="gc-emoji-btn" onClick={() => { onPick(em); onClose(); }}>
             {em}
           </button>
         ))}
       </div>
+      {isPro && (
+        <>
+          <div className="gc-emoji-pro-label">
+            <ProBadge size="icon" className="w-3.5 h-3.5" />
+            <span>{t("chat.proEmoji")}</span>
+          </div>
+          <div className="gc-emoji-grid">
+            {PRO_EXTRA_EMOJIS.map((em, i) => (
+              <button key={`p${i}`} className="gc-emoji-btn" onClick={() => { onPick(em); onClose(); }}>
+                {em}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ── Pro colour + badge + animation strip ──────────────────────────────────────
 function ProColorPanel({
-  nameColor, textColor, badge, nameAnimation,
-  setNameColor, setTextColor, setBadge, setNameAnimation,
+  nameColor, textColor, badge, nameAnimation, msgBgColor,
+  setNameColor, setTextColor, setBadge, setNameAnimation, setMsgBgColor,
   t,
 }: {
   nameColor: string; textColor: string;
-  badge: string; nameAnimation: boolean;
+  badge: string; nameAnimation: boolean; msgBgColor: string;
   setNameColor: (c: string) => void;
   setTextColor: (c: string) => void;
   setBadge: (v: string) => void;
   setNameAnimation: (v: boolean) => void;
+  setMsgBgColor: (c: string) => void;
   t: (k: string) => string;
 }) {
   return (
@@ -633,6 +707,24 @@ function ProColorPanel({
         {nameAnimation && (
           <span className="gc-name--animated gc-anim-preview">ABC</span>
         )}
+      </div>
+      <div className="gc-color-row">
+        <span className="gc-color-label">🫧 {t("chat.msgBgColor")}</span>
+        <div className="gc-color-swatches">
+          <button
+            className={`gc-swatch gc-swatch--none ${msgBgColor === "" ? "gc-swatch--active" : ""}`}
+            onClick={() => setMsgBgColor("")}
+            title="None"
+          >✕</button>
+          {MSG_BG_COLORS.map(c => (
+            <button
+              key={c}
+              className={`gc-swatch ${msgBgColor === c ? "gc-swatch--active" : ""}`}
+              style={{ background: c }}
+              onClick={() => setMsgBgColor(msgBgColor === c ? "" : c)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -778,6 +870,11 @@ export function GlobalChat({ me }: { me: any }) {
   const [textColor,     setTextColor]     = useState("");
   const [badge,         setBadge]         = useState("");
   const [nameAnimation, setNameAnimation] = useState(false);
+  const [msgBgColor,    setMsgBgColor]    = useState("");
+
+  // Edit mode
+  const [editingId,     setEditingId]     = useState<number | null>(null);
+  const [editInput,     setEditInput]     = useState("");
 
   // LFG mode
   const [lfgMode,       setLfgMode]       = useState(false);
@@ -940,6 +1037,21 @@ export function GlobalChat({ me }: { me: any }) {
     return () => window.removeEventListener("gwh:pin-update", handler);
   }, [channel]);
 
+  // ── WS: message edit ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const data = (e as CustomEvent<any>).detail;
+      if (!data?.messageId || data.channel !== channel) return;
+      setMessages(prev => prev.map(m =>
+        m.id === data.messageId
+          ? { ...m, content: data.content, editedAt: data.editedAt }
+          : m,
+      ));
+    };
+    window.addEventListener("gwh:message-edit", handler);
+    return () => window.removeEventListener("gwh:message-edit", handler);
+  }, [channel]);
+
   // ── Auto-scroll (only when not searching) ─────────────────────────────────
   useEffect(() => {
     if (!searchQuery) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -972,6 +1084,7 @@ export function GlobalChat({ me }: { me: any }) {
         if (isPro && textColor)     meta.textColor     = textColor;
         if (isPro && badge.trim())  meta.badge         = badge.trim();
         if (isPro && nameAnimation) meta.nameAnimation = true;
+        if (isPro && msgBgColor)    meta.msgBgColor    = msgBgColor;
         body.metadata = meta;
       }
       await customFetch("/api/global-chat/messages", { method: "POST", body: JSON.stringify(body) });
@@ -984,7 +1097,7 @@ export function GlobalChat({ me }: { me: any }) {
     } finally {
       setSending(false);
     }
-  }, [input, sending, replyTo, lfgMode, lfgGame, tradeMode, tradeOffering, tradeSeeking, tradePrice, isPro, nameColor, textColor, badge, nameAnimation, channel, t, toast]);
+  }, [input, sending, replyTo, lfgMode, lfgGame, tradeMode, tradeOffering, tradeSeeking, tradePrice, isPro, nameColor, textColor, badge, nameAnimation, msgBgColor, channel, t, toast]);
 
   // ── Send GIF ───────────────────────────────────────────────────────────────
   const sendGif = useCallback(async (gifUrl: string) => {
@@ -1037,6 +1150,32 @@ export function GlobalChat({ me }: { me: any }) {
       toast({ title: err?.message ?? t("chat.sendError"), variant: "destructive" });
     }
   }, [t, toast]);
+
+  // ── Edit message ───────────────────────────────────────────────────────────
+  const handleStartEdit = useCallback((msg: ChatMessage) => {
+    setEditingId(msg.id);
+    setEditInput(msg.content);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (msgId: number) => {
+    const text = editInput.trim();
+    if (!text) return;
+    try {
+      await customFetch(`/api/global-chat/messages/${msgId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content: text }),
+      });
+      setEditingId(null);
+      setEditInput("");
+    } catch (err: any) {
+      toast({ title: err?.message ?? t("chat.sendError"), variant: "destructive" });
+    }
+  }, [editInput, t, toast]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditInput("");
+  }, []);
 
   // ── User card ──────────────────────────────────────────────────────────────
   const handleUserClick = useCallback((author: ChatAuthor, rect: DOMRect) => {
@@ -1100,7 +1239,7 @@ export function GlobalChat({ me }: { me: any }) {
     return result.filter(m => !reportedIds.has(m.id));
   }, [messages, vipFilter, searchQuery, reportedIds]);
 
-  const maxLen = isPro ? 400 : 200;
+  const maxLen = isPro ? 800 : 300;
 
   return (
     <div className="gc-root">
@@ -1188,9 +1327,9 @@ export function GlobalChat({ me }: { me: any }) {
       {isPro && showColors && (
         <ProColorPanel
           nameColor={nameColor} textColor={textColor}
-          badge={badge} nameAnimation={nameAnimation}
+          badge={badge} nameAnimation={nameAnimation} msgBgColor={msgBgColor}
           setNameColor={setNameColor} setTextColor={setTextColor}
-          setBadge={setBadge} setNameAnimation={setNameAnimation}
+          setBadge={setBadge} setNameAnimation={setNameAnimation} setMsgBgColor={setMsgBgColor}
           t={t}
         />
       )}
@@ -1234,6 +1373,12 @@ export function GlobalChat({ me }: { me: any }) {
               onReply={setReplyTo}
               onReport={handleReport}
               onPin={handlePin}
+              onEdit={handleStartEdit}
+              editingId={editingId}
+              editInput={editInput}
+              setEditInput={setEditInput}
+              onSaveEdit={handleSaveEdit}
+              onCancelEdit={handleCancelEdit}
               scrollToId={scrollToId}
               t={t}
             />

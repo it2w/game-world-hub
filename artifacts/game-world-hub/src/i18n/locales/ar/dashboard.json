@@ -222,6 +222,24 @@
     "proOnly": "انضم إلى الغرفة الحصرية — لأعضاء Pro فقط",
     "active": "مباشر الآن"
   },
+  "chat": {
+    "title": "الشات العام",
+    "placeholder": "راسل الجميع…",
+    "lfgPlaceholder": "صف ما تحتاجه (دور، رتبة، مايك…)",
+    "lfgSignal": "إشارة بحث عن فريق",
+    "lfgMode": "وضع البحث عن فريق",
+    "lfgGamePlaceholder": "اسم اللعبة…",
+    "findParty": "ابحث عن فريق",
+    "slots": "أماكن",
+    "emoji": "إيموجي",
+    "proEmoji": "برو — إيموجي موسّع",
+    "proColors": "ألوان برو",
+    "nameColor": "لون الاسم",
+    "textColor": "لون الخط",
+    "sendError": "فشل إرسال الرسالة",
+    "empty": "كن أول من يتكلم…",
+    "tooFast": "سريع جداً — أبطئ قليلاً"
+  },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",
     "weeklyHint": "+{{h}}h من أمس",

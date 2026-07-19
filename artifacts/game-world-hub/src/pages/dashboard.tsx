@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { DailyQuestsWidget } from "@/components/daily-quests-widget";
 import { BattlePassWidget } from "@/pages/battle-pass";
+import { GlobalChat } from "@/components/global-chat";
 import { ProBadge } from "@/components/pro-badge";
 import "./dashboard.css";
 import {
@@ -1217,6 +1218,7 @@ export default function Dashboard() {
             onBlock={f=>blockUser.mutate({userId:f.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getGetOnlineFriendsSummaryQueryKey()})})}
           />
           <CommunityHighlights activity={partyActivity??[]}/>
+          <GlobalChat me={me} />
           <SpotlightCarousel me={me}/>
         </div>
 

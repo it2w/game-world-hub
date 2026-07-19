@@ -222,6 +222,24 @@
     "proOnly": "Join the exclusive voice lounge — Pro members only",
     "active": "LIVE NOW"
   },
+  "chat": {
+    "title": "GLOBAL CHAT",
+    "placeholder": "Message everyone…",
+    "lfgPlaceholder": "Describe what you need (role, rank, mic…)",
+    "lfgSignal": "LFG Signal",
+    "lfgMode": "LFG MODE",
+    "lfgGamePlaceholder": "Game name…",
+    "findParty": "Find Party",
+    "slots": "slots",
+    "emoji": "Emoji",
+    "proEmoji": "Pro — Extended Emoji",
+    "proColors": "Pro Colours",
+    "nameColor": "Name colour",
+    "textColor": "Text colour",
+    "sendError": "Failed to send message",
+    "empty": "Be the first to say something…",
+    "tooFast": "Too fast — slow down"
+  },
   "stats": {
     "weeklyLabel": "This Week",
     "weeklyHint": "+{{h}}h from yesterday",

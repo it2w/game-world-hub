@@ -36,6 +36,7 @@ import factionsRouter from "./factions";
 import proHuntRouter from "./pro-hunt";
 import eventsRouter from "./events";
 import prestigeRouter from "./prestige";
+import globalChatRouter from "./global-chat";
 
 const router: IRouter = Router();
 
@@ -102,5 +103,6 @@ router.use(factionsRouter);
 router.use(proHuntRouter);
 router.use(eventsRouter);
 router.use(prestigeRouter);
+router.use(globalChatRouter);
 
 export default router;

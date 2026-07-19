@@ -16,12 +16,19 @@ import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Acti
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey } from "@workspace/api-client-react";
+import { useGetMe, useListNotifications, getGetMeQueryKey, getListNotificationsQueryKey, customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { ProBadge } from "@/components/pro-badge";
 import { Shield } from "lucide-react";
 import { PrestigeBadge } from "@/components/prestige-badge";
+import { useQuery } from "@tanstack/react-query";
+
+interface ProHuntSummary {
+  challenges: { completed: boolean }[];
+  allCompleted: boolean;
+  proGranted: boolean;
+}
 
 export function AppSidebar() {
   const { t, i18n } = useTranslation("common");
@@ -35,6 +42,16 @@ export function AppSidebar() {
   });
   
   const unreadMessageCount = notifications?.filter(n => !n.isRead && n.type === "message").length || 0;
+
+  const { data: proHunt } = useQuery<ProHuntSummary>({
+    queryKey: ["pro-hunt"],
+    queryFn: () => customFetch("/api/pro-hunt"),
+    refetchInterval: 60_000,
+  });
+
+  const proHuntCompleted = proHunt?.challenges.filter(c => c.completed).length ?? 0;
+  const proHuntTotal = proHunt?.challenges.length ?? 5;
+  const proHuntAllDone = proHunt?.allCompleted ?? false;
 
   const isActive = (path: string) => location === path || location.startsWith(`${path}/`);
 
@@ -164,7 +181,17 @@ export function AppSidebar() {
                   <Link href="/pro-hunt">
                     <Trophy className="w-4 h-4 text-yellow-400" />
                     <span className="text-yellow-400 font-bold">{t("sidebar.proHunt")}</span>
-                    {user?.isPro && <Crown className="w-3 h-3 ms-auto text-yellow-400" />}
+                    {proHunt && (
+                      proHuntAllDone ? (
+                        <span className="ms-auto animate-pulse inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400/20 border border-yellow-400/60" title="All challenges complete — claim your Pro!">
+                          <Crown className="w-3 h-3 text-yellow-400" />
+                        </span>
+                      ) : (
+                        <span className="ms-auto font-mono text-[10px] text-yellow-400/80 leading-none tabular-nums">
+                          {proHuntCompleted}/{proHuntTotal}
+                        </span>
+                      )
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

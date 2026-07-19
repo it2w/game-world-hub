@@ -575,7 +575,7 @@ export default function Settings() {
 
           {/* Pro Spotlight Opt-out */}
           {me?.isPro && (
-            <div className="bg-card border border-border p-6">
+            <div id="spotlight" className="bg-card border border-border p-6">
               <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
                 <Trophy className="w-4 h-4" /> {t("spotlight.title")}
               </h2>

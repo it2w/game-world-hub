@@ -22,4 +22,6 @@ export interface ProfileUpdate {
   avatarUrl?: string;
   bannerUrl?: string;
   allowProfileComments?: boolean;
+  /** When true the user is hidden from the Featured Players carousel (Pro only) */
+  spotlightOptOut?: boolean;
 }

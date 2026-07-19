@@ -54,6 +54,7 @@ export const RegisterResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -65,7 +66,8 @@ export const RegisterResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -96,6 +98,7 @@ export const LoginResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -107,7 +110,8 @@ export const LoginResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -139,8 +143,8 @@ export const GetMeResponse = zod.object({
   "emailVerified": zod.boolean().optional(),
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
-  "spotlightOptOut": zod.boolean().optional().describe('Whether the user has opted out of the Featured Players spotlight'),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -152,17 +156,22 @@ export const GetMeResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
 /**
  * @summary Update online status and current game
  */
+export const updateMyStatusBodyStatusTextMax = 100;
+
+
+
 export const UpdateMyStatusBody = zod.object({
   "status": zod.enum(['online', 'away', 'busy', 'offline']).optional(),
   "currentGame": zod.string().nullish(),
-  "statusText": zod.string().max(100).nullish()
+  "statusText": zod.string().max(updateMyStatusBodyStatusTextMax).nullish().describe('Custom status message (\"What\'s on your mind?\")')
 })
 
 export const UpdateMyStatusResponse = zod.object({
@@ -178,7 +187,7 @@ export const UpdateMyStatusResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
-  "statusText": zod.string().nullish(),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -190,7 +199,8 @@ export const UpdateMyStatusResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -402,6 +412,7 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -413,7 +424,8 @@ export const VerifyTwoFactorLoginResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }).optional(),
   "token": zod.string().optional(),
   "requiresTwoFactor": zod.boolean().optional(),
@@ -483,6 +495,7 @@ export const SetMyEmailResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -494,7 +507,8 @@ export const SetMyEmailResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -523,6 +537,7 @@ export const VerifyMyEmailResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -534,7 +549,8 @@ export const VerifyMyEmailResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -578,6 +594,7 @@ export const EnableTwoFactorResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -589,7 +606,8 @@ export const EnableTwoFactorResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -613,6 +631,7 @@ export const DisableTwoFactorResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -624,7 +643,8 @@ export const DisableTwoFactorResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -651,7 +671,6 @@ export const GetUserResponse = zod.object({
   "xpForNext": zod.number(),
   "allowProfileComments": zod.boolean(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
-  "statusText": zod.string().nullish(),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color'),
@@ -701,7 +720,7 @@ export const UpdateProfileBody = zod.object({
   "avatarUrl": zod.string().optional(),
   "bannerUrl": zod.string().optional(),
   "allowProfileComments": zod.boolean().optional(),
-  "spotlightOptOut": zod.boolean().optional()
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 export const UpdateProfileResponse = zod.object({
@@ -766,6 +785,7 @@ export const SearchUsersResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -777,7 +797,8 @@ export const SearchUsersResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
 
@@ -913,6 +934,7 @@ export const DeleteMyAvatarResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -924,7 +946,8 @@ export const DeleteMyAvatarResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -944,6 +967,7 @@ export const DeleteMyBannerResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -955,7 +979,8 @@ export const DeleteMyBannerResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })
 
 
@@ -1027,6 +1052,7 @@ export const ListFriendsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1038,7 +1064,8 @@ export const ListFriendsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "since": zod.string()
 })
@@ -1063,6 +1090,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1074,7 +1102,8 @@ export const ListFriendRequestsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1089,6 +1118,7 @@ export const ListFriendRequestsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1100,7 +1130,8 @@ export const ListFriendRequestsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1130,6 +1161,7 @@ export const SendFriendRequestResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1141,7 +1173,8 @@ export const SendFriendRequestResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "to": zod.object({
   "id": zod.number(),
@@ -1156,6 +1189,7 @@ export const SendFriendRequestResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1167,7 +1201,8 @@ export const SendFriendRequestResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "status": zod.enum(['pending', 'accepted', 'rejected']),
   "createdAt": zod.string()
@@ -1243,6 +1278,7 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1254,7 +1290,8 @@ export const GetOnlineFriendsSummaryResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "since": zod.string()
 }))
@@ -1281,6 +1318,7 @@ export const ListConversationsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1292,7 +1330,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1310,6 +1349,7 @@ export const ListConversationsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1321,7 +1361,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1341,6 +1382,7 @@ export const ListConversationsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1352,7 +1394,8 @@ export const ListConversationsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1417,6 +1460,7 @@ export const GetMessagesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1428,7 +1472,8 @@ export const GetMessagesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1448,6 +1493,7 @@ export const GetMessagesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1459,7 +1505,8 @@ export const GetMessagesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1505,6 +1552,7 @@ export const SendMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1516,7 +1564,8 @@ export const SendMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1536,6 +1585,7 @@ export const SendMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1547,7 +1597,8 @@ export const SendMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1592,6 +1643,7 @@ export const EditMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1603,7 +1655,8 @@ export const EditMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1623,6 +1676,7 @@ export const EditMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1634,7 +1688,8 @@ export const EditMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1687,6 +1742,7 @@ export const PinMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1698,7 +1754,8 @@ export const PinMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1718,6 +1775,7 @@ export const PinMessageResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1729,7 +1787,8 @@ export const PinMessageResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1808,6 +1867,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1819,7 +1879,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "lastMessage": zod.object({
   "id": zod.number(),
@@ -1837,6 +1898,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1848,7 +1910,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "isPinned": zod.boolean(),
@@ -1868,6 +1931,7 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1879,7 +1943,8 @@ export const GetOrCreateDirectConversationResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "content": zod.string(),
   "createdAt": zod.string()
@@ -1918,6 +1983,7 @@ export const ListPartiesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1929,7 +1995,8 @@ export const ListPartiesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -1944,6 +2011,7 @@ export const ListPartiesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -1955,7 +2023,8 @@ export const ListPartiesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2005,6 +2074,7 @@ export const CreatePartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2016,7 +2086,8 @@ export const CreatePartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2031,6 +2102,7 @@ export const CreatePartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2042,7 +2114,8 @@ export const CreatePartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2077,6 +2150,7 @@ export const GetPartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2088,7 +2162,8 @@ export const GetPartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2103,6 +2178,7 @@ export const GetPartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2114,7 +2190,8 @@ export const GetPartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2167,6 +2244,7 @@ export const UpdatePartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2178,7 +2256,8 @@ export const UpdatePartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2193,6 +2272,7 @@ export const UpdatePartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2204,7 +2284,8 @@ export const UpdatePartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2267,6 +2348,7 @@ export const JoinPartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2278,7 +2360,8 @@ export const JoinPartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2293,6 +2376,7 @@ export const JoinPartyResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2304,7 +2388,8 @@ export const JoinPartyResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2365,6 +2450,7 @@ export const TransferPartyLeadershipResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2376,7 +2462,8 @@ export const TransferPartyLeadershipResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2391,6 +2478,7 @@ export const TransferPartyLeadershipResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2402,7 +2490,8 @@ export const TransferPartyLeadershipResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2435,6 +2524,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2446,7 +2536,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2461,6 +2552,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2472,7 +2564,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2492,6 +2585,7 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2503,7 +2597,8 @@ export const GetPartyActivityFeedResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "action": zod.enum(['created', 'joined', 'left', 'invited']),
   "createdAt": zod.string()
@@ -2535,6 +2630,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2546,7 +2642,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2561,6 +2658,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2572,7 +2670,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2592,6 +2691,7 @@ export const ListPartyInvitesResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2603,7 +2703,8 @@ export const ListPartyInvitesResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "createdAt": zod.string()
 })
@@ -2636,6 +2737,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2647,7 +2749,8 @@ export const AcceptPartyInviteResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -2662,6 +2765,7 @@ export const AcceptPartyInviteResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2673,7 +2777,8 @@ export const AcceptPartyInviteResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "maxSize": zod.number(),
   "isPublic": zod.boolean(),
@@ -2935,6 +3040,7 @@ export const ListBlockedUsersResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -2946,7 +3052,8 @@ export const ListBlockedUsersResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "createdAt": zod.string()
 })
@@ -3160,6 +3267,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3171,7 +3279,8 @@ export const ListLfgPostsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3194,6 +3303,7 @@ export const ListLfgPostsResponseItem = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3205,7 +3315,8 @@ export const ListLfgPostsResponseItem = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3253,6 +3364,7 @@ export const CreateLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3264,7 +3376,8 @@ export const CreateLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3287,6 +3400,7 @@ export const CreateLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3298,7 +3412,8 @@ export const CreateLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3336,6 +3451,7 @@ export const RespondToLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3347,7 +3463,8 @@ export const RespondToLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3370,6 +3487,7 @@ export const RespondToLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3381,7 +3499,8 @@ export const RespondToLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),
@@ -3411,6 +3530,7 @@ export const CloseLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3422,7 +3542,8 @@ export const CloseLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 }),
   "game": zod.string(),
   "platform": zod.string().nullish(),
@@ -3445,6 +3566,7 @@ export const CloseLfgPostResponse = zod.object({
   "twoFactorMethod": zod.enum(['none', 'email', 'totp']).optional(),
   "allowProfileComments": zod.boolean().optional(),
   "status": zod.enum(['online', 'away', 'busy', 'offline']),
+  "statusText": zod.string().nullish().describe('Custom status message set by the user'),
   "currentGame": zod.string().nullish(),
   "createdAt": zod.string(),
   "isPro": zod.boolean().optional().describe('Whether the user has an active Pro subscription'),
@@ -3456,7 +3578,8 @@ export const CloseLfgPostResponse = zod.object({
   "xpForNext": zod.number().nullish(),
   "profileFrameColor": zod.string().nullish().describe('Pro avatar frame border color (CSS hex or named color)'),
   "profileBgUrl": zod.string().nullish().describe('Pro profile background image\/GIF path or URL'),
-  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown')
+  "usernameChangedAt": zod.string().nullish().describe('ISO timestamp of the last username change, used to compute the 30-day cooldown'),
+  "spotlightOptOut": zod.boolean().optional().describe('When true the user is hidden from the Featured Players carousel (Pro only)')
 })),
   "viewerHasResponded": zod.boolean(),
   "expiresAt": zod.string().nullish(),

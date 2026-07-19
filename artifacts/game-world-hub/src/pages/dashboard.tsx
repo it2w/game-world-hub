@@ -819,7 +819,7 @@ function AchievementShowcase({ achievements }: { achievements:any[] }) {
 }
 
 // ── SpotlightCarousel ─────────────────────────────────────────────────────────
-function SpotlightCarousel() {
+function SpotlightCarousel({ me }: { me?: any }) {
   const { t } = useTranslation("dashboard");
   const isAr = i18n.resolvedLanguage?.startsWith("ar");
   const { data: spotlightUsers, isLoading } = useQuery<any[]>({
@@ -829,6 +829,9 @@ function SpotlightCarousel() {
     staleTime: 60_000 * 60,
   });
 
+  // True only when the user's own card is actually in the live carousel sample
+  const isFeatured = !!(me?.id && spotlightUsers?.some((u: any) => u.id === me.id));
+
   return (
     <div className="border border-yellow-400/30 bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -836,7 +839,17 @@ function SpotlightCarousel() {
           <p className="font-mono font-bold text-xs uppercase tracking-widest text-yellow-400">{t("spotlight.title")}</p>
           <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{t("spotlight.subtitle")}</p>
         </div>
-        <Link href="/pro"><span className="font-mono text-[10px] text-yellow-400 hover:underline uppercase">Pro Hunt →</span></Link>
+        <div className="flex items-center gap-2">
+          {isFeatured && (
+            <Link href="/settings#spotlight">
+              <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest border border-yellow-400/60 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20 px-2 py-0.5 transition-colors cursor-pointer">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
+                {t("spotlight.youAreFeatured")}
+              </span>
+            </Link>
+          )}
+          <Link href="/pro"><span className="font-mono text-[10px] text-yellow-400 hover:underline uppercase">Pro Hunt →</span></Link>
+        </div>
       </div>
       {isLoading ? (
         <div className="flex gap-3 overflow-x-auto pb-1">
@@ -1201,7 +1214,7 @@ export default function Dashboard() {
             onBlock={f=>blockUser.mutate({userId:f.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getGetOnlineFriendsSummaryQueryKey()})})}
           />
           <CommunityHighlights activity={partyActivity??[]}/>
-          <SpotlightCarousel/>
+          <SpotlightCarousel me={me}/>
         </div>
 
         <div className="dash-side">

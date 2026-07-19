@@ -89,13 +89,11 @@ export interface User {
   emailVerified?: boolean;
   twoFactorMethod?: UserTwoFactorMethod;
   allowProfileComments?: boolean;
-  /** Whether the user has opted out of the Featured Players spotlight */
-  spotlightOptOut?: boolean;
   status: UserStatus;
   /**
-   * Custom status message set by the user
-   * @nullable
-   */
+     * Custom status message set by the user
+     * @nullable
+     */
   statusText?: string | null;
   /** @nullable */
   currentGame?: string | null;
@@ -132,6 +130,8 @@ export interface User {
      * @nullable
      */
   usernameChangedAt?: string | null;
+  /** When true the user is hidden from the Featured Players carousel (Pro only) */
+  spotlightOptOut?: boolean;
 }
 
 export interface LfgPost {
@@ -279,9 +279,10 @@ export interface StatusUpdate {
   /** @nullable */
   currentGame?: string | null;
   /**
-   * Custom status message ("What's on your mind?")
-   * @nullable
-   */
+     * Custom status message ("What's on your mind?")
+     * @maxLength 100
+     * @nullable
+     */
   statusText?: string | null;
 }
 
@@ -506,11 +507,6 @@ export interface UserProfile {
   xpForNext: number;
   allowProfileComments: boolean;
   status: UserProfileStatus;
-  /**
-   * Custom status message set by the user
-   * @nullable
-   */
-  statusText?: string | null;
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
@@ -544,7 +540,7 @@ export interface ProfileUpdate {
   avatarUrl?: string;
   bannerUrl?: string;
   allowProfileComments?: boolean;
-  /** Whether the user has opted out of the Featured Players spotlight */
+  /** When true the user is hidden from the Featured Players carousel (Pro only) */
   spotlightOptOut?: boolean;
 }
 

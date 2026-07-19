@@ -30,6 +30,11 @@ export interface User {
   twoFactorMethod?: UserTwoFactorMethod;
   allowProfileComments?: boolean;
   status: UserStatus;
+  /**
+     * Custom status message set by the user
+     * @nullable
+     */
+  statusText?: string | null;
   /** @nullable */
   currentGame?: string | null;
   createdAt: string;
@@ -65,4 +70,6 @@ export interface User {
      * @nullable
      */
   usernameChangedAt?: string | null;
+  /** When true the user is hidden from the Featured Players carousel (Pro only) */
+  spotlightOptOut?: boolean;
 }

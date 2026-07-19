@@ -11,4 +11,10 @@ export interface StatusUpdate {
   status?: StatusUpdateStatus;
   /** @nullable */
   currentGame?: string | null;
+  /**
+     * Custom status message ("What's on your mind?")
+     * @maxLength 100
+     * @nullable
+     */
+  statusText?: string | null;
 }

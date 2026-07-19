@@ -3,8 +3,8 @@
  *
  * Connects to GET /api/global-chat/messages for the initial load and
  * listens to two WS frames in real time:
- *   • global_chat        → prepend new message
- *   • global_chat_delete → remove message by id (moderator deletion)
+ *   • global_chat        → prepend new message (filtered to active channel)
+ *   • global_chat_delete → remove message by id (regardless of channel)
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,6 +26,14 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWsFrame } from '@/contexts/WsContext';
 import { Avatar } from '@/components/Avatar';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const CHANNELS: { id: string; label: string }[] = [
+  { id: 'general', label: 'عام' },
+  { id: 'lfg',     label: 'LFG' },
+  { id: 'trading', label: 'تبادل' },
+];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +76,71 @@ async function postMessage(content: string, channel = 'general'): Promise<void> 
     body: JSON.stringify({ content, channel }),
   });
 }
+
+// ── Channel tabs ──────────────────────────────────────────────────────────────
+
+function ChannelTabs({
+  active,
+  onSelect,
+  colors,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[tabStyles.scroll, { borderBottomColor: colors.border }]}
+      contentContainerStyle={tabStyles.content}
+    >
+      {CHANNELS.map((ch) => {
+        const isActive = ch.id === active;
+        return (
+          <Pressable
+            key={ch.id}
+            onPress={() => onSelect(ch.id)}
+            style={[
+              tabStyles.tab,
+              isActive && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
+            ]}
+          >
+            <Text
+              style={[
+                tabStyles.label,
+                { color: isActive ? colors.primary : colors.mutedForeground },
+                isActive && { fontWeight: '700' },
+              ]}
+            >
+              {ch.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const tabStyles = StyleSheet.create({
+  scroll: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexGrow: 0,
+  },
+  content: {
+    paddingHorizontal: 12,
+  },
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
 
 // ── Message row ───────────────────────────────────────────────────────────────
 
@@ -127,36 +201,60 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuth();
 
+  const [channel, setChannel] = useState('general');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
 
+  // Keep a ref so WS handlers always see the latest channel without stale closure
+  const channelRef = useRef(channel);
+  useEffect(() => { channelRef.current = channel; }, [channel]);
+
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
-  // ── Initial load ────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  // Monotonically-increasing request token — prevents stale fetch responses
+  // from overwriting messages when the user switches channels rapidly.
+  const loadTokenRef = useRef(0);
+
+  // ── Load messages for the active channel ────────────────────────────────────
+  const load = useCallback(async (ch: string) => {
+    // Capture this request's token before the async work begins
+    const token = ++loadTokenRef.current;
+    setLoading(true);
+    setError(null);
     try {
-      setError(null);
-      const msgs = await fetchMessages();
+      const msgs = await fetchMessages(ch);
+      // Only apply the result if no newer request has started since this one
+      if (token !== loadTokenRef.current) return;
       setMessages(msgs);
     } catch {
+      if (token !== loadTokenRef.current) return;
       setError('Failed to load messages.');
     } finally {
-      setLoading(false);
+      if (token === loadTokenRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) void load();
-  }, [isAuthenticated, load]);
+    if (isAuthenticated) void load(channel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, channel]);
 
-  // ── WS: new message ─────────────────────────────────────────────────────────
+  // ── Channel switch ───────────────────────────────────────────────────────────
+  const handleSelectChannel = useCallback((id: string) => {
+    if (id === channelRef.current) return;
+    setMessages([]);
+    setChannel(id);
+  }, []);
+
+  // ── WS: new message — only show if it belongs to the active channel ──────────
   useWsFrame<GlobalChatFrame>('global_chat', (frame) => {
     if (!frame.message) return;
+    // Ignore messages that belong to a different channel
+    if (frame.message.channel !== channelRef.current) return;
     setMessages((prev) => {
-      // Deduplicate by id
       if (prev.some((m) => m.id === frame.message.id)) return prev;
       return [...prev, frame.message];
     });
@@ -164,7 +262,7 @@ export default function ChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
   });
 
-  // ── WS: message deleted ─────────────────────────────────────────────────────
+  // ── WS: message deleted — remove regardless of which channel is active ───────
   useWsFrame<GlobalChatDeleteFrame>('global_chat_delete', (frame) => {
     setMessages((prev) => prev.filter((m) => m.id !== frame.messageId));
   });
@@ -176,7 +274,7 @@ export default function ChatScreen() {
     setSending(true);
     setText('');
     try {
-      await postMessage(trimmed);
+      await postMessage(trimmed, channelRef.current);
     } catch {
       setText(trimmed); // restore on error
     } finally {
@@ -207,6 +305,13 @@ export default function ChatScreen() {
         </Text>
       </View>
 
+      {/* Channel selector */}
+      <ChannelTabs
+        active={channel}
+        onSelect={handleSelectChannel}
+        colors={colors}
+      />
+
       {/* Message list */}
       {loading ? (
         <View style={styles.center}>
@@ -215,7 +320,7 @@ export default function ChatScreen() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={{ color: colors.mutedForeground }}>{error}</Text>
-          <Pressable onPress={load} style={styles.retryBtn}>
+          <Pressable onPress={() => load(channel)} style={styles.retryBtn}>
             <Text style={{ color: colors.primary, fontWeight: '600' }}>إعادة المحاولة</Text>
           </Pressable>
         </View>

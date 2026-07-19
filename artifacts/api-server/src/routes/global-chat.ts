@@ -769,7 +769,9 @@ router.delete(
     // DELETE … RETURNING confirms the row was actually removed (rowCount check
     // guards against any edge case where the lock was released between steps).
     const client = await pool.connect();
-    let notFound = false;
+    let notFound   = false;
+    let hadActivePin = false;
+    let pinChannel: string | null = null;
     try {
       await client.query("BEGIN");
 
@@ -782,6 +784,22 @@ router.delete(
         notFound = true;
         await client.query("ROLLBACK");
       } else {
+        // Check whether this message is currently pinned
+        const { rows: pinRows } = await client.query<{ id: number; channel: string }>(
+          `SELECT id, channel FROM global_chat_pins WHERE message_id = $1 LIMIT 1`,
+          [messageId],
+        );
+        if (pinRows[0]) {
+          hadActivePin = true;
+          pinChannel   = pinRows[0].channel;
+          // Remove the pin row inside the same transaction so the pin and the
+          // message are cleaned up atomically — no stale banner can appear.
+          await client.query(
+            `DELETE FROM global_chat_pins WHERE id = $1`,
+            [pinRows[0].id],
+          );
+        }
+
         // Write audit record
         await client.query(
           `INSERT INTO global_chat_deletions
@@ -815,7 +833,14 @@ router.delete(
     if (notFound) { res.status(404).json({ error: "Message not found" }); return; }
 
     broadcastAll({ type: "global_chat_delete", messageId });
-    res.json({ deleted: true, messageId });
+
+    // If the message had an active pin, broadcast a pin_update so all clients
+    // clear the banner immediately rather than waiting for it to expire.
+    if (hadActivePin && pinChannel) {
+      broadcastAll({ type: "pin_update", channel: pinChannel, pin: null });
+    }
+
+    res.json({ deleted: true, messageId, hadActivePin });
   },
 );
 

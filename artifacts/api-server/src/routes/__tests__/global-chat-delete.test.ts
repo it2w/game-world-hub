@@ -39,6 +39,8 @@ let freeUserId     = 0; let freeUserUsername     = "";
 let author1Id      = 0; let author1Username      = "";   // for non-admin test
 let author2Id      = 0; let author2Username      = "";   // for no-perm test
 let author3Id      = 0; let author3Username      = "";   // for main delete test
+let proAuthorId    = 0; let proAuthorUsername    = "";   // Pro user for pin test
+let proAuthor2Id   = 0; let proAuthor2Username   = "";   // separate Pro user for unpinned test (rate-limit isolation)
 
 const createdUserIds: number[] = [];
 
@@ -163,16 +165,21 @@ before(async () => {
       { username: `gcd_auth1_${SUFFIX}`,   passwordHash: "x", displayName: "Auth1",                      status: "online" as const },
       { username: `gcd_auth2_${SUFFIX}`,   passwordHash: "x", displayName: "Auth2",                      status: "online" as const },
       { username: `gcd_auth3_${SUFFIX}`,   passwordHash: "x", displayName: "Auth3",                      status: "online" as const },
+      // Pro users for pin tests (separate accounts for rate-limit isolation)
+      { username: `gcd_pro_${SUFFIX}`,     passwordHash: "x", displayName: "ProUser",     isPro: true,   status: "online" as const },
+      { username: `gcd_pro2_${SUFFIX}`,    passwordHash: "x", displayName: "ProUser2",    isPro: true,   status: "online" as const },
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
   [
-    [adminId,       adminUsername],
-    [noPermAdminId, noPermAdminUsername],
-    [freeUserId,    freeUserUsername],
-    [author1Id,     author1Username],
-    [author2Id,     author2Username],
-    [author3Id,     author3Username],
+    [adminId,        adminUsername],
+    [noPermAdminId,  noPermAdminUsername],
+    [freeUserId,     freeUserUsername],
+    [author1Id,      author1Username],
+    [author2Id,      author2Username],
+    [author3Id,      author3Username],
+    [proAuthorId,    proAuthorUsername],
+    [proAuthor2Id,   proAuthor2Username],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -267,5 +274,60 @@ describe("DELETE /global-chat/messages/:id", () => {
       !messages.some((m: any) => m.id === msgId),
       "Deleted message should not appear in GET /global-chat/messages",
     );
+  });
+
+  test("deleting a pinned message removes the pin and returns hadActivePin:true", async () => {
+    // Post a message as the Pro user
+    const content = `msg-pinned-${SUFFIX}`;
+    const msgId   = await postMessage(proAuthorId, proAuthorUsername, content);
+
+    // Pin the message (Pro user pins their own message)
+    const pinR = await req("POST", `/global-chat/messages/${msgId}/pin`, proAuthorId, proAuthorUsername);
+    assert.equal(pinR.status, 200, `Expected 200 pinning message, got ${pinR.status}: ${JSON.stringify(pinR.body)}`);
+
+    // Verify the pin is visible before deletion
+    const pinnedBefore = await req("GET", `/global-chat/pinned?channel=general`, adminId, adminUsername);
+    assert.equal(pinnedBefore.status, 200);
+    assert.equal((pinnedBefore.body as any)?.messageId, msgId, "Pin should be active before deletion");
+
+    // Open WS observer to catch both the delete and pin_update broadcasts
+    const obs = openWsObserver(adminId, adminUsername);
+    await new Promise(r => setTimeout(r, 100));
+
+    // Delete the pinned message as admin
+    const delR = await req("DELETE", `/global-chat/messages/${msgId}`, adminId, adminUsername);
+    assert.equal(delR.status, 200, `Expected 200, got ${delR.status}: ${JSON.stringify(delR.body)}`);
+    assert.equal((delR.body as any).deleted, true);
+    assert.equal((delR.body as any).messageId, msgId);
+    assert.equal(
+      (delR.body as any).hadActivePin,
+      true,
+      "Response should indicate an active pin was cleaned up",
+    );
+
+    // Verify the global_chat_delete WS frame was broadcast
+    await obs.waitFor((m: any) => m?.type === "global_chat_delete" && m?.messageId === msgId);
+
+    // Verify a pin_update WS frame clearing the pin was broadcast
+    const pinFrame = await obs.waitFor(
+      (m: any) => m?.type === "pin_update" && m?.channel === "general" && m?.pin === null,
+    );
+    assert.ok(pinFrame, "Expected pin_update WS frame clearing the pin");
+    obs.close();
+
+    // Verify pin is gone: GET /global-chat/pinned should return null
+    const pinnedAfter = await req("GET", `/global-chat/pinned?channel=general`, adminId, adminUsername);
+    assert.equal(pinnedAfter.status, 200);
+    assert.equal(pinnedAfter.body, null, "Pin should be cleared after the pinned message is deleted");
+  });
+
+  test("deleting an unpinned message returns hadActivePin:false", async () => {
+    // Use proAuthor2Id to avoid the rate limit from the previous test (proAuthorId posted there)
+    const content = `msg-unpinned-${SUFFIX}`;
+    const msgId   = await postMessage(proAuthor2Id, proAuthor2Username, content);
+
+    const r = await req("DELETE", `/global-chat/messages/${msgId}`, adminId, adminUsername);
+    assert.equal(r.status, 200, `Expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
+    assert.equal((r.body as any).hadActivePin, false, "hadActivePin should be false for a non-pinned message");
   });
 });

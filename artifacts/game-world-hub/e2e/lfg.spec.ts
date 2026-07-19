@@ -122,6 +122,7 @@ test.describe("LFG post lifecycle", () => {
    * and the CLOSED badge appears on the author's card.
    */
   test("create → respond → close → CLOSED badge visible to author", async ({ browser }) => {
+    test.setTimeout(90_000); // multi-step flow: 2 registrations + post + respond + close
     const gameTitle = `E2E Game ${uid()}`;
     const author = makeUser("aut");
     const responder = makeUser("rsp");
@@ -149,7 +150,10 @@ test.describe("LFG post lifecycle", () => {
     const responderCard = responderPage.locator("div.border", { hasText: gameTitle })
       .filter({ has: responderPage.locator("button") }).first();
     await expect(responderCard).toBeVisible({ timeout: 14_000 });
-    await responderCard.getByRole("button", { name: /^respond$/i }).click();
+    // Card is confirmed visible; wait briefly for auth/render before clicking
+    const respondBtnFirst = responderCard.getByRole("button", { name: /^respond$/i });
+    await expect(respondBtnFirst).toBeVisible({ timeout: 5_000 });
+    await respondBtnFirst.click();
 
     // "SIGNAL SENT" badge replaces the Respond button
     await expect(responderCard.getByText(/signal sent/i)).toBeVisible({ timeout: 10_000 });
@@ -253,7 +257,7 @@ test.describe("LFG post deletion", () => {
     await goToLfg(authorPage);
     await createPost(authorPage, gameTitle);
 
-    const authorCard = authorPage.locator("div.border", { hasText: gameTitle }).first();
+    const authorCard = authorPage.locator("div.border.flex-col", { hasText: gameTitle }).first();
     await expect(authorCard).toBeVisible({ timeout: 10_000 });
 
     // ── Viewer: register, navigate to /lfg, confirm the post is visible ───────
@@ -261,17 +265,17 @@ test.describe("LFG post deletion", () => {
     const viewerPage = await viewerCtx.newPage();
     await registerUser(viewerPage, viewer);
     await goToLfg(viewerPage);
-    await expect(viewerPage.locator("div.border", { hasText: gameTitle }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(viewerPage.locator("div.border.flex-col", { hasText: gameTitle }).first()).toBeVisible({ timeout: 10_000 });
 
     // ── Author: click the trash / delete button ───────────────────────────────
     await authorCard.getByTestId("btn-delete-post").click();
 
     // Card must disappear immediately — no page reload needed (list invalidated)
-    await expect(authorPage.locator("div.border", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
+    await expect(authorPage.locator("div.border.flex-col", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
 
     // ── Viewer: reload — the deleted post must not appear ─────────────────────
     await goToLfg(viewerPage);
-    await expect(viewerPage.locator("div.border", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
+    await expect(viewerPage.locator("div.border.flex-col", { hasText: gameTitle })).not.toBeVisible({ timeout: 8_000 });
 
     await authorCtx.close();
     await viewerCtx.close();
@@ -299,28 +303,28 @@ test.describe("LFG client-side filter", () => {
     // Create post A
     await createPost(page, gameA);
     // Wait for card A to appear before creating the second post
-    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameA }).first()).toBeVisible({ timeout: 10_000 });
 
     // Create post B
     await createPost(page, gameB);
-    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameB }).first()).toBeVisible({ timeout: 10_000 });
 
     // Both cards should be visible before any filter is applied
-    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible();
-    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible();
+    await expect(page.locator("div.border.flex-col", { hasText: gameA }).first()).toBeVisible();
+    await expect(page.locator("div.border.flex-col", { hasText: gameB }).first()).toBeVisible();
 
     // Type game title A into the filter — only card A should remain
     const filterInput = page.getByPlaceholder(/filter by game/i);
     await filterInput.fill(gameA);
 
-    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator("div.border", { hasText: gameB })).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameB })).not.toBeVisible({ timeout: 5_000 });
 
     // Clear the filter — both cards should reappear
     await filterInput.clear();
 
-    await expect(page.locator("div.border", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator("div.border", { hasText: gameB }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameA }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("div.border.flex-col", { hasText: gameB }).first()).toBeVisible({ timeout: 5_000 });
 
     await ctx.close();
   });

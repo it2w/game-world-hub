@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, count, desc, eq, gt, ilike, ne, or } from "drizzle-orm";
 import {
   db,
+  pool,
   usersTable,
   userGamesTable,
   gamesTable,
@@ -151,10 +152,93 @@ router.get("/users/spotlight", async (req, res): Promise<void> => {
 
   // Shuffle and pick 6
   const shuffled = active.sort(() => Math.random() - 0.5).slice(0, 6);
-  const result = shuffled.map((u) => safeUser(u));
 
-  spotlightCache = { users: result, ts: now };
+  // Return only the fields the landing page needs — never expose PII or internal fields.
+  const result = shuffled.map((u) => {
+    const nowDate2 = new Date();
+    const proActive2 = u.isPro && (!u.proExpiresAt || u.proExpiresAt > nowDate2);
+    return {
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
+      tier: null as string | null,   // XP progress not fetched for spotlight (perf)
+      tierLevel: null as number | null,
+      currentGame: u.currentGame ?? null,
+      isPro: proActive2,
+    };
+  });
+
+  spotlightCache = { users: result as ReturnType<typeof safeUser>[], ts: now };
   res.json(result);
+});
+
+// GET /users/match?games=Valorant,CS2 — public; returns one online user who plays the given games
+router.get("/users/match", async (req, res): Promise<void> => {
+  const raw = (req.query.games as string) ?? "";
+  const games = raw.split(",").map((g) => g.trim()).filter(Boolean).slice(0, 10);
+
+  if (!games.length) {
+    res.json(null);
+    return;
+  }
+
+  try {
+    // Try to find an online user who has one of these games in their library
+    const { rows } = await pool.query<{
+      id: number; display_name: string; username: string;
+      avatar_url: string | null; status: string; game_name: string;
+    }>(
+      `SELECT u.id, u.display_name, u.username, u.avatar_url, u.status, g.name AS game_name
+       FROM users u
+       JOIN user_games ug ON ug.user_id = u.id
+       JOIN games g ON g.id = ug.game_id
+       WHERE g.name = ANY($1::text[])
+         AND u.status != 'offline'
+       ORDER BY RANDOM()
+       LIMIT 1`,
+      [games],
+    );
+
+    if (rows.length) {
+      const u = rows[0];
+      res.json({
+        id: u.id,
+        displayName: u.display_name,
+        username: u.username,
+        avatarUrl: toPublicImageUrl(u.avatar_url),
+        status: u.status,
+        matchedGame: u.game_name,
+      });
+      return;
+    }
+
+    // Fallback: any online user
+    const { rows: fallback } = await pool.query<{
+      id: number; display_name: string; username: string;
+      avatar_url: string | null; status: string;
+    }>(
+      `SELECT id, display_name, username, avatar_url, status
+       FROM users WHERE status != 'offline'
+       ORDER BY RANDOM() LIMIT 1`,
+    );
+
+    if (fallback.length) {
+      const u = fallback[0];
+      res.json({
+        id: u.id,
+        displayName: u.display_name,
+        username: u.username,
+        avatarUrl: toPublicImageUrl(u.avatar_url),
+        status: u.status,
+        matchedGame: games[0] ?? null,
+      });
+    } else {
+      res.json(null);
+    }
+  } catch {
+    res.json(null);
+  }
 });
 
 // GET /users/search
@@ -566,74 +650,6 @@ router.delete("/users/me/photos/:photoId", requireAuth, async (req, res): Promis
   }
   await db.delete(profilePhotosTable).where(eq(profilePhotosTable.id, photo.id));
   res.status(204).end();
-});
-
-// GET /users/match?games=Valorant,CS2 — public; returns one online user who plays the given games
-router.get("/users/match", async (req, res): Promise<void> => {
-  const raw = (req.query.games as string) ?? "";
-  const games = raw.split(",").map((g) => g.trim()).filter(Boolean).slice(0, 10);
-
-  if (!games.length) {
-    res.json(null);
-    return;
-  }
-
-  try {
-    // Try to find an online user who has one of these games in their library
-    const { rows } = await pool.query<{
-      id: number; display_name: string; username: string;
-      avatar_url: string | null; status: string; game_name: string;
-    }>(
-      `SELECT u.id, u.display_name, u.username, u.avatar_url, u.status, g.name AS game_name
-       FROM users u
-       JOIN user_games ug ON ug.user_id = u.id
-       JOIN games g ON g.id = ug.game_id
-       WHERE g.name = ANY($1::text[])
-         AND u.status != 'offline'
-       ORDER BY RANDOM()
-       LIMIT 1`,
-      [games],
-    );
-
-    if (rows.length) {
-      const u = rows[0];
-      res.json({
-        id: u.id,
-        displayName: u.display_name,
-        username: u.username,
-        avatarUrl: toPublicImageUrl(u.avatar_url),
-        status: u.status,
-        matchedGame: u.game_name,
-      });
-      return;
-    }
-
-    // Fallback: any online user
-    const { rows: fallback } = await pool.query<{
-      id: number; display_name: string; username: string;
-      avatar_url: string | null; status: string;
-    }>(
-      `SELECT id, display_name, username, avatar_url, status
-       FROM users WHERE status != 'offline'
-       ORDER BY RANDOM() LIMIT 1`,
-    );
-
-    if (fallback.length) {
-      const u = fallback[0];
-      res.json({
-        id: u.id,
-        displayName: u.display_name,
-        username: u.username,
-        avatarUrl: toPublicImageUrl(u.avatar_url),
-        status: u.status,
-        matchedGame: games[0] ?? null,
-      });
-    } else {
-      res.json(null);
-    }
-  } catch {
-    res.json(null);
-  }
 });
 
 export default router;

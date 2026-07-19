@@ -196,7 +196,7 @@ describe("POST /lfg → flash event: active event awards XP and fires notificati
     assert.equal(res.status, 201, "POST /lfg must return 201");
 
     // checkFlashCompletion is fire-and-forget; allow async work to settle
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const xpAfter = await getBonusXp(userId);
     assert.equal(
@@ -263,7 +263,7 @@ describe("POST /lfg → flash event: second trigger by same user is a no-op", ()
     await trackPostedPost(res);
     assert.equal(res.status, 201, "first POST /lfg must return 201");
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const xp = await getBonusXp(doubleUserId);
     assert.equal(xp, 250, `expected 250 XP after first post; got ${xp}`);
@@ -288,7 +288,7 @@ describe("POST /lfg → flash event: second trigger by same user is a no-op", ()
     await trackPostedPost(res);
     assert.equal(res.status, 201, "second POST /lfg must still return 201");
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const xpAfterSecond = await getBonusXp(doubleUserId);
     assert.equal(
@@ -367,7 +367,7 @@ describe("POST /lfg → flash event: expired event does not award XP", () => {
       "POST /lfg must succeed even when no active flash event matches",
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const xpAfter = await getBonusXp(expiredUserId);
     assert.equal(

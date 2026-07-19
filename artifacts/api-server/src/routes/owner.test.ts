@@ -835,6 +835,11 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
       await db.delete(superAdminsTable).where(eq(superAdminsTable.id, id)).catch(() => {});
       _resetProbeAlertCooldown(id);
     }
+    // Clear the loopback-address rate-limit buckets filled by the probe-alert
+    // tests so the subsequent rate-limiting describe starts with a clean slate.
+    for (const ip of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
+      await _resetResetRateBucket(`reset-req:${ip}`).catch(() => {});
+    }
   });
 
   test("reset_bypass_attempt is written to owner_activity_log when a second request arrives within TTL", async () => {
@@ -923,7 +928,7 @@ describe("Reset probe alert — reset_bypass_attempt logging and email", () => {
     const r = await post("/owner/reset-password-request", { username: probeOwnerWithEmailUsername });
     assert.strictEqual(r.status, 200, `expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     if (!existsSync(mailboxPath)) {
       assert.fail("Dev mailbox file not found — sendEmail must have never been called");

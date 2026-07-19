@@ -12,7 +12,8 @@ import { useTranslation } from "react-i18next";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Send, Smile, Crown, Zap, Users } from "lucide-react";
+import { Send, Smile, Zap, Users } from "lucide-react";
+import { ProBadge } from "@/components/pro-badge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ChatAuthor {
@@ -129,11 +130,7 @@ function MessageRow({ msg, meId, t }: { msg: ChatMessage; meId: number; t: (k: s
           <span className="gc-msg-name" style={nameColor ? { color: nameColor } : undefined}>
             {msg.author.displayName}
           </span>
-          {msg.author.isPro && (
-            <span className="gc-pro-badge">
-              <Crown className="w-2.5 h-2.5" /> PRO
-            </span>
-          )}
+          {msg.author.isPro && <ProBadge size="icon" className="w-4 h-4" />}
           <span className="gc-msg-time">{timeAgo(msg.createdAt)}</span>
         </div>
         {/* Content */}
@@ -179,7 +176,7 @@ function EmojiPicker({
     <div ref={ref} className="gc-emoji-picker">
       {isPro && (
         <div className="gc-emoji-pro-label">
-          <Crown className="w-3 h-3" style={{ color: "#FFD700" }} />
+          <ProBadge size="icon" className="w-3.5 h-3.5" />
           <span>{t("chat.proEmoji")}</span>
         </div>
       )}
@@ -211,7 +208,7 @@ function ProColorPanel({
   return (
     <div className="gc-pro-colors">
       <div className="gc-color-row">
-        <span className="gc-color-label"><Crown className="w-2.5 h-2.5" /> {t("chat.nameColor")}</span>
+        <span className="gc-color-label"><ProBadge size="icon" className="w-3 h-3" /> {t("chat.nameColor")}</span>
         <div className="gc-color-swatches">
           {NAME_COLORS.map(c => (
             <button
@@ -330,7 +327,7 @@ export function GlobalChat({ me }: { me: any }) {
             onClick={() => setShowColors(v => !v)}
             title={t("chat.proColors")}
           >
-            <Crown className="w-3.5 h-3.5" />
+            <ProBadge size="icon" className="w-4 h-4" />
           </button>
         )}
       </div>

@@ -536,6 +536,24 @@ export default function Events() {
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const { toast } = useToast();
 
+  // Live WS updates: refresh flash data immediately on new event or completion
+  useEffect(() => {
+    const onNew = () => {
+      void queryClient.invalidateQueries({ queryKey: ["events"] });
+      void queryClient.invalidateQueries({ queryKey: ["flash-active"] });
+    };
+    const onComplete = () => {
+      void queryClient.invalidateQueries({ queryKey: ["flash-active"] });
+      void queryClient.invalidateQueries({ queryKey: ["events"] });
+    };
+    window.addEventListener("gwh:flash_event_new", onNew);
+    window.addEventListener("gwh:flash_event_complete", onComplete);
+    return () => {
+      window.removeEventListener("gwh:flash_event_new", onNew);
+      window.removeEventListener("gwh:flash_event_complete", onComplete);
+    };
+  }, [queryClient]);
+
   const { data: events, isLoading } = useQuery<GwhEvent[]>({
     queryKey: ["events"],
     queryFn: () => customFetch("/api/events?status=active"),

@@ -4,6 +4,7 @@ import { pool, db, notificationsTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
+import { pushToUser, broadcastAll } from "../ws/signaling";
 
 const router: IRouter = Router();
 
@@ -142,6 +143,14 @@ export async function checkFlashCompletion(userId: number, activityKey: string):
       relatedId: flash.id,
     });
 
+    // Push real-time WS notification to the completing user
+    pushToUser(userId, {
+      type: "flash_event_complete",
+      eventId: flash.id,
+      xp: flash.xp_reward,
+      title: flash.title,
+    });
+
     logger.info({ userId, eventId: flash.id, xp: flash.xp_reward }, "flash-event: user completed");
   } catch (err) {
     logger.error({ err }, "flash-event: checkFlashCompletion error");
@@ -182,6 +191,20 @@ export function startFlashEventScheduler(): void {
       );
       const eventId = evtRows[0]?.id;
       logger.info({ eventId, questKey: tpl.quest_key }, "flash-event: new event created");
+
+      // Broadcast real-time WS notification to all connected clients
+      if (eventId) {
+        broadcastAll({
+          type: "flash_event_new",
+          eventId,
+          title: tpl.title_en,
+          titleAr: tpl.title_ar,
+          icon: tpl.icon,
+          xpReward: tpl.xp_reward,
+          questKey: tpl.quest_key,
+          expiresAt: expiresAt.toISOString(),
+        });
+      }
 
       // Notify online users (fire-and-forget, best-effort)
       const { rows: onlineRows } = await pool.query<{ id: number }>(

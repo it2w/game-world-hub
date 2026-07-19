@@ -623,6 +623,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           );
           break;
 
+        case "flash_event_new":
+          window.dispatchEvent(new CustomEvent("gwh:flash_event_new", { detail: msg }));
+          break;
+
+        case "flash_event_complete":
+          window.dispatchEvent(new CustomEvent("gwh:flash_event_complete", { detail: msg }));
+          break;
+
         default:
           break;
       }

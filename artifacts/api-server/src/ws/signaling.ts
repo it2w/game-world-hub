@@ -393,6 +393,18 @@ export function evictUserFromRoom(userId: number, room: string): void {
 }
 
 /**
+ * Broadcast a payload to every connected client (all users, all sessions).
+ * Used for server-wide push events like a new flash event starting.
+ */
+export function broadcastAll(payload: unknown): void {
+  for (const clients of clientsByUser.values()) {
+    for (const client of clients) {
+      send(client.ws, payload);
+    }
+  }
+}
+
+/**
  * Terminate every open WebSocket connection for the given user.
  * Call this immediately after suspending a user so their existing WS session
  * is closed without waiting for the next message or heartbeat cycle.

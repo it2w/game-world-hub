@@ -963,6 +963,23 @@ function ProCard({ me }: { me:any }) {
 }
 
 // ── Flash Event Banner ────────────────────────────────────────────────────────
+
+/** Invalidates the flash-active-banner query on WS push events */
+function useFlashEventWsSync() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: ["flash-active-banner"] });
+    };
+    window.addEventListener("gwh:flash_event_new", refresh);
+    window.addEventListener("gwh:flash_event_complete", refresh);
+    return () => {
+      window.removeEventListener("gwh:flash_event_new", refresh);
+      window.removeEventListener("gwh:flash_event_complete", refresh);
+    };
+  }, [queryClient]);
+}
+
 function useFlashCountdown(expiresAt: string | null | undefined): number {
   const [remaining, setRemaining] = useState(() =>
     expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : 0,
@@ -980,6 +997,7 @@ function useFlashCountdown(expiresAt: string | null | undefined): number {
 function FlashEventBanner() {
   const { t } = useTranslation("events");
   const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  useFlashEventWsSync();
   const { data: flash } = useQuery<any>({
     queryKey: ["flash-active-banner"],
     queryFn: () => customFetch("/api/events/flash/active"),

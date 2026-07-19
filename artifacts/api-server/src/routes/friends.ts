@@ -3,6 +3,7 @@ import { eq, and, or, inArray } from "drizzle-orm";
 import { db, usersTable, friendRequestsTable, friendshipsTable, notificationsTable } from "@workspace/db";
 import { SendFriendRequestBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { checkFlashCompletion } from "./events";
 import { hasBlocked, isBlockedBetween } from "./blocks";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { getUserProgress } from "../lib/xp";
@@ -211,6 +212,10 @@ router.post("/friends/request/:requestId/accept", requireAuth, async (req, res):
     { userId: myId, friendId: request.fromUserId },
     { userId: request.fromUserId, friendId: myId },
   ]);
+
+  // Flash event hook: accepting a friend request counts as "add_friend" for both parties
+  void checkFlashCompletion(myId, "add_friend");
+  void checkFlashCompletion(request.fromUserId, "add_friend");
 
   res.json({ success: true });
 });

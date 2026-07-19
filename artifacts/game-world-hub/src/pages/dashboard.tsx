@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { DailyQuestsWidget } from "@/components/daily-quests-widget";
 import { BattlePassWidget } from "@/pages/battle-pass";
 import { ProBadge } from "@/components/pro-badge";
@@ -962,6 +962,78 @@ function ProCard({ me }: { me:any }) {
   );
 }
 
+// ── Flash Event Banner ────────────────────────────────────────────────────────
+function useFlashCountdown(expiresAt: string | null | undefined): number {
+  const [remaining, setRemaining] = useState(() =>
+    expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : 0,
+  );
+  useEffect(() => {
+    if (!expiresAt) return;
+    const update = () => setRemaining(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  return remaining;
+}
+
+function FlashEventBanner() {
+  const { t } = useTranslation("events");
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  const { data: flash } = useQuery<any>({
+    queryKey: ["flash-active-banner"],
+    queryFn: () => customFetch("/api/events/flash/active"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const remaining = useFlashCountdown(flash?.expiresAt);
+
+  if (!flash || flash.status !== "active") return null;
+
+  const h = Math.floor(remaining / 3_600_000);
+  const m = Math.floor((remaining % 3_600_000) / 60_000);
+  const countdown = remaining > 0 ? (h > 0 ? `${h}h ${m}m` : `${m}m`) : t("time.expired");
+  const title = isAr && flash.titleAr ? flash.titleAr : flash.title;
+
+  return (
+    <div className="relative flex items-center justify-between gap-3 px-4 py-2 bg-gradient-to-r from-orange-500/20 via-yellow-500/10 to-orange-500/20 border-b border-orange-500/30 overflow-hidden">
+      {/* Pulse glow */}
+      <div className="absolute inset-0 bg-orange-500/5 animate-pulse pointer-events-none" />
+      <div className="flex items-center gap-2 min-w-0 relative">
+        <span className="text-base shrink-0">{flash.icon ?? "⚡"}</span>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-orange-400 shrink-0">
+            {t("flash.bannerTitle")}
+          </span>
+          <span className="font-mono text-xs text-foreground/90 truncate">{title}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 shrink-0 relative">
+        <div className="text-end hidden sm:block">
+          <div className="font-mono text-[10px] text-muted-foreground uppercase">{t("flash.expiresIn")}</div>
+          <div className={`font-mono text-xs tabular-nums font-bold ${remaining < 3_600_000 ? "text-red-400" : "text-orange-400"}`}>
+            {countdown}
+          </div>
+        </div>
+        {flash.xpReward > 0 && (
+          <span className="font-mono text-[10px] bg-orange-500/20 border border-orange-500/40 text-orange-300 px-2 py-0.5">
+            +{flash.xpReward} XP
+          </span>
+        )}
+        {flash.viewerJoined ? (
+          <span className="font-mono text-[10px] text-green-400 uppercase tracking-widest">{t("flash.complete")}</span>
+        ) : (
+          <Link href="/events">
+            <button className="font-mono text-[10px] uppercase tracking-widest border border-orange-500/50 text-orange-400 hover:bg-orange-500/20 px-3 py-1 transition-colors">
+              {t("flash.bannerCta")}
+            </button>
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { t } = useTranslation("dashboard");
@@ -1051,6 +1123,8 @@ export default function Dashboard() {
       <div className="dash-scanlines"/>
 
       <LiveTicker events={tickerEvents}/>
+
+      <FlashEventBanner />
 
       {/* ── Party Invites Banner ── */}
       {invites && invites.length > 0 && (

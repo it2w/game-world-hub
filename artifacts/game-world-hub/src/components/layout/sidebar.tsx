@@ -12,7 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers, Zap, Flame, Star, Award } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers, Zap, Flame, Star, Award, Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -164,6 +164,14 @@ export function AppSidebar() {
                     <Trophy className="w-4 h-4 text-yellow-400" />
                     <span className="text-yellow-400 font-bold">{t("sidebar.proHunt")}</span>
                     {user?.isPro && <Crown className="w-3 h-3 ms-auto text-yellow-400" />}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/events")}>
+                  <Link href="/events">
+                    <Zap className="w-4 h-4 text-orange-400" />
+                    <span className="text-orange-400">{t("sidebar.events")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

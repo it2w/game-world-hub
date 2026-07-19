@@ -1,0 +1,67 @@
+{
+  "page": {
+    "title": "الفعاليات",
+    "subtitle": "ليالي الألعاب والتحديات المفاجئة"
+  },
+  "tabs": {
+    "flash": "الفعاليات المفاجئة",
+    "gameNight": "ليالي الألعاب"
+  },
+  "flash": {
+    "title": "الفعالية المفاجئة الحالية",
+    "xpReward": "{{xp}} XP",
+    "expiresIn": "تنتهي خلال",
+    "noActive": "لا توجد فعالية مفاجئة الآن",
+    "noActiveDesc": "تفقّد لاحقاً — تنطلق فعالية جديدة كل 48 ساعة",
+    "complete": "مكتملة ✓",
+    "completeDesc": "حصلت على {{xp}} XP",
+    "howTo": "كيفية الإنجاز",
+    "howToDesc_post_lfg": "انشر طلب LFG من صفحة LFG",
+    "howToDesc_respond_lfg": "استجب لأي طلب LFG مفتوح",
+    "howToDesc_send_messages": "أرسل 5 رسائل في أي محادثة",
+    "howToDesc_join_room": "انضم لأي روم صوتي",
+    "howToDesc_add_friend": "أرسل طلب صداقة لشخص جديد",
+    "howToDesc_default": "أنجز نشاط التحدي",
+    "goComplete": "اذهب وأنجزه",
+    "completedBy": "أنجزه {{count}} لاعب",
+    "bannerTitle": "فعالية مفاجئة الآن",
+    "bannerCta": "عرض التحدي"
+  },
+  "gameNight": {
+    "title": "ليالي الألعاب القادمة",
+    "create": "استضف ليلة ألعاب",
+    "empty": "لا توجد ليالي ألعاب مجدولة — كن أول من يستضيف واحدة!",
+    "join": "سجّل",
+    "joined": "مسجّل ✓",
+    "full": "مكتملة",
+    "participants": "{{count}} مسجّل",
+    "maxParticipants": "أقصى {{count}} لاعب",
+    "scheduledAt": "{{date}}",
+    "createdBy": "تنظيم",
+    "game": "اللعبة",
+    "countdown": "يبدأ خلال",
+    "started": "بدأت الفعالية",
+    "expired": "انتهت"
+  },
+  "createForm": {
+    "title": "استضف ليلة ألعاب",
+    "fieldTitle": "عنوان الفعالية",
+    "fieldTitleAr": "العنوان بالعربية (اختياري)",
+    "fieldGame": "اللعبة",
+    "fieldDescription": "الوصف",
+    "fieldScheduledAt": "التاريخ والوقت",
+    "fieldMaxParticipants": "أقصى عدد للاعبين (اختياري)",
+    "submit": "إنشاء الفعالية",
+    "submitting": "جارٍ الإنشاء...",
+    "successTitle": "تم إنشاء ليلة الألعاب!",
+    "successDesc": "فعاليتك الآن مباشرة. يمكن للاعبين التسجيل.",
+    "errorTitle": "فشل إنشاء الفعالية"
+  },
+  "time": {
+    "hours": "{{h}}س",
+    "minutes": "{{m}}د",
+    "seconds": "{{s}}ث",
+    "hm": "{{h}}س {{m}}د",
+    "expired": "انتهت"
+  }
+}

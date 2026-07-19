@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { CreateLfgPostBody, RespondToLfgPostBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { checkFlashCompletion } from "./events";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { getUserProgress } from "../lib/xp";
 
@@ -202,6 +203,7 @@ router.post("/lfg", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
 
+  void checkFlashCompletion(myId, "post_lfg");
   res.status(201).json(await buildPost(post, myId));
 });
 
@@ -255,6 +257,7 @@ router.post("/lfg/:postId/respond", requireAuth, async (req, res): Promise<void>
     });
   }
 
+  if (inserted.length > 0) void checkFlashCompletion(myId, "respond_lfg");
   res.json(await buildPost(post, myId));
 });
 

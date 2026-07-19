@@ -7,6 +7,7 @@ import { seed } from "./lib/seed";
 import { attachSignaling } from "./ws/signaling";
 import { ensureInitialOwner } from "./lib/owner";
 import { startLfgBotRunner } from "./routes/lfg-bot";
+import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events";
 
 // How long after the last heartbeat we treat a game as no longer running.
 const PRESENCE_STALE = "4 minutes";
@@ -71,4 +72,6 @@ server.listen(port, async () => {
 
   startPresenceSweep();
   startLfgBotRunner();
+  startFlashEventScheduler();
+  startGameNightSweeper();
 });

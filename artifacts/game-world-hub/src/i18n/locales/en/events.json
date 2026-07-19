@@ -1,0 +1,67 @@
+{
+  "page": {
+    "title": "Events",
+    "subtitle": "Game Nights & Flash Challenges"
+  },
+  "tabs": {
+    "flash": "Flash Events",
+    "gameNight": "Game Nights"
+  },
+  "flash": {
+    "title": "Active Flash Event",
+    "xpReward": "{{xp}} XP",
+    "expiresIn": "Expires in",
+    "noActive": "No flash event right now",
+    "noActiveDesc": "Check back soon — a new flash challenge drops every 48 hours",
+    "complete": "Completed ✓",
+    "completeDesc": "You earned {{xp}} XP",
+    "howTo": "How to complete",
+    "howToDesc_post_lfg": "Post a Looking For Group signal from the LFG page",
+    "howToDesc_respond_lfg": "Respond to any open LFG signal",
+    "howToDesc_send_messages": "Send 5 messages to any conversation",
+    "howToDesc_join_room": "Join any voice room",
+    "howToDesc_add_friend": "Send a friend request to someone new",
+    "howToDesc_default": "Complete the challenge activity",
+    "goComplete": "Go Complete It",
+    "completedBy": "{{count}} players completed",
+    "bannerTitle": "FLASH EVENT LIVE",
+    "bannerCta": "View Challenge"
+  },
+  "gameNight": {
+    "title": "Upcoming Game Nights",
+    "create": "Host a Game Night",
+    "empty": "No Game Nights scheduled yet — be the first to host one!",
+    "join": "Register",
+    "joined": "Registered ✓",
+    "full": "Full",
+    "participants": "{{count}} registered",
+    "maxParticipants": "Max {{count}} players",
+    "scheduledAt": "{{date}}",
+    "createdBy": "Hosted by",
+    "game": "Game",
+    "countdown": "Starts in",
+    "started": "Event Started",
+    "expired": "Ended"
+  },
+  "createForm": {
+    "title": "Host a Game Night",
+    "fieldTitle": "Event Title",
+    "fieldTitleAr": "Arabic Title (optional)",
+    "fieldGame": "Game",
+    "fieldDescription": "Description",
+    "fieldScheduledAt": "Date & Time",
+    "fieldMaxParticipants": "Max Players (optional)",
+    "submit": "Create Event",
+    "submitting": "Creating...",
+    "successTitle": "Game Night Created!",
+    "successDesc": "Your event is live. Players can now register.",
+    "errorTitle": "Failed to create event"
+  },
+  "time": {
+    "hours": "{{h}}h",
+    "minutes": "{{m}}m",
+    "seconds": "{{s}}s",
+    "hm": "{{h}}h {{m}}m",
+    "expired": "Expired"
+  }
+}

@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { SendMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
+import { checkFlashCompletion } from "./events";
 import { isBlockedBetween } from "./blocks";
 import { toPublicImageUrl } from "../lib/objectStorage";
 
@@ -679,6 +680,7 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     }
   }
 
+  void checkFlashCompletion(myId, "send_messages");
   res.status(201).json({
     id: msg.id,
     conversationId: msg.conversationId,

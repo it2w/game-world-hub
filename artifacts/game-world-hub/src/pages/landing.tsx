@@ -53,13 +53,12 @@ type MatchedUser = {
   avatarUrl: string | null; status: string; matchedGame: string | null;
 };
 
-type PreviewMessage = {
-  id: number;
-  content: string;
-  messageType: string;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-  author: { displayName: string; username: string; avatarUrl: string | null; isPro: boolean };
+type DemoMsg = {
+  name: string; isPro: boolean; text: string;
+  color?: string;          // Pro bubble tint
+  isGif?: boolean;         // Pro GIF
+  isEdited?: boolean;      // Pro edit
+  isSys?: boolean;         // system announcement
 };
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -949,52 +948,92 @@ function FeatureShowcase() {
   );
 }
 
-// ─── live chat preview ────────────────────────────────────────────────────────
+// ─── live chat demo (scripted) ────────────────────────────────────────────────
 
-const CHAT_PALETTE = ["#22C55E", "#EC4899", "#06B6D4", "#A855F7", "#F97316", "#FFD700", "#38BDF8"];
-function chatColor(name: string) {
-  return CHAT_PALETTE[name.charCodeAt(0) % CHAT_PALETTE.length];
+const DEMO_CHAT: DemoMsg[] = [
+  { name: "xKhaled99",    isPro: false, text: "وين الكل؟ ابي فريق 🎮" },
+  { name: "ShadowSniper", isPro: true,  text: "هنا! جاهز للرانكد 🔥",                 color: "#A855F7" },
+  { name: "DesertEagle",  isPro: false, text: "ابي فريق Valorant ranked" },
+  { name: "NAFa7_GG",     isPro: true,  text: "✨ تو للريدت 3 مرات اليوم 💎",          color: "#FFD700" },
+  { name: "GWH",          isPro: false, text: "🏆 xKhaled99 دخل Top 10!", isSys: true },
+  { name: "SpeedRun7",    isPro: false, text: "واو ما شاء الله عليه 🤙" },
+  { name: "StarPlayer",   isPro: true,  text: "",                          isGif: true },
+  { name: "BattleKing",   isPro: false, text: "في احد يلعب Apex الليله؟" },
+  { name: "ProGamer_SA",  isPro: true,  text: "الدردشة حلوة هنا 🫧 — ميزة Pro",        color: "#F97316" },
+  { name: "NightWolf_X",  isPro: false, text: "اضيفوني يا شباب 🙏" },
+  { name: "CyberSniper",  isPro: true,  text: "💫🎮💫 GLHF everyone شباب!",            color: "#06B6D4" },
+  { name: "GhostRider",   isPro: false, text: "CS2 وللا Apex — شنو رايكم؟" },
+  { name: "EliteClan_4",  isPro: true,  text: "نحتاج لاعب 4th للتورنمنت 🏆",          color: "#EC4899", isEdited: true },
+  { name: "QuickScope44", isPro: false, text: "جاهز ✅ اضيفوني الحين" },
+  { name: "MasterRank",   isPro: true,  text: "🔥🔥 ما في منصة أحسن من GWH 🔥🔥",    color: "#22C55E" },
+  { name: "xKhaled99",    isPro: false, text: "اتفقنا — انضموا للحفلة 👾" },
+  { name: "ShadowSniper", isPro: true,  text: "👑 Pro بـ SAR 20 فقط — يستاهل!",       color: "#A855F7" },
+  { name: "StarPlayer",   isPro: true,  text: "",                          isGif: true },
+  { name: "BattleKing",   isPro: false, text: "هههههه 😂 صحيح والله" },
+  { name: "NAFa7_GG",     isPro: true,  text: "💎 شوفوا الفقاعة الملونة — Pro فقط 🎨", color: "#7C3AED" },
+  { name: "DesertEagle",  isPro: false, text: "لازم اشترك Pro اليوم 😤" },
+  { name: "GWH",          isPro: false, text: "🎉 ProGamer_SA وصل المرتبة EPIC!", isSys: true },
+  { name: "CyberSniper",  isPro: true,  text: "مبروك يا ProGamer 🥳🎊",              color: "#06B6D4" },
+  { name: "NightWolf_X",  isPro: false, text: "نبي كلان جديد — في احد؟" },
+  { name: "MasterRank",   isPro: true,  text: "✏️ عدّلت رسالتي — ميزة Pro 5 دقايق",  color: "#22C55E", isEdited: true },
+  { name: "QuickScope44", isPro: false, text: "انا بدخل ترنامنت الجمعة" },
+  { name: "ProGamer_SA",  isPro: true,  text: "🌟 800 حرف و64 إيموجي حصري — Pro 👑", color: "#F97316" },
+  { name: "GhostRider",   isPro: false, text: "يلا بينا ranked 5 stack" },
+  { name: "EliteClan_4",  isPro: true,  text: "",                          isGif: true },
+  { name: "xKhaled99",    isPro: false, text: "يلا!! انضموا الحين 🎮🔥" },
+];
+
+const DEMO_COLORS: Record<string, string> = {
+  xKhaled99: "#22C55E", ShadowSniper: "#A855F7", DesertEagle: "#06B6D4",
+  NAFa7_GG: "#FFD700", GWH: "#22C55E", SpeedRun7: "#EC4899",
+  StarPlayer: "#F97316", BattleKing: "#38BDF8", ProGamer_SA: "#F97316",
+  NightWolf_X: "#94A3B8", CyberSniper: "#06B6D4", GhostRider: "#A3733F",
+  EliteClan_4: "#EC4899", QuickScope44: "#34D399", MasterRank: "#22C55E",
+};
+const DEMO_PALETTE = ["#22C55E","#EC4899","#06B6D4","#A855F7","#F97316","#FFD700","#38BDF8"];
+function demoColor(name: string) {
+  return DEMO_COLORS[name] ?? DEMO_PALETTE[name.charCodeAt(0) % DEMO_PALETTE.length];
 }
+
+// Random-feeling delays (2.2 s – 3.8 s) seeded per slot so they feel human
+const DELAYS = DEMO_CHAT.map((_, i) => 2200 + ((i * 1337) % 1600));
 
 function LiveChatSection() {
   const { t } = useTranslation("landing");
-  const [msgs, setMsgs] = useState<PreviewMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState<(DemoMsg & { key: number })[]>(() =>
+    DEMO_CHAT.slice(0, 5).map((m, i) => ({ ...m, key: i }))
+  );
   const [pulse, setPulse] = useState(false);
-  const knownIds = useRef<Set<number>>(new Set());
-  const listRef = useRef<HTMLDivElement>(null);
+  const listRef  = useRef<HTMLDivElement>(null);
+  const ptrRef   = useRef(5 % DEMO_CHAT.length);
+  const keyRef   = useRef(5);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchMsgs = useCallback(async () => {
-    try {
-      const r = await fetch("/api/global-chat/preview");
-      if (!r.ok) return;
-      const data: PreviewMessage[] = await r.json();
-      if (!Array.isArray(data)) return;
-      const hasNew = data.some(m => !knownIds.current.has(m.id));
-      if (hasNew && knownIds.current.size > 0) {
-        setPulse(true);
-        setTimeout(() => setPulse(false), 900);
-      }
-      data.forEach(m => knownIds.current.add(m.id));
-      setMsgs(data.slice(-10));
-      setLoading(false);
-    } catch {
-      setLoading(false);
-    }
+  const scheduleNext = useCallback(() => {
+    const idx   = ptrRef.current;
+    const delay = DELAYS[idx];
+    timerRef.current = setTimeout(() => {
+      const msg = { ...DEMO_CHAT[ptrRef.current], key: keyRef.current };
+      ptrRef.current = (ptrRef.current + 1) % DEMO_CHAT.length;
+      keyRef.current += 1;
+      setVisible(prev => [...prev.slice(-8), msg]);
+      setPulse(true);
+      setTimeout(() => setPulse(false), 700);
+      scheduleNext();
+    }, delay);
   }, []);
 
   useEffect(() => {
-    fetchMsgs();
-    const id = setInterval(fetchMsgs, 10_000);
-    return () => clearInterval(id);
-  }, [fetchMsgs]);
+    scheduleNext();
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [scheduleNext]);
 
-  // Scroll to bottom whenever messages update
+  // Smooth-scroll to bottom on every new message
   useEffect(() => {
     if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+      listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [msgs]);
+  }, [visible]);
 
   return (
     <section id="live-chat" className="py-16 md:py-24 border-b border-border">
@@ -1010,9 +1049,26 @@ function LiveChatSection() {
             <h2 className="font-mono font-bold text-2xl md:text-3xl uppercase tracking-tight mb-4">
               {t("liveChat.title")}
             </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-8 max-w-sm">
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-sm">
               {t("liveChat.body")}
             </p>
+
+            {/* Pro feature callouts */}
+            <ul className="mb-8 flex flex-col gap-2 text-xs font-mono text-muted-foreground">
+              {[
+                { emoji: "🫧", label: t("chatPro.bubble.title") },
+                { emoji: "🎬", label: t("chatPro.gif.title") },
+                { emoji: "✏️", label: t("chatPro.edit.title") },
+                { emoji: "✨", label: t("chatPro.emoji.title") },
+              ].map(f => (
+                <li key={f.label} className="flex items-center gap-2">
+                  <span>{f.emoji}</span>
+                  <span className="text-amber-400/80">{f.label}</span>
+                  <span className="text-[9px] text-amber-400/50 border border-amber-400/20 bg-amber-400/5 px-1 py-px leading-none">PRO</span>
+                </li>
+              ))}
+            </ul>
+
             <Button
               asChild size="lg"
               className="rounded-none font-mono uppercase tracking-widest"
@@ -1027,11 +1083,11 @@ function LiveChatSection() {
             <div
               className={cn(
                 "gwh-corner-card bg-card border border-border overflow-hidden transition-all duration-500",
-                pulse && "border-primary/60 shadow-[0_0_32px_rgba(34,197,94,0.2)]"
+                pulse && "border-primary/50 shadow-[0_0_28px_rgba(34,197,94,0.18)]"
               )}
             >
-              {/* window chrome */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-background/60 backdrop-blur-sm">
+              {/* title bar */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-background/60">
                 <div className="flex items-center gap-2">
                   <MessagesSquare className="w-3.5 h-3.5 text-primary" />
                   <span className="font-mono text-xs text-muted-foreground">{t("liveChat.channel")}</span>
@@ -1042,59 +1098,59 @@ function LiveChatSection() {
                 </div>
               </div>
 
-              {/* messages list */}
+              {/* messages */}
               <div
                 ref={listRef}
                 className="h-72 overflow-y-auto px-3 py-3 flex flex-col gap-2.5"
                 style={{ scrollbarWidth: "none" }}
               >
-                {loading && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <span className="font-mono text-xs text-muted-foreground animate-pulse">{t("liveChat.loading")}</span>
-                  </div>
-                )}
-                {!loading && msgs.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <span className="font-mono text-xs text-muted-foreground">{t("liveChat.emptyState")}</span>
-                  </div>
-                )}
-                {msgs.map((msg) => {
-                  const color = chatColor(msg.author.displayName);
-                  const isGif  = msg.messageType === "gif";
-                  const bgColor = msg.metadata?.msgBgColor as string | undefined;
+                {visible.map((msg) => {
+                  const color = demoColor(msg.name);
+                  if (msg.isSys) return (
+                    <div key={msg.key} className="text-center font-mono text-[10px] text-primary/60 italic py-0.5 animate-in fade-in duration-400">
+                      {msg.text}
+                    </div>
+                  );
                   return (
-                    <div key={msg.id} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      {/* avatar */}
+                    <div key={msg.key} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      {/* avatar initial */}
                       <div
-                        className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold border overflow-hidden"
+                        className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold border"
                         style={{ background: `${color}20`, borderColor: `${color}50`, color }}
                       >
-                        {msg.author.avatarUrl
-                          ? <img src={msg.author.avatarUrl} alt="" className="w-full h-full object-cover" />
-                          : (msg.author.displayName || "?").charAt(0).toUpperCase()
-                        }
+                        {msg.name.charAt(0).toUpperCase()}
                       </div>
 
-                      {/* content */}
                       <div className="min-w-0 flex-1">
+                        {/* name + badges */}
                         <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                           <span className="font-mono text-[11px] font-bold" style={{ color }}>
-                            {msg.author.displayName}
+                            {msg.name}
                           </span>
-                          {msg.author.isPro && (
+                          {msg.isPro && (
                             <span className="text-[8px] font-mono font-bold text-amber-400 border border-amber-400/40 bg-amber-400/10 px-1 py-px leading-none">
                               {t("liveChat.proTag")}
                             </span>
                           )}
                         </div>
+                        {/* bubble */}
                         <div
                           className="text-xs text-foreground/85 leading-snug break-words"
-                          style={bgColor ? { background: `${bgColor}22`, padding: "3px 6px", borderRadius: 2 } : {}}
+                          style={msg.color ? {
+                            background: `${msg.color}1A`,
+                            borderLeft: `2px solid ${msg.color}70`,
+                            padding: "3px 7px",
+                          } : {}}
                         >
-                          {isGif
-                            ? <span className="flex items-center gap-1 text-muted-foreground italic text-[11px]">🎬 {t("liveChat.gifLabel")}</span>
-                            : msg.content
+                          {msg.isGif
+                            ? <span className="flex items-center gap-1 italic text-muted-foreground text-[11px]">🎬 {t("liveChat.gifLabel")}</span>
+                            : msg.text
                           }
+                          {msg.isEdited && (
+                            <span className="ms-1.5 text-[9px] text-muted-foreground/50 font-mono italic">
+                              ({t("liveChat.edited")})
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1102,7 +1158,7 @@ function LiveChatSection() {
                 })}
               </div>
 
-              {/* fake input bar — CTA */}
+              {/* fake input → CTA */}
               <div className="px-3 py-2.5 border-t border-border bg-background/40">
                 <Link
                   href="/register"

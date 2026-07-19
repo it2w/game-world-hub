@@ -167,7 +167,9 @@
     "proTag": "PRO",
     "emptyState": "No messages yet — be the first!",
     "loading": "Connecting...",
-    "channel": "# general"
+    "channel": "# general",
+    "edited": "edited",
+    "proFeature": "Pro feature"
   },
   "footer": {
     "tagline": "Your social platform for the gaming world.",

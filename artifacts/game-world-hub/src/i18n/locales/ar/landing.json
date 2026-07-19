@@ -167,7 +167,9 @@
     "proTag": "PRO",
     "emptyState": "لا رسائل بعد — كن الأول!",
     "loading": "جارٍ الاتصال...",
-    "channel": "# عام"
+    "channel": "# عام",
+    "edited": "تم التعديل",
+    "proFeature": "ميزة Pro"
   },
   "footer": {
     "tagline": "منصتك الاجتماعية لعالم الألعاب.",

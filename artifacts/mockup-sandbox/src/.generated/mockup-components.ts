@@ -5,6 +5,7 @@ export const modules: ModuleMap = {
   "./components/mockups/dashboard-redesign/NeonArcade.tsx": () => import("../components/mockups/dashboard-redesign/NeonArcade.tsx"),
   "./components/mockups/dashboard-redesign/PremiumGlass.tsx": () => import("../components/mockups/dashboard-redesign/PremiumGlass.tsx"),
   "./components/mockups/dashboard-redesign/TacticalOps.tsx": () => import("../components/mockups/dashboard-redesign/TacticalOps.tsx"),
+  "./components/mockups/gwh-desktop/RefinedLayout.tsx": () => import("../components/mockups/gwh-desktop/RefinedLayout.tsx"),
   "./components/mockups/gwh-logos/GlitchMark.tsx": () => import("../components/mockups/gwh-logos/GlitchMark.tsx"),
   "./components/mockups/gwh-logos/HexCore.tsx": () => import("../components/mockups/gwh-logos/HexCore.tsx"),
   "./components/mockups/gwh-logos/HexForge.tsx": () => import("../components/mockups/gwh-logos/HexForge.tsx"),

@@ -247,7 +247,27 @@
     "reported": "Message reported",
     "mentioned": "{{name}} mentioned you",
     "replyingTo": "Replying to",
-    "activeHint": "Active in the last 5 minutes"
+    "activeHint": "Active in the last 5 minutes",
+    "channels": {
+      "general": "#General",
+      "lfg": "#LFG",
+      "trading": "#Trading"
+    },
+    "loadOlder": "Load older",
+    "search": "Search",
+    "searchPlaceholder": "Search messages…",
+    "vipFilter": "Pro Only",
+    "gif": "GIF",
+    "gifSearch": "Search GIFs…",
+    "gifEmpty": "No GIFs found",
+    "badge": "Badge",
+    "nameAnim": "Name effect",
+    "animOn": "ON",
+    "animOff": "OFF",
+    "pin": "Pin",
+    "pinned": "Message pinned!",
+    "pinBanner": "Pinned",
+    "enteredTop10": "entered the Global Top {{rank}}!"
   },
   "stats": {
     "weeklyLabel": "This Week",

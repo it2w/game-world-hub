@@ -643,6 +643,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:mention", { detail: msg }));
           break;
 
+        case "pin_update":
+          window.dispatchEvent(new CustomEvent("gwh:pin-update", { detail: msg }));
+          break;
+
         default:
           break;
       }

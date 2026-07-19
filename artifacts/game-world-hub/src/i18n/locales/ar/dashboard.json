@@ -247,7 +247,27 @@
     "reported": "تم الإبلاغ عن الرسالة",
     "mentioned": "ذكرك {{name}}",
     "replyingTo": "رداً على",
-    "activeHint": "نشطون في آخر 5 دقائق"
+    "activeHint": "نشطون في آخر 5 دقائق",
+    "channels": {
+      "general": "#عام",
+      "lfg": "#LFG",
+      "trading": "#تداول"
+    },
+    "loadOlder": "تحميل الأقدم",
+    "search": "بحث",
+    "searchPlaceholder": "ابحث في الرسائل…",
+    "vipFilter": "Pro فقط",
+    "gif": "GIF",
+    "gifSearch": "ابحث عن GIF…",
+    "gifEmpty": "لا توجد نتائج",
+    "badge": "شارة",
+    "nameAnim": "تأثير الاسم",
+    "animOn": "مفعّل",
+    "animOff": "معطّل",
+    "pin": "ثبّت",
+    "pinned": "تم تثبيت الرسالة!",
+    "pinBanner": "مثبّت",
+    "enteredTop10": "دخل إلى المرتبة {{rank}} عالمياً!"
   },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",

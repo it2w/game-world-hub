@@ -1079,3 +1079,348 @@
   background: #22C55E;
   animation: gc-pulse 1.5s ease-in-out infinite;
 }
+@keyframes gc-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+
+/* ── Channel tabs ────────────────────────────────────────────────────────────── */
+.gc-channels {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.gc-channel-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.gc-channel-tab:hover { color: hsl(var(--foreground)); }
+.gc-channel-tab--active {
+  color: hsl(var(--primary));
+  border-bottom-color: hsl(var(--primary));
+  background: hsl(var(--primary)/0.06);
+}
+
+/* ── Search bar ──────────────────────────────────────────────────────────────── */
+.gc-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--muted)/0.3);
+}
+.gc-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+}
+.gc-search-input::placeholder { color: hsl(var(--muted-foreground)); }
+.gc-search-clear {
+  background: transparent;
+  border: none;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: color .15s;
+}
+.gc-search-clear:hover { color: hsl(var(--foreground)); }
+.gc-search-btn, .gc-vip-btn { margin-inline-start: 2px; }
+
+/* ── Load older button ───────────────────────────────────────────────────────── */
+.gc-load-older {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 28px);
+  margin: 6px auto 4px;
+  padding: 5px 0;
+  background: hsl(var(--muted)/0.4);
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.gc-load-older:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.gc-load-older:disabled { opacity: .5; cursor: default; }
+
+/* ── Pinned message banner ───────────────────────────────────────────────────── */
+.gc-pin-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: hsl(var(--primary)/0.07);
+  border-bottom: 1px solid #FFD70033;
+  border-top: 1px solid #FFD70022;
+  overflow: hidden;
+}
+.gc-pin-content {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  overflow: hidden;
+  min-width: 0;
+}
+.gc-pin-author {
+  font-size: 10px;
+  font-weight: 700;
+  color: #FFD700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gc-pin-text {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gc-pin-timer {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #FFD700;
+  flex-shrink: 0;
+  background: #FFD70015;
+  border: 1px solid #FFD70033;
+  padding: 1px 5px;
+}
+.gc-pin-close {
+  background: transparent;
+  border: none;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px;
+  transition: color .15s;
+}
+.gc-pin-close:hover { color: hsl(var(--foreground)); }
+
+/* ── System announcement card ────────────────────────────────────────────────── */
+.gc-announcement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #FFD70012, #F59E0B08);
+  border: 1px solid #FFD70044;
+  position: relative;
+  overflow: hidden;
+}
+.gc-announcement::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg, transparent, transparent 40px, #FFD70008 40px, #FFD70008 41px
+  );
+  pointer-events: none;
+}
+.gc-announcement-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  position: relative;
+}
+.gc-announcement-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: relative;
+}
+.gc-announcement-name {
+  font-size: 12px;
+  font-weight: 900;
+  color: #FFD700;
+  letter-spacing: -.3px;
+}
+.gc-announcement-sub {
+  font-size: 9px;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: .5px;
+}
+.gc-announcement-rank {
+  font-size: 18px;
+  font-weight: 900;
+  font-family: monospace;
+  color: #FFD700;
+  opacity: .6;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* ── GIF inline display ──────────────────────────────────────────────────────── */
+.gc-gif {
+  max-width: 200px;
+  max-height: 140px;
+  border-radius: 4px;
+  border: 1px solid hsl(var(--border));
+  display: block;
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+/* ── GIF picker modal ────────────────────────────────────────────────────────── */
+.gc-gif-btn { font-size: 10px; font-weight: 900; letter-spacing: .5px; }
+.gc-gif-picker {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  inset-inline-start: 0;
+  width: 260px;
+  z-index: 60;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 -6px 24px #0009;
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+}
+.gc-gif-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.gc-gif-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+}
+.gc-gif-input::placeholder { color: hsl(var(--muted-foreground)); }
+.gc-gif-loading {
+  padding: 10px;
+  text-align: center;
+  font-size: 18px;
+  color: hsl(var(--muted-foreground));
+}
+.gc-gif-empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+.gc-gif-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.gc-gif-item {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+  cursor: pointer;
+  transition: opacity .15s, transform .12s;
+  border-radius: 2px;
+}
+.gc-gif-item:hover { opacity: .85; transform: scale(1.04); }
+
+/* ── Pro badge tag (e.g. [MVP]) ──────────────────────────────────────────────── */
+.gc-badge-tag {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .5px;
+  color: #FFD700;
+  background: #FFD70015;
+  border: 1px solid #FFD70040;
+  padding: 0 4px;
+  border-radius: 2px;
+  margin-inline-end: 3px;
+  white-space: nowrap;
+}
+.gc-badge-tag--preview {
+  margin-inline-start: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Pro badge + animation controls in ProColorPanel ────────────────────────── */
+.gc-badge-input {
+  background: hsl(var(--muted)/0.5);
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  width: 70px;
+  outline: none;
+  transition: border-color .15s;
+}
+.gc-badge-input:focus { border-color: hsl(var(--primary)/0.6); }
+.gc-anim-toggle {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 8px;
+  background: hsl(var(--muted)/0.5);
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.gc-anim-toggle:hover { background: hsl(var(--muted)); }
+.gc-anim-toggle--on {
+  background: hsl(var(--primary)/0.12);
+  border-color: hsl(var(--primary)/0.5);
+  color: hsl(var(--primary));
+}
+.gc-anim-preview {
+  font-size: 10px;
+  font-weight: 900;
+  margin-inline-start: 6px;
+  letter-spacing: .5px;
+}
+
+/* ── Animated name gradient ──────────────────────────────────────────────────── */
+.gc-name--animated {
+  background: linear-gradient(90deg, #FF4655, #A855F7, #FFD700, #22C55E, #06B6D4, #FF4655);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gc-name-anim 3s linear infinite;
+}
+@keyframes gc-name-anim { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
+
+/* ── Pin toolbar button ──────────────────────────────────────────────────────── */
+.gc-toolbar-btn--pin { }
+.gc-toolbar-btn--pin:hover { color: #FFD700; border-color: #FFD70066; background: #FFD70012; }

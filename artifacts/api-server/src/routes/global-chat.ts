@@ -28,8 +28,11 @@ const VALID_REACTIONS = new Set([
 const VALID_CHANNELS  = new Set(["general", "lfg", "trading"]);
 // Allow Giphy CDN and Tenor CDN gif URLs
 const GIF_DOMAIN_RE   = /^https:\/\/media\d*\.(giphy|tenor)\.com\//;
-// Public Giphy test/development key (replace with your own for production)
-const GIPHY_KEY       = "dc6zaTOxFJmzC";
+// Giphy API key — set GIPHY_API_KEY in the environment for production use
+const GIPHY_KEY       = process.env.GIPHY_API_KEY ?? "";
+if (!GIPHY_KEY) {
+  logger.warn("GIPHY_API_KEY is not set — gif-search will return empty results");
+}
 
 // ── Table setup ────────────────────────────────────────────────────────────────
 async function ensureTables(): Promise<void> {
@@ -655,7 +658,7 @@ router.get("/global-chat/pinned", requireAuth, async (req, res): Promise<void> =
 // ── GET /global-chat/gif-search — Giphy proxy ─────────────────────────────────
 router.get("/global-chat/gif-search", requireAuth, async (req, res): Promise<void> => {
   const q = String(req.query.q ?? "").trim().slice(0, 100);
-  if (!q) { res.json([]); return; }
+  if (!q || !GIPHY_KEY) { res.json([]); return; }
   try {
     const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=15&rating=g`;
     const r = await fetch(url);

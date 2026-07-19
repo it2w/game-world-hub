@@ -398,6 +398,53 @@ router.post("/factions/:id/join", requireAuth, async (req, res): Promise<void> =
   res.status(201).json({ id: faction.id, name: faction.name, slug: faction.slug, color: faction.color, iconEmoji: faction.icon_emoji, description: faction.description });
 });
 
+// GET /factions/:id/members — paginated roster (20 per page, newest first)
+router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void> => {
+  const factionId = parseInt(p(req.params.id), 10);
+  if (isNaN(factionId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10) || 20, 50);
+  const offset = parseInt((req.query.offset as string) ?? "0", 10) || 0;
+
+  const { rows: factionRows } = await pool.query<{ id: number }>(
+    `SELECT id FROM factions WHERE id = $1`,
+    [factionId],
+  );
+  if (!factionRows[0]) { res.status(404).json({ error: "Faction not found" }); return; }
+
+  const { rows } = await pool.query<{
+    user_id: number; display_name: string; username: string;
+    avatar_url: string | null; is_pro: boolean; joined_at: string; total_count: number;
+  }>(`
+    SELECT
+      u.id         AS user_id,
+      u.display_name,
+      u.username,
+      u.avatar_url,
+      u.is_pro,
+      uf.joined_at,
+      COUNT(*) OVER () AS total_count
+    FROM user_factions uf
+    JOIN users u ON u.id = uf.user_id
+    WHERE uf.faction_id = $1
+    ORDER BY uf.joined_at DESC
+    LIMIT $2 OFFSET $3
+  `, [factionId, limit, offset]);
+
+  const total = rows[0]?.total_count ?? 0;
+  res.json({
+    total,
+    members: rows.map(r => ({
+      userId:      r.user_id,
+      displayName: r.display_name,
+      username:    r.username,
+      avatarUrl:   toPublicImageUrl(r.avatar_url),
+      isPro:       r.is_pro,
+      joinedAt:    r.joined_at,
+    })),
+  });
+});
+
 // ── Season routes ─────────────────────────────────────────────────────────────
 
 // GET /seasons — list all seasons (newest first)

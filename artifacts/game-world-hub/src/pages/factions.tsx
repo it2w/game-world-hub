@@ -1,11 +1,137 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { customFetch, useGetMe } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Flame, Users, Star, Shield, Clock, ChevronRight } from "lucide-react";
+import { Flame, Users, Star, Shield, Clock, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TierBadge } from "@/components/tier-badge";
+
+interface RosterMember {
+  userId: number;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  isPro: boolean;
+  joinedAt: string;
+}
+
+interface RosterState {
+  factionId: number;
+  factionName: string;
+  factionColor: string;
+  factionEmoji: string;
+}
+
+function FactionRosterModal({ roster, onClose }: { roster: RosterState; onClose: () => void }) {
+  const { t } = useTranslation("factions");
+  const [members, setMembers] = useState<RosterMember[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const loadPage = useCallback(async (off: number) => {
+    setLoading(true);
+    try {
+      const data = await customFetch(`/api/factions/${roster.factionId}/members?limit=20&offset=${off}`) as { total: number; members: RosterMember[] };
+      setTotal(data.total);
+      setMembers(prev => off === 0 ? data.members : [...prev, ...data.members]);
+      setOffset(off + data.members.length);
+    } finally {
+      setLoading(false);
+    }
+  }, [roster.factionId]);
+
+  useEffect(() => { void loadPage(0); }, [loadPage]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const hasMore = members.length < total;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md mx-4 bg-background border flex flex-col"
+        style={{ borderColor: `${roster.factionColor}55`, maxHeight: "80vh" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+          style={{ borderColor: `${roster.factionColor}33` }}
+        >
+          <h2 className="font-mono font-bold text-sm uppercase tracking-widest" style={{ color: roster.factionColor }}>
+            {roster.factionEmoji} {t("roster.title", { name: roster.factionName })}
+          </h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Member list */}
+        <div className="overflow-y-auto flex-1 divide-y divide-border/40">
+          {members.map(m => (
+            <a
+              key={m.userId}
+              href={`/profile/${m.username}`}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
+              onClick={onClose}
+            >
+              <div
+                className="w-8 h-8 shrink-0 overflow-hidden flex items-center justify-center text-xs font-mono bg-muted"
+                style={{ color: roster.factionColor }}
+              >
+                {m.avatarUrl
+                  ? <img src={m.avatarUrl} alt={m.displayName} className="w-full h-full object-cover" />
+                  : <span>{m.displayName[0]?.toUpperCase() ?? "?"}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-sm truncate">{m.displayName}</span>
+                  {m.isPro && <TierBadge isPro size="sm" />}
+                </div>
+                <p className="font-mono text-[10px] text-muted-foreground">@{m.username}</p>
+              </div>
+              <span className="font-mono text-[9px] text-muted-foreground shrink-0">
+                {new Date(m.joinedAt).toLocaleDateString()}
+              </span>
+            </a>
+          ))}
+          {loading && (
+            <div className="p-4 text-center font-mono text-xs text-muted-foreground animate-pulse">…</div>
+          )}
+          {!loading && members.length === 0 && (
+            <div className="p-8 text-center font-mono text-xs text-muted-foreground">{t("roster.empty")}</div>
+          )}
+        </div>
+
+        {/* Load more */}
+        {hasMore && !loading && (
+          <div className="p-3 border-t shrink-0" style={{ borderColor: `${roster.factionColor}33` }}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full font-mono text-xs rounded-none"
+              style={{ borderColor: `${roster.factionColor}55`, color: roster.factionColor }}
+              onClick={() => void loadPage(offset)}
+            >
+              {t("roster.loadMore", { n: total - members.length })}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface Faction {
   id: number;
@@ -74,6 +200,7 @@ export default function FactionsPage() {
   const qc = useQueryClient();
   const { data: me } = useGetMe();
   const [joining, setJoining] = useState<number | null>(null);
+  const [rosterOpen, setRosterOpen] = useState<RosterState | null>(null);
 
   const { data: factions, isLoading } = useQuery<Faction[]>({
     queryKey: ["factions"],
@@ -198,9 +325,12 @@ export default function FactionsPage() {
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-[10px] text-muted-foreground">{pct}% of leader</span>
                     <div className="flex items-center gap-4">
-                      <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-1">
+                      <button
+                        className="font-mono text-[10px] text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                        onClick={() => setRosterOpen({ factionId: faction.id, factionName: faction.name, factionColor: faction.color, factionEmoji: faction.icon_emoji })}
+                      >
                         <Users className="w-3 h-3" /> {faction.member_count} {t("war.members")}
-                      </span>
+                      </button>
                       <span className="font-mono text-[10px] flex items-center gap-1" style={{ color: faction.color }}>
                         <Star className="w-3 h-3" /> {faction.active_members} {t("war.activeMembers")}
                       </span>
@@ -265,6 +395,14 @@ export default function FactionsPage() {
           <p className="font-mono text-sm font-bold">{t("war.chooseTitle")}</p>
           <p className="font-mono text-xs text-muted-foreground">{t("war.chooseDesc")}</p>
         </div>
+      )}
+
+      {/* Member roster modal */}
+      {rosterOpen && (
+        <FactionRosterModal
+          roster={rosterOpen}
+          onClose={() => setRosterOpen(null)}
+        />
       )}
     </div>
   );

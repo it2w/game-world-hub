@@ -34,6 +34,12 @@
     "hours": "h",
     "minutes": "m"
   },
+  "roster": {
+    "title": "{{name}} Members",
+    "loadMore": "Load More ({{n}} remaining)",
+    "empty": "No members yet",
+    "joined": "Joined"
+  },
   "hof": {
     "title": "Hall of Fame",
     "subtitle": "Legends who reached the top 10 at the end of a season. These records are permanent.",

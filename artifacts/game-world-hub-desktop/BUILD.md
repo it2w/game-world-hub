@@ -173,15 +173,16 @@ with your final branding before shipping.
 | App reservation | Partner Center → Apps & Games → Create new app → reserve name "Game World Hub" |
 | Publisher Identity | Partner Center → App identity page — three values below |
 
-Once your app is reserved in Partner Center, go to **App identity** and copy:
+App identity values (already configured in `package.json`):
 
-| Partner Center field | Maps to `package.json` → `appx` |
+| Field | Value |
 |---|---|
-| Package/Identity/Name | `identityName` |
-| Package/Properties/PublisherDisplayName | `publisherDisplayName` |
-| Package/Identity/Publisher | `publisher` (the full `CN=…` string) |
-
-Update `package.json` → `build.appx` with these exact values — they must match Partner Center or the upload will be rejected.
+| `identityName` | `GameWorldHub.GameWorldHub` |
+| `publisher` | `CN=86042C5F-91A6-4FD9-BFF9-FFE37C24DB2C` |
+| `publisherDisplayName` | `Game World Hub` |
+| Package Family Name | `GameWorldHub.GameWorldHub_wg7qg9m3vmc6e` |
+| Store ID | `9NJ0K1FMTX35` |
+| Store URL | https://apps.microsoft.com/detail/9NJ0K1FMTX35 |
 
 ---
 

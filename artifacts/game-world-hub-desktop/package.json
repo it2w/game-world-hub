@@ -76,8 +76,8 @@
       "artifactName": "GameWorldHubSetup.exe"
     },
     "appx": {
-      "identityName": "GameWorldHub.Desktop",
-      "publisher": "CN=GameWorldHub",
+      "identityName": "GameWorldHub.GameWorldHub",
+      "publisher": "CN=86042C5F-91A6-4FD9-BFF9-FFE37C24DB2C",
       "publisherDisplayName": "Game World Hub",
       "applicationId": "GameWorldHub",
       "displayName": "Game World Hub",

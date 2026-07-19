@@ -40,6 +40,7 @@ import Admin from '@/pages/admin';
 import Owner from '@/pages/owner';
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/landing';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/owner" component={Owner} />
+      <Route path="/privacy" component={PrivacyPolicy} />
 
       {/* Any non-auth route renders inside the authenticated Shell layout.
           A pathless <Route> matches everything not already handled above, so

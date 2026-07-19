@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // "/" is the public landing page for guests; signed-in users see the dashboard there.
     // "/owner" is the hidden owner panel — it manages its own auth, never redirected away.
-    const publicPaths = ["/login", "/register", "/", "/owner"];
+    const publicPaths = ["/login", "/register", "/", "/owner", "/privacy"];
     if (publicPaths.includes(location)) return;
 
     if (!token) {

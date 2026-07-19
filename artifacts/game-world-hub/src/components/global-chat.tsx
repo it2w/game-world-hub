@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink } from "lucide-react";
+import { Send, Smile, Zap, Users, UserPlus, UserCheck, ExternalLink, X } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -32,6 +32,8 @@ interface ChatMessage {
     nameColor?: string;
     textColor?: string;
     game?: string;
+    platform?: string;
+    rank?: string;
     slots?: number;
     lfgPostId?: number;
   };
@@ -101,13 +103,15 @@ function Avatar({
 
 // ── LFG Signal card ───────────────────────────────────────────────────────────
 function LfgSignalCard({ msg, t }: { msg: ChatMessage; t: (k: string, o?: any) => string }) {
-  const { game, slots } = msg.metadata;
+  const { game, platform, rank, slots } = msg.metadata;
   return (
     <div className="gc-lfg-card">
       <div className="gc-lfg-top">
         <Zap className="w-3.5 h-3.5" style={{ color: "#22C55E" }} />
         <span className="gc-lfg-label">{t("chat.lfgSignal")}</span>
         {game && <span className="gc-lfg-game">{game}</span>}
+        {platform && <span className="gc-lfg-meta">{platform}</span>}
+        {rank && <span className="gc-lfg-meta gc-lfg-meta--rank">{rank}</span>}
         {slots && (
           <span className="gc-lfg-slots">
             <Users className="w-3 h-3" /> {slots} {t("chat.slots")}
@@ -260,6 +264,99 @@ function ProColorPanel({
             />
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat User Card popover ────────────────────────────────────────────────────
+function ChatUserCard({
+  author,
+  anchorRect,
+  added,
+  onAdd,
+  onClose,
+  t,
+}: {
+  author: ChatAuthor;
+  anchorRect: DOMRect;
+  added: boolean;
+  onAdd: () => void;
+  onClose: () => void;
+  t: (k: string) => string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const initial = author.displayName?.[0]?.toUpperCase() ?? "?";
+  const hue = (author.id * 47) % 360;
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    const onMouse = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onMouse);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onMouse);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  // Position: prefer above anchor; fall back below if not enough room
+  const cardHeight = 180;
+  const cardWidth = 210;
+  const spaceAbove = anchorRect.top;
+  const top = spaceAbove >= cardHeight + 8
+    ? anchorRect.top - cardHeight - 8
+    : anchorRect.bottom + 8;
+  const left = Math.min(
+    Math.max(8, anchorRect.left - cardWidth / 2 + anchorRect.width / 2),
+    window.innerWidth - cardWidth - 8,
+  );
+
+  return (
+    <div
+      ref={ref}
+      className="gc-user-card"
+      style={{ top, left }}
+    >
+      <button className="gc-uc-close" onClick={onClose} aria-label="Close">
+        <X className="w-3 h-3" />
+      </button>
+
+      <div className="gc-uc-avatar" style={{ background: author.avatarUrl ? undefined : `hsl(${hue},70%,30%)` }}>
+        {author.avatarUrl
+          ? <img src={author.avatarUrl} alt={author.displayName} className="w-full h-full object-cover" />
+          : initial}
+      </div>
+
+      <div className="gc-uc-info">
+        <div className="gc-uc-name">
+          {author.displayName}
+          {author.isPro && <ProBadge size="icon" className="w-3.5 h-3.5" />}
+        </div>
+        <div className="gc-uc-username">@{author.username}</div>
+      </div>
+
+      <div className="gc-uc-actions">
+        <button
+          className={`gc-uc-btn ${added ? "gc-uc-btn--sent" : "gc-uc-btn--add"}`}
+          onClick={added ? undefined : onAdd}
+          disabled={added}
+        >
+          {added
+            ? <><UserCheck className="w-3.5 h-3.5" /> {t("chat.requestSent")}</>
+            : <><UserPlus className="w-3.5 h-3.5" /> {t("chat.addFriend")}</>
+          }
+        </button>
+        <Link
+          href={`/profile/${author.username}`}
+          className="gc-uc-btn gc-uc-btn--profile"
+          onClick={onClose}
+        >
+          <ExternalLink className="w-3.5 h-3.5" /> {t("chat.viewProfile")}
+        </Link>
       </div>
     </div>
   );

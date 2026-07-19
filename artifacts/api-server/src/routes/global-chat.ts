@@ -49,9 +49,11 @@ function sanitizeMeta(
       m.textColor = raw.textColor;
   }
   if (messageType === "lfg_signal") {
-    if (raw.game && typeof raw.game === "string")   m.game  = String(raw.game).slice(0, 60);
-    if (typeof raw.slots === "number")               m.slots = Math.min(Math.max(1, raw.slots), 10);
-    if (typeof raw.lfgPostId === "number")           m.lfgPostId = raw.lfgPostId;
+    if (raw.game && typeof raw.game === "string")      m.game     = String(raw.game).slice(0, 60);
+    if (raw.platform && typeof raw.platform === "string") m.platform = String(raw.platform).slice(0, 30);
+    if (raw.rank && typeof raw.rank === "string")      m.rank     = String(raw.rank).slice(0, 30);
+    if (typeof raw.slots === "number")                 m.slots    = Math.min(Math.max(1, raw.slots), 10);
+    if (typeof raw.lfgPostId === "number")             m.lfgPostId = raw.lfgPostId;
   }
   return m;
 }

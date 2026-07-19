@@ -819,3 +819,30 @@
   text-underline-offset: 2px;
 }
 .gc-msg-name--clickable:hover { opacity: .8; }
+
+/* ── gc-uc-close + lfg-meta (task #192 additions) ─────────────────────── */
+.gc-uc-close {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.gc-uc-close:hover { color: hsl(var(--foreground)); }
+.gc-lfg-meta {
+  font-family: monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+}
+.gc-lfg-meta--rank {
+  color: #FFD700;
+  border-color: #FFD70066;
+}

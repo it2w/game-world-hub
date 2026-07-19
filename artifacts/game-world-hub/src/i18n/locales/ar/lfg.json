@@ -18,6 +18,7 @@
     "rankPlaceholder": "اختياري",
     "slots": "الأماكن",
     "mic": "المايك",
+    "broadcastToChat": "إرسال إلى الشات العام أيضاً",
     "micOptional": "اختياري",
     "micRequired": "مطلوب",
     "expires": "تنتهي بعد",

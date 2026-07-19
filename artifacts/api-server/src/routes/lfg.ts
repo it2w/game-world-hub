@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/auth";
 import { checkFlashCompletion } from "./events";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { getUserProgress } from "../lib/xp";
+import { broadcastAll } from "../ws/signaling";
 
 const router: IRouter = Router();
 
@@ -205,6 +206,56 @@ router.post("/lfg", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   void checkFlashCompletion(myId, "post_lfg");
+
+  // Broadcast to global chat if requested
+  const broadcastToChat = req.body?.broadcastToChat === true;
+  if (broadcastToChat) {
+    try {
+      const { rows: ur } = await pool.query<{
+        display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
+      }>(`SELECT display_name, username, avatar_url, is_pro FROM users WHERE id = $1`, [myId]);
+      const u = ur[0];
+      if (u) {
+        const content = description.slice(0, 200).trim();
+        const meta = {
+          game,
+          ...(platform ? { platform } : {}),
+          ...(rank     ? { rank }     : {}),
+          slots:     neededPlayers ?? 1,
+          lfgPostId: post.id,
+        };
+        const { rows: cr } = await pool.query<{ id: number; created_at: string }>(
+          `INSERT INTO global_chat_messages (user_id, content, message_type, metadata)
+           VALUES ($1, $2, 'lfg_signal', $3) RETURNING id, created_at`,
+          [myId, content, JSON.stringify(meta)],
+        );
+        if (cr[0]) {
+          broadcastAll({
+            type: "global_chat",
+            message: {
+              id:          cr[0].id,
+              userId:      myId,
+              content,
+              messageType: "lfg_signal",
+              metadata:    meta,
+              createdAt:   cr[0].created_at,
+              author: {
+                id:          myId,
+                displayName: u.display_name,
+                username:    u.username,
+                avatarUrl:   toPublicImageUrl(u.avatar_url),
+                isPro:       u.is_pro,
+              },
+            },
+          });
+        }
+      }
+    } catch (chatErr) {
+      // Non-fatal — LFG post was created successfully; chat broadcast failure is logged only
+      console.error("lfg: chat broadcast failed", chatErr);
+    }
+  }
+
   res.status(201).json(await buildPost(post, myId));
 });
 

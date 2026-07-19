@@ -42,6 +42,7 @@ type CreateLfgForm = {
   expiresHours: number;
   expiresMinutes: number;
   description: string;
+  broadcastToChat: boolean;
 };
 
 export default function Lfg() {
@@ -59,6 +60,7 @@ export default function Lfg() {
         expiresHours: z.coerce.number().min(0).max(47).default(0),
         expiresMinutes: z.coerce.number().min(0).max(59).default(30),
         description: z.string().min(1, t("validation.briefingRequired")).max(500),
+        broadcastToChat: z.boolean().default(true),
       }).refine((d) => d.expiresHours * 60 + d.expiresMinutes >= 15, {
         message: t("validation.expiresMin"),
         path: ["expiresMinutes"],
@@ -214,13 +216,14 @@ export default function Lfg() {
       expiresHours: 0,
       expiresMinutes: 30,
       description: "",
+      broadcastToChat: true,
     },
   });
 
   const onSubmit = (data: CreateLfgForm) => {
     const expiresInHours = data.expiresHours + data.expiresMinutes / 60;
     createLfg.mutate(
-      { data: { ...data, expiresInHours } },
+      { data: { ...data, expiresInHours, broadcastToChat: data.broadcastToChat } as any },
       {
         onSuccess: () => {
           setOpen(false);
@@ -401,6 +404,21 @@ export default function Lfg() {
                     </FormItem>
                   )}
                 />
+
+                {/* Broadcast to global chat toggle */}
+                <div className="flex items-center gap-3 border border-border p-3 bg-muted/20">
+                  <input
+                    id="broadcastToChat"
+                    type="checkbox"
+                    className="w-4 h-4 accent-primary cursor-pointer"
+                    checked={form.watch("broadcastToChat")}
+                    onChange={e => form.setValue("broadcastToChat", e.target.checked)}
+                  />
+                  <label htmlFor="broadcastToChat" className="font-mono text-xs uppercase cursor-pointer select-none flex items-center gap-2 text-muted-foreground">
+                    <Globe className="w-3.5 h-3.5 text-primary" />
+                    {t("form.broadcastToChat")}
+                  </label>
+                </div>
 
                 <div className="pt-2 flex justify-end">
                   <Button type="submit" className="font-mono rounded-none tracking-widest w-full" disabled={createLfg.isPending}>

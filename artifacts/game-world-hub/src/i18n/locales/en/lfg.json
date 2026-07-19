@@ -18,6 +18,7 @@
     "rankPlaceholder": "Optional",
     "slots": "Slots",
     "mic": "Mic",
+    "broadcastToChat": "Also send to global chat",
     "micOptional": "Optional",
     "micRequired": "Required",
     "expires": "Expires In",

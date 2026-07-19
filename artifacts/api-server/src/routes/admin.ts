@@ -287,8 +287,43 @@ router.get("/admin/analytics", requireAdminPermission("can_view_analytics"), asy
 });
 
 router.get("/admin/chat-deletions", requireAdminPermission("can_view_reports"), async (req, res): Promise<void> => {
-  const limit  = Math.min(parseInt((req.query.limit as string) ?? "100", 10) || 100, 200);
-  const offset = parseInt((req.query.offset as string) ?? "0", 10) || 0;
+  const limit     = Math.min(parseInt((req.query.limit as string) ?? "100", 10) || 100, 200);
+  const offset    = parseInt((req.query.offset as string) ?? "0", 10) || 0;
+  const deletedBy = req.query.deletedBy ? parseInt(req.query.deletedBy as string, 10) : null;
+  const since     = req.query.since     ? new Date(req.query.since as string)     : null;
+  const until     = req.query.until     ? new Date(req.query.until as string)     : null;
+
+  // Build two param arrays:
+  //   mainParams  = [limit, offset, ...filterValues]  ($1/$2 = pagination in main query)
+  //   countParams = [...filterValues]                  ($1… = filter values in count query)
+  const mainConds:  string[] = [];
+  const countConds: string[] = [];
+  const mainParams:  unknown[] = [limit, offset];
+  const countParams: unknown[] = [];
+
+  if (deletedBy !== null && !isNaN(deletedBy)) {
+    mainParams.push(deletedBy);
+    mainConds.push("d.deleted_by_user_id = $" + mainParams.length);
+    countParams.push(deletedBy);
+    countConds.push("d.deleted_by_user_id = $" + countParams.length);
+  }
+  if (since && !isNaN(since.getTime())) {
+    mainParams.push(since.toISOString());
+    mainConds.push("d.deleted_at >= $" + mainParams.length);
+    countParams.push(since.toISOString());
+    countConds.push("d.deleted_at >= $" + countParams.length);
+  }
+  if (until && !isNaN(until.getTime())) {
+    const untilEnd = new Date(until);
+    untilEnd.setHours(23, 59, 59, 999);
+    mainParams.push(untilEnd.toISOString());
+    mainConds.push("d.deleted_at <= $" + mainParams.length);
+    countParams.push(untilEnd.toISOString());
+    countConds.push("d.deleted_at <= $" + countParams.length);
+  }
+
+  const mainWhere  = mainConds.length  ? `WHERE ${mainConds.join(" AND ")}`  : "";
+  const countWhere = countConds.length ? `WHERE ${countConds.join(" AND ")}` : "";
 
   const { rows } = await pool.query<{
     id: number;
@@ -316,12 +351,14 @@ router.get("/admin/chat-deletions", requireAdminPermission("can_view_reports"), 
     FROM global_chat_deletions d
     JOIN users db ON db.id = d.deleted_by_user_id
     LEFT JOIN users oa ON oa.id = d.original_author_id
+    ${mainWhere}
     ORDER BY d.deleted_at DESC
     LIMIT $1 OFFSET $2
-  `, [limit, offset]);
+  `, mainParams);
 
   const { rows: countRows } = await pool.query<{ total: string }>(
-    `SELECT COUNT(*)::text AS total FROM global_chat_deletions`,
+    `SELECT COUNT(*)::text AS total FROM global_chat_deletions d ${countWhere}`,
+    countParams,
   );
 
   res.json({

@@ -522,12 +522,23 @@ function ChatDeletionsPanel() {
   const [offset, setOffset] = useState(0);
   const LIMIT = 50;
 
-  const load = useCallback(async (off: number) => {
+  // Filter state
+  const [moderatorId, setModeratorId] = useState("");
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  // Applied filters (committed on submit)
+  const [appliedFilters, setAppliedFilters] = useState({ moderatorId: "", since: "", until: "" });
+
+  const load = useCallback(async (off: number, filters: typeof appliedFilters) => {
     setLoading(true);
     setError(false);
     try {
+      const params = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
+      if (filters.moderatorId) params.set("deletedBy", filters.moderatorId);
+      if (filters.since)       params.set("since",     filters.since);
+      if (filters.until)       params.set("until",     filters.until);
       const result = await customFetch<{ total: number; limit: number; offset: number; items: ChatDeletion[] }>(
-        `/api/admin/chat-deletions?limit=${LIMIT}&offset=${off}`,
+        `/api/admin/chat-deletions?${params.toString()}`,
       );
       setItems(result.items);
       setTotal(result.total);
@@ -538,7 +549,23 @@ function ChatDeletionsPanel() {
     }
   }, []);
 
-  useEffect(() => { load(offset); }, [offset, load]);
+  useEffect(() => { load(offset, appliedFilters); }, [offset, appliedFilters, load]);
+
+  const handleFilter = (e: React.FormEvent) => {
+    e.preventDefault();
+    setOffset(0);
+    setAppliedFilters({ moderatorId, since, until });
+  };
+
+  const handleClear = () => {
+    setModeratorId("");
+    setSince("");
+    setUntil("");
+    setOffset(0);
+    setAppliedFilters({ moderatorId: "", since: "", until: "" });
+  };
+
+  const hasFilters = appliedFilters.moderatorId || appliedFilters.since || appliedFilters.until;
 
   if (error) {
     return (
@@ -550,9 +577,61 @@ function ChatDeletionsPanel() {
 
   return (
     <div className="space-y-3">
+      {/* Filter bar */}
+      <form onSubmit={handleFilter} className="bg-card border border-border p-4 space-y-3">
+        <p className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">
+          {t("chatDeletions.filterTitle")}
+        </p>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-[10px] text-muted-foreground uppercase">
+              {t("chatDeletions.filterModeratorId")}
+            </label>
+            <Input
+              value={moderatorId}
+              onChange={(e) => setModeratorId(e.target.value)}
+              placeholder={t("chatDeletions.filterModeratorPlaceholder")}
+              className="font-mono rounded-none border-border bg-background h-8 text-xs w-36"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-[10px] text-muted-foreground uppercase">
+              {t("chatDeletions.filterSince")}
+            </label>
+            <Input
+              type="date"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              className="font-mono rounded-none border-border bg-background h-8 text-xs w-36"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="font-mono text-[10px] text-muted-foreground uppercase">
+              {t("chatDeletions.filterUntil")}
+            </label>
+            <Input
+              type="date"
+              value={until}
+              onChange={(e) => setUntil(e.target.value)}
+              className="font-mono rounded-none border-border bg-background h-8 text-xs w-36"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" variant="outline" className="rounded-none font-mono text-xs h-8">
+              <Search className="w-3 h-3 me-1.5" />{t("chatDeletions.filterApply")}
+            </Button>
+            {hasFilters && (
+              <Button type="button" size="sm" variant="ghost" className="rounded-none font-mono text-xs h-8 text-muted-foreground" onClick={handleClear}>
+                {t("chatDeletions.filterClear")}
+              </Button>
+            )}
+          </div>
+        </div>
+      </form>
+
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-muted-foreground uppercase">
-          {total} total
+          {total} {t("chatDeletions.totalLabel")}
         </span>
         <div className="flex gap-2">
           <Button

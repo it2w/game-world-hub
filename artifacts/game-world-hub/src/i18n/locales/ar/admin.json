@@ -69,7 +69,15 @@
     "content": "المحتوى",
     "deletedAt": "وقت الحذف",
     "empty": "لا توجد رسائل محذوفة مسجّلة.",
-    "loadError": "تعذّر تحميل سجل الحذف."
+    "loadError": "تعذّر تحميل سجل الحذف.",
+    "totalLabel": "إجمالي",
+    "filterTitle": "تصفية",
+    "filterModeratorId": "معرّف المشرف",
+    "filterModeratorPlaceholder": "معرّف المستخدم",
+    "filterSince": "من تاريخ",
+    "filterUntil": "إلى تاريخ",
+    "filterApply": "تطبيق",
+    "filterClear": "مسح"
   },
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",

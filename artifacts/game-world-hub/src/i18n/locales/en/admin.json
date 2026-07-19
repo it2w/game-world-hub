@@ -69,7 +69,15 @@
     "content": "Content",
     "deletedAt": "Deleted At",
     "empty": "No deleted messages on record.",
-    "loadError": "Failed to load deletion log."
+    "loadError": "Failed to load deletion log.",
+    "totalLabel": "total",
+    "filterTitle": "Filter",
+    "filterModeratorId": "Moderator ID",
+    "filterModeratorPlaceholder": "User ID",
+    "filterSince": "Since",
+    "filterUntil": "Until",
+    "filterApply": "Apply",
+    "filterClear": "Clear"
   },
   "toasts": {
     "proActivated": "Pro activated for user.",

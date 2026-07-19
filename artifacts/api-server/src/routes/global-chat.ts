@@ -93,6 +93,13 @@ async function ensureTables(): Promise<void> {
 }
 
 // ── Top-10 sweep — broadcasts system_announcement on new entrants ──────────────
+
+/**
+ * Postgres session-level advisory lock key for sweepTop10.
+ * Exported so tests can acquire it to drain any in-flight startup sweep.
+ */
+export const SWEEP_TOP10_LOCK_ID = 4_270_010_001;
+
 const TOP10_SQL = `
   SELECT u.id, u.username, u.display_name
   FROM users u
@@ -108,17 +115,39 @@ const TOP10_SQL = `
   LIMIT 10
 `;
 
-async function sweepTop10(): Promise<void> {
+/**
+ * Exported for testing — pass `top10Override` to bypass the ranking SQL
+ * and inject a controlled user list instead (same pattern as sweepWeeklyWarNotifications).
+ *
+ * A Postgres advisory lock (SWEEP_TOP10_LOCK_ID) serialises concurrent runs so
+ * that overlapping timers or a startup sweep racing with a test can never
+ * produce duplicate announcements or unique-key conflicts on the cache table.
+ * All cache reads, announcement inserts, and cache writes happen inside a
+ * single transaction — either everything commits or nothing does.
+ * Broadcasts are sent after commit so messages are visible to other connections.
+ */
+export async function sweepTop10(
+  top10Override?: Array<{ id: number; username: string; display_name: string }>,
+): Promise<void> {
+  const client = await pool.connect();
   try {
-    const { rows: top10 } = await pool.query<{
+    await client.query("BEGIN");
+    // Advisory lock: concurrent sweeps queue here; the second one finds the
+    // cache already refreshed and produces no duplicate announcements.
+    await client.query("SELECT pg_advisory_xact_lock($1)", [SWEEP_TOP10_LOCK_ID]);
+
+    const top10 = top10Override ?? (await client.query<{
       id: number; username: string; display_name: string;
-    }>(TOP10_SQL);
+    }>(TOP10_SQL)).rows;
     const newIds = new Set(top10.map(r => r.id));
 
-    const { rows: cached } = await pool.query<{ user_id: number }>(
+    const { rows: cached } = await client.query<{ user_id: number }>(
       `SELECT user_id FROM global_chat_top10_cache`,
     );
     const cachedIds = new Set(cached.map(r => r.user_id));
+
+    // Collect broadcasts to fire after commit
+    const pending: unknown[] = [];
 
     // Only announce when cache is warm (skip the very first run)
     if (cachedIds.size > 0) {
@@ -126,14 +155,14 @@ async function sweepTop10(): Promise<void> {
         if (!cachedIds.has(user.id)) {
           const rank = top10.findIndex(u => u.id === user.id) + 1;
           const meta = { rank_position: rank, username: user.username };
-          const { rows } = await pool.query<{ id: number; created_at: string }>(
+          const { rows } = await client.query<{ id: number; created_at: string }>(
             `INSERT INTO global_chat_messages (user_id, content, message_type, metadata, channel)
              VALUES ($1, $2, 'system_announcement', $3::jsonb, 'general')
              RETURNING id, created_at`,
             [user.id, user.display_name, JSON.stringify(meta)],
           );
           if (rows[0]) {
-            broadcastAll({
+            pending.push({
               type: "global_chat",
               message: {
                 id: rows[0].id, userId: user.id,
@@ -152,26 +181,45 @@ async function sweepTop10(): Promise<void> {
       }
     }
 
-    // Refresh cache
-    await pool.query(`TRUNCATE global_chat_top10_cache`);
+    // Refresh cache (atomic with announcements).
+    // Inline integer IDs — safe because newIds contains DB-returned integers.
+    // Avoids a pg prepared-statement confusion where an unnamed statement from
+    // TRUNCATE (0 params) is re-used for the follow-up INSERT on the same client.
+    await client.query(`TRUNCATE global_chat_top10_cache`);
     if (newIds.size > 0) {
-      const vals = [...newIds].map((_, i) => `($${i + 1})`).join(",");
-      await pool.query(
+      const vals = [...newIds].map(id => `(${id})`).join(",");
+      await client.query(
         `INSERT INTO global_chat_top10_cache (user_id) VALUES ${vals}`,
-        [...newIds],
       );
     }
+
+    await client.query("COMMIT");
+
+    // Broadcast after commit so inserted messages are visible
+    for (const payload of pending) broadcastAll(payload);
   } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
     logger.error({ err }, "global-chat: sweepTop10 failed");
+  } finally {
+    client.release();
   }
 }
 
+// Resolves once the startup warm-up sweep has finished.
+// Tests await this before touching the cache so they don't race with it.
+let _startupSweepResolve!: () => void;
+export const startupSweepDone = new Promise<void>(res => { _startupSweepResolve = res; });
+
 ensureTables()
-  .then(() => {
-    void sweepTop10(); // warm up cache on startup
+  .then(async () => {
+    await sweepTop10(); // warm up cache on startup — await so promise resolves after
+    _startupSweepResolve();
     setInterval(() => void sweepTop10(), 2 * 60 * 1000).unref();
   })
-  .catch(err => logger.error({ err }, "global-chat: ensureTables failed"));
+  .catch(err => {
+    logger.error({ err }, "global-chat: ensureTables failed");
+    _startupSweepResolve(); // resolve anyway so tests don't hang
+  });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function sanitizeMeta(

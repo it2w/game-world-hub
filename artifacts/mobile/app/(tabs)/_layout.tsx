@@ -44,71 +44,81 @@ export default function TabLayout() {
             />
           ),
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '700',
+          letterSpacing: 0.3,
         },
       }}
     >
+      {/* ── Active tabs ──────────────────────────────────────────── */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'الرئيسية',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
+              <SymbolView name="house.fill" tintColor={color} size={22} />
             ) : (
               <Feather name="home" size={22} color={color} />
             ),
         }}
       />
+
       <Tabs.Screen
-        name="lfg"
+        name="messages"
         options={{
-          title: 'LFG',
+          title: 'رسائل',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={22} />
+              <SymbolView name="bubble.left.fill" tintColor={color} size={22} />
             ) : (
-              <Feather name="users" size={22} color={color} />
+              <Feather name="message-square" size={22} color={color} />
             ),
         }}
       />
+
       <Tabs.Screen
         name="chat"
         options={{
           title: 'الدردشة',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="bubble.left.and.bubble.right" tintColor={color} size={22} />
+              <SymbolView name="bubble.left.and.bubble.right.fill" tintColor={color} size={22} />
             ) : (
               <Feather name="message-circle" size={22} color={color} />
             ),
         }}
       />
+
       <Tabs.Screen
-        name="factions"
+        name="parties"
         options={{
-          title: 'الفصائل',
+          title: 'البارتيات',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="shield" tintColor={color} size={22} />
+              <SymbolView name="person.3.fill" tintColor={color} size={22} />
             ) : (
-              <Feather name="shield" size={22} color={color} />
+              <Feather name="users" size={22} color={color} />
             ),
         }}
       />
+
       <Tabs.Screen
         name="profile"
         options={{
           title: 'ملفي',
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="person" tintColor={color} size={22} />
+              <SymbolView name="person.fill" tintColor={color} size={22} />
             ) : (
               <Feather name="user" size={22} color={color} />
             ),
         }}
       />
+
+      {/* ── Hidden from tab bar ───────────────────────────────────── */}
+      <Tabs.Screen name="lfg"      options={{ href: null }} />
+      <Tabs.Screen name="factions" options={{ href: null }} />
     </Tabs>
   );
 }

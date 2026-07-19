@@ -1,7 +1,10 @@
+/**
+ * الرئيسية — Premium home dashboard
+ * Shows: greeting hero → party invites → my party → online friends
+ */
 import React from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   RefreshControl,
@@ -11,10 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/Avatar';
-import { FriendCard } from '@/components/FriendCard';
 import {
   useGetOnlineFriendsSummary,
   useListParties,
@@ -25,207 +31,333 @@ import {
   type PartyInvite,
   type User,
 } from '@workspace/api-client-react';
-import { Feather } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
 
-function SectionHeader({ title, count }: { title: string; count?: number }) {
+// ── Section label ─────────────────────────────────────────────────────────────
+
+function SectionLabel({ label, count, action, onAction }: {
+  label: string;
+  count?: number;
+  action?: string;
+  onAction?: () => void;
+}) {
   const colors = useColors();
   return (
-    <View style={sectionStyles.row}>
-      <Text style={[sectionStyles.title, { color: colors.mutedForeground }]}>
-        {title}
-      </Text>
-      {count !== undefined && (
-        <View style={[sectionStyles.badge, { backgroundColor: colors.primary }]}>
-          <Text style={[sectionStyles.badgeText, { color: colors.primaryForeground }]}>
-            {count}
-          </Text>
+    <View style={slStyles.row}>
+      <View style={[slStyles.bar, { backgroundColor: colors.primary }]} />
+      <Text style={[slStyles.text, { color: colors.mutedForeground }]}>{label}</Text>
+      {count !== undefined && count > 0 && (
+        <View style={[slStyles.badge, { backgroundColor: colors.primary }]}>
+          <Text style={[slStyles.badgeText, { color: colors.primaryForeground }]}>{count}</Text>
         </View>
+      )}
+      {action && onAction && (
+        <Pressable onPress={onAction} hitSlop={8}>
+          <Text style={[slStyles.action, { color: colors.primary }]}>{action}</Text>
+        </Pressable>
       )}
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
+const slStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
+    paddingTop: 28,
+    paddingBottom: 10,
   },
-  title: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
+  bar: { width: 3, height: 14 },
+  text: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', flex: 1 },
   badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
+  badgeText: { fontSize: 10, fontWeight: '800' },
+  action: { fontSize: 12, fontWeight: '600' },
 });
 
-function PartyInviteCard({
+// ── Invite card ───────────────────────────────────────────────────────────────
+
+function InviteCard({
   invite,
   onAccept,
   onDecline,
-  isActing,
+  acting,
 }: {
   invite: PartyInvite;
-  onAccept: (id: number) => void;
-  onDecline: (id: number) => void;
-  isActing: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+  acting: boolean;
 }) {
   const colors = useColors();
   return (
-    <View
-      style={[
-        inviteStyles.card,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.primary,
-        },
-      ]}
-    >
-      <View style={inviteStyles.header}>
-        <Feather name="users" size={16} color={colors.primary} />
-        <Text style={[inviteStyles.title, { color: colors.foreground }]}>
-          {invite.party.name}
-        </Text>
-        {invite.party.game && (
-          <Text style={[inviteStyles.game, { color: colors.mutedForeground }]}>
-            • {invite.party.game}
+    <View style={[invStyles.card, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+      <View style={invStyles.header}>
+        <View style={[invStyles.iconBox, { backgroundColor: `${colors.primary}20` }]}>
+          <Feather name="users" size={14} color={colors.primary} />
+        </View>
+        <View style={invStyles.info}>
+          <Text style={[invStyles.partyName, { color: colors.foreground }]}>
+            {invite.party.name}
           </Text>
+          <Text style={[invStyles.from, { color: colors.mutedForeground }]}>
+            دعوة من {invite.invitedBy?.displayName || invite.invitedBy?.username}
+          </Text>
+        </View>
+        {invite.party.game && (
+          <View style={[invStyles.gameBadge, { backgroundColor: colors.secondary }]}>
+            <Text style={[invStyles.gameText, { color: colors.primary }]} numberOfLines={1}>
+              {invite.party.game}
+            </Text>
+          </View>
         )}
       </View>
-      <Text style={[inviteStyles.inviter, { color: colors.mutedForeground }]}>
-        دعوة من {invite.invitedBy?.displayName || invite.invitedBy?.username}
-      </Text>
-      <View style={inviteStyles.actions}>
+      <View style={invStyles.actions}>
         <Pressable
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            onAccept(invite.id);
-          }}
-          disabled={isActing}
+          onPress={onAccept}
+          disabled={acting}
           style={({ pressed }) => [
-            inviteStyles.btn,
-            {
-              backgroundColor: colors.primary,
-              opacity: pressed || isActing ? 0.7 : 1,
-              flex: 1,
-            },
+            invStyles.btn,
+            { backgroundColor: colors.primary, opacity: pressed || acting ? 0.7 : 1, flex: 1 },
           ]}
         >
-          {isActing ? (
+          {acting ? (
             <ActivityIndicator size="small" color={colors.primaryForeground} />
           ) : (
-            <Text style={[inviteStyles.btnText, { color: colors.primaryForeground }]}>
-              قبول
-            </Text>
+            <Text style={[invStyles.btnText, { color: colors.primaryForeground }]}>قبول</Text>
           )}
         </Pressable>
         <Pressable
-          onPress={() => onDecline(invite.id)}
-          disabled={isActing}
+          onPress={onDecline}
+          disabled={acting}
           style={({ pressed }) => [
-            inviteStyles.btn,
+            invStyles.btn,
             {
               backgroundColor: colors.secondary,
               borderColor: colors.border,
-              borderWidth: 1,
-              opacity: pressed || isActing ? 0.7 : 1,
+              borderWidth: StyleSheet.hairlineWidth,
+              opacity: pressed || acting ? 0.7 : 1,
               flex: 1,
             },
           ]}
         >
-          <Text style={[inviteStyles.btnText, { color: colors.mutedForeground }]}>
-            رفض
-          </Text>
+          <Text style={[invStyles.btnText, { color: colors.mutedForeground }]}>رفض</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-const inviteStyles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    padding: 14,
-    gap: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: { fontSize: 15, fontWeight: '700', flex: 1 },
-  game: { fontSize: 13 },
-  inviter: { fontSize: 12 },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  btn: {
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
+const invStyles = StyleSheet.create({
+  card: { marginHorizontal: 16, padding: 14, gap: 10, borderWidth: 1, marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBox: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  info: { flex: 1, gap: 2 },
+  partyName: { fontSize: 14, fontWeight: '700' },
+  from: { fontSize: 12 },
+  gameBadge: { paddingHorizontal: 8, paddingVertical: 3 },
+  gameText: { fontSize: 11, fontWeight: '600', maxWidth: 90 },
+  actions: { flexDirection: 'row', gap: 8 },
+  btn: { paddingVertical: 9, alignItems: 'center' },
   btnText: { fontSize: 13, fontWeight: '700' },
 });
+
+// ── My party mini-card ────────────────────────────────────────────────────────
+
+function MyPartyMini({ party, onPress }: { party: any; onPress: () => void }) {
+  const colors = useColors();
+  const members: User[] = party.members ?? [];
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        mpStyles.card,
+        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <View style={[mpStyles.strip, { backgroundColor: colors.primary }]} />
+      <View style={mpStyles.body}>
+        <View style={mpStyles.row}>
+          <Feather name="users" size={15} color={colors.primary} />
+          <Text style={[mpStyles.name, { color: colors.foreground }]} numberOfLines={1}>
+            {party.name}
+          </Text>
+          {party.game && (
+            <View style={[mpStyles.gameBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[mpStyles.gameText, { color: colors.primary }]} numberOfLines={1}>
+                {party.game}
+              </Text>
+            </View>
+          )}
+          <Text style={[mpStyles.slots, { color: colors.mutedForeground }]}>
+            {members.length}/{party.maxSize ?? '?'}
+          </Text>
+        </View>
+        <View style={mpStyles.avatarRow}>
+          {members.slice(0, 6).map((m) => (
+            <Avatar
+              key={m.id}
+              uri={m.avatarUrl}
+              name={m.displayName || m.username}
+              size={28}
+              status={m.status}
+              showStatus
+            />
+          ))}
+          {members.length > 6 && (
+            <Text style={[mpStyles.more, { color: colors.mutedForeground }]}>
+              +{members.length - 6}
+            </Text>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+const mpStyles = StyleSheet.create({
+  card: { marginHorizontal: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  strip: { height: 2 },
+  body: { padding: 12, gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { fontSize: 15, fontWeight: '700', flex: 1 },
+  gameBadge: { paddingHorizontal: 6, paddingVertical: 2 },
+  gameText: { fontSize: 11, fontWeight: '600', maxWidth: 80 },
+  slots: { fontSize: 12 },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  more: { fontSize: 12, marginLeft: 2 },
+});
+
+// ── Online friend chip ────────────────────────────────────────────────────────
+
+function FriendChip({ entry, onPress }: { entry: FriendEntry; onPress: () => void }) {
+  const colors = useColors();
+  const { friend } = entry;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        fcStyles.chip,
+        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+      ]}
+    >
+      <Avatar
+        uri={friend.avatarUrl}
+        name={friend.displayName || friend.username}
+        size={44}
+        status={friend.status}
+        showStatus
+      />
+      <Text style={[fcStyles.name, { color: colors.foreground }]} numberOfLines={1}>
+        {friend.displayName || friend.username}
+      </Text>
+      {friend.currentGame ? (
+        <Text style={[fcStyles.sub, { color: colors.primary }]} numberOfLines={1}>
+          {friend.currentGame}
+        </Text>
+      ) : (
+        <Text style={[fcStyles.sub, { color: colors.mutedForeground }]} numberOfLines={1}>
+          {friend.status === 'away' ? 'عائد' : friend.status === 'busy' ? 'مشغول' : 'متصل'}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+const fcStyles = StyleSheet.create({
+  chip: {
+    width: 88,
+    alignItems: 'center',
+    padding: 12,
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  name: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  sub: { fontSize: 10, textAlign: 'center' },
+});
+
+// ── Quick stat pill ────────────────────────────────────────────────────────────
+
+function StatPill({ icon, value, label, color }: {
+  icon: string;
+  value: string | number;
+  label: string;
+  color: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={[statStyles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Feather name={icon as any} size={14} color={color} />
+      <Text style={[statStyles.value, { color: colors.foreground }]}>{value}</Text>
+      <Text style={[statStyles.label, { color: colors.mutedForeground }]}>{label}</Text>
+    </View>
+  );
+}
+
+const statStyles = StyleSheet.create({
+  pill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  value: { fontSize: 18, fontWeight: '800' },
+  label: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+});
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
-  const {
-    data: onlineSummary,
-    isLoading: loadingFriends,
-    refetch: refetchFriends,
-  } = useGetOnlineFriendsSummary();
+  const { data: onlineSummary, isLoading: loadingFriends, refetch: refetchFriends } =
+    useGetOnlineFriendsSummary();
+  const { data: parties, isLoading: loadingParties, refetch: refetchParties } = useListParties();
+  const { data: invites, isLoading: loadingInvites, refetch: refetchInvites } =
+    useListPartyInvites();
 
-  const {
-    data: parties,
-    isLoading: loadingParties,
-    refetch: refetchParties,
-  } = useListParties();
-
-  const {
-    data: invites,
-    isLoading: loadingInvites,
-    refetch: refetchInvites,
-  } = useListPartyInvites();
-
-  const [actingInviteId, setActingInviteId] = React.useState<number | null>(null);
+  const [actingId, setActingId] = React.useState<number | null>(null);
 
   const acceptMutation = useAcceptPartyInvite({
     mutation: {
-      onMutate: ({ inviteId }) => setActingInviteId(inviteId),
+      onMutate: ({ inviteId }) => setActingId(inviteId),
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ['/api/party-invites'] });
         void queryClient.invalidateQueries({ queryKey: ['/api/parties'] });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       },
-      onSettled: () => setActingInviteId(null),
+      onSettled: () => setActingId(null),
     },
   });
 
   const declineMutation = useDeclinePartyInvite({
     mutation: {
-      onSuccess: () => {
-        void queryClient.invalidateQueries({ queryKey: ['/api/party-invites'] });
-      },
+      onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['/api/party-invites'] }),
     },
   });
+
+  const isLoading = loadingFriends || loadingParties || loadingInvites;
+
+  const onlineFriends = (onlineSummary?.friends ?? []).filter(
+    (f: FriendEntry) => ['online', 'away', 'busy'].includes(f.friend.status ?? ''),
+  );
+
+  const myParty = (parties ?? []).find(
+    (p: any) =>
+      p.leader?.id === user?.id || (p.members ?? []).some((m: User) => m.id === user?.id),
+  );
 
   const handleRefresh = () => {
     void refetchFriends();
@@ -233,34 +365,13 @@ export default function HomeScreen() {
     void refetchInvites();
   };
 
-  const isLoading = loadingFriends || loadingParties || loadingInvites;
-
-  const onlineFriends = onlineSummary?.friends?.filter(
-    (f: FriendEntry) =>
-      f.friend.status === 'online' ||
-      f.friend.status === 'away' ||
-      f.friend.status === 'busy',
-  ) ?? [];
-
-  // Find user's current party
-  const myParty = (parties ?? []).find(
-    (p) =>
-      p.leader.id === user?.id ||
-      p.members?.some((m: User) => m.id === user?.id),
-  );
-
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: topPad + 16,
-          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 84 : 80),
-        },
-      ]}
+      contentContainerStyle={{
+        paddingTop: topPad + 16,
+        paddingBottom: insets.bottom + (Platform.OS === 'web' ? 84 : 80),
+      }}
       refreshControl={
         <RefreshControl
           refreshing={isLoading}
@@ -270,143 +381,139 @@ export default function HomeScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <View style={styles.greetingLeft}>
-          <Text style={[styles.greetingLabel, { color: colors.mutedForeground }]}>
-            مرحباً،
-          </Text>
-          <Text style={[styles.greetingName, { color: colors.foreground }]}>
+      {/* ── Hero greeting ──────────────────────────────────────────── */}
+      <View style={[styles.hero, { borderBottomColor: colors.border }]}>
+        <View style={styles.heroLeft}>
+          <Text style={[styles.helloText, { color: colors.mutedForeground }]}>مرحباً،</Text>
+          <Text style={[styles.heroName, { color: colors.foreground }]}>
             {user?.displayName || user?.username || 'لاعب'}
           </Text>
+          {user?.currentGame && (
+            <View style={styles.nowPlayingRow}>
+              <Feather name="play" size={10} color={colors.primary} />
+              <Text style={[styles.nowPlayingText, { color: colors.primary }]} numberOfLines={1}>
+                {user.currentGame}
+              </Text>
+            </View>
+          )}
         </View>
         {user && (
           <Avatar
             uri={user.avatarUrl}
             name={user.displayName || user.username}
-            size={40}
+            size={52}
             status={user.status}
             showStatus
           />
         )}
       </View>
 
-      {/* Party Invites */}
+      {/* ── Quick stats ────────────────────────────────────────────── */}
+      <View style={styles.statsRow}>
+        <StatPill
+          icon="users"
+          value={onlineSummary?.onlineCount ?? 0}
+          label="أصدقاء"
+          color={colors.primary}
+        />
+        <StatPill
+          icon="shield"
+          value={myParty ? (myParty.members?.length ?? 1) : 0}
+          label="بارتي"
+          color={myParty ? colors.primary : colors.mutedForeground}
+        />
+        <StatPill
+          icon="message-square"
+          value={invites?.length ?? 0}
+          label="دعوات"
+          color={(invites?.length ?? 0) > 0 ? colors.primary : colors.mutedForeground}
+        />
+      </View>
+
+      {/* ── Invites ────────────────────────────────────────────────── */}
       {(invites ?? []).length > 0 && (
         <>
-          <SectionHeader title="دعوات المجموعة" count={(invites ?? []).length} />
-          {(invites ?? []).map((invite: PartyInvite) => (
-            <PartyInviteCard
-              key={invite.id}
-              invite={invite}
-              onAccept={(id) => acceptMutation.mutate({ inviteId: id })}
-              onDecline={(id) => declineMutation.mutate({ inviteId: id })}
-              isActing={actingInviteId === invite.id}
+          <SectionLabel label="دعوات البارتي" count={(invites ?? []).length} />
+          {(invites ?? []).map((inv: PartyInvite) => (
+            <InviteCard
+              key={inv.id}
+              invite={inv}
+              acting={actingId === inv.id}
+              onAccept={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                acceptMutation.mutate({ inviteId: inv.id });
+              }}
+              onDecline={() => declineMutation.mutate({ inviteId: inv.id })}
             />
           ))}
         </>
       )}
 
-      {/* Current Party */}
-      <SectionHeader title="مجموعتي" />
+      {/* ── My party ───────────────────────────────────────────────── */}
+      <SectionLabel
+        label="مجموعتي"
+        action={myParty ? 'عرض' : 'إنشاء'}
+        onAction={() => router.push('/(tabs)/parties' as never)}
+      />
       {loadingParties ? (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator color={colors.primary} size="small" />
         </View>
       ) : myParty ? (
-        <View
-          style={[
-            styles.partyCard,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <View style={styles.partyHeader}>
-            <Feather name="users" size={18} color={colors.primary} />
-            <Text style={[styles.partyName, { color: colors.foreground }]}>
-              {myParty.name}
-            </Text>
-            {myParty.game && (
-              <View
-                style={[styles.partyGameBadge, { backgroundColor: colors.secondary }]}
-              >
-                <Text style={[styles.partyGame, { color: colors.foreground }]}>
-                  {myParty.game}
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.partyMembers}>
-            {(myParty.members ?? []).slice(0, 8).map((member: User) => (
-              <Avatar
-                key={member.id}
-                uri={member.avatarUrl}
-                name={member.displayName || member.username}
-                size={32}
-                status={member.status}
-                showStatus
-              />
-            ))}
-            <Text style={[styles.memberCount, { color: colors.mutedForeground }]}>
-              {myParty.members?.length ?? 0}/{myParty.maxSize}
-            </Text>
-          </View>
-        </View>
+        <MyPartyMini party={myParty} onPress={() => router.push('/(tabs)/parties' as never)} />
       ) : (
-        <View
-          style={[
-            styles.emptyParty,
-            { backgroundColor: colors.card, borderColor: colors.border },
+        <Pressable
+          onPress={() => router.push('/(tabs)/parties' as never)}
+          style={({ pressed }) => [
+            styles.emptyCard,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <Feather name="users" size={24} color={colors.mutedForeground} />
+          <Feather name="users" size={20} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            لست في مجموعة حالياً
+            لست في مجموعة — انقر لإنشاء بارتي
           </Text>
-        </View>
+          <Feather name="chevron-left" size={16} color={colors.border} />
+        </Pressable>
       )}
 
-      {/* Online Friends */}
-      <SectionHeader
-        title="الأصدقاء المتصلون"
+      {/* ── Online friends ─────────────────────────────────────────── */}
+      <SectionLabel
+        label="الأصدقاء المتصلون"
         count={onlineSummary?.onlineCount}
+        action="الكل"
+        onAction={() => router.push('/(tabs)/messages' as never)}
       />
       {loadingFriends ? (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator color={colors.primary} size="small" />
         </View>
       ) : onlineFriends.length === 0 ? (
         <View
           style={[
-            styles.emptyFriends,
+            styles.emptyCard,
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <Feather name="moon" size={24} color={colors.mutedForeground} />
+          <Feather name="moon" size={18} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
             لا يوجد أصدقاء متصلون الآن
           </Text>
         </View>
       ) : (
-        <View
-          style={[
-            styles.friendsList,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}
         >
-          {onlineFriends.slice(0, 10).map((entry: FriendEntry) => (
-            <FriendCard key={entry.id} entry={entry} />
+          {onlineFriends.slice(0, 12).map((entry: FriendEntry) => (
+            <FriendChip
+              key={entry.id}
+              entry={entry}
+              onPress={() => router.push('/(tabs)/messages' as never)}
+            />
           ))}
-          {onlineFriends.length > 10 && (
-            <View style={[styles.moreRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.moreText, { color: colors.mutedForeground }]}>
-                +{onlineFriends.length - 10} أصدقاء آخرون
-              </Text>
-            </View>
-          )}
-        </View>
+        </ScrollView>
       )}
     </ScrollView>
   );
@@ -414,78 +521,35 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { gap: 0, paddingHorizontal: 0 },
-  greeting: {
+  hero: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    marginBottom: 4,
-  },
-  greetingLeft: { gap: 2 },
-  greetingLabel: { fontSize: 13 },
-  greetingName: { fontSize: 24, fontWeight: '800' },
-  loadingRow: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  partyCard: {
-    marginHorizontal: 16,
-    padding: 14,
+    paddingBottom: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
-    borderWidth: StyleSheet.hairlineWidth,
   },
-  partyHeader: {
+  heroLeft: { flex: 1, gap: 2 },
+  helloText: { fontSize: 13 },
+  heroName: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  nowPlayingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  nowPlayingText: { fontSize: 11, fontWeight: '600' },
+  statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
     gap: 8,
   },
-  partyName: {
-    fontSize: 16,
-    fontWeight: '700',
-    flex: 1,
-  },
-  partyGameBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  partyGame: { fontSize: 12, fontWeight: '600' },
-  partyMembers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  memberCount: { fontSize: 12 },
-  emptyParty: {
+  loadingRow: { paddingVertical: 20, alignItems: 'center' },
+  emptyCard: {
     marginHorizontal: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  emptyText: { fontSize: 13 },
-  friendsList: {
-    marginHorizontal: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  emptyFriends: {
-    marginHorizontal: 16,
-    padding: 20,
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'center',
   },
-  moreRow: {
-    padding: 12,
-    alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  moreText: { fontSize: 12 },
+  emptyText: { fontSize: 13, flex: 1 },
+  chipsRow: { paddingHorizontal: 16, gap: 8 },
 });

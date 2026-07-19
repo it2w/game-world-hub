@@ -1,5 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import type { FriendEntry } from '@workspace/api-client-react';
 import { Avatar } from '@/components/Avatar';
 import { useColors } from '@/hooks/useColors';
@@ -12,8 +14,19 @@ interface FriendCardProps {
 
 export function FriendCard({ entry, onPress }: FriendCardProps) {
   const colors = useColors();
+  const router = useRouter();
   const { friend } = entry;
-  const isOnline = friend.status === 'online' || friend.status === 'away' || friend.status === 'busy';
+  const isOnline =
+    friend.status === 'online' ||
+    friend.status === 'away' ||
+    friend.status === 'busy';
+
+  const handleMessage = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Navigate to messages tab; the conversations list shows DMs
+    router.push('/(tabs)/messages' as never);
+  };
 
   return (
     <Pressable
@@ -21,9 +34,8 @@ export function FriendCard({ entry, onPress }: FriendCardProps) {
       style={({ pressed }) => [
         styles.container,
         {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          opacity: pressed ? 0.75 : 1,
+          backgroundColor: pressed ? colors.secondary : colors.card,
+          borderBottomColor: colors.border,
         },
       ]}
       testID={`friend-card-${friend.id}`}
@@ -46,7 +58,9 @@ export function FriendCard({ entry, onPress }: FriendCardProps) {
           </Text>
           {(friend as { isPro?: boolean }).isPro && (
             <View style={[styles.proBadge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.proText, { color: colors.primaryForeground }]}>PRO</Text>
+              <Text style={[styles.proText, { color: colors.primaryForeground }]}>
+                PRO
+              </Text>
             </View>
           )}
         </View>
@@ -74,7 +88,24 @@ export function FriendCard({ entry, onPress }: FriendCardProps) {
         )}
       </View>
 
-      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+      {/* Action buttons */}
+      <View style={styles.actions}>
+        {/* Message button */}
+        <Pressable
+          onPress={handleMessage}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            {
+              backgroundColor: pressed
+                ? `${colors.primary}30`
+                : `${colors.primary}15`,
+            },
+          ]}
+        >
+          <Feather name="message-square" size={15} color={colors.primary} />
+        </Pressable>
+      </View>
     </Pressable>
   );
 }
@@ -88,39 +119,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  info: {
-    flex: 1,
-    gap: 3,
-  },
-  nameRow: {
-    flexDirection: 'row',
+  info: { flex: 1, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  displayName: { fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  proBadge: { paddingHorizontal: 5, paddingVertical: 1 },
+  proText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  gameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gameText: { fontSize: 12, fontWeight: '500' },
+  statusText: { fontSize: 12 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  iconBtn: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
-    gap: 6,
-  },
-  displayName: {
-    fontSize: 14,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  proBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  proText: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  gameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  gameText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  statusText: {
-    fontSize: 12,
+    justifyContent: 'center',
+    borderRadius: 16,
   },
 });

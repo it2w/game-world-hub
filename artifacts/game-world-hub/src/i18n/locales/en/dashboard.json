@@ -241,7 +241,13 @@
     "tooFast": "Too fast — slow down",
     "addFriend": "Add Friend",
     "requestSent": "Request Sent",
-    "viewProfile": "View Profile"
+    "viewProfile": "View Profile",
+    "reply": "Reply",
+    "report": "Report",
+    "reported": "Message reported",
+    "mentioned": "{{name}} mentioned you",
+    "replyingTo": "Replying to",
+    "activeHint": "Active in the last 5 minutes"
   },
   "stats": {
     "weeklyLabel": "This Week",

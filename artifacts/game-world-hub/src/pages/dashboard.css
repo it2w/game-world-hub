@@ -846,3 +846,236 @@
   color: #FFD700;
   border-color: #FFD70066;
 }
+
+/* ── Hover action toolbar ────────────────────────────────────────────── */
+.gc-hover-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: auto;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.gc-msg-row:hover .gc-hover-toolbar,
+.gc-hover-toolbar:focus-within { opacity: 1; }
+.gc-hover-toolbar--me { flex-direction: row-reverse; }
+.gc-react-btn {
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background .1s, transform .1s;
+  flex-shrink: 0;
+}
+.gc-react-btn:hover { background: hsl(var(--muted)); transform: scale(1.25); }
+.gc-toolbar-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background .1s, color .1s, border-color .1s;
+}
+.gc-toolbar-btn:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+.gc-toolbar-btn--report:hover { color: #EF4444; border-color: #EF444466; background: #EF444412; }
+
+/* ── Reactions bar ────────────────────────────────────────────────────── */
+.gc-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.gc-reaction {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  padding: 1px 6px;
+  background: hsl(var(--muted)/0.5);
+  border: 1px solid hsl(var(--border));
+  cursor: pointer;
+  border-radius: 20px;
+  transition: background .12s, border-color .12s, transform .1s;
+  font-family: inherit;
+}
+.gc-reaction:hover { background: hsl(var(--muted)); transform: scale(1.08); }
+.gc-reaction--me {
+  background: hsl(var(--primary)/0.15);
+  border-color: hsl(var(--primary)/0.5);
+}
+.gc-reaction-count {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+}
+.gc-reaction--me .gc-reaction-count { color: hsl(var(--primary)); }
+
+/* ── Reply quote (in message body) ──────────────────────────────────── */
+.gc-reply-quote {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: hsl(var(--muted)/0.4);
+  border-inline-start: 2px solid hsl(var(--primary)/0.6);
+  cursor: pointer;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  text-align: start;
+  max-width: 100%;
+  overflow: hidden;
+  background: transparent;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  margin-bottom: 2px;
+  transition: opacity .15s;
+}
+.gc-reply-quote:hover { opacity: .75; }
+.gc-reply-quote-author {
+  font-weight: 700;
+  color: hsl(var(--primary));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gc-reply-quote-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* ── Reply preview bar (above input) ─────────────────────────────────── */
+.gc-reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: hsl(var(--primary)/0.06);
+  border-top: 1px solid hsl(var(--primary)/0.25);
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+}
+.gc-reply-bar-to { flex-shrink: 0; font-family: monospace; }
+.gc-reply-bar-to strong { color: hsl(var(--primary)); }
+.gc-reply-bar-preview {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  opacity: .7;
+}
+.gc-reply-bar-cancel {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: color .15s;
+}
+.gc-reply-bar-cancel:hover { color: hsl(var(--foreground)); }
+
+/* ── @Mention highlight in message ───────────────────────────────────── */
+.gc-mention {
+  font-weight: 700;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary)/0.1);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+/* ── Mention autocomplete dropdown ───────────────────────────────────── */
+.gc-mention-list {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  inset-inline-start: 14px;
+  inset-inline-end: 14px;
+  z-index: 60;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 -4px 20px #0007;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.gc-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: start;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .1s;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.gc-mention-item:last-child { border-bottom: none; }
+.gc-mention-item:hover { background: hsl(var(--muted)); }
+.gc-mention-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.gc-mention-name {
+  font-weight: 700;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+}
+.gc-mention-username {
+  font-size: 10px;
+  font-family: monospace;
+  color: hsl(var(--muted-foreground));
+  flex: 1;
+}
+
+/* ── Active count badge in header ────────────────────────────────────── */
+.gc-header-active {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #22C55E;
+  background: #22C55E12;
+  border: 1px solid #22C55E33;
+  padding: 1px 6px;
+}
+.gc-active-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22C55E;
+  animation: gc-pulse 1.5s ease-in-out infinite;
+}

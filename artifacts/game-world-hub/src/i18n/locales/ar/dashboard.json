@@ -241,7 +241,13 @@
     "tooFast": "سريع جداً — أبطئ قليلاً",
     "addFriend": "إضافة صديق",
     "requestSent": "تم إرسال الطلب",
-    "viewProfile": "عرض البروفايل"
+    "viewProfile": "عرض البروفايل",
+    "reply": "رد",
+    "report": "إبلاغ",
+    "reported": "تم الإبلاغ عن الرسالة",
+    "mentioned": "ذكرك {{name}}",
+    "replyingTo": "رداً على",
+    "activeHint": "نشطون في آخر 5 دقائق"
   },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",

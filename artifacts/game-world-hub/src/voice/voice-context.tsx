@@ -635,6 +635,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:global-chat", { detail: msg.message }));
           break;
 
+        case "reaction_update":
+          window.dispatchEvent(new CustomEvent("gwh:reaction-update", { detail: msg }));
+          break;
+
+        case "mention":
+          window.dispatchEvent(new CustomEvent("gwh:mention", { detail: msg }));
+          break;
+
         default:
           break;
       }

@@ -90,6 +90,10 @@ let editBcastEdId   = 0; let editBcastEdUsername   = "";
 let rxnObsId  = 0; let rxnObsUsername  = "";
 let rxnUserId = 0; let rxnUsername     = "";
 
+// Pin broadcast — WS observers for failed-pin no-broadcast assertions
+let pinBcastObs1Id = 0; let pinBcastObs1Username = "";
+let pinBcastObs2Id = 0; let pinBcastObs2Username = "";
+
 // Pro-metadata stripping for free users
 let metaFree1Id = 0; let metaFree1Username = "";
 let metaFree2Id = 0; let metaFree2Username = "";
@@ -325,6 +329,8 @@ before(async () => {
       pro("editbcasted"),
       free("rxnobs"),
       free("rxnuser"),
+      free("pinbcastobs1"),
+      free("pinbcastobs2"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -362,6 +368,8 @@ before(async () => {
     [editBcastEdId,    editBcastEdUsername],
     [rxnObsId,         rxnObsUsername],
     [rxnUserId,        rxnUsername],
+    [pinBcastObs1Id,   pinBcastObs1Username],
+    [pinBcastObs2Id,   pinBcastObs2Username],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -544,6 +552,76 @@ describe("Pin gate", () => {
       await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapPinId]);
       // Remove the pin we created so the 'trading' channel is clean for Pin expiry tests
       await pool.query(`DELETE FROM global_chat_pins WHERE channel = 'trading' AND pinner_id = $1`, [lapPinId]);
+    }
+  });
+
+  test("failed pin (non-Pro user) does not emit a pin_update WS frame", async () => {
+    // Insert a message owned by the non-Pro user
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'pin-bcast-nonpro-msg', 'general') RETURNING id`,
+      [pinFreeId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    // Open a WS observer and wait until it is connected
+    const observer = openWsObserver(pinBcastObs1Id, pinBcastObs1Username);
+    await observer.ready;
+
+    try {
+      // Attempt to pin as a non-Pro user — must be rejected with 403
+      const res = await req(
+        "POST",
+        `/global-chat/messages/${msgId}/pin`,
+        pinFreeId,
+        pinFreeUsername,
+      );
+      assert.equal(res.status, 403, `expected 403 got ${res.status}: ${JSON.stringify(res.body)}`);
+
+      // No pin_update frame should have been broadcast
+      await assertNoFrame(
+        observer,
+        (m) => (m as { type?: string }).type === "pin_update",
+        500,
+      );
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("failed pin (Pro user, wrong owner) does not emit a pin_update WS frame", async () => {
+    // Insert a message owned by a free (non-Pro) user so the Pro user is definitely not the owner
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'pin-bcast-wrongowner-msg', 'general') RETURNING id`,
+      [pinFreeId],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    // Open a WS observer and wait until it is connected
+    const observer = openWsObserver(pinBcastObs2Id, pinBcastObs2Username);
+    await observer.ready;
+
+    try {
+      // Attempt to pin as a Pro user who does NOT own the message — must be 403
+      const res = await req(
+        "POST",
+        `/global-chat/messages/${msgId}/pin`,
+        pinProId,
+        pinProUsername,
+      );
+      assert.equal(res.status, 403, `expected 403 got ${res.status}: ${JSON.stringify(res.body)}`);
+
+      // No pin_update frame should have been broadcast
+      await assertNoFrame(
+        observer,
+        (m) => (m as { type?: string }).type === "pin_update",
+        500,
+      );
+    } finally {
+      observer.close();
     }
   });
 });

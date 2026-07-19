@@ -29,6 +29,7 @@ function safeUser(u: typeof usersTable.$inferSelect) {
     status: u.status,
     currentGame: u.currentGame ?? null,
     createdAt: u.createdAt.toISOString(),
+    prestigeLevel: u.prestigeLevel ?? 0,
   };
 }
 

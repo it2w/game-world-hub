@@ -31,6 +31,7 @@ import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Cloc
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TierPip } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
+import { PrestigeBadge } from "@/components/prestige-badge";
 
 type CreateLfgForm = {
   game: string;
@@ -512,6 +513,7 @@ export default function Lfg() {
                       @{post.author.username}
                       {post.author.tier && <TierPip tier={post.author.tier} />}
                       {post.author.isPro && <ProBadge size="icon" />}
+                      <PrestigeBadge level={(post.author as any).prestigeLevel ?? 0} size="xs" />
                     </div>
                   </div>
                   {remaining && !isClosed && (
@@ -544,7 +546,7 @@ export default function Lfg() {
                   <div className="flex items-center justify-between mt-auto pt-2">
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-2 rtl:space-x-reverse">
-                        {post.responders.slice(0, 4).map((r) => (
+                        {post.responders.slice(0, 4).map((r: any) => (
                           <div key={r.id} className="w-7 h-7 rounded-full border-2 border-card bg-muted flex items-center justify-center font-mono text-[10px] overflow-hidden" title={r.displayName}>
                             {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" /> : r.displayName.charAt(0)}
                           </div>
@@ -671,7 +673,10 @@ export default function Lfg() {
                           : r.displayName.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-mono text-sm font-semibold truncate">{r.displayName}</div>
+                        <div className="font-mono text-sm font-semibold truncate flex items-center gap-1">
+                          {r.displayName}
+                          <PrestigeBadge level={(r as any).prestigeLevel ?? 0} size="xs" />
+                        </div>
                         <div className="font-mono text-[10px] text-muted-foreground truncate">@{r.username}</div>
                       </div>
                     </Link>

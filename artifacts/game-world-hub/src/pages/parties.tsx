@@ -12,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { Users, Gamepad2, Monitor, Plus, Lock, Globe } from "lucide-react";
+import { PrestigeBadge } from "@/components/prestige-badge";
 
 type CreatePartyForm = {
   name: string;
@@ -222,11 +223,28 @@ export default function Parties() {
                 ) : (
                   <div className="text-muted-foreground font-mono text-xs italic">{t("list.noSpecificGame")}</div>
                 )}
+
+                <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+                  <div className="w-5 h-5 rounded-full bg-muted border border-border flex items-center justify-center overflow-hidden shrink-0">
+                    {party.leader.avatarUrl
+                      ? <img src={party.leader.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      : party.leader.displayName.charAt(0)}
+                  </div>
+                  <span className="truncate">{party.leader.displayName}</span>
+                  <PrestigeBadge level={(party.leader as any).prestigeLevel ?? 0} size="xs" />
+                </div>
                 
                 <div className="flex -space-x-2 rtl:space-x-reverse mt-auto">
                   {party.members.slice(0, 5).map(m => (
-                    <div key={m.id} className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center font-mono text-xs overflow-hidden z-10" title={m.displayName}>
-                      {m.avatarUrl ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" /> : m.displayName.charAt(0)}
+                    <div key={m.id} className="relative" title={m.displayName}>
+                      <div className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center font-mono text-xs overflow-hidden z-10">
+                        {m.avatarUrl ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" /> : m.displayName.charAt(0)}
+                      </div>
+                      {((m as any).prestigeLevel ?? 0) > 0 && (
+                        <span className="absolute -bottom-0.5 -end-0.5 z-20">
+                          <PrestigeBadge level={(m as any).prestigeLevel} size="xs" />
+                        </span>
+                      )}
                     </div>
                   ))}
                   {party.members.length > 5 && (

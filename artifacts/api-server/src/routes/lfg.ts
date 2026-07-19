@@ -37,6 +37,7 @@ function safeUser(
     totalXp: progress?.totalXp ?? null,
     xpIntoLevel: progress?.xpIntoLevel ?? null,
     xpForNext: progress?.xpForNext ?? null,
+    prestigeLevel: u.prestigeLevel ?? 0,
   };
 }
 

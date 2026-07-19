@@ -41,6 +41,10 @@ let author2Id      = 0; let author2Username      = "";   // for no-perm test
 let author3Id      = 0; let author3Username      = "";   // for main delete test
 let proAuthorId    = 0; let proAuthorUsername    = "";   // Pro user for pin test
 let proAuthor2Id   = 0; let proAuthor2Username   = "";   // separate Pro user for unpinned test (rate-limit isolation)
+// Dedicated authors for deletion-log tests (rate-limit isolation)
+let reactAuthorId  = 0; let reactAuthorUsername  = "";   // posts the message-with-reactions
+let rParentId      = 0; let rParentUsername      = "";   // posts the reply-target parent
+let rChildId       = 0; let rChildUsername       = "";   // posts the reply (child message)
 
 const createdUserIds: number[] = [];
 
@@ -168,6 +172,10 @@ before(async () => {
       // Pro users for pin tests (separate accounts for rate-limit isolation)
       { username: `gcd_pro_${SUFFIX}`,     passwordHash: "x", displayName: "ProUser",     isPro: true,   status: "online" as const },
       { username: `gcd_pro2_${SUFFIX}`,    passwordHash: "x", displayName: "ProUser2",    isPro: true,   status: "online" as const },
+      // Deletion-log test authors (one per test for rate-limit isolation)
+      { username: `gcd_react_${SUFFIX}`,   passwordHash: "x", displayName: "ReactAuthor",               status: "online" as const },
+      { username: `gcd_rpar_${SUFFIX}`,    passwordHash: "x", displayName: "ReplyParent",               status: "online" as const },
+      { username: `gcd_rchd_${SUFFIX}`,    passwordHash: "x", displayName: "ReplyChild",                status: "online" as const },
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -180,6 +188,9 @@ before(async () => {
     [author3Id,      author3Username],
     [proAuthorId,    proAuthorUsername],
     [proAuthor2Id,   proAuthor2Username],
+    [reactAuthorId,  reactAuthorUsername],
+    [rParentId,      rParentUsername],
+    [rChildId,       rChildUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -329,5 +340,114 @@ describe("DELETE /global-chat/messages/:id", () => {
     const r = await req("DELETE", `/global-chat/messages/${msgId}`, adminId, adminUsername);
     assert.equal(r.status, 200, `Expected 200, got ${r.status}: ${JSON.stringify(r.body)}`);
     assert.equal((r.body as any).hadActivePin, false, "hadActivePin should be false for a non-pinned message");
+  });
+
+  // ── Deletion-log snapshot tests ─────────────────────────────────────────────
+
+  test("deletion log captures full snapshot when the message has reactions attached", async () => {
+    const content = `msg-with-reactions-${SUFFIX}`;
+    const msgId   = await postMessage(reactAuthorId, reactAuthorUsername, content);
+
+    // Add a reaction so there is at least one global_chat_reactions row
+    const reactR = await req(
+      "POST", `/global-chat/messages/${msgId}/reactions`,
+      adminId, adminUsername, { emoji: "👍" },
+    );
+    assert.equal(reactR.status, 200, `Reaction add failed: ${JSON.stringify(reactR.body)}`);
+
+    // Open WS observer before deleting
+    const obs = openWsObserver(adminId, adminUsername);
+    await new Promise(r => setTimeout(r, 100));
+
+    // Delete the message as admin
+    const delR = await req("DELETE", `/global-chat/messages/${msgId}`, adminId, adminUsername);
+    assert.equal(delR.status, 200, `Expected 200, got ${delR.status}: ${JSON.stringify(delR.body)}`);
+    assert.equal((delR.body as any).deleted, true);
+
+    // Broadcast must fire after commit
+    await obs.waitFor((m: any) => m?.type === "global_chat_delete" && m?.messageId === msgId);
+    obs.close();
+
+    // global_chat_deletions must have a row with all four required fields populated
+    const { rows } = await pool.query<{
+      message_id: number;
+      deleted_by_user_id: number;
+      original_content: string;
+      original_author_id: number;
+    }>(
+      `SELECT message_id, deleted_by_user_id, original_content, original_author_id
+       FROM global_chat_deletions WHERE message_id = $1`,
+      [msgId],
+    );
+    assert.equal(rows.length, 1, "Expected exactly one deletion-log row");
+    assert.equal(rows[0].message_id,         msgId,          "message_id mismatch");
+    assert.equal(rows[0].deleted_by_user_id, adminId,        "deleted_by_user_id mismatch");
+    assert.equal(rows[0].original_content,   content,        "original_content mismatch");
+    assert.equal(rows[0].original_author_id, reactAuthorId,  "original_author_id mismatch");
+
+    // Reactions must have been cascade-deleted (no orphan rows)
+    const { rowCount: reactCount } = await pool.query(
+      `SELECT 1 FROM global_chat_reactions WHERE message_id = $1`, [msgId],
+    );
+    assert.equal(reactCount, 0, "Reactions should be cascade-deleted with the message");
+  });
+
+  test("deletion log captures snapshot for a reply-target message, and the reply's reply_to_id is nulled", async () => {
+    // Post the parent message
+    const parentContent = `msg-reply-parent-${SUFFIX}`;
+    const parentId      = await postMessage(rParentId, rParentUsername, parentContent);
+
+    // Post a reply that references the parent
+    const replyR = await req(
+      "POST", "/global-chat/messages",
+      rChildId, rChildUsername,
+      { content: `reply-child-${SUFFIX}`, channel: "general", replyToId: parentId },
+    );
+    assert.equal(replyR.status, 201, `Post reply failed: ${JSON.stringify(replyR.body)}`);
+    const replyId = (replyR.body as any).id as number;
+    assert.equal((replyR.body as any).replyTo?.id, parentId, "Reply should reference the parent");
+
+    // Open WS observer before deleting the parent
+    const obs = openWsObserver(adminId, adminUsername);
+    await new Promise(r => setTimeout(r, 100));
+
+    // Delete the parent (reply_to_id FK is ON DELETE SET NULL)
+    const delR = await req("DELETE", `/global-chat/messages/${parentId}`, adminId, adminUsername);
+    assert.equal(delR.status, 200, `Expected 200, got ${delR.status}: ${JSON.stringify(delR.body)}`);
+    assert.equal((delR.body as any).deleted, true);
+
+    // Broadcast must fire after commit
+    await obs.waitFor((m: any) => m?.type === "global_chat_delete" && m?.messageId === parentId);
+    obs.close();
+
+    // Deletion log must capture the parent's content and author before cascade
+    const { rows } = await pool.query<{
+      message_id: number;
+      deleted_by_user_id: number;
+      original_content: string;
+      original_author_id: number;
+    }>(
+      `SELECT message_id, deleted_by_user_id, original_content, original_author_id
+       FROM global_chat_deletions WHERE message_id = $1`,
+      [parentId],
+    );
+    assert.equal(rows.length, 1, "Expected exactly one deletion-log row for the parent");
+    assert.equal(rows[0].message_id,         parentId,      "message_id mismatch");
+    assert.equal(rows[0].deleted_by_user_id, adminId,       "deleted_by_user_id mismatch");
+    assert.equal(rows[0].original_content,   parentContent, "original_content mismatch");
+    assert.equal(rows[0].original_author_id, rParentId,     "original_author_id mismatch");
+
+    // The child reply must still exist in the DB with reply_to_id NULLed out
+    const { rows: childRows } = await pool.query<{
+      id: number; reply_to_id: number | null;
+    }>(
+      `SELECT id, reply_to_id FROM global_chat_messages WHERE id = $1`, [replyId],
+    );
+    assert.equal(childRows.length, 1, "The reply message should still exist after parent deletion");
+    assert.equal(
+      childRows[0].reply_to_id,
+      null,
+      "reply_to_id should be SET NULL after the referenced parent is deleted",
+    );
   });
 });

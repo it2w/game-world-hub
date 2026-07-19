@@ -10,6 +10,7 @@ import {
   customFetch,
   getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey,
   getListPartyInvitesQueryKey, getGetMeQueryKey,
+  type User,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -76,16 +77,19 @@ function LiveTicker({ events }: { events: Array<{text:string;color:string}> }) {
 }
 
 // ── XpBar ──────────────────────────────────────────────────────────────────────
-function XpBar({ me }: { me:any }) {
+function XpBar({ me }: { me: User | null | undefined }) {
   if (!me) return null;
-  const pct = me.xpForNext > 0 ? Math.round((me.xpIntoLevel / me.xpForNext) * 100) : 0;
+  const xpForNext = me.xpForNext ?? 0;
+  const xpIntoLevel = me.xpIntoLevel ?? 0;
+  const tierLevel = me.tierLevel ?? 1;
+  const pct = xpForNext > 0 ? Math.round((xpIntoLevel / xpForNext) * 100) : 0;
   return (
     <div className="xp-wrap">
       <div className="xp-header">
         <span className="xp-level">
-          {me.tier ? `${me.tier} · LVL ${me.tierLevel ?? 1}` : `LVL ${me.tierLevel ?? 1}`}
+          {me.tier ? `${me.tier} · LVL ${tierLevel}` : `LVL ${tierLevel}`}
         </span>
-        <span className="xp-nums">{(me.xpIntoLevel??0).toLocaleString()} / {(me.xpForNext??0).toLocaleString()} XP</span>
+        <span className="xp-nums">{xpIntoLevel.toLocaleString()} / {xpForNext.toLocaleString()} XP</span>
       </div>
       <div className="xp-track">
         <div className="xp-fill" style={{ width:`${pct}%` }}><div className="xp-shimmer"/></div>
@@ -600,7 +604,7 @@ function SmartMatch({ friends, openParties }: { friends:any[]; openParties:any[]
 }
 
 // ── ChallengeVs ────────────────────────────────────────────────────────────────
-function ChallengeVs({ me, friends }: { me:any; friends:any[] }) {
+function ChallengeVs({ me, friends }: { me: User | null | undefined; friends:any[] }) {
   const { t } = useTranslation("dashboard");
   const [sel, setSel] = useState<any>(null);
   const [sending, setSending] = useState(false);
@@ -751,7 +755,7 @@ function ChallengeCard({ challenges }: { challenges:any[] }) {
 }
 
 // ── Leaderboard ────────────────────────────────────────────────────────────────
-function Leaderboard({ me, friends }: { me:any; friends:any[] }) {
+function Leaderboard({ me, friends }: { me: User | null | undefined; friends:any[] }) {
   const { t } = useTranslation("dashboard");
   const base = friends.map(e=>({
     name: e.friend.displayName,
@@ -820,7 +824,7 @@ function AchievementShowcase({ achievements }: { achievements:any[] }) {
 }
 
 // ── SpotlightCarousel ─────────────────────────────────────────────────────────
-export function SpotlightCarousel({ me }: { me?: any }) {
+export function SpotlightCarousel({ me }: { me?: User | null }) {
   const { t } = useTranslation("dashboard");
   const isAr = i18n.resolvedLanguage?.startsWith("ar");
   const { data: spotlightUsers, isLoading } = useQuery<any[]>({
@@ -893,12 +897,12 @@ export function SpotlightCarousel({ me }: { me?: any }) {
 }
 
 // ── VipLoungeCard ─────────────────────────────────────────────────────────────
-function VipLoungeCard({ me }: { me: any }) {
+function VipLoungeCard({ me }: { me: User | null | undefined }) {
   const { t } = useTranslation("dashboard");
   const { joinVipLounge } = useVoice();
   const { toast } = useToast();
-  const now = new Date();
-  const isPro = me?.isPro && (!me.proExpiresAt || new Date(me.proExpiresAt) > now);
+  // `isPro` is server-computed and already reflects an active subscription
+  const isPro = !!me?.isPro;
 
   const { data: vip, refetch } = useQuery<{ participantCount: number; canJoin: boolean }>({
     queryKey: ["vip-lounge-dash"],
@@ -956,7 +960,7 @@ function VipLoungeCard({ me }: { me: any }) {
 }
 
 // ── ProCard ────────────────────────────────────────────────────────────────────
-function ProCard({ me }: { me:any }) {
+function ProCard({ me }: { me: User | null | undefined }) {
   const { t } = useTranslation("dashboard");
   if (!me?.isPro) return null;
   return (

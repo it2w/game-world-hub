@@ -17,6 +17,8 @@ jobs:
   build-msix:
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
 
     steps:
       # ── 1. Source ──────────────────────────────────────────────────────────

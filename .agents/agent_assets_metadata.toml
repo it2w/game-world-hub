@@ -96,3 +96,9 @@ id = "UpMS-y8RoTaWdnhtZdITj"
 uri = "file://screenshots/pro-badge-variants2.png"
 type = "image"
 title = "أشكال بادج Pro — A B C D E F"
+
+[[outputs]]
+id = "FAPIXbDP5vmQbd70HoIqJ"
+uri = "file://artifacts/game-world-hub-desktop/dist-electron/GameWorldHub-1.0.0-win.zip"
+type = "unspecified"
+title = "GameWorldHub-1.0.0-win.zip"

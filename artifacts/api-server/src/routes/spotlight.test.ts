@@ -206,4 +206,33 @@ describe("GET /users/spotlight — opt-out behaviour", () => {
       `Opted-out user ${proUserId} must remain absent from spotlight on repeated request`,
     );
   });
+
+  test("opting back in (spotlightOptOut=false) makes the user reappear on the next GET /users/spotlight", async () => {
+    // At this point the user has spotlightOptOut=true from the previous test.
+    // Reverse the opt-out — this must also invalidate the cache so the user
+    // is visible again immediately, without waiting up to 1 hour for TTL expiry.
+    const patch = await patchProfile(proUserId, proUsername, { spotlightOptOut: false });
+    assert.equal(
+      patch.status,
+      200,
+      `Opt-back-in PATCH should succeed; got ${JSON.stringify(patch.body)}`,
+    );
+
+    // Confirm the DB value was updated.
+    const [row] = await db
+      .select({ spotlightOptOut: usersTable.spotlightOptOut })
+      .from(usersTable)
+      .where(eq(usersTable.id, proUserId));
+    assert.equal(row.spotlightOptOut, false, "spotlightOptOut should be false in DB after opting back in");
+
+    // The very next request must include the user again.
+    // A caching bug that only invalidated on opt-out (not on opt-back-in) would
+    // still serve the old cache (which excludes the user) for up to 1 hour.
+    const res = await getSpotlight();
+    assert.equal(res.status, 200, "spotlight endpoint should return 200 after opting back in");
+    assert.ok(
+      isInSpotlight(res.body, proUserId),
+      `User ${proUserId} must reappear in spotlight immediately after opting back in (spotlightOptOut=false)`,
+    );
+  });
 });

@@ -205,6 +205,22 @@
     "fallback2Name": "Party Leader",
     "fallback2Desc": "قدت 50 بارتي للفوز"
   },
+  "spotlight": {
+    "title": "🌟 لاعبون مميزون",
+    "subtitle": "أعضاء Pro النشطون في الساحة",
+    "addFriend": "إضافة صديق",
+    "profile": "الملف الشخصي",
+    "empty": "لا يوجد أعضاء Pro نشطون الآن"
+  },
+  "vipLounge": {
+    "title": "👑 غرفة VIP",
+    "subtitle": "غرفة صوتية لأعضاء Pro",
+    "participants": "{{count}} في الغرفة",
+    "join": "ادخل الغرفة",
+    "upgrade": "الترقية إلى Pro",
+    "proOnly": "انضم إلى الغرفة الحصرية — لأعضاء Pro فقط",
+    "active": "مباشر الآن"
+  },
   "stats": {
     "weeklyLabel": "هذا الأسبوع",
     "weeklyHint": "+{{h}}h من أمس",

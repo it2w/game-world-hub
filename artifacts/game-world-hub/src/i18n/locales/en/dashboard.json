@@ -205,6 +205,22 @@
     "fallback2Name": "Party Leader",
     "fallback2Desc": "Led 50 parties to victory"
   },
+  "spotlight": {
+    "title": "🌟 Featured Players",
+    "subtitle": "Active Pro members in the arena",
+    "addFriend": "Add Friend",
+    "profile": "Profile",
+    "empty": "No active Pro members right now"
+  },
+  "vipLounge": {
+    "title": "👑 VIP Lounge",
+    "subtitle": "Pro members voice room",
+    "participants": "{{count}} in lounge",
+    "join": "JOIN LOUNGE",
+    "upgrade": "Upgrade to Pro",
+    "proOnly": "Join the exclusive voice lounge — Pro members only",
+    "active": "LIVE NOW"
+  },
   "stats": {
     "weeklyLabel": "This Week",
     "weeklyHint": "+{{h}}h from yesterday",

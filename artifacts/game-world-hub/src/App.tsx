@@ -32,6 +32,7 @@ import Tournaments from '@/pages/tournaments';
 import TournamentDetail from '@/pages/tournament-detail';
 import Bounties from '@/pages/bounties';
 import Factions from '@/pages/factions';
+import ProHunt from '@/pages/pro-hunt';
 import Seasons from '@/pages/seasons';
 import HallOfFame from '@/pages/hall-of-fame';
 import Admin from '@/pages/admin';
@@ -112,6 +113,7 @@ function Router() {
             <Route path="/tournaments/:id" component={TournamentDetail} />
             <Route path="/bounties" component={Bounties} />
             <Route path="/factions" component={Factions} />
+            <Route path="/pro-hunt" component={ProHunt} />
             <Route path="/seasons" component={Seasons} />
             <Route path="/hall-of-fame" component={HallOfFame} />
             <Route path="/admin" component={Admin} />

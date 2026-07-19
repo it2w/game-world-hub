@@ -102,6 +102,7 @@ interface VoiceContextValue {
 
   joinPartyVoice: (partyId: number, title: string) => Promise<void>;
   joinProRoom: (roomId: number, title: string) => Promise<void>;
+  joinVipLounge: () => Promise<void>;
   leaveVoice: () => void;
   rejoin: () => Promise<void>;
   callUser: (user: CallUser) => void;
@@ -754,6 +755,27 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     [leaveVoice, connectLiveKit],
   );
 
+  const joinVipLounge = useCallback(
+    async () => {
+      setError(null);
+      setCanRejoin(false);
+      const roomName = "vip:lounge";
+      if (activeRoomRef.current?.room === roomName) return;
+      if (activeRoomRef.current) leaveVoice();
+      const room: ActiveRoom = { kind: "proroom", room: roomName, roomId: -1, title: "VIP Lounge 👑" };
+      setActiveRoom(room);
+      activeRoomRef.current = room;
+      try {
+        await connectLiveKit(roomName);
+      } catch {
+        setError("Failed to join VIP Lounge");
+        setActiveRoom(null);
+        activeRoomRef.current = null;
+      }
+    },
+    [leaveVoice, connectLiveKit],
+  );
+
   const callUser = useCallback(
     (user: CallUser) => {
       setError(null);
@@ -1194,6 +1216,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     screenAudioVolumes,
     joinPartyVoice,
     joinProRoom,
+    joinVipLounge,
     leaveVoice,
     rejoin,
     callUser,

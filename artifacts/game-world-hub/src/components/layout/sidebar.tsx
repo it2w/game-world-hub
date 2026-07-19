@@ -159,6 +159,15 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/pro-hunt")}>
+                  <Link href="/pro-hunt">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    <span className="text-yellow-400 font-bold">{t("sidebar.proHunt")}</span>
+                    {user?.isPro && <Crown className="w-3 h-3 ms-auto text-yellow-400" />}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/hall-of-fame")}>
                   <Link href="/hall-of-fame">
                     <Award className="w-4 h-4" />

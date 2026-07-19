@@ -818,6 +818,126 @@ function AchievementShowcase({ achievements }: { achievements:any[] }) {
   );
 }
 
+// ── SpotlightCarousel ─────────────────────────────────────────────────────────
+function SpotlightCarousel() {
+  const { t } = useTranslation("dashboard");
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  const { data: spotlightUsers, isLoading } = useQuery<any[]>({
+    queryKey: ["spotlight"],
+    queryFn: () => customFetch("/api/users/spotlight"),
+    refetchInterval: 60_000 * 10, // 10 min
+    staleTime: 60_000 * 60,
+  });
+
+  return (
+    <div className="border border-yellow-400/30 bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-mono font-bold text-xs uppercase tracking-widest text-yellow-400">{t("spotlight.title")}</p>
+          <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{t("spotlight.subtitle")}</p>
+        </div>
+        <Link href="/pro"><span className="font-mono text-[10px] text-yellow-400 hover:underline uppercase">Pro Hunt →</span></Link>
+      </div>
+      {isLoading ? (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="shrink-0 w-20 space-y-1.5 animate-pulse">
+              <div className="w-12 h-12 mx-auto bg-muted rounded-sm border border-yellow-400/20" />
+              <div className="h-2.5 bg-muted rounded mx-1" />
+            </div>
+          ))}
+        </div>
+      ) : !spotlightUsers || spotlightUsers.length === 0 ? (
+        <p className="font-mono text-xs text-muted-foreground text-center py-4">{t("spotlight.empty")}</p>
+      ) : (
+        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+          {spotlightUsers.map((u: any) => (
+            <Link key={u.id} href={`/profile/${u.id}`}>
+              <div className="shrink-0 w-20 flex flex-col items-center gap-1.5 cursor-pointer group">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-sm bg-muted border border-yellow-400/40 overflow-hidden flex items-center justify-center font-mono text-sm group-hover:border-yellow-400 transition-colors">
+                    {u.avatarUrl
+                      ? <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      : <span>{u.displayName.charAt(0).toUpperCase()}</span>
+                    }
+                  </div>
+                  <div className="absolute -top-1 -end-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[8px] leading-none">👑</div>
+                </div>
+                <p className="font-mono text-[10px] text-center text-muted-foreground group-hover:text-yellow-400 truncate w-full text-center transition-colors leading-tight">
+                  {isAr ? (u.displayName || u.username) : (u.displayName || u.username)}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── VipLoungeCard ─────────────────────────────────────────────────────────────
+function VipLoungeCard({ me }: { me: any }) {
+  const { t } = useTranslation("dashboard");
+  const { joinVipLounge } = useVoice();
+  const { toast } = useToast();
+  const now = new Date();
+  const isPro = me?.isPro && (!me.proExpiresAt || new Date(me.proExpiresAt) > now);
+
+  const { data: vip, refetch } = useQuery<{ participantCount: number; canJoin: boolean }>({
+    queryKey: ["vip-lounge-dash"],
+    queryFn: () => customFetch("/api/pro-hunt/vip-lounge"),
+    refetchInterval: 30_000,
+  });
+
+  const handleJoin = async () => {
+    if (!isPro) { return; }
+    try {
+      await joinVipLounge();
+      await refetch();
+    } catch {
+      toast({ title: t("vipLounge.joinError"), variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className={`border p-4 space-y-3 ${isPro ? "border-yellow-400/40 bg-yellow-400/5" : "border-border bg-card"}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-base">👑</span>
+        <div>
+          <p className="font-mono font-bold text-xs uppercase tracking-widest text-yellow-400">{t("vipLounge.title")}</p>
+          <p className="font-mono text-[10px] text-muted-foreground">{t("vipLounge.subtitle")}</p>
+        </div>
+        {(vip?.participantCount ?? 0) > 0 && (
+          <div className="ms-auto flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <span className="font-mono text-[10px] text-green-400 uppercase">{t("vipLounge.active")}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-muted-foreground">
+          {t("vipLounge.participants", { count: vip?.participantCount ?? 0 })}
+        </span>
+        {isPro ? (
+          <button
+            className="font-mono text-[10px] uppercase tracking-widest border border-yellow-400/50 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20 px-3 py-1.5 transition-colors"
+            onClick={handleJoin}
+          >
+            {t("vipLounge.join")}
+          </button>
+        ) : (
+          <Link href="/pro-hunt">
+            <button className="font-mono text-[10px] uppercase tracking-widest border border-border text-muted-foreground hover:border-yellow-400/50 hover:text-yellow-400 px-3 py-1.5 transition-colors">
+              {t("vipLounge.upgrade")}
+            </button>
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── ProCard ────────────────────────────────────────────────────────────────────
 function ProCard({ me }: { me:any }) {
   const { t } = useTranslation("dashboard");
@@ -989,6 +1109,7 @@ export default function Dashboard() {
             onBlock={f=>blockUser.mutate({userId:f.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getGetOnlineFriendsSummaryQueryKey()})})}
           />
           <CommunityHighlights activity={partyActivity??[]}/>
+          <SpotlightCarousel/>
         </div>
 
         <div className="dash-side">
@@ -1000,6 +1121,7 @@ export default function Dashboard() {
           <ChallengeCard challenges={challenges??[]}/>
           <Leaderboard me={me} friends={friends}/>
           <AchievementShowcase achievements={achievements??[]}/>
+          <VipLoungeCard me={me}/>
           <ProCard me={me}/>
         </div>
       </div>

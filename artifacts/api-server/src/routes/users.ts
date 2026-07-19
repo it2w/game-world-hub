@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, count, desc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, ilike, ne, or } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -111,6 +111,47 @@ function commentAuthor(u: typeof usersTable.$inferSelect) {
     avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
   };
 }
+
+// ── Profile Spotlight cache (refreshed hourly) ────────────────────────────────
+let spotlightCache: { users: ReturnType<typeof safeUser>[]; ts: number } | null = null;
+const SPOTLIGHT_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// GET /users/spotlight — 6 random active Pro users for the Dashboard carousel
+router.get("/users/spotlight", requireAuth, async (req, res): Promise<void> => {
+  const now = Date.now();
+  if (spotlightCache && now - spotlightCache.ts < SPOTLIGHT_TTL_MS) {
+    res.json(spotlightCache.users);
+    return;
+  }
+  // Active = status online/away/busy or lastActiveAt within last 7 days
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const candidates = await db
+    .select()
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.isPro, true),
+        or(
+          ne(usersTable.status, "offline"),
+          gt(usersTable.lastActiveAt as any, sevenDaysAgo),
+        ),
+      ),
+    )
+    .limit(60);
+
+  // Filter to only actually-active Pro (check proExpiresAt)
+  const nowDate = new Date();
+  const active = candidates.filter(
+    (u) => u.isPro && (!u.proExpiresAt || u.proExpiresAt > nowDate),
+  );
+
+  // Shuffle and pick 6
+  const shuffled = active.sort(() => Math.random() - 0.5).slice(0, 6);
+  const result = shuffled.map((u) => safeUser(u));
+
+  spotlightCache = { users: result, ts: now };
+  res.json(result);
+});
 
 // GET /users/search
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {

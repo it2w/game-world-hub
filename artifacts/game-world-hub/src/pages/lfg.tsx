@@ -14,7 +14,7 @@ import {
   useCreateParty,
   customFetch,
 } from "@workspace/api-client-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -95,6 +95,34 @@ export default function Lfg() {
     if (!parties || !me) return [];
     return parties.filter((p) => p.members.some((m) => m.id === me.id));
   }, [parties, me]);
+
+  // ── LFG Boost ────────────────────────────────────────────────────────────────
+  const boost = useMutation({
+    mutationFn: (postId: number) =>
+      customFetch<{ boostedUntil: string; lastBoostedAt: string }>(
+        `/api/lfg/${postId}/boost`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      toast({ title: t("boost.success") });
+      queryClient.invalidateQueries({ queryKey: getListLfgPostsQueryKey() });
+    },
+    onError: (e: any) => {
+      const msg = e?.data?.error ?? t("boost.error");
+      toast({ title: msg, variant: "destructive" });
+    },
+  });
+
+  // Helper: remaining cooldown string
+  const boostCooldownLabel = (lastBoostedAt: string | null | undefined): string | null => {
+    if (!lastBoostedAt) return null;
+    const COOLDOWN = 6 * 60 * 60 * 1000;
+    const remaining = new Date(lastBoostedAt).getTime() + COOLDOWN - Date.now();
+    if (remaining <= 0) return null;
+    const h = Math.floor(remaining / 3_600_000);
+    const m = Math.floor((remaining % 3_600_000) / 60_000);
+    return h > 0 ? t("time.leftHm", { h, m }) : t("time.leftM", { m });
+  };
 
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -448,12 +476,20 @@ export default function Lfg() {
             {t("list.empty")}
           </div>
         ) : (
-          filtered.map((post) => {
+          filtered.map((post: any) => {
             const mine = me?.id === post.author.id;
             const isClosed = post.status === "closed";
             const remaining = timeLeft(post.expiresAt);
+            const isBoosted = !isClosed && post.boostedUntil && new Date(post.boostedUntil).getTime() > Date.now();
+            const cooldown = mine && !isClosed ? boostCooldownLabel(post.lastBoostedAt) : null;
             return (
-              <div key={post.id} className={`border flex flex-col transition-colors ${isClosed ? "bg-muted/30 border-border opacity-70" : "bg-card border-border hover:border-primary/50"}`}>
+              <div key={post.id} className={`border flex flex-col transition-colors ${
+                isClosed
+                  ? "bg-muted/30 border-border opacity-70"
+                  : isBoosted
+                    ? "bg-card border-yellow-400/60 shadow-sm shadow-yellow-400/20"
+                    : "bg-card border-border hover:border-primary/50"
+              }`}>
                 <div className={`p-4 border-b border-border flex items-start gap-3 ${isClosed ? "bg-muted/10" : "bg-muted/20"}`}>
                   <div className="w-10 h-10 rounded-sm bg-muted flex items-center justify-center font-mono text-sm overflow-hidden border border-border shrink-0">
                     {post.author.avatarUrl ? (
@@ -520,7 +556,25 @@ export default function Lfg() {
                     </div>
 
                     {mine ? (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        {!isClosed && me?.isPro && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`font-mono rounded-none text-xs ${
+                              isBoosted
+                                ? "border-yellow-400/60 text-yellow-400 bg-yellow-400/10"
+                                : cooldown
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "border-yellow-400/40 text-yellow-300 hover:bg-yellow-400/10"
+                            }`}
+                            title={cooldown ? t("boost.cooldown", { time: cooldown }) : isBoosted ? t("boost.active") : t("boost.button")}
+                            disabled={boost.isPending || !!isBoosted || !!cooldown}
+                            onClick={() => boost.mutate(post.id)}
+                          >
+                            {isBoosted ? <>{t("boost.active")}</> : <><Zap className="w-3 h-3 me-1" />{t("boost.button")}</>}
+                          </Button>
+                        )}
                         {!isClosed && (
                           <Button
                             variant="outline"

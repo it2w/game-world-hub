@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, gt, isNull, desc } from "drizzle-orm";
 import {
   db,
+  pool,
   usersTable,
   lfgPostsTable,
   lfgResponsesTable,
@@ -56,6 +57,14 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
     }),
   );
 
+  // Boost info — column added via ALTER TABLE in pro-hunt module
+  const boostRow = await pool.query<{ boosted_until: Date | null; last_boosted_at: Date | null }>(
+    `SELECT boosted_until, last_boosted_at FROM lfg_posts WHERE id = $1`,
+    [post.id],
+  );
+  const boostedUntil   = boostRow.rows[0]?.boosted_until ?? null;
+  const lastBoostedAt  = boostRow.rows[0]?.last_boosted_at ?? null;
+
   return {
     id: post.id,
     author: safeUser(author, authorProgress),
@@ -71,6 +80,8 @@ async function buildPost(post: typeof lfgPostsTable.$inferSelect, viewerId: numb
     viewerHasResponded: responseRows.some((r) => r.response.userId === viewerId),
     expiresAt: post.expiresAt ? post.expiresAt.toISOString() : null,
     createdAt: post.createdAt.toISOString(),
+    boostedUntil:  boostedUntil  ? boostedUntil.toISOString()  : null,
+    lastBoostedAt: lastBoostedAt ? lastBoostedAt.toISOString() : null,
   };
 }
 
@@ -151,8 +162,12 @@ router.get("/lfg", requireAuth, async (req, res): Promise<void> => {
   merged.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const builtPosts = await Promise.all(merged.map((p) => buildPost(p, myId)));
-  // Pro users appear first
+  // Sort: boosted first → Pro next → recency
+  const nowMs = now.getTime();
   builtPosts.sort((a, b) => {
+    const aBoosted = a.boostedUntil && new Date(a.boostedUntil).getTime() > nowMs ? 1 : 0;
+    const bBoosted = b.boostedUntil && new Date(b.boostedUntil).getTime() > nowMs ? 1 : 0;
+    if (bBoosted !== aBoosted) return bBoosted - aBoosted;
     const aIsPro = a.author.isPro ? 1 : 0;
     const bIsPro = b.author.isPro ? 1 : 0;
     if (bIsPro !== aIsPro) return bIsPro - aIsPro;
@@ -241,6 +256,54 @@ router.post("/lfg/:postId/respond", requireAuth, async (req, res): Promise<void>
   }
 
   res.json(await buildPost(post, myId));
+});
+
+// POST /lfg/:postId/boost — Pro user boosts their post to the top for 30 min (once per 6 h)
+router.post("/lfg/:postId/boost", requireAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.postId) ? req.params.postId[0] : req.params.postId;
+  const postId = parseInt(raw, 10);
+  const myId = req.auth!.userId;
+
+  // Verify Pro status
+  const [me] = await db.select({ isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt })
+    .from(usersTable).where(eq(usersTable.id, myId));
+  const now = new Date();
+  const isPro = me?.isPro && (!me.proExpiresAt || me.proExpiresAt > now);
+  if (!isPro) {
+    res.status(403).json({ error: "Boost is a Pro-only feature" });
+    return;
+  }
+
+  const [post] = await db.select().from(lfgPostsTable).where(eq(lfgPostsTable.id, postId));
+  if (!post || post.authorId !== myId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (post.status !== "open") {
+    res.status(400).json({ error: "Cannot boost a closed post" });
+    return;
+  }
+
+  // Check 6-hour cooldown (via raw SQL column)
+  const boostRow = await pool.query<{ last_boosted_at: Date | null }>(
+    `SELECT last_boosted_at FROM lfg_posts WHERE id = $1`,
+    [postId],
+  );
+  const lastBoostedAt = boostRow.rows[0]?.last_boosted_at ?? null;
+  const COOLDOWN_MS = 6 * 60 * 60 * 1000;
+  if (lastBoostedAt && now.getTime() - lastBoostedAt.getTime() < COOLDOWN_MS) {
+    const nextAllowed = new Date(lastBoostedAt.getTime() + COOLDOWN_MS);
+    res.status(429).json({ error: "Boost cooldown active", nextAllowedAt: nextAllowed.toISOString() });
+    return;
+  }
+
+  const boostedUntil = new Date(now.getTime() + 30 * 60 * 1000); // +30 min
+  await pool.query(
+    `UPDATE lfg_posts SET boosted_until = $1, last_boosted_at = $2 WHERE id = $3`,
+    [boostedUntil, now, postId],
+  );
+
+  res.json({ boostedUntil: boostedUntil.toISOString(), lastBoostedAt: now.toISOString() });
 });
 
 // POST /lfg/:postId/close — author closes the post

@@ -78,8 +78,20 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
       res.status(500).json({ error: "Internal error" });
       return;
     }
+  } else if (room === "vip:lounge") {
+    // Pro-only VIP Lounge
+    const [user] = await db
+      .select({ isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    const nowDate = new Date();
+    const isPro = user?.isPro && (!user.proExpiresAt || user.proExpiresAt > nowDate);
+    if (!isPro) {
+      res.status(403).json({ error: "VIP Lounge is for Pro members only" });
+      return;
+    }
   } else {
-    res.status(400).json({ error: "Invalid room format (expected party:<id>, call:<id>, or proroom:<id>)" });
+    res.status(400).json({ error: "Invalid room format (expected party:<id>, call:<id>, proroom:<id>, or vip:lounge)" });
     return;
   }
 

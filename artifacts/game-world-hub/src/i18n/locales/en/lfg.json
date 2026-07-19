@@ -67,6 +67,14 @@
     "signalClosed": "Signal closed — this post is no longer open",
     "signalExpired": "Signal expired — this post is no longer accepting responses"
   },
+  "boost": {
+    "button": "⚡ BOOST",
+    "active": "⚡ BOOSTED",
+    "proOnly": "Pro only — upgrade to boost your signal",
+    "cooldown": "Boost available in {{time}}",
+    "success": "⚡ Signal boosted for 30 minutes!",
+    "error": "Could not boost signal"
+  },
   "closeConfirm": {
     "title": "Close Signal",
     "subtitle": "These players responded to your {{game}} signal. Invite them to your party or visit their profiles before closing.",

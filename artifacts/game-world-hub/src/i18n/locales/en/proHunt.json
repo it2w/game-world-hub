@@ -1,0 +1,28 @@
+{
+  "header": {
+    "title": "Pro Hunt",
+    "subtitle": "Complete all 5 monthly challenges to earn 1 month Pro — free"
+  },
+  "reward": {
+    "title": "🏆 Earn 1 Month Pro — Free",
+    "desc": "Complete every challenge this month to claim your Pro subscription at no cost"
+  },
+  "progress": {
+    "overall": "{{done}} of {{total}} challenges complete"
+  },
+  "claim": {
+    "button": "CLAIM PRO — ALL DONE!",
+    "claiming": "CLAIMING...",
+    "success": "🎉 Pro activated! Enjoy your month.",
+    "error": "Could not claim Pro",
+    "granted": "✓ Pro already granted this month — enjoy!"
+  },
+  "vip": {
+    "title": "VIP Lounge",
+    "desc": "An exclusive voice room for Pro members. Jump in and squad up with the best.",
+    "participants": "{{count}} in lounge",
+    "join": "JOIN LOUNGE",
+    "upgrade": "Upgrade to Pro",
+    "joinError": "Could not join VIP Lounge"
+  }
+}

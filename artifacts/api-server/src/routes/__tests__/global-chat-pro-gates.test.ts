@@ -82,6 +82,10 @@ let editLapseId = 0; let editLapseUsername = "";
 let bcastPro1Id = 0; let bcastPro1Username = "";
 let bcastPro2Id = 0; let bcastPro2Username = "";
 
+// Edit broadcast — WS observer + editor
+let editBcastObsId  = 0; let editBcastObsUsername  = "";
+let editBcastEdId   = 0; let editBcastEdUsername   = "";
+
 // Pro-metadata stripping for free users
 let metaFree1Id = 0; let metaFree1Username = "";
 let metaFree2Id = 0; let metaFree2Username = "";
@@ -279,6 +283,8 @@ before(async () => {
       free("giftxt"),
       free("giflfg"),
       pro("editlapse"),
+      free("editbcastobs"),
+      pro("editbcasted"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -309,9 +315,11 @@ before(async () => {
     [lfgTextId,    lfgTextUsername],
     [tradeTextId,  tradeTextUsername],
     [lapPinId,     lapPinUsername],
-    [gifTextId,      gifTextUsername],
-    [gifLfgId,       gifLfgUsername],
-    [editLapseId,    editLapseUsername],
+    [gifTextId,        gifTextUsername],
+    [gifLfgId,         gifLfgUsername],
+    [editLapseId,      editLapseUsername],
+    [editBcastObsId,   editBcastObsUsername],
+    [editBcastEdId,    editBcastEdUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -1364,6 +1372,81 @@ describe("Pro lapse — length cap and GIF gate", () => {
       );
     } finally {
       await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapsedGifId]);
+    }
+  });
+});
+
+describe("Edit broadcast — WS observer receives message_edit frame instantly", () => {
+  // editBcastObsId connects as a WS observer before editBcastEdId (a Pro user)
+  // edits their own message via PATCH.  The test confirms that:
+  //   • a message_edit frame is broadcast (not silently dropped)
+  //   • the frame carries the correct messageId and updated content
+
+  test("WS observer receives a message_edit broadcast when a Pro user edits their message", async () => {
+    // Seed a fresh message directly in the DB (no POST cooldown concerns)
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'original content before edit', 'general') RETURNING id`,
+      [editBcastEdId],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    // Open the observer BEFORE the edit so the frame is not missed
+    const observer = openWsObserver(editBcastObsId, editBcastObsUsername);
+
+    // Allow a tick for the WS handshake to complete
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("WS open timeout")), 3_000);
+      const ws = new WebSocket(
+        `${wsBaseUrl}?token=${encodeURIComponent(
+          signToken({ userId: editBcastObsId, username: editBcastObsUsername }),
+        )}`,
+      );
+      ws.once("open",  () => { clearTimeout(t); ws.terminate(); resolve(); });
+      ws.once("error", (e) => { clearTimeout(t); reject(e); });
+    });
+
+    try {
+      // Pro user edits their message via PATCH
+      const patchRes = await req(
+        "PATCH", `/global-chat/messages/${msgId}`,
+        editBcastEdId, editBcastEdUsername,
+        { content: "updated content after edit" },
+      );
+      assert.equal(
+        patchRes.status, 200,
+        `PATCH failed: ${JSON.stringify(patchRes.body)}`,
+      );
+
+      // Wait for the message_edit broadcast targeted to this message id
+      const frame = await observer.waitFor((m) => {
+        const f = m as { type?: string; messageId?: number };
+        return f.type === "message_edit" && f.messageId === msgId;
+      });
+
+      const editFrame = frame as {
+        type: string;
+        messageId: number;
+        content: string;
+        editedAt: string;
+        channel: string;
+      };
+
+      assert.equal(editFrame.type, "message_edit", "frame type must be 'message_edit'");
+      assert.equal(editFrame.messageId, msgId, "frame messageId must match the edited message");
+      assert.equal(
+        editFrame.content,
+        "updated content after edit",
+        `frame content must reflect the new text, got: ${editFrame.content}`,
+      );
+      assert.ok(
+        typeof editFrame.editedAt === "string" && editFrame.editedAt.length > 0,
+        "frame must include a non-empty editedAt timestamp",
+      );
+      assert.equal(editFrame.channel, "general", "frame must include the correct channel");
+    } finally {
+      observer.close();
     }
   });
 });

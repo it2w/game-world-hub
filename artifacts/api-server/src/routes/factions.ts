@@ -244,7 +244,7 @@ export async function sweepWeeklyWarNotifications(nowOverride?: Date): Promise<v
       FROM factions f
       LEFT JOIN user_activity ua ON ua.faction_id = f.id
       GROUP BY f.id, f.name, f.slug, f.color, f.icon_emoji
-      ORDER BY weekly_points DESC
+      ORDER BY weekly_points DESC, f.id ASC
     `);
 
     if (standings.length === 0) return;
@@ -316,7 +316,7 @@ const WAR_SQL = `
   FROM factions f
   LEFT JOIN user_activity ua ON ua.faction_id = f.id
   GROUP BY f.id, f.name, f.slug, f.color, f.icon_emoji, f.description
-  ORDER BY weekly_points DESC
+  ORDER BY weekly_points DESC, f.id ASC
 `;
 
 // ── Routes ────────────────────────────────────────────────────────────────────

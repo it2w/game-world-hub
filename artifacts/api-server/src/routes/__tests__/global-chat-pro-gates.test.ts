@@ -83,6 +83,9 @@ let metaFree1Id = 0; let metaFree1Username = "";
 let metaFree2Id = 0; let metaFree2Username = "";
 let metaProId   = 0; let metaProUsername   = "";
 
+// Pro-metadata lapse: user was Pro, stored fields, then subscription expires mid-session
+let lapsedProId = 0; let lapsedProUsername = "";
+
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
 const createdPinIds:     number[] = [];
@@ -250,6 +253,7 @@ before(async () => {
       free("meta1"),
       free("meta2"),
       pro("meta"),
+      pro("lapsedmeta"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -274,6 +278,7 @@ before(async () => {
     [metaFree1Id,  metaFree1Username],
     [metaFree2Id,  metaFree2Username],
     [metaProId,    metaProUsername],
+    [lapsedProId,  lapsedProUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -866,5 +871,71 @@ describe("Pro metadata stripping — free users cannot inject Pro-only fields", 
     assert.equal(meta.badge,         PRO_FIELDS.badge,         `badge mismatch`);
     assert.equal(meta.nameAnimation, PRO_FIELDS.nameAnimation, `nameAnimation mismatch`);
     assert.equal(meta.msgBgColor,    PRO_FIELDS.msgBgColor,    `msgBgColor mismatch`);
+  });
+
+  test("lapsed Pro: Pro metadata fields are stripped after subscription expires mid-session", async () => {
+    // Step 1 — while still Pro, post a message with nameColor + badge → fields stored
+    const res1 = await postMsg(lapsedProId, lapsedProUsername, {
+      content:  "pro message before expiry",
+      metadata: { nameColor: PRO_FIELDS.nameColor, badge: PRO_FIELDS.badge },
+    });
+    assert.equal(res1.status, 201, `expected 201 (pre-lapse) got ${res1.status}: ${JSON.stringify(res1.body)}`);
+    const body1 = res1.body as { id: number; metadata: Record<string, unknown> };
+    if (body1.id) createdMessageIds.push(body1.id);
+
+    // Confirm Pro fields were accepted in the first post
+    assert.equal(body1.metadata?.nameColor, PRO_FIELDS.nameColor, `nameColor should be stored while Pro`);
+    assert.equal(body1.metadata?.badge,     PRO_FIELDS.badge,     `badge should be stored while Pro`);
+
+    // Step 2 — simulate subscription expiry by flipping is_pro → false in the DB
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [lapsedProId]);
+
+    try {
+      // After the Pro flag flips the cooldown becomes 1 000 ms (free-user rate).
+      // Wait long enough to clear the free-user cooldown from the first POST.
+      await new Promise(r => setTimeout(r, 1_100));
+
+      // Step 3 — post again with the same metadata; route re-reads is_pro from DB
+      const res2 = await postMsg(lapsedProId, lapsedProUsername, {
+        content:  "message after expiry with stale meta",
+        metadata: { nameColor: PRO_FIELDS.nameColor, badge: PRO_FIELDS.badge },
+      });
+      assert.equal(res2.status, 201, `expected 201 (post-lapse) got ${res2.status}: ${JSON.stringify(res2.body)}`);
+      const body2 = res2.body as { id: number; metadata: Record<string, unknown> };
+      if (body2.id) createdMessageIds.push(body2.id);
+
+      // Response must not contain Pro fields
+      const meta = body2.metadata ?? {};
+      assert.equal(
+        meta.nameColor,
+        undefined,
+        `nameColor must be stripped after Pro lapse, got: ${JSON.stringify(meta)}`,
+      );
+      assert.equal(
+        meta.badge,
+        undefined,
+        `badge must be stripped after Pro lapse, got: ${JSON.stringify(meta)}`,
+      );
+
+      // DB row must also be clean
+      const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+        `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+        [body2.id],
+      );
+      const stored = rows[0]?.metadata ?? {};
+      assert.equal(
+        stored.nameColor,
+        undefined,
+        `nameColor must not persist in DB after Pro lapse, got: ${JSON.stringify(stored)}`,
+      );
+      assert.equal(
+        stored.badge,
+        undefined,
+        `badge must not persist in DB after Pro lapse, got: ${JSON.stringify(stored)}`,
+      );
+    } finally {
+      // Restore Pro status so teardown can proceed cleanly
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapsedProId]);
+    }
   });
 });

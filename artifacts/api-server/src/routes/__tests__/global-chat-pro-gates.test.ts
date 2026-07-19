@@ -86,6 +86,10 @@ let metaProId   = 0; let metaProUsername   = "";
 // Pro-metadata lapse: user was Pro, stored fields, then subscription expires mid-session
 let lapsedProId = 0; let lapsedProUsername = "";
 
+// Type-gated metadata stripping — lfg_signal / trade_offer fields on a plain text message
+let lfgTextId = 0; let lfgTextUsername = "";
+let tradeTextId = 0; let tradeTextUsername = "";
+
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
 const createdPinIds:     number[] = [];
@@ -254,6 +258,8 @@ before(async () => {
       free("meta2"),
       pro("meta"),
       pro("lapsedmeta"),
+      free("lfgtxt"),
+      free("tradetxt"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -279,6 +285,8 @@ before(async () => {
     [metaFree2Id,  metaFree2Username],
     [metaProId,    metaProUsername],
     [lapsedProId,  lapsedProUsername],
+    [lfgTextId,    lfgTextUsername],
+    [tradeTextId,  tradeTextUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -936,6 +944,91 @@ describe("Pro metadata stripping — free users cannot inject Pro-only fields", 
     } finally {
       // Restore Pro status so teardown can proceed cleanly
       await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapsedProId]);
+    }
+  });
+});
+
+describe("Type-gated metadata stripping — lfg_signal / trade_offer fields on a plain text message", () => {
+  // sanitizeMeta only copies lfg-signal fields (game, platform, rank, slots, lfgPostId)
+  // when messageType === "lfg_signal", and trade fields (offering, seeking, price) when
+  // messageType === "trade_offer".  These tests confirm that sending those fields with
+  // messageType:"text" results in a 201 but none of the fields are stored.
+
+  test("text message with lfg_signal fields in metadata — all lfg fields are silently dropped", async () => {
+    const res = await postMsg(lfgTextId, lfgTextUsername, {
+      content:     "just a regular message",
+      messageType: "text",
+      metadata:    {
+        game:      "Valorant",
+        platform:  "PC",
+        rank:      "Diamond",
+        slots:     3,
+        lfgPostId: 99999,
+      },
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    const meta = body.metadata ?? {};
+    for (const field of ["game", "platform", "rank", "slots", "lfgPostId"]) {
+      assert.equal(
+        meta[field],
+        undefined,
+        `lfg field "${field}" must be stripped from text message response, got: ${JSON.stringify(meta)}`,
+      );
+    }
+
+    // Verify DB row is also clean
+    const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+      `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+      [body.id],
+    );
+    const stored = rows[0]?.metadata ?? {};
+    for (const field of ["game", "platform", "rank", "slots", "lfgPostId"]) {
+      assert.equal(
+        stored[field],
+        undefined,
+        `lfg field "${field}" must not be persisted in DB for text message, got: ${JSON.stringify(stored)}`,
+      );
+    }
+  });
+
+  test("text message with trade_offer fields in metadata — all trade fields are silently dropped", async () => {
+    const res = await postMsg(tradeTextId, tradeTextUsername, {
+      content:     "just another regular message",
+      messageType: "text",
+      metadata:    {
+        offering: "AK-47 | Redline",
+        seeking:  "AWP | Asiimov",
+        price:    "$15",
+      },
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    const meta = body.metadata ?? {};
+    for (const field of ["offering", "seeking", "price"]) {
+      assert.equal(
+        meta[field],
+        undefined,
+        `trade field "${field}" must be stripped from text message response, got: ${JSON.stringify(meta)}`,
+      );
+    }
+
+    // Verify DB row is also clean
+    const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+      `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+      [body.id],
+    );
+    const stored = rows[0]?.metadata ?? {};
+    for (const field of ["offering", "seeking", "price"]) {
+      assert.equal(
+        stored[field],
+        undefined,
+        `trade field "${field}" must not be persisted in DB for text message, got: ${JSON.stringify(stored)}`,
+      );
     }
   });
 });

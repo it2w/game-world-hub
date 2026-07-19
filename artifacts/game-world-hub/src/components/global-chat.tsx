@@ -126,17 +126,13 @@ function MessageRow({ msg, meId, t }: { msg: ChatMessage; meId: number; t: (k: s
       <div className="gc-msg-body">
         {/* Name row */}
         <div className="gc-msg-meta">
-          {!isMe && (
-            <>
-              <span className="gc-msg-name" style={nameColor ? { color: nameColor } : undefined}>
-                {msg.author.displayName}
-              </span>
-              {msg.author.isPro && (
-                <span className="gc-pro-badge">
-                  <Crown className="w-2.5 h-2.5" /> PRO
-                </span>
-              )}
-            </>
+          <span className="gc-msg-name" style={nameColor ? { color: nameColor } : undefined}>
+            {msg.author.displayName}
+          </span>
+          {msg.author.isPro && (
+            <span className="gc-pro-badge">
+              <Crown className="w-2.5 h-2.5" /> PRO
+            </span>
           )}
           <span className="gc-msg-time">{timeAgo(msg.createdAt)}</span>
         </div>

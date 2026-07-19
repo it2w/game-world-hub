@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { customFetch, useGetMe } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Flame, Users, Star, Shield, Clock, ChevronRight, X } from "lucide-react";
+import { Flame, Users, Star, Shield, Clock, ChevronRight, ChevronDown, Trophy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TierBadge } from "@/components/tier-badge";
 
@@ -155,6 +156,20 @@ interface MyFaction {
   joinedAt: string;
 }
 
+interface TopContributor {
+  rank: number;
+  userId: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  weeklyPoints: number;
+}
+
+interface WeeklyTopResponse {
+  faction: { id: number; name: string; slug: string; color: string; iconEmoji: string };
+  contributors: TopContributor[];
+}
+
 function FactionBadge({ slug, color, emoji, name, size = "sm" }: { slug: string; color: string; emoji: string; name: string; size?: "sm" | "lg" }) {
   return (
     <span
@@ -194,6 +209,95 @@ function WarCountdown() {
   );
 }
 
+function ContributorAvatar({ avatarUrl, username, color }: { avatarUrl: string | null; username: string; color: string }) {
+  const initials = username.slice(0, 2).toUpperCase();
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={username}
+        className="w-7 h-7 object-cover shrink-0"
+        style={{ border: `1px solid ${color}44` }}
+        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+    );
+  }
+  return (
+    <div
+      className="w-7 h-7 shrink-0 flex items-center justify-center font-mono text-[10px] font-bold"
+      style={{ backgroundColor: `${color}22`, border: `1px solid ${color}44`, color }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function FactionTopContributors({ factionId, color }: { factionId: number; color: string }) {
+  const { data, isLoading } = useQuery<WeeklyTopResponse>({
+    queryKey: ["faction-weekly-top", factionId],
+    queryFn: () => customFetch(`/api/factions/${factionId}/weekly-top?limit=5`),
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 pt-1">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-8 bg-muted animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  const contributors = data?.contributors ?? [];
+
+  if (contributors.length === 0) {
+    return (
+      <p className="font-mono text-xs text-muted-foreground py-2">
+        No activity this week yet.
+      </p>
+    );
+  }
+
+  const rankMedals = ["🥇", "🥈", "🥉"];
+
+  return (
+    <div className="space-y-1 pt-1">
+      {contributors.map((c) => (
+        <Link key={c.userId} href={`/profile/${c.username}`}>
+          <div
+            className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-muted/60 transition-colors cursor-pointer group"
+          >
+            {/* Rank medal / number */}
+            <span className="font-mono text-xs w-5 text-center shrink-0 text-muted-foreground">
+              {rankMedals[c.rank - 1] ?? `#${c.rank}`}
+            </span>
+
+            <ContributorAvatar avatarUrl={c.avatarUrl} username={c.username} color={color} />
+
+            <div className="min-w-0 flex-1">
+              <span
+                className="font-mono text-xs font-semibold group-hover:underline truncate block"
+                style={{ color }}
+              >
+                {c.displayName || c.username}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">@{c.username}</span>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <span className="font-mono text-xs font-bold" style={{ color }}>
+                {c.weeklyPoints.toLocaleString()}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground block">pts</span>
+            </div>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default function FactionsPage() {
   const { t } = useTranslation("factions");
   const { toast } = useToast();
@@ -201,6 +305,7 @@ export default function FactionsPage() {
   const { data: me } = useGetMe();
   const [joining, setJoining] = useState<number | null>(null);
   const [rosterOpen, setRosterOpen] = useState<RosterState | null>(null);
+  const [expandedFactions, setExpandedFactions] = useState<Set<number>>(new Set());
 
   const { data: factions, isLoading } = useQuery<Faction[]>({
     queryKey: ["factions"],
@@ -230,6 +335,15 @@ export default function FactionsPage() {
       setJoining(null);
     },
   });
+
+  function toggleExpanded(factionId: number) {
+    setExpandedFactions(prev => {
+      const next = new Set(prev);
+      if (next.has(factionId)) next.delete(factionId);
+      else next.add(factionId);
+      return next;
+    });
+  }
 
   const maxPoints = Math.max(...(factions?.map(f => f.weekly_points) ?? [1]), 1);
 
@@ -276,6 +390,7 @@ export default function FactionsPage() {
             const isLeader = idx === 0;
             const pct = maxPoints > 0 ? Math.round((faction.weekly_points / maxPoints) * 100) : 0;
             const isMyFaction = myFaction?.id === faction.id;
+            const isExpanded = expandedFactions.has(faction.id);
 
             return (
               <div
@@ -336,6 +451,29 @@ export default function FactionsPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+
+                {/* Top contributors toggle */}
+                <div className="border-t pt-3" style={{ borderColor: `${faction.color}22` }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(faction.id)}
+                    className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest hover:opacity-80 transition-opacity"
+                    style={{ color: faction.color }}
+                  >
+                    <Trophy className="w-3 h-3" />
+                    Top Contributors This Week
+                    {isExpanded
+                      ? <ChevronDown className="w-3 h-3 ml-0.5" />
+                      : <ChevronRight className="w-3 h-3 ml-0.5" />
+                    }
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-2">
+                      <FactionTopContributors factionId={faction.id} color={faction.color} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Join button — only show if no faction yet */}

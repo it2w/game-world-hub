@@ -524,6 +524,54 @@ router.get("/seasons/current/rankings", requireAuth, async (req, res): Promise<v
   });
 });
 
+// GET /factions/:id/weekly-top — top N contributors for the current ISO week
+router.get("/factions/:id/weekly-top", requireAuth, async (req, res): Promise<void> => {
+  const factionId = parseInt(p(req.params.id), 10);
+  if (isNaN(factionId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const limit = Math.min(parseInt((req.query.limit as string) ?? "5", 10) || 5, 25);
+
+  // Verify faction exists
+  const { rows: factionRows } = await pool.query<{ id: number; name: string; slug: string; color: string; icon_emoji: string }>(
+    `SELECT id, name, slug, color, icon_emoji FROM factions WHERE id = $1`,
+    [factionId],
+  );
+  if (!factionRows[0]) { res.status(404).json({ error: "Faction not found" }); return; }
+  const faction = factionRows[0];
+
+  const { rows } = await pool.query<{
+    user_id: number; username: string; display_name: string; avatar_url: string | null; weekly_pts: number;
+  }>(`
+    SELECT
+      u.id AS user_id,
+      u.username,
+      u.display_name,
+      u.avatar_url,
+      (
+        (SELECT COUNT(*)::INT FROM lfg_posts     WHERE author_id = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 5 +
+        (SELECT COUNT(*)::INT FROM lfg_responses WHERE user_id   = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 3 +
+        (SELECT COUNT(*)::INT FROM messages      WHERE sender_id = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 1
+      ) AS weekly_pts
+    FROM user_factions uf
+    JOIN users u ON u.id = uf.user_id
+    WHERE uf.faction_id = $1
+    ORDER BY weekly_pts DESC, u.id ASC
+    LIMIT $2
+  `, [factionId, limit]);
+
+  res.json({
+    faction: { id: faction.id, name: faction.name, slug: faction.slug, color: faction.color, iconEmoji: faction.icon_emoji },
+    contributors: rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.user_id,
+      username: r.username,
+      displayName: r.display_name,
+      avatarUrl: toPublicImageUrl(r.avatar_url),
+      weeklyPoints: r.weekly_pts,
+    })),
+  });
+});
+
 // GET /hall-of-fame — all completed seasons with top 10 each
 router.get("/hall-of-fame", requireAuth, async (_req, res): Promise<void> => {
   // Get all seasons that have hall_of_fame entries

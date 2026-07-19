@@ -81,7 +81,7 @@ jobs:
       # ── 7. Package MSIX ───────────────────────────────────────────────────
       - name: Build MSIX
         working-directory: artifacts/game-world-hub-desktop
-        run: pnpm exec electron-builder --win appx --x64
+        run: pnpm exec electron-builder --win appx --x64 --publish never
 
       # ── 8. Collect artefacts ──────────────────────────────────────────────
       - name: Upload MSIX to Actions artefacts

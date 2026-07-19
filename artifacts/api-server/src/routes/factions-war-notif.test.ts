@@ -2,18 +2,23 @@
  * Integration tests for sweepWeeklyWarNotifications
  *
  * Verifies that the weekly war notification sweep:
- *  1. Picks the faction that led in the PRIOR-week window
- *     (>= NOW()-14d AND < NOW()-7d), not the faction leading the current week.
+ *  1. Picks the faction that led in the PRIOR ISO-week window
+ *     [prevMonday, thisMonday), not the faction leading the current week.
  *  2. Writes a faction_war_notif_log entry so duplicate notifications are suppressed.
  *  3. A second call for the same week key is a strict no-op (idempotency).
  *
+ * All sweep calls use NOW_OVERRIDE = 2026-01-14T12:00:00Z (Wednesday) so the
+ * ISO-week boundaries are fixed and the results don't vary by day-of-week:
+ *   prior week  = [2026-01-05, 2026-01-12)
+ *   current week = [2026-01-12, 2026-01-19)
+ *
  * Setup:
- *  - Faction A gets a large volume of LFG-post activity planted 10 days ago
- *    (firmly inside the prior-week window [NOW()-14d, NOW()-7d)).
- *  - Faction B gets the same volume of LFG-post activity planted 2 days ago
- *    (firmly inside the current-week window [NOW()-7d, NOW()) — excluded by the sweep).
- *  - Because Faction A's prior-window points vastly exceed any realistic production
- *    traffic from 10 days ago, Faction A wins the week regardless of other factions.
+ *  - Faction A gets a large volume of LFG-post activity planted on 2026-01-08
+ *    (Thursday, firmly inside the prior ISO week [2026-01-05, 2026-01-12)).
+ *  - Faction B gets the same volume of LFG-post activity planted on 2026-01-13
+ *    (Tuesday, firmly inside the current ISO week — excluded by the sweep).
+ *  - Because Faction A's prior-week points vastly exceed any realistic production
+ *    traffic, Faction A wins the week regardless of other factions.
  */
 
 import { test, before, after, describe } from "node:test";
@@ -34,6 +39,22 @@ import { sweepWeeklyWarNotifications, prevWeekKey } from "./factions";
 // ─── Fixture state ────────────────────────────────────────────────────────────
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+/**
+ * Fixed reference "now" used as nowOverride for every sweep call in this file.
+ *
+ * Chosen to be a Wednesday so the ISO-week boundaries are unambiguous:
+ *   thisMonday  = date_trunc('week', NOW_OVERRIDE) = 2026-01-12 (Mon)
+ *   prevMonday  = thisMonday - 7d                  = 2026-01-05 (Mon)
+ *   prior week  = [2026-01-05, 2026-01-12)
+ *
+ * priorTs (2026-01-08, Thursday) is firmly inside [2026-01-05, 2026-01-12).
+ * currentTs (2026-01-13, Tuesday) is firmly inside [2026-01-12, 2026-01-19).
+ *
+ * Using a fixed value means the test results don't depend on the current
+ * day-of-week when the suite runs.
+ */
+const NOW_OVERRIDE = new Date("2026-01-14T12:00:00Z"); // Wednesday Jan 14 2026
 
 let factionAId = 0; // prior-week dominant faction
 let factionBId = 0; // current-week dominant faction (should NOT win the prior-week sweep)
@@ -125,9 +146,10 @@ before(async () => {
   ]);
 
   // ── Faction A — seed activity in the PRIOR-WEEK window ───────────────────
-  // Timestamp is ~10 days ago, firmly inside [NOW()-14d, NOW()-7d).
+  // Timestamp is 2026-01-08 (Thursday), firmly inside the prior ISO week
+  // [2026-01-05, 2026-01-12) relative to NOW_OVERRIDE (2026-01-14, Wednesday).
   // 20 posts × 5 pts = 100 pts — enough to beat any realistic production traffic.
-  const priorTs = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+  const priorTs = new Date("2026-01-08T12:00:00Z");
 
   const { rows: aPostRows } = await pool.query<{ id: number }>(
     `INSERT INTO lfg_posts
@@ -160,8 +182,9 @@ before(async () => {
   // Faction A prior-week pts: 20 × 5 = 100
 
   // ── Faction B — seed activity in the CURRENT-WEEK window ─────────────────
-  // Timestamp is ~2 days ago, firmly inside [NOW()-7d, NOW()) — excluded by sweep.
-  const currentTs = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  // Timestamp is 2026-01-13 (Tuesday), firmly inside the current ISO week
+  // [2026-01-12, 2026-01-19) relative to NOW_OVERRIDE — excluded by the sweep.
+  const currentTs = new Date("2026-01-13T12:00:00Z");
 
   const { rows: bPostRows } = await pool.query<{ id: number }>(
     `INSERT INTO lfg_posts
@@ -193,8 +216,9 @@ before(async () => {
   createdPostIds.push(...bPostRows.map(r => r.id));
   // Faction B prior-week pts: 0 (all posts are in the current window)
 
-  // Determine and clear the prior-week notif log entry so the sweep runs fresh
-  testWeekKey = prevWeekKey();
+  // Determine and clear the prior-week notif log entry so the sweep runs fresh.
+  // Use NOW_OVERRIDE so the week key matches what the sweep will compute.
+  testWeekKey = prevWeekKey(NOW_OVERRIDE);
   await pool.query(
     `DELETE FROM faction_war_notif_log WHERE week_key = $1`,
     [testWeekKey],
@@ -257,7 +281,7 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
     );
     assert.equal(before.length, 0, `notif log entry should not exist before sweep`);
 
-    await sweepWeeklyWarNotifications();
+    await sweepWeeklyWarNotifications(NOW_OVERRIDE);
 
     const { rows: after } = await pool.query(
       `SELECT week_key FROM faction_war_notif_log WHERE week_key = $1`,
@@ -337,7 +361,7 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
     assert.ok(countBefore >= 2, `at least 2 notifications expected from the first sweep`);
 
     // Second call — log entry already exists, sweep must exit immediately
-    await sweepWeeklyWarNotifications();
+    await sweepWeeklyWarNotifications(NOW_OVERRIDE);
 
     const { rows: after } = await pool.query<{ cnt: string }>(
       `SELECT COUNT(*)::text AS cnt FROM notifications WHERE user_id = ANY($1::int[]) AND type = 'faction_war_result'`,
@@ -352,11 +376,12 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
     );
   });
 
-  test("prior-week window correctly excludes activity from 2 days ago (current week)", async () => {
-    // Faction B has 20 posts from 2 days ago (current window). The sweep window is
-    // [NOW()-14d, NOW()-7d). A faction with ONLY current-week activity must score 0
-    // in the prior-week standings. Verify faction B scored 0 by checking that
-    // its member did NOT get a "wins" notification.
+  test("prior-week window correctly excludes activity from the current ISO week (2026-01-13)", async () => {
+    // Faction B has 20 posts on 2026-01-13 (Tuesday of the current ISO week
+    // [2026-01-12, 2026-01-19) relative to NOW_OVERRIDE). The sweep window is
+    // [prevMonday, thisMonday) = [2026-01-05, 2026-01-12). A faction with ONLY
+    // current-week activity must score 0 in the prior-week standings. Verify
+    // faction B scored 0 by checking that its member did NOT get a "wins" notification.
     const { rows } = await pool.query<{ title: string }>(
       `SELECT title FROM notifications WHERE user_id = $1 AND type = 'faction_war_result'`,
       [userBId],
@@ -372,9 +397,9 @@ describe("sweepWeeklyWarNotifications — prior-week window and idempotency", ()
     }
   });
 
-  test("prior-week window correctly includes activity from 10 days ago", async () => {
-    // Faction A has 20 posts from 10 days ago (prior window, 100 pts).
-    // This is firmly inside [NOW()-14d, NOW()-7d).
+  test("prior-week window correctly includes activity from the prior ISO week (2026-01-08)", async () => {
+    // Faction A has 20 posts on 2026-01-08 (Thursday of the prior ISO week
+    // [2026-01-05, 2026-01-12) relative to NOW_OVERRIDE), worth 100 pts.
     // Verify faction A is the winner by checking its member got the winning title.
     const { rows } = await pool.query<{ title: string }>(
       `SELECT title FROM notifications WHERE user_id = $1 AND type = 'faction_war_result'`,

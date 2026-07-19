@@ -226,17 +226,30 @@ export async function sweepWeeklyWarNotifications(nowOverride?: Date): Promise<v
     // Check: is the previous week key != current week key? (i.e., week has turned over)
     // This is always true since prevWeekKey() goes back 7 days. We guard with the notif log.
 
-    // Compute last week's war standings using the same weekly SQL but shifted to last week's window
+    // Compute last week's war standings using true ISO-week boundaries so a
+    // mid-week server restart never shifts the window and silently drops
+    // Monday–Wednesday results.
+    //
+    // prevMonday = date_trunc('week', ref) - 7 days  (e.g. last Mon 00:00 UTC)
+    // thisMonday = date_trunc('week', ref)            (e.g. this Mon 00:00 UTC)
+    const ref = (nowOverride ?? new Date()).toISOString();
     const { rows: standings } = await pool.query<{ id: number; name: string; slug: string; color: string; icon_emoji: string; weekly_points: number; member_count: number }>(`
-      WITH user_activity AS (
-        SELECT
-          uf.user_id, uf.faction_id,
-          (SELECT COUNT(*)::INT FROM lfg_posts     WHERE author_id = uf.user_id AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days') * 5 +
-          (SELECT COUNT(*)::INT FROM lfg_responses WHERE user_id   = uf.user_id AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days') * 3 +
-          (SELECT COUNT(*)::INT FROM messages      WHERE sender_id = uf.user_id AND created_at >= NOW() - INTERVAL '14 days' AND created_at < NOW() - INTERVAL '7 days') * 1
-          AS weekly_pts
-        FROM user_factions uf
-      )
+      WITH
+        ref_ts AS (SELECT $1::timestamptz AS t),
+        week_bounds AS (
+          SELECT
+            date_trunc('week', (SELECT t FROM ref_ts) AT TIME ZONE 'UTC') - INTERVAL '7 days' AS prev_monday,
+            date_trunc('week', (SELECT t FROM ref_ts) AT TIME ZONE 'UTC')                     AS this_monday
+        ),
+        user_activity AS (
+          SELECT
+            uf.user_id, uf.faction_id,
+            (SELECT COUNT(*)::INT FROM lfg_posts     WHERE author_id = uf.user_id AND created_at >= (SELECT prev_monday FROM week_bounds) AND created_at < (SELECT this_monday FROM week_bounds)) * 5 +
+            (SELECT COUNT(*)::INT FROM lfg_responses WHERE user_id   = uf.user_id AND created_at >= (SELECT prev_monday FROM week_bounds) AND created_at < (SELECT this_monday FROM week_bounds)) * 3 +
+            (SELECT COUNT(*)::INT FROM messages      WHERE sender_id = uf.user_id AND created_at >= (SELECT prev_monday FROM week_bounds) AND created_at < (SELECT this_monday FROM week_bounds)) * 1
+            AS weekly_pts
+          FROM user_factions uf
+        )
       SELECT
         f.id, f.name, f.slug, f.color, f.icon_emoji,
         COALESCE(SUM(ua.weekly_pts), 0)::INT AS weekly_points,
@@ -245,7 +258,7 @@ export async function sweepWeeklyWarNotifications(nowOverride?: Date): Promise<v
       LEFT JOIN user_activity ua ON ua.faction_id = f.id
       GROUP BY f.id, f.name, f.slug, f.color, f.icon_emoji
       ORDER BY weekly_points DESC, f.id ASC
-    `);
+    `, [ref]);
 
     if (standings.length === 0) return;
     const winner = standings[0];

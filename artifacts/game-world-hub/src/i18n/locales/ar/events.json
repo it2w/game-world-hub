@@ -41,7 +41,12 @@
     "game": "اللعبة",
     "countdown": "يبدأ خلال",
     "started": "بدأت الفعالية",
-    "expired": "انتهت"
+    "expired": "انتهت",
+    "attendees": "المسجّلون",
+    "noAttendees": "لم يسجّل أحد بعد — كن الأول!",
+    "viewAttendees": "عرض الحضور",
+    "joinedDesc": "أنت في القائمة",
+    "joining": "جارٍ التسجيل..."
   },
   "createForm": {
     "title": "استضف ليلة ألعاب",

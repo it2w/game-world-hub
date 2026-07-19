@@ -41,7 +41,12 @@
     "game": "Game",
     "countdown": "Starts in",
     "started": "Event Started",
-    "expired": "Ended"
+    "expired": "Ended",
+    "attendees": "Who's Attending",
+    "noAttendees": "No one has registered yet — be the first!",
+    "viewAttendees": "See attendees",
+    "joinedDesc": "You're on the list",
+    "joining": "Registering..."
   },
   "createForm": {
     "title": "Host a Game Night",

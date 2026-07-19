@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { pool, db, notificationsTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -364,6 +365,34 @@ router.get("/events/:id", requireAuth, async (req, res): Promise<void> => {
   ]);
 
   res.json(serializeEvent(evt, parseInt(pRows[0]?.cnt ?? "0"), jRows.length > 0));
+});
+
+// ── GET /events/:id/participants ──────────────────────────────────────────────
+router.get("/events/:id/participants", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid event id" }); return; }
+
+  const { rows: evtRows } = await pool.query<{ id: number }>(
+    `SELECT id FROM events WHERE id = $1`, [id],
+  );
+  if (evtRows.length === 0) { res.status(404).json({ error: "Event not found" }); return; }
+
+  const { rows } = await pool.query<{
+    id: number; display_name: string; avatar_url: string | null;
+  }>(
+    `SELECT u.id, u.display_name, u.avatar_url
+     FROM event_participants ep
+     JOIN users u ON u.id = ep.user_id
+     WHERE ep.event_id = $1
+     ORDER BY ep.joined_at ASC`,
+    [id],
+  );
+
+  res.json(rows.map((r) => ({
+    id:          r.id,
+    displayName: r.display_name,
+    avatarUrl:   toPublicImageUrl(r.avatar_url),
+  })));
 });
 
 // ── POST /events — create a Game Night ───────────────────────────────────────

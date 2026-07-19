@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
-import { Calendar, Zap, Users, Clock, Plus, Gamepad2, Trophy } from "lucide-react";
+import { Calendar, Zap, Users, Clock, Plus, Gamepad2, Trophy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,12 @@ import { customFetch } from "@workspace/api-client-react";
 import i18n from "@/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface EventParticipant {
+  id: number;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 interface GwhEvent {
   id: number;
   type: "game_night" | "flash";
@@ -164,13 +170,169 @@ function FlashEventCard({ evt, onJoin, joining }: { evt: GwhEvent; onJoin: () =>
   );
 }
 
+// ── Game Night Detail Panel ───────────────────────────────────────────────────
+function GameNightDetailPanel({
+  evt, open, onClose, onJoin, joining,
+}: {
+  evt: GwhEvent;
+  open: boolean;
+  onClose: () => void;
+  onJoin: () => void;
+  joining: boolean;
+}) {
+  const { t } = useTranslation("events");
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  const title = isAr && evt.titleAr ? evt.titleAr : evt.title;
+  const description = isAr && evt.descriptionAr ? evt.descriptionAr : evt.description;
+  const isFull = evt.maxParticipants != null && evt.participantCount >= evt.maxParticipants;
+  const isFuture = evt.scheduledAt && new Date(evt.scheduledAt) > new Date();
+
+  const dateLabel = evt.scheduledAt
+    ? new Date(evt.scheduledAt).toLocaleString(isAr ? "ar-SA" : "en-US", {
+        weekday: "long", month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      })
+    : null;
+
+  const { data: participants, isLoading: loadingParticipants } = useQuery<EventParticipant[]>({
+    queryKey: ["event-participants", evt.id],
+    queryFn: () => customFetch(`/api/events/${evt.id}/participants`),
+    enabled: open,
+    staleTime: 30_000,
+  });
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-card border border-border flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🎮</span>
+            <h2 className="font-mono font-bold text-sm leading-tight">{title}</h2>
+          </div>
+          <button
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Meta */}
+        <div className="p-4 border-b border-border/50 space-y-2 shrink-0">
+          {evt.game && (
+            <div className="flex items-center gap-1.5">
+              <Gamepad2 className="w-3 h-3 text-muted-foreground" />
+              <span className="font-mono text-xs text-primary">{evt.game}</span>
+            </div>
+          )}
+          {dateLabel && (
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3 h-3 text-muted-foreground" />
+              <span className="font-mono text-xs text-muted-foreground">{dateLabel}</span>
+            </div>
+          )}
+          {description && (
+            <p className="font-mono text-xs text-muted-foreground">{description}</p>
+          )}
+        </div>
+
+        {/* Attendees */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {t("gameNight.attendees")}
+              </p>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {evt.participantCount}
+                {evt.maxParticipants ? ` / ${evt.maxParticipants}` : ""}
+              </span>
+            </div>
+
+            {loadingParticipants ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-2 animate-pulse">
+                    <div className="w-7 h-7 rounded-full bg-muted" />
+                    <div className="h-3 w-28 bg-muted rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : participants && participants.length > 0 ? (
+              <div className="space-y-2">
+                {participants.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    {p.avatarUrl ? (
+                      <img
+                        src={p.avatarUrl}
+                        alt={p.displayName}
+                        className="w-7 h-7 rounded-full object-cover border border-border shrink-0"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {p.displayName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <span className="font-mono text-xs truncate">{p.displayName}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="font-mono text-xs text-muted-foreground">{t("gameNight.noAttendees")}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Register CTA */}
+        <div className="p-4 border-t border-border shrink-0">
+          {!isFuture ? (
+            <div className="font-mono text-xs text-center text-muted-foreground uppercase tracking-widest">
+              {t("gameNight.started")}
+            </div>
+          ) : evt.viewerJoined ? (
+            <div className="text-center space-y-0.5">
+              <div className="font-mono text-sm text-green-400 uppercase tracking-widest">{t("gameNight.joined")}</div>
+              <div className="font-mono text-[10px] text-muted-foreground">{t("gameNight.joinedDesc")}</div>
+            </div>
+          ) : isFull ? (
+            <div className="font-mono text-xs text-center text-muted-foreground uppercase tracking-widest">
+              {t("gameNight.full")}
+            </div>
+          ) : (
+            <Button
+              className="w-full font-mono rounded-none uppercase tracking-widest"
+              disabled={joining}
+              onClick={onJoin}
+            >
+              <Users className="w-3.5 h-3.5 me-2" />
+              {joining ? t("gameNight.joining") : t("gameNight.join")}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Game Night Card ───────────────────────────────────────────────────────────
 function GameNightCard({ evt, onJoin, joining }: { evt: GwhEvent; onJoin: () => void; joining: boolean }) {
   const { t } = useTranslation("events");
   const isAr = i18n.resolvedLanguage?.startsWith("ar");
   const title = isAr && evt.titleAr ? evt.titleAr : evt.title;
   const description = isAr && evt.descriptionAr ? evt.descriptionAr : evt.description;
-  const remaining = useCountdown(evt.scheduledAt);
+  const [panelOpen, setPanelOpen] = useState(false);
   const isFull = evt.maxParticipants != null && evt.participantCount >= evt.maxParticipants;
   const isFuture = evt.scheduledAt && new Date(evt.scheduledAt) > new Date();
 
@@ -182,61 +344,79 @@ function GameNightCard({ evt, onJoin, joining }: { evt: GwhEvent; onJoin: () => 
     : null;
 
   return (
-    <div className="border border-border bg-card hover:border-primary/40 transition-colors">
-      <div className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center text-xl bg-muted border border-border">
-              🎮
+    <>
+      <div
+        className="border border-border bg-card hover:border-primary/40 transition-colors cursor-pointer"
+        onClick={() => setPanelOpen(true)}
+      >
+        <div className="p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center text-xl bg-muted border border-border">
+                🎮
+              </div>
+              <div>
+                <h3 className="font-mono font-bold text-sm leading-tight">{title}</h3>
+                {evt.game && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Gamepad2 className="w-3 h-3 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-primary">{evt.game}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h3 className="font-mono font-bold text-sm leading-tight">{title}</h3>
-              {evt.game && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Gamepad2 className="w-3 h-3 text-muted-foreground" />
-                  <span className="font-mono text-[10px] text-primary">{evt.game}</span>
-                </div>
+            <div className="text-end shrink-0">
+              <div className="font-mono text-[10px] text-muted-foreground">{t("gameNight.participants", { count: evt.participantCount })}</div>
+              {evt.maxParticipants && (
+                <div className="font-mono text-[10px] text-muted-foreground">{t("gameNight.maxParticipants", { count: evt.maxParticipants })}</div>
               )}
             </div>
           </div>
-          <div className="text-end shrink-0">
-            <div className="font-mono text-[10px] text-muted-foreground">{t("gameNight.participants", { count: evt.participantCount })}</div>
-            {evt.maxParticipants && (
-              <div className="font-mono text-[10px] text-muted-foreground">{t("gameNight.maxParticipants", { count: evt.maxParticipants })}</div>
-            )}
-          </div>
-        </div>
 
-        {description && <p className="font-mono text-xs text-muted-foreground">{description}</p>}
+          {description && <p className="font-mono text-xs text-muted-foreground">{description}</p>}
 
-        <div className="flex items-center justify-between border-t border-border/50 pt-3">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3 text-muted-foreground" />
-            <span className="font-mono text-[10px] text-muted-foreground">{dateLabel}</span>
+          <div className="flex items-center justify-between border-t border-border/50 pt-3">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3 h-3 text-muted-foreground" />
+              <span className="font-mono text-[10px] text-muted-foreground">{dateLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-muted-foreground/60 uppercase tracking-widest">
+                {t("gameNight.viewAttendees")}
+              </span>
+              {isFuture ? (
+                evt.viewerJoined ? (
+                  <span className="font-mono text-[10px] uppercase text-green-400 tracking-widest">{t("gameNight.joined")}</span>
+                ) : isFull ? (
+                  <span className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">{t("gameNight.full")}</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="font-mono rounded-none text-xs uppercase tracking-widest"
+                    disabled={joining}
+                    onClick={(e) => { e.stopPropagation(); onJoin(); }}
+                  >
+                    <Users className="w-3 h-3 me-1" />
+                    {t("gameNight.join")}
+                  </Button>
+                )
+              ) : (
+                <span className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">{t("gameNight.started")}</span>
+              )}
+            </div>
           </div>
-          {isFuture ? (
-            evt.viewerJoined ? (
-              <span className="font-mono text-[10px] uppercase text-green-400 tracking-widest">{t("gameNight.joined")}</span>
-            ) : isFull ? (
-              <span className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">{t("gameNight.full")}</span>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="font-mono rounded-none text-xs uppercase tracking-widest"
-                disabled={joining}
-                onClick={onJoin}
-              >
-                <Users className="w-3 h-3 me-1" />
-                {t("gameNight.join")}
-              </Button>
-            )
-          ) : (
-            <span className="font-mono text-[10px] uppercase text-muted-foreground tracking-widest">{t("gameNight.started")}</span>
-          )}
         </div>
       </div>
-    </div>
+
+      <GameNightDetailPanel
+        evt={evt}
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        onJoin={() => { onJoin(); setPanelOpen(false); }}
+        joining={joining}
+      />
+    </>
   );
 }
 

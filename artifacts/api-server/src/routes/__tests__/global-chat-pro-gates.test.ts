@@ -624,6 +624,35 @@ describe("Pin gate", () => {
       observer.close();
     }
   });
+
+  test("failed pin (non-existent message, 404) does not emit a pin_update WS frame", async () => {
+    // Use a message ID that is virtually guaranteed not to exist
+    const nonExistentId = 999999999;
+
+    // Open a WS observer and wait until it is connected
+    const observer = openWsObserver(pinBcastObs1Id, pinBcastObs1Username);
+    await observer.ready;
+
+    try {
+      // Attempt to pin a non-existent message as a Pro user — must be 404
+      const res = await req(
+        "POST",
+        `/global-chat/messages/${nonExistentId}/pin`,
+        pinProId,
+        pinProUsername,
+      );
+      assert.equal(res.status, 404, `expected 404 got ${res.status}: ${JSON.stringify(res.body)}`);
+
+      // No pin_update frame should have been broadcast
+      await assertNoFrame(
+        observer,
+        (m) => (m as { type?: string }).type === "pin_update",
+        500,
+      );
+    } finally {
+      observer.close();
+    }
+  });
 });
 
 describe("Channel isolation — pinned messages", () => {

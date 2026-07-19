@@ -86,6 +86,10 @@ let bcastPro2Id = 0; let bcastPro2Username = "";
 let editBcastObsId  = 0; let editBcastObsUsername  = "";
 let editBcastEdId   = 0; let editBcastEdUsername   = "";
 
+// Reaction broadcast — WS observer + reactor (failed-toggle no-broadcast)
+let rxnObsId  = 0; let rxnObsUsername  = "";
+let rxnUserId = 0; let rxnUsername     = "";
+
 // Pro-metadata stripping for free users
 let metaFree1Id = 0; let metaFree1Username = "";
 let metaFree2Id = 0; let metaFree2Username = "";
@@ -190,8 +194,13 @@ async function postMsg(
 }
 
 /** Open a WS connection and collect every frame.  Resolves the next frame that
- *  satisfies `predicate` within `timeoutMs` (default 3 000 ms). */
+ *  satisfies `predicate` within `timeoutMs` (default 3 000 ms).
+ *
+ *  `ready` resolves once the underlying socket fires its `open` event, so
+ *  callers can `await observer.ready` before sending the action under test and
+ *  be certain every subsequent broadcast will be captured. */
 function openWsObserver(userId: number, username: string): {
+  ready: Promise<void>;
   waitFor: (predicate: (msg: unknown) => boolean, timeoutMs?: number) => Promise<unknown>;
   close: () => void;
 } {
@@ -200,6 +209,13 @@ function openWsObserver(userId: number, username: string): {
   const ws    = new WebSocket(`${wsBaseUrl}?token=${encodeURIComponent(token)}`);
   const queue: unknown[] = [];
   const waiters: Array<{ predicate: (m: unknown) => boolean; resolve: (v: unknown) => void; reject: (e: Error) => void }> = [];
+
+  // Expose a ready promise that resolves when the actual observer socket opens.
+  const ready = new Promise<void>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("WS observer open timeout")), 5_000);
+    ws.once("open",  () => { clearTimeout(t); resolve(); });
+    ws.once("error", (e) => { clearTimeout(t); reject(e); });
+  });
 
   ws.on("message", (raw) => {
     let msg: unknown;
@@ -231,6 +247,7 @@ function openWsObserver(userId: number, username: string): {
   }
 
   return {
+    ready,
     waitFor,
     close: () => { ws.terminate(); },
   };
@@ -306,6 +323,8 @@ before(async () => {
       pro("editlapse"),
       free("editbcastobs"),
       pro("editbcasted"),
+      free("rxnobs"),
+      free("rxnuser"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -341,6 +360,8 @@ before(async () => {
     [editLapseId,      editLapseUsername],
     [editBcastObsId,   editBcastObsUsername],
     [editBcastEdId,    editBcastEdUsername],
+    [rxnObsId,         rxnObsUsername],
+    [rxnUserId,        rxnUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -1561,6 +1582,83 @@ describe("Edit broadcast — WS observer receives message_edit frame instantly",
       await assertNoFrame(observer, (m) => {
         const f = m as { type?: string; messageId?: number };
         return f.type === "message_edit" && f.messageId === msgId;
+      });
+    } finally {
+      observer.close();
+    }
+  });
+});
+
+describe("Reaction toggle — no spurious broadcast on failure", () => {
+  // POST /global-chat/messages/:id/reactions calls broadcastAll() only after a
+  // successful toggle.  These tests confirm that error paths (400 invalid emoji,
+  // 404 unknown message) never emit a reaction_update frame to connected observers.
+
+  test("no reaction_update broadcast when emoji is invalid → 400", async () => {
+    // Seed a real message so the messageId is valid; the guard fires on emoji first,
+    // so broadcastAll should never be reached regardless.
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'rxn-test-msg-invalid-emoji', 'general') RETURNING id`,
+      [rxnUserId],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    const observer = openWsObserver(rxnObsId, rxnObsUsername);
+
+    // Await the observer's own open event so we know it is registered with the
+    // server before triggering the POST.  This prevents a false-pass where the
+    // socket hasn't joined yet and simply misses a real broadcast.
+    await observer.ready;
+
+    try {
+      // Post a reaction with an emoji that is not in VALID_REACTIONS → 400
+      const postRes = await req(
+        "POST", `/global-chat/messages/${msgId}/reactions`,
+        rxnUserId, rxnUsername,
+        { emoji: "🦄" },
+      );
+      assert.equal(
+        postRes.status, 400,
+        `expected 400 for invalid emoji, got ${postRes.status}: ${JSON.stringify(postRes.body)}`,
+      );
+
+      // No reaction_update frame for this message should be broadcast
+      await assertNoFrame(observer, (m) => {
+        const f = m as { type?: string; messageId?: number };
+        return f.type === "reaction_update" && f.messageId === msgId;
+      });
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("no reaction_update broadcast when message does not exist → 404", async () => {
+    // Use a message ID that cannot exist in the DB
+    const phantomMsgId = 2_147_000_001;
+
+    const observer = openWsObserver(rxnObsId, rxnObsUsername);
+
+    // Await the observer's own open event for deterministic readiness.
+    await observer.ready;
+
+    try {
+      // Valid emoji but non-existent message → 404
+      const postRes = await req(
+        "POST", `/global-chat/messages/${phantomMsgId}/reactions`,
+        rxnUserId, rxnUsername,
+        { emoji: "👍" },
+      );
+      assert.equal(
+        postRes.status, 404,
+        `expected 404 for unknown message, got ${postRes.status}: ${JSON.stringify(postRes.body)}`,
+      );
+
+      // No reaction_update frame for this phantom message should be broadcast
+      await assertNoFrame(observer, (m) => {
+        const f = m as { type?: string; messageId?: number };
+        return f.type === "reaction_update" && f.messageId === phantomMsgId;
       });
     } finally {
       observer.close();

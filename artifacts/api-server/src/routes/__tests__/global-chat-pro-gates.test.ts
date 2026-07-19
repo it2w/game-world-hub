@@ -78,6 +78,11 @@ let editFreeId = 0; let editFreeUsername = "";
 let bcastPro1Id = 0; let bcastPro1Username = "";
 let bcastPro2Id = 0; let bcastPro2Username = "";
 
+// Pro-metadata stripping for free users
+let metaFree1Id = 0; let metaFree1Username = "";
+let metaFree2Id = 0; let metaFree2Username = "";
+let metaProId   = 0; let metaProUsername   = "";
+
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
 const createdPinIds:     number[] = [];
@@ -242,6 +247,9 @@ before(async () => {
       free("editfree"),
       pro("bcast1"),
       pro("bcast2"),
+      free("meta1"),
+      free("meta2"),
+      pro("meta"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -263,6 +271,9 @@ before(async () => {
     [editFreeId,   editFreeUsername],
     [bcastPro1Id,  bcastPro1Username],
     [bcastPro2Id,  bcastPro2Username],
+    [metaFree1Id,  metaFree1Username],
+    [metaFree2Id,  metaFree2Username],
+    [metaProId,    metaProUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -779,5 +790,81 @@ describe("GIF broadcast — gifUrl domain stripping in WebSocket payload", () =>
     } finally {
       observer.close();
     }
+  });
+});
+
+describe("Pro metadata stripping — free users cannot inject Pro-only fields", () => {
+  // sanitizeMeta gates nameColor, textColor, badge, nameAnimation, msgBgColor
+  // behind the isPro flag.  These tests confirm all five fields are silently
+  // dropped from both the HTTP response and the DB row when a free user sends them.
+
+  const PRO_FIELDS = {
+    nameColor:     "#ff0000",
+    textColor:     "#00ff00",
+    badge:         "⭐",
+    nameAnimation: true,
+    msgBgColor:    "#0000ff",
+  };
+
+  test("free user: all Pro metadata fields are absent from the HTTP response", async () => {
+    const res = await postMsg(metaFree1Id, metaFree1Username, {
+      content:  "plain message with sneaky meta",
+      metadata: PRO_FIELDS,
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    const meta = body.metadata ?? {};
+    for (const field of Object.keys(PRO_FIELDS)) {
+      assert.equal(
+        meta[field],
+        undefined,
+        `field "${field}" must be stripped from response metadata, got: ${JSON.stringify(meta)}`,
+      );
+    }
+  });
+
+  test("free user: all Pro metadata fields are absent from the DB row", async () => {
+    // Wait for free-user cooldown (1 s) before this second POST
+    await new Promise(r => setTimeout(r, 1_100));
+
+    const res = await postMsg(metaFree2Id, metaFree2Username, {
+      content:  "second sneaky message",
+      metadata: PRO_FIELDS,
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number };
+    if (body.id) createdMessageIds.push(body.id);
+
+    const { rows } = await pool.query<{ metadata: Record<string, unknown> | null }>(
+      `SELECT metadata FROM global_chat_messages WHERE id = $1`,
+      [body.id],
+    );
+    const stored = rows[0]?.metadata ?? {};
+    for (const field of Object.keys(PRO_FIELDS)) {
+      assert.equal(
+        stored[field],
+        undefined,
+        `field "${field}" must not be persisted in DB, got: ${JSON.stringify(stored)}`,
+      );
+    }
+  });
+
+  test("Pro user: all Pro metadata fields are preserved in the HTTP response (positive control)", async () => {
+    const res = await postMsg(metaProId, metaProUsername, {
+      content:  "pro message with all meta",
+      metadata: PRO_FIELDS,
+    });
+    assert.equal(res.status, 201, `expected 201 got ${res.status}: ${JSON.stringify(res.body)}`);
+    const body = res.body as { id: number; metadata: Record<string, unknown> };
+    if (body.id) createdMessageIds.push(body.id);
+
+    const meta = body.metadata ?? {};
+    assert.equal(meta.nameColor,     PRO_FIELDS.nameColor,     `nameColor mismatch`);
+    assert.equal(meta.textColor,     PRO_FIELDS.textColor,     `textColor mismatch`);
+    assert.equal(meta.badge,         PRO_FIELDS.badge,         `badge mismatch`);
+    assert.equal(meta.nameAnimation, PRO_FIELDS.nameAnimation, `nameAnimation mismatch`);
+    assert.equal(meta.msgBgColor,    PRO_FIELDS.msgBgColor,    `msgBgColor mismatch`);
   });
 });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { DailyQuestsWidget } from "@/components/daily-quests-widget";
+import { BattlePassWidget } from "@/pages/battle-pass";
 import { ProBadge } from "@/components/pro-badge";
 import "./dashboard.css";
 import {
@@ -991,6 +992,7 @@ export default function Dashboard() {
         </div>
 
         <div className="dash-side">
+          <BattlePassWidget/>
           <DailyQuestsWidget me={me}/>
           <SmartMatch friends={friends} openParties={parties??[]}/>
           <ChallengeVs me={me} friends={friends}/>

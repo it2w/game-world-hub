@@ -1,0 +1,39 @@
+{
+  "title": "Battle Pass",
+  "subtitle": "Seasonal Progression Track",
+  "season": "Season",
+  "freeTrack": "Free Track",
+  "proTrack": "Pro Track",
+  "level": "Level",
+  "currentLevel": "Current Level",
+  "xpProgress": "{{current}} / {{total}} XP",
+  "xpToNext": "{{xp}} XP to next level",
+  "maxLevel": "Max Level Reached",
+  "unlocked": "Unlocked",
+  "locked": "Locked",
+  "proOnly": "Pro Only",
+  "proRequired": "Upgrade to Pro to unlock levels 16-30",
+  "viewTrack": "View Track",
+  "seasonEnds": "Season ends in",
+  "days": "d",
+  "hours": "h",
+  "minutes": "m",
+  "seconds": "s",
+  "seasonOver": "Season Ended",
+  "newSeason": "New season starting soon",
+  "rewardApplied": "Reward applied!",
+  "justUnlocked": "New rewards unlocked!",
+  "tierTypes": {
+    "xp_boost": "XP Boost",
+    "frame_color": "Profile Frame",
+    "title": "Title"
+  },
+  "dashboard": {
+    "title": "Battle Pass",
+    "level": "LVL {{level}}",
+    "xpProgress": "{{current}} / {{total}} XP",
+    "viewTrack": "View Track",
+    "seasonEnds": "Season ends in {{time}}",
+    "notStarted": "Complete quests to earn Battle Pass XP"
+  }
+}

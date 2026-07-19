@@ -1,0 +1,502 @@
+/* ── Battle Pass Page ──────────────────────────────────────────────────────── */
+
+.bp-page {
+  min-height: 100%;
+  background: #080808;
+  padding: 24px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+
+.bp-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bp-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.bp-title {
+  font-family: monospace;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e8e8e8;
+}
+
+.bp-season-badge {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.4);
+  padding: 2px 8px;
+  background: hsl(var(--primary) / 0.07);
+}
+
+.bp-subtitle {
+  font-family: monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+/* ── Countdown ───────────────────────────────────────────────────────────────── */
+
+.bp-countdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  padding: 12px 16px;
+}
+
+.bp-countdown-label {
+  font-family: monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.bp-countdown-units {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bp-cd-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 36px;
+}
+
+.bp-cd-num {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 900;
+  color: hsl(var(--primary));
+  line-height: 1;
+}
+
+.bp-cd-label {
+  font-family: monospace;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+  margin-top: 2px;
+}
+
+.bp-cd-sep {
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 900;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+/* ── User progress bar ───────────────────────────────────────────────────────── */
+
+.bp-progress-card {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bp-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bp-level-badge {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.3);
+  padding: 3px 10px;
+}
+
+.bp-xp-nums {
+  font-family: monospace;
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 0.05em;
+}
+
+.bp-track {
+  height: 6px;
+  background: #1a1a1a;
+  overflow: hidden;
+  position: relative;
+}
+
+.bp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.7), hsl(var(--primary)));
+  transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.bp-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+  animation: bp-shimmer 2s infinite;
+}
+
+@keyframes bp-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(300%); }
+}
+
+.bp-xp-to-next {
+  font-family: monospace;
+  font-size: 9px;
+  color: #444;
+  letter-spacing: 0.06em;
+}
+
+/* ── Track / Tier Cards ──────────────────────────────────────────────────────── */
+
+.bp-track-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bp-track-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bp-track-label {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.bp-track-divider {
+  flex: 1;
+  height: 1px;
+  background: #1a1a1a;
+}
+
+.bp-tiers-scroll {
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #222 transparent;
+}
+
+.bp-tiers-scroll::-webkit-scrollbar { height: 4px; }
+.bp-tiers-scroll::-webkit-scrollbar-track { background: transparent; }
+.bp-tiers-scroll::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+.bp-tiers-row {
+  display: flex;
+  gap: 6px;
+  min-width: max-content;
+  padding: 4px 2px;
+}
+
+/* individual tier card */
+.bp-tier {
+  width: 90px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #0d0d0d;
+  border: 1px solid #1c1c1c;
+  padding: 10px 6px 8px;
+  cursor: default;
+  position: relative;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.bp-tier--current {
+  border-color: hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.15);
+}
+
+.bp-tier--unlocked {
+  border-color: #222;
+}
+
+.bp-tier--locked {
+  opacity: 0.45;
+}
+
+.bp-tier--pro-locked {
+  opacity: 0.5;
+}
+
+.bp-tier:hover {
+  transform: translateY(-2px);
+  border-color: #333;
+  z-index: 2;
+}
+
+.bp-tier--current:hover { border-color: hsl(var(--primary) / 0.8); }
+
+.bp-tier-level-num {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #444;
+  text-transform: uppercase;
+}
+
+.bp-tier-icon {
+  font-size: 22px;
+  line-height: 1;
+  filter: grayscale(0.3);
+}
+
+.bp-tier--locked .bp-tier-icon,
+.bp-tier--pro-locked .bp-tier-icon {
+  filter: grayscale(0.9) opacity(0.5);
+}
+
+.bp-tier-label {
+  font-family: monospace;
+  font-size: 8px;
+  color: #555;
+  text-align: center;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+}
+
+.bp-tier--unlocked .bp-tier-label { color: #888; }
+.bp-tier--current  .bp-tier-label { color: hsl(var(--primary)); }
+
+.bp-tier-status {
+  font-family: monospace;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  margin-top: 2px;
+}
+
+.bp-tier-status--unlocked {
+  color: #22C55E;
+  background: #22C55E14;
+  border: 1px solid #22C55E30;
+}
+
+.bp-tier-status--current {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.3);
+}
+
+.bp-tier-status--locked {
+  color: #333;
+  background: transparent;
+  border: 1px solid #222;
+}
+
+.bp-tier-status--pro {
+  color: #FFD700;
+  background: #FFD70014;
+  border: 1px solid #FFD70030;
+}
+
+/* current-level indicator arrow */
+.bp-tier--current::before {
+  content: "▲";
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: hsl(var(--primary) / 0.6);
+}
+
+/* Pro-lock overlay for pro tiers when user is free */
+.bp-pro-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(1px);
+}
+
+.bp-pro-overlay-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* ── Pro upgrade CTA ─────────────────────────────────────────────────────────── */
+
+.bp-pro-cta {
+  background: linear-gradient(135deg, #FFD70008, #FFD70020);
+  border: 1px solid #FFD70030;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bp-pro-cta-icon { font-size: 24px; }
+
+.bp-pro-cta-text {
+  flex: 1;
+}
+
+.bp-pro-cta-title {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FFD700;
+}
+
+.bp-pro-cta-desc {
+  font-family: monospace;
+  font-size: 9px;
+  color: #888;
+  margin-top: 3px;
+  letter-spacing: 0.04em;
+}
+
+.bp-pro-cta-btn {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #000;
+  background: #FFD700;
+  border: none;
+  padding: 7px 16px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.bp-pro-cta-btn:hover { opacity: 0.85; }
+
+/* ── Dashboard widget ────────────────────────────────────────────────────────── */
+
+.bp-widget {
+  background: #0d0d0d;
+  border: 1px solid #1c1c1c;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bp-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bp-widget-title {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.bp-widget-level {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.3);
+  padding: 1px 7px;
+}
+
+.bp-widget-track {
+  height: 4px;
+  background: #1a1a1a;
+  overflow: hidden;
+}
+
+.bp-widget-fill {
+  height: 100%;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.6), hsl(var(--primary)));
+  transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.bp-widget-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bp-widget-xp {
+  font-family: monospace;
+  font-size: 8px;
+  color: #444;
+  letter-spacing: 0.04em;
+}
+
+.bp-widget-btn {
+  font-family: monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.25);
+  padding: 3px 10px;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s;
+}
+
+.bp-widget-btn:hover { background: hsl(var(--primary) / 0.15); }
+
+.bp-widget-season {
+  font-family: monospace;
+  font-size: 7px;
+  color: #333;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

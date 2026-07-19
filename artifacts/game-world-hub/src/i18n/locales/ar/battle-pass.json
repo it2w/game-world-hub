@@ -1,0 +1,39 @@
+{
+  "title": "باس المعركة",
+  "subtitle": "مسار التقدم الموسمي",
+  "season": "الموسم",
+  "freeTrack": "المسار المجاني",
+  "proTrack": "مسار Pro",
+  "level": "المستوى",
+  "currentLevel": "المستوى الحالي",
+  "xpProgress": "{{current}} / {{total}} XP",
+  "xpToNext": "{{xp}} XP للمستوى التالي",
+  "maxLevel": "تم الوصول للمستوى الأقصى",
+  "unlocked": "مفتوح",
+  "locked": "مقفل",
+  "proOnly": "Pro فقط",
+  "proRequired": "ترقَّ إلى Pro لفتح المستويات 16-30",
+  "viewTrack": "عرض المسار",
+  "seasonEnds": "ينتهي الموسم خلال",
+  "days": "ي",
+  "hours": "س",
+  "minutes": "د",
+  "seconds": "ث",
+  "seasonOver": "انتهى الموسم",
+  "newSeason": "موسم جديد قريباً",
+  "rewardApplied": "تم تطبيق المكافأة!",
+  "justUnlocked": "تم فتح مكافآت جديدة!",
+  "tierTypes": {
+    "xp_boost": "مضاعف XP",
+    "frame_color": "إطار البروفايل",
+    "title": "لقب"
+  },
+  "dashboard": {
+    "title": "باس المعركة",
+    "level": "مستوى {{level}}",
+    "xpProgress": "{{current}} / {{total}} XP",
+    "viewTrack": "عرض المسار",
+    "seasonEnds": "ينتهي الموسم خلال {{time}}",
+    "notStarted": "أكمل المهام اليومية لكسب XP لباس المعركة"
+  }
+}

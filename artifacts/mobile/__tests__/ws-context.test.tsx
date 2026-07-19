@@ -2,19 +2,29 @@
  * Tests for the real WsProvider + useWsFrame hook.
  *
  * The production WsContext code is imported directly; external dependencies
- * (getToken, useAuth, WebSocket) are mocked so the real React lifecycle —
- * effects, callbacks, refs, cleanup — can be exercised without a live server.
+ * (getToken, useAuth, WebSocket, AppState) are mocked so the real React
+ * lifecycle — effects, callbacks, refs, cleanup — can be exercised without a
+ * live server or device.
  *
  * Covered scenarios:
- *  1. Initial connect opens a WebSocket with the correct URL when authenticated
- *  2. No connection when the user is not authenticated
- *  3. global_chat frames on the initial socket reach useWsFrame subscribers
- *  4. global_chat_delete frames reach useWsFrame subscribers
- *  5. After onclose, a new socket is created once the 3-s timer fires
- *  6. global_chat frames from the reconnected socket reach subscribers
- *  7. global_chat_delete frames from the reconnected socket reach subscribers
- *  8. Multiple sequential reconnects each deliver frames
- *  9. No reconnect after the provider unmounts
+ *   Initial connection
+ *     1. Opens a WebSocket with the correct URL when authenticated
+ *     2. Does not open a WebSocket when not authenticated
+ *   Message delivery on initial connection
+ *     3. global_chat frames reach useWsFrame subscribers
+ *     4. global_chat_delete frames reach useWsFrame subscribers
+ *   Reconnection via onclose timer
+ *     5. Creates a new socket once the 3-s timer fires
+ *     6. global_chat frames from the reconnected socket reach subscribers
+ *     7. global_chat_delete frames from the reconnected socket reach subscribers
+ *     8. Multiple sequential reconnects each deliver frames
+ *   AppState-based reconnection (foreground wake)
+ *     9.  Reconnects immediately when app returns from background
+ *    10. Delivers frames from the socket opened after returning from background
+ *    11. Does not reconnect on AppState 'active' after unmount
+ *    12. AppState listener is removed when the provider unmounts
+ *   Cleanup on unmount
+ *    13. Does not reconnect after the provider unmounts
  */
 
 import React from 'react';
@@ -26,7 +36,7 @@ import { WsProvider, useWsFrame } from '../contexts/WsContext';
 configure({ reactStrictMode: false });
 
 // ── Module mocks — factories must NOT reference outer-scope variables ─────────
-// (Jest hoists jest.mock() before variable declarations)
+// (Jest hoists jest.mock() calls above all variable declarations)
 
 jest.mock('@/lib/auth-token', () => ({
   getToken: jest.fn(() => 'test-jwt-token'),
@@ -34,6 +44,15 @@ jest.mock('@/lib/auth-token', () => ({
 
 jest.mock('@/contexts/AuthContext', () => ({
   useAuth: jest.fn(() => ({ isAuthenticated: true })),
+}));
+
+// AppState mock — addEventListener returns a subscription object with remove().
+// The factory is self-contained so hoisting doesn't cause reference errors.
+jest.mock('react-native', () => ({
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    currentState: 'active',
+  },
 }));
 
 // ── Typed access to the mocked modules ───────────────────────────────────────
@@ -44,13 +63,22 @@ const mockUseAuth = useAuth as jest.Mock;
 import { getToken } from '@/lib/auth-token';
 const mockGetToken = getToken as jest.Mock;
 
+import { AppState } from 'react-native';
+const mockAddEventListener = AppState.addEventListener as jest.Mock;
+
 // ── WebSocket mock ────────────────────────────────────────────────────────────
 
 class MockWebSocket {
+  // Standard WebSocket readyState constants
+  static CONNECTING = 0;
+  static OPEN       = 1;
+  static CLOSING    = 2;
+  static CLOSED     = 3;
+
   static instances: MockWebSocket[] = [];
 
   url: string;
-  readyState = 1; // OPEN
+  readyState = MockWebSocket.OPEN;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose:   (() => void) | null = null;
   onerror:   (() => void) | null = null;
@@ -60,7 +88,7 @@ class MockWebSocket {
     MockWebSocket.instances.push(this);
   }
 
-  close() { this.readyState = 3; }
+  close() { this.readyState = MockWebSocket.CLOSED; }
   deliver(payload: object) { this.onmessage?.({ data: JSON.stringify(payload) }); }
   drop()   { this.onclose?.(); }
 }
@@ -76,15 +104,26 @@ function latestWs(): MockWebSocket {
   return ws;
 }
 
+/** Returns the AppState 'change' handler registered by the most recent mount. */
+function getAppStateChangeHandler(): (state: string) => void {
+  const calls = mockAddEventListener.mock.calls;
+  const changeCall = [...calls].reverse().find(([event]) => event === 'change');
+  if (!changeCall) throw new Error('AppState.addEventListener("change", ...) was never called');
+  return changeCall[1] as (state: string) => void;
+}
+
 // ── Setup / teardown ─────────────────────────────────────────────────────────
 
 beforeEach(() => {
   MockWebSocket.instances = [];
   (global as any).WebSocket = MockWebSocket;
   process.env.EXPO_PUBLIC_DOMAIN = 'test.example.com';
-  // Restore implementations cleared by clearAllMocks in afterEach
+
+  // Restore implementations that clearAllMocks wiped in the previous afterEach
   mockUseAuth.mockReturnValue({ isAuthenticated: true });
   mockGetToken.mockReturnValue('test-jwt-token');
+  mockAddEventListener.mockReturnValue({ remove: jest.fn() });
+
   jest.useFakeTimers();
 });
 
@@ -151,7 +190,7 @@ describe('WsProvider — message delivery on initial connection', () => {
   });
 });
 
-describe('WsProvider — reconnection', () => {
+describe('WsProvider — reconnection via onclose timer', () => {
   it('creates a new WebSocket after the 3-s reconnect timer fires', () => {
     renderHook(() => useWsFrame('global_chat', jest.fn()), { wrapper });
     const countBefore = MockWebSocket.instances.length;
@@ -203,7 +242,7 @@ describe('WsProvider — reconnection', () => {
     expect(deleted).toEqual([99]);
   });
 
-  it('chains multiple sequential reconnects — each delivers frames to subscribers', () => {
+  it('chains multiple sequential reconnects — each delivers frames', () => {
     const received: number[] = [];
     renderHook(
       () => useWsFrame('global_chat', (msg: any) => received.push(msg.message.id)),
@@ -228,8 +267,77 @@ describe('WsProvider — reconnection', () => {
   });
 });
 
+describe('WsProvider — AppState-based reconnection (foreground wake)', () => {
+  it('reconnects immediately when the app returns from background', () => {
+    renderHook(() => useWsFrame('global_chat', jest.fn()), { wrapper });
+
+    const countBefore = MockWebSocket.instances.length;
+    expect(countBefore).toBeGreaterThanOrEqual(1);
+
+    const handleAppState = getAppStateChangeHandler();
+
+    // Simulate: phone goes to background then comes back to foreground
+    act(() => { handleAppState('background'); });
+    expect(MockWebSocket.instances.length).toBe(countBefore); // no change on background
+
+    act(() => { handleAppState('active'); });
+    expect(MockWebSocket.instances.length).toBe(countBefore + 1); // immediate reconnect
+  });
+
+  it('delivers frames from the socket opened after returning from background', () => {
+    const received: unknown[] = [];
+    renderHook(
+      () => useWsFrame('global_chat', (msg) => received.push(msg)),
+      { wrapper },
+    );
+
+    const handleAppState = getAppStateChangeHandler();
+    act(() => { handleAppState('active'); });
+
+    act(() => {
+      latestWs().deliver({
+        type: 'global_chat',
+        message: { id: 77, content: 'after wake', channel: 'general' },
+      });
+    });
+
+    expect(received).toHaveLength(1);
+    expect((received[0] as any).message.id).toBe(77);
+  });
+
+  it('does not reconnect on AppState "active" after the provider unmounts', () => {
+    const { unmount } = renderHook(
+      () => useWsFrame('global_chat', jest.fn()),
+      { wrapper },
+    );
+
+    const handleAppState = getAppStateChangeHandler();
+    const countAtUnmount = MockWebSocket.instances.length;
+
+    unmount();
+
+    act(() => { handleAppState('active'); });
+    expect(MockWebSocket.instances.length).toBe(countAtUnmount);
+  });
+
+  it('removes the AppState listener when the provider unmounts', () => {
+    // Capture the subscription object returned by addEventListener
+    const mockSub = { remove: jest.fn() };
+    mockAddEventListener.mockReturnValue(mockSub);
+
+    const { unmount } = renderHook(
+      () => useWsFrame('global_chat', jest.fn()),
+      { wrapper },
+    );
+
+    unmount();
+
+    expect(mockSub.remove).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('WsProvider — cleanup on unmount', () => {
-  it('does not reconnect after the provider unmounts', () => {
+  it('does not reconnect via timer after the provider unmounts', () => {
     const { unmount } = renderHook(
       () => useWsFrame('global_chat', jest.fn()),
       { wrapper },

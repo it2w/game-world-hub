@@ -5,6 +5,12 @@
  * a lightweight pub/sub API so any component can subscribe to specific
  * frame types without re-rendering the whole tree.
  *
+ * Reconnection strategy:
+ *   • onclose → timer fires after 3 s and calls connect() again
+ *   • AppState 'active' → immediate reconnect when the app returns from
+ *     background/sleep (iOS/Android often kill a backgrounded socket
+ *     silently without firing onclose)
+ *
  * Currently routed frames:
  *   global_chat        → subscribers notified (new message)
  *   global_chat_delete → subscribers notified (message removed)
@@ -18,6 +24,7 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { getToken } from '@/lib/auth-token';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -79,10 +86,10 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
     const token = getToken();
     if (!token) return;
 
-    // Close any existing socket
+    // Close any existing socket so we never have two live connections
     const old = wsRef.current;
     if (old && old.readyState < WebSocket.CLOSING) {
-      old.onclose = null;
+      old.onclose = null; // prevent the onclose handler from scheduling a reconnect
       old.close();
     }
 
@@ -104,7 +111,7 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
 
     ws.onclose = () => {
       if (!mountedRef.current) return;
-      // Reconnect after 3 s
+      // Reconnect after 3 s (fallback path — AppState listener handles foreground wakes)
       reconnectTimerRef.current = setTimeout(() => {
         if (mountedRef.current && isAuthenticated) connect();
       }, 3_000);
@@ -133,7 +140,20 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     }
 
+    // Force reconnect when the app returns from background.
+    // iOS and Android often silently kill a backgrounded socket without
+    // firing onclose, so we can't rely on the error/close path alone.
+    const appStateSub = AppState.addEventListener(
+      'change',
+      (next: AppStateStatus) => {
+        if (next === 'active' && mountedRef.current && isAuthenticated) {
+          connect();
+        }
+      },
+    );
+
     return () => {
+      appStateSub.remove();
       mountedRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       const ws = wsRef.current;

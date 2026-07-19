@@ -1,0 +1,83 @@
+{
+  "header": {
+    "title": "Tournaments",
+    "subtitle": "Compete. Dominate. Get crowned.",
+    "createButton": "Create Tournament"
+  },
+  "filter": {
+    "all": "All",
+    "upcoming": "Upcoming",
+    "active": "Active",
+    "completed": "Completed",
+    "searchPlaceholder": "Filter by game or name..."
+  },
+  "status": {
+    "upcoming": "Upcoming",
+    "active": "Active",
+    "completed": "Completed"
+  },
+  "card": {
+    "participants": "{{count}} / {{max}} players",
+    "full": "Full",
+    "join": "Join",
+    "leave": "Leave",
+    "view": "View Bracket",
+    "starts": "Starts {{date}}",
+    "noDate": "Open",
+    "by": "by"
+  },
+  "empty": "No tournaments found. Create one!",
+  "create": {
+    "title": "Create Tournament",
+    "nameLabel": "Tournament Name",
+    "namePlaceholder": "e.g. GWH Valorant Invitational",
+    "gameLabel": "Game",
+    "gamePlaceholder": "e.g. Valorant",
+    "descLabel": "Description (optional)",
+    "descPlaceholder": "Rules, format, prizes...",
+    "slotsLabel": "Slots",
+    "startDateLabel": "Start Date (optional)",
+    "submit": "Create",
+    "submitting": "Creating..."
+  },
+  "detail": {
+    "backToList": "← Tournaments",
+    "participantsTitle": "Registered Players",
+    "bracketTitle": "Bracket",
+    "startTournament": "Start Tournament",
+    "starting": "Starting...",
+    "joinFirst": "Join to participate",
+    "notStarted": "Tournament hasn't started yet.",
+    "waitingForStart": "Waiting for the creator to start the tournament.",
+    "champion": "🏆 Champion",
+    "roundLabel": "Round {{n}}",
+    "finalLabel": "Final",
+    "semifinalLabel": "Semi-Final",
+    "quarterLabel": "Quarter-Final",
+    "bye": "BYE",
+    "setWinner": "Set Winner",
+    "selectWinner": "Select the winner",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "matchComplete": "Complete",
+    "vs": "VS"
+  },
+  "toasts": {
+    "joined": "You've joined the tournament!",
+    "joinFailed": "Couldn't join the tournament",
+    "left": "You've left the tournament",
+    "leaveFailed": "Couldn't leave the tournament",
+    "started": "Tournament has started! Bracket is live.",
+    "startFailed": "Couldn't start the tournament",
+    "resultSaved": "Match result saved",
+    "resultFailed": "Couldn't save match result",
+    "created": "Tournament created!",
+    "createFailed": "Couldn't create tournament"
+  },
+  "trophies": {
+    "title": "Trophies",
+    "empty": "No trophies yet",
+    "champion": "Champion",
+    "players": "{{n}}-player tournament"
+  }
+}

@@ -127,6 +127,14 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/tournaments")}>
+                  <Link href="/tournaments">
+                    <Trophy className="w-4 h-4" />
+                    <span>{t("sidebar.tournaments")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/battle-pass")}>
                   <Link href="/battle-pass">
                     <Layers className="w-4 h-4" />

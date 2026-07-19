@@ -1,0 +1,83 @@
+{
+  "header": {
+    "title": "البطولات",
+    "subtitle": "تنافس. تفوّق. احصل على اللقب.",
+    "createButton": "إنشاء بطولة"
+  },
+  "filter": {
+    "all": "الكل",
+    "upcoming": "قادمة",
+    "active": "جارية",
+    "completed": "منتهية",
+    "searchPlaceholder": "ابحث بالاسم أو اللعبة..."
+  },
+  "status": {
+    "upcoming": "قادمة",
+    "active": "جارية",
+    "completed": "منتهية"
+  },
+  "card": {
+    "participants": "{{count}} / {{max}} لاعب",
+    "full": "ممتلئة",
+    "join": "انضم",
+    "leave": "انسحب",
+    "view": "عرض الـBracket",
+    "starts": "تبدأ {{date}}",
+    "noDate": "مفتوحة",
+    "by": "بواسطة"
+  },
+  "empty": "لا توجد بطولات. أنشئ بطولة الآن!",
+  "create": {
+    "title": "إنشاء بطولة",
+    "nameLabel": "اسم البطولة",
+    "namePlaceholder": "مثال: بطولة GWH لـ Valorant",
+    "gameLabel": "اللعبة",
+    "gamePlaceholder": "مثال: Valorant",
+    "descLabel": "الوصف (اختياري)",
+    "descPlaceholder": "القوانين، الأسلوب، الجوائز...",
+    "slotsLabel": "عدد المقاعد",
+    "startDateLabel": "تاريخ البدء (اختياري)",
+    "submit": "إنشاء",
+    "submitting": "جاري الإنشاء..."
+  },
+  "detail": {
+    "backToList": "← البطولات",
+    "participantsTitle": "اللاعبون المسجلون",
+    "bracketTitle": "الـBracket",
+    "startTournament": "ابدأ البطولة",
+    "starting": "جاري البدء...",
+    "joinFirst": "انضم للمشاركة",
+    "notStarted": "البطولة لم تبدأ بعد.",
+    "waitingForStart": "في انتظار المنشئ لبدء البطولة.",
+    "champion": "🏆 البطل",
+    "roundLabel": "الجولة {{n}}",
+    "finalLabel": "النهائي",
+    "semifinalLabel": "نصف النهائي",
+    "quarterLabel": "ربع النهائي",
+    "bye": "تأهل تلقائي",
+    "setWinner": "تحديد الفائز",
+    "selectWinner": "اختر الفائز",
+    "confirm": "تأكيد",
+    "cancel": "إلغاء",
+    "matchComplete": "مكتملة",
+    "vs": "ضد"
+  },
+  "toasts": {
+    "joined": "انضممت إلى البطولة!",
+    "joinFailed": "تعذر الانضمام إلى البطولة",
+    "left": "انسحبت من البطولة",
+    "leaveFailed": "تعذر الانسحاب",
+    "started": "بدأت البطولة! الـBracket جاهز.",
+    "startFailed": "تعذر بدء البطولة",
+    "resultSaved": "تم حفظ نتيجة المباراة",
+    "resultFailed": "تعذر حفظ النتيجة",
+    "created": "تم إنشاء البطولة!",
+    "createFailed": "تعذر إنشاء البطولة"
+  },
+  "trophies": {
+    "title": "الألقاب",
+    "empty": "لا ألقاب حتى الآن",
+    "champion": "بطل",
+    "players": "بطولة {{n}} لاعب"
+  }
+}

@@ -57,6 +57,16 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  const { data: trophiesData } = useQuery<Array<{
+    id: number; tournamentId: number; wonAt: string;
+    tournamentName: string; game: string; maxParticipants: number;
+  }>>({
+    queryKey: ["trophies", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/trophies`),
+    staleTime: 60_000,
+    enabled: !!userId,
+  });
+
   const { data: reputationData, refetch: refetchReputation } = useQuery<{
     tags: Array<{ key: string; emoji: string; color: string; label: string; count: number }>;
     availableTags: Array<{ key: string; emoji: string; color: string; label: string }>;
@@ -749,6 +759,33 @@ export default function Profile() {
         </div>
       )}
 
+      {/* ── TROPHIES ────────────────────────────────────────────────────── */}
+      {trophiesData && trophiesData.length > 0 && (
+        <div className="bg-card border border-border p-5">
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2 mb-5">
+            <Trophy className="w-4 h-4" /> Trophies
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {trophiesData.map(trophy => (
+              <div
+                key={trophy.id}
+                className="flex items-center gap-3 border border-yellow-500/30 bg-yellow-500/5 px-4 py-3"
+                data-testid={`trophy-${trophy.tournamentId}`}
+              >
+                <span className="text-2xl leading-none">🏆</span>
+                <div>
+                  <div className="font-mono text-xs font-bold text-yellow-400 truncate max-w-[160px]">
+                    {trophy.tournamentName}
+                  </div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{trophy.game} · {trophy.maxParticipants}p</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/60">{new Date(trophy.wonAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Linked Platforms */}
         <div className="bg-card border border-border p-6">
@@ -1082,4 +1119,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library, Play, Award } from "lucide-react";
+import { Library, Play, Award, Trophy } from "lucide-react";

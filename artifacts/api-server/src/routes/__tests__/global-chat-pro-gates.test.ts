@@ -908,6 +908,65 @@ describe("Message edit gate — Pro-only and subscription-expiry", () => {
       `error should mention time limit, got: ${body.error}`,
     );
   });
+
+  test("editedAt is present after edit and absent on unedited messages in GET /global-chat/messages", async () => {
+    // Seed two messages directly — no rate-limit concern because PATCH does not
+    // share the POST cooldown map.
+    const { rows: seeded } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'edited-at-check-edit', 'general'),
+              ($1, 'edited-at-check-noedit', 'general')
+       RETURNING id`,
+      [editProId],
+    );
+    const [editedId, uneditedId] = seeded.map(r => r.id);
+    createdMessageIds.push(editedId, uneditedId);
+
+    // Edit the first message → should set edited_at in the DB
+    const patchRes = await req(
+      "PATCH", `/global-chat/messages/${editedId}`,
+      editProId, editProUsername,
+      { content: "now edited" },
+    );
+    assert.equal(
+      patchRes.status, 200,
+      `PATCH expected 200 got ${patchRes.status}: ${JSON.stringify(patchRes.body)}`,
+    );
+
+    // Fetch the message list and find our two messages by ID
+    const listRes = await req(
+      "GET", "/global-chat/messages?channel=general&limit=100",
+      editProId, editProUsername,
+    );
+    assert.equal(
+      listRes.status, 200,
+      `GET expected 200 got ${listRes.status}: ${JSON.stringify(listRes.body)}`,
+    );
+
+    type MsgShape = { id: number; editedAt?: string | null };
+    const messages = listRes.body as MsgShape[];
+
+    const editedMsg   = messages.find(m => m.id === editedId);
+    const uneditedMsg = messages.find(m => m.id === uneditedId);
+
+    assert.ok(editedMsg,   `edited message (id=${editedId}) missing from GET response`);
+    assert.ok(uneditedMsg, `unedited message (id=${uneditedId}) missing from GET response`);
+
+    // The edited message must carry a non-null ISO timestamp
+    assert.ok(
+      editedMsg!.editedAt != null && typeof editedMsg!.editedAt === "string",
+      `expected editedAt to be a string on the edited message, got: ${JSON.stringify(editedMsg!.editedAt)}`,
+    );
+    // The unedited message must not have editedAt set
+    assert.ok(
+      editedMsg!.editedAt !== uneditedMsg!.editedAt || uneditedMsg!.editedAt == null,
+      "unedited message should not share an editedAt value with the edited message",
+    );
+    assert.equal(
+      uneditedMsg!.editedAt ?? null, null,
+      `expected editedAt to be null/undefined on the unedited message, got: ${JSON.stringify(uneditedMsg!.editedAt)}`,
+    );
+  });
 });
 
 describe("GIF broadcast — gifUrl domain stripping in WebSocket payload", () => {

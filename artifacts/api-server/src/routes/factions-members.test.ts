@@ -7,6 +7,8 @@
  *     { total, members: [{ userId, displayName, username, avatarUrl, isPro, joinedAt }] }
  *  3. Pagination: offset=0 returns at most 20 rows
  *  4. Pagination: offset=20 returns the next batch
+ *  5. sort=weekly_pts with all-zero activity → tiebreaker joined_at DESC is applied
+ *  6. sort=weekly_pts with mixed activity → non-zero pts members appear before zero-pts members
  */
 
 import { test, before, after, describe } from "node:test";
@@ -14,7 +16,7 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest, type Server, type IncomingMessage } from "node:http";
 import { AddressInfo } from "node:net";
 import { inArray } from "drizzle-orm";
-import { db, pool, usersTable } from "@workspace/db";
+import { db, pool, usersTable, lfgPostsTable } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
 import app from "../app";
 
@@ -248,4 +250,182 @@ describe("GET /factions/:id/members", () => {
     assert.equal(resp.members.length, 5, `page 2 should return the remaining 5 rows, got ${resp.members.length}`);
     assert.equal(Number(resp.total), 25, `total should still be 25, got ${resp.total}`);
   });
+});
+
+// ─── Sort tests ───────────────────────────────────────────────────────────────
+
+describe("GET /factions/:id/members?sort=weekly_pts — tiebreaker and ordering", () => {
+  /**
+   * Fixtures for this suite:
+   *  - sortFactionId: a dedicated faction
+   *  - memberOldId:   joined 2025-01-01  (oldest)
+   *  - memberMidId:   joined 2025-06-01  (middle)
+   *  - memberNewId:   joined 2026-01-01  (newest)
+   *  - memberActiveId: joined 2025-03-01, has one lfg_post this week → weekly_pts = 5
+   *
+   * memberOldId, memberMidId, memberNewId all have weekly_pts = 0.
+   * Expected order with sort=weekly_pts:
+   *   1. memberActiveId (5 pts)
+   *   2. memberNewId    (0 pts, joined_at 2026-01-01 — most recent)
+   *   3. memberMidId    (0 pts, joined_at 2025-06-01)
+   *   4. memberOldId    (0 pts, joined_at 2025-01-01 — oldest)
+   */
+
+  const SORT_SUFFIX = `sort_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const sortCreatedUserIds: number[] = [];
+  let sortFactionId = 0;
+  let memberOldId = 0;
+  let memberMidId = 0;
+  let memberNewId = 0;
+  let memberActiveId = 0;
+  let lfgPostId = 0;
+
+  before(async () => {
+    // Create the dedicated sort-test faction
+    const { rows: fRows } = await pool.query<{ id: number }>(
+      `INSERT INTO factions (name, slug, color, icon_emoji, description)
+       VALUES ($1, $2, '#aabbcc', '🔬', 'Sort-order test faction')
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id`,
+      [`SortFaction_${SORT_SUFFIX}`, `sorttest_${SORT_SUFFIX}`],
+    );
+    sortFactionId = fRows[0].id;
+
+    // Create four users for this suite
+    const inserted = await db
+      .insert(usersTable)
+      .values([
+        { username: `srt_old_${SORT_SUFFIX}`, passwordHash: "x", displayName: "Sort Old",    status: "online" as const },
+        { username: `srt_mid_${SORT_SUFFIX}`, passwordHash: "x", displayName: "Sort Mid",    status: "online" as const },
+        { username: `srt_new_${SORT_SUFFIX}`, passwordHash: "x", displayName: "Sort New",    status: "online" as const },
+        { username: `srt_act_${SORT_SUFFIX}`, passwordHash: "x", displayName: "Sort Active", status: "online" as const },
+      ])
+      .returning({ id: usersTable.id });
+
+    memberOldId    = inserted[0].id;
+    memberMidId    = inserted[1].id;
+    memberNewId    = inserted[2].id;
+    memberActiveId = inserted[3].id;
+    sortCreatedUserIds.push(memberOldId, memberMidId, memberNewId, memberActiveId);
+
+    // Insert into user_factions with explicit joined_at timestamps
+    await pool.query(
+      `INSERT INTO user_factions (user_id, faction_id, joined_at) VALUES
+         ($1, $5, '2025-01-01T00:00:00Z'),
+         ($2, $5, '2025-06-01T00:00:00Z'),
+         ($3, $5, '2026-01-01T00:00:00Z'),
+         ($4, $5, '2025-03-01T00:00:00Z')`,
+      [memberOldId, memberMidId, memberNewId, memberActiveId, sortFactionId],
+    );
+
+    // Give memberActive one lfg_post this week so their weekly_pts = 5
+    const [post] = await db
+      .insert(lfgPostsTable)
+      .values({
+        authorId:    memberActiveId,
+        game:        "Test Game",
+        description: "Sort test post",
+        status:      "open",
+      })
+      .returning({ id: lfgPostsTable.id });
+    lfgPostId = post.id;
+  });
+
+  after(async () => {
+    await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [lfgPostId]));
+    await pool.query(
+      `DELETE FROM user_factions WHERE user_id = ANY($1::int[])`,
+      [sortCreatedUserIds],
+    );
+    await db.delete(usersTable).where(inArray(usersTable.id, sortCreatedUserIds));
+    await pool.query(`DELETE FROM factions WHERE id = $1`, [sortFactionId]);
+  });
+
+  test(
+    "all-zero weekly_pts: tiebreaker joined_at DESC puts newest joiner first",
+    async () => {
+      // Only test the three zero-pts members by checking just those three users
+      // in the response. We request all members (limit=50) and extract the
+      // three known zero-pts members in the order they appear.
+      const { status, body } = await authedGet(
+        `/factions/${sortFactionId}/members?sort=weekly_pts&limit=50`,
+        viewerUserId,
+        viewerUsername,
+      );
+      assert.equal(status, 200, `expected 200, got ${status}: ${JSON.stringify(body)}`);
+
+      const resp = body as { total: number; members: Array<{ userId: number; weeklyPts: number; joinedAt: string }> };
+      assert.equal(Number(resp.total), 4, `expected 4 members total, got ${resp.total}`);
+
+      // Extract only the zero-pts members (Old, Mid, New) in their response order
+      const zeroPtsOrdered = resp.members
+        .filter(m => [memberOldId, memberMidId, memberNewId].includes(m.userId));
+
+      assert.equal(
+        zeroPtsOrdered.length,
+        3,
+        `expected 3 zero-pts members in response, got ${zeroPtsOrdered.length}`,
+      );
+
+      // All three must have weekly_pts = 0
+      for (const m of zeroPtsOrdered) {
+        assert.equal(
+          m.weeklyPts,
+          0,
+          `member ${m.userId} should have weeklyPts=0, got ${m.weeklyPts}`,
+        );
+      }
+
+      // joined_at DESC → memberNew (2026-01-01) first, then Mid (2025-06-01), then Old (2025-01-01)
+      assert.equal(
+        zeroPtsOrdered[0].userId,
+        memberNewId,
+        `first zero-pts member should be the newest joiner (userId=${memberNewId}), got ${zeroPtsOrdered[0].userId}`,
+      );
+      assert.equal(
+        zeroPtsOrdered[1].userId,
+        memberMidId,
+        `second zero-pts member should be the mid joiner (userId=${memberMidId}), got ${zeroPtsOrdered[1].userId}`,
+      );
+      assert.equal(
+        zeroPtsOrdered[2].userId,
+        memberOldId,
+        `third zero-pts member should be the oldest joiner (userId=${memberOldId}), got ${zeroPtsOrdered[2].userId}`,
+      );
+    },
+  );
+
+  test(
+    "non-zero weekly_pts members appear before zero-pts members",
+    async () => {
+      const { status, body } = await authedGet(
+        `/factions/${sortFactionId}/members?sort=weekly_pts&limit=50`,
+        viewerUserId,
+        viewerUsername,
+      );
+      assert.equal(status, 200, `expected 200, got ${status}: ${JSON.stringify(body)}`);
+
+      const resp = body as { total: number; members: Array<{ userId: number; weeklyPts: number }> };
+
+      // memberActive has an LFG post this week → weekly_pts = 5; must be first
+      const activeIndex = resp.members.findIndex(m => m.userId === memberActiveId);
+      assert.ok(activeIndex !== -1, "memberActive must appear in the response");
+      assert.ok(
+        resp.members[activeIndex].weeklyPts > 0,
+        `memberActive weeklyPts should be > 0, got ${resp.members[activeIndex].weeklyPts}`,
+      );
+
+      // All zero-pts members must appear after the active member
+      const zeroIndices = resp.members
+        .map((m, i) => ({ idx: i, userId: m.userId, pts: m.weeklyPts }))
+        .filter(e => [memberOldId, memberMidId, memberNewId].includes(e.userId));
+
+      for (const { idx, userId } of zeroIndices) {
+        assert.ok(
+          idx > activeIndex,
+          `zero-pts member ${userId} (index ${idx}) must appear after active member (index ${activeIndex})`,
+        );
+      }
+    },
+  );
 });

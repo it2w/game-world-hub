@@ -414,7 +414,8 @@ router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void>
 
   const { rows } = await pool.query<{
     user_id: number; display_name: string; username: string;
-    avatar_url: string | null; is_pro: boolean; joined_at: string; total_count: number;
+    avatar_url: string | null; is_pro: boolean; joined_at: string;
+    weekly_pts: number; total_count: number;
   }>(`
     SELECT
       u.id         AS user_id,
@@ -423,6 +424,11 @@ router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void>
       u.avatar_url,
       u.is_pro,
       uf.joined_at,
+      (
+        (SELECT COUNT(*)::INT FROM lfg_posts     WHERE author_id = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 5 +
+        (SELECT COUNT(*)::INT FROM lfg_responses WHERE user_id   = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 3 +
+        (SELECT COUNT(*)::INT FROM messages      WHERE sender_id = u.id AND created_at >= date_trunc('week', NOW() AT TIME ZONE 'UTC')) * 1
+      ) AS weekly_pts,
       COUNT(*) OVER () AS total_count
     FROM user_factions uf
     JOIN users u ON u.id = uf.user_id
@@ -441,6 +447,7 @@ router.get("/factions/:id/members", requireAuth, async (req, res): Promise<void>
       avatarUrl:   toPublicImageUrl(r.avatar_url),
       isPro:       r.is_pro,
       joinedAt:    r.joined_at,
+      weeklyPts:   r.weekly_pts,
     })),
   });
 });

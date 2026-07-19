@@ -15,6 +15,7 @@ interface RosterMember {
   avatarUrl: string | null;
   isPro: boolean;
   joinedAt: string;
+  weeklyPts: number;
 }
 
 interface RosterState {
@@ -102,9 +103,20 @@ function FactionRosterModal({ roster, onClose }: { roster: RosterState; onClose:
                 </div>
                 <p className="font-mono text-[10px] text-muted-foreground">@{m.username}</p>
               </div>
-              <span className="font-mono text-[9px] text-muted-foreground shrink-0">
-                {new Date(m.joinedAt).toLocaleDateString()}
-              </span>
+              <div className="flex flex-col items-end shrink-0 gap-0.5">
+                <span
+                  className="font-mono text-[10px] font-semibold"
+                  style={m.weeklyPts > 0 ? { color: roster.factionColor } : undefined}
+                >
+                  {m.weeklyPts > 0
+                    ? `${m.weeklyPts.toLocaleString()} pts`
+                    : <span className="text-muted-foreground">–</span>
+                  }
+                </span>
+                <span className="font-mono text-[9px] text-muted-foreground">
+                  {new Date(m.joinedAt).toLocaleDateString()}
+                </span>
+              </div>
             </a>
           ))}
           {loading && (

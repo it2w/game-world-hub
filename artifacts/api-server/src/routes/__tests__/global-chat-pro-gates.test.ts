@@ -75,6 +75,9 @@ let expProId = 0; let expProUsername = "";
 let editProId  = 0; let editProUsername  = "";
 let editFreeId = 0; let editFreeUsername = "";
 
+// Message-edit lapse — isolated user dedicated to the lapse scenario only
+let editLapseId = 0; let editLapseUsername = "";
+
 // GIF broadcast — WS payload stripping
 let bcastPro1Id = 0; let bcastPro1Username = "";
 let bcastPro2Id = 0; let bcastPro2Username = "";
@@ -275,6 +278,7 @@ before(async () => {
       pro("lappin"),
       free("giftxt"),
       free("giflfg"),
+      pro("editlapse"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -305,8 +309,9 @@ before(async () => {
     [lfgTextId,    lfgTextUsername],
     [tradeTextId,  tradeTextUsername],
     [lapPinId,     lapPinUsername],
-    [gifTextId,    gifTextUsername],
-    [gifLfgId,     gifLfgUsername],
+    [gifTextId,      gifTextUsername],
+    [gifLfgId,       gifLfgUsername],
+    [editLapseId,    editLapseUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -801,6 +806,64 @@ describe("Message edit gate — Pro-only and subscription-expiry", () => {
     } finally {
       // Restore Pro status so teardown user-deletion doesn't leave noise
       await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [editProId]);
+    }
+  });
+
+  test("isolated lapse: dedicated user edits while Pro → 200, then loses edit after expiry → 403", async () => {
+    // editLapseId is used exclusively by this test — no shared state with the
+    // "active Pro can edit" test, so the Pro→lapse flip cannot affect other cases.
+
+    // Step 1 — seed a message while still Pro
+    const { rows: r1 } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'lapse-edit-original', 'general') RETURNING id`,
+      [editLapseId],
+    );
+    const msgId1 = r1[0].id;
+    createdMessageIds.push(msgId1);
+
+    // Step 2 — edit while Pro → must succeed
+    const res1 = await req(
+      "PATCH", `/global-chat/messages/${msgId1}`,
+      editLapseId, editLapseUsername,
+      { content: "edited while still pro" },
+    );
+    assert.equal(
+      res1.status, 200,
+      `expected 200 (pre-lapse edit) got ${res1.status}: ${JSON.stringify(res1.body)}`,
+    );
+    const body1 = res1.body as { messageId: number; content: string };
+    assert.equal(body1.content, "edited while still pro");
+
+    // Step 3 — simulate subscription expiry
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [editLapseId]);
+
+    try {
+      // Step 4 — seed another own message and attempt to edit → must be blocked
+      const { rows: r2 } = await pool.query<{ id: number }>(
+        `INSERT INTO global_chat_messages (user_id, content, channel)
+         VALUES ($1, 'lapse-edit-blocked', 'general') RETURNING id`,
+        [editLapseId],
+      );
+      const msgId2 = r2[0].id;
+      createdMessageIds.push(msgId2);
+
+      const res2 = await req(
+        "PATCH", `/global-chat/messages/${msgId2}`,
+        editLapseId, editLapseUsername,
+        { content: "should be blocked after lapse" },
+      );
+      assert.equal(
+        res2.status, 403,
+        `expected 403 after Pro lapse, got ${res2.status}: ${JSON.stringify(res2.body)}`,
+      );
+      const body2 = res2.body as { error: string };
+      assert.ok(
+        body2.error?.toLowerCase().includes("pro"),
+        `error should mention Pro, got: ${body2.error}`,
+      );
+    } finally {
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [editLapseId]);
     }
   });
 

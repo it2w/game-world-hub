@@ -195,6 +195,7 @@ function openWsObserver(userId: number, username: string): {
   waitFor: (predicate: (msg: unknown) => boolean, timeoutMs?: number) => Promise<unknown>;
   close: () => void;
 } {
+
   const token = signToken({ userId, username });
   const ws    = new WebSocket(`${wsBaseUrl}?token=${encodeURIComponent(token)}`);
   const queue: unknown[] = [];
@@ -233,6 +234,26 @@ function openWsObserver(userId: number, username: string): {
     waitFor,
     close: () => { ws.terminate(); },
   };
+}
+
+/**
+ * Asserts that no frame matching `predicate` arrives on `observer` within
+ * `windowMs` milliseconds.  If a matching frame *does* arrive the test fails.
+ */
+async function assertNoFrame(
+  observer: ReturnType<typeof openWsObserver>,
+  predicate: (m: unknown) => boolean,
+  windowMs = 500,
+): Promise<void> {
+  try {
+    await observer.waitFor(predicate, windowMs);
+    // If waitFor resolved, a matching frame arrived — that's a failure.
+    assert.fail("Expected no matching WS frame within the observation window, but one was received");
+  } catch (err) {
+    // A timeout rejection is the expected (good) outcome.
+    if (err instanceof Error && err.message.includes("timed out")) return;
+    throw err; // re-throw assert.fail or any unexpected error
+  }
 }
 
 // ── Setup / teardown ──────────────────────────────────────────────────────────
@@ -1445,6 +1466,102 @@ describe("Edit broadcast — WS observer receives message_edit frame instantly",
         "frame must include a non-empty editedAt timestamp",
       );
       assert.equal(editFrame.channel, "general", "frame must include the correct channel");
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("no message_edit broadcast when a wrong-owner PATCH is rejected (403)", async () => {
+    // Seed a message owned by the observer (editBcastObsId, a free user).
+    // The editor (editBcastEdId, Pro) attempts to edit it — route must reject with 403
+    // and must NOT call broadcastAll, so the observer never sees a message_edit frame.
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'owned-by-observer', 'general') RETURNING id`,
+      [editBcastObsId],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    const observer = openWsObserver(editBcastObsId, editBcastObsUsername);
+
+    // Wait for the WS handshake to complete before triggering the PATCH
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("WS open timeout")), 3_000);
+      const ws = new WebSocket(
+        `${wsBaseUrl}?token=${encodeURIComponent(
+          signToken({ userId: editBcastObsId, username: editBcastObsUsername }),
+        )}`,
+      );
+      ws.once("open",  () => { clearTimeout(t); ws.terminate(); resolve(); });
+      ws.once("error", (e) => { clearTimeout(t); reject(e); });
+    });
+
+    try {
+      // Pro user attempts to edit a message they don't own → must be 403
+      const patchRes = await req(
+        "PATCH", `/global-chat/messages/${msgId}`,
+        editBcastEdId, editBcastEdUsername,
+        { content: "phantom edit attempt" },
+      );
+      assert.equal(
+        patchRes.status, 403,
+        `expected 403 (wrong owner), got ${patchRes.status}: ${JSON.stringify(patchRes.body)}`,
+      );
+
+      // Assert that no message_edit frame for this message id arrives within 500 ms
+      await assertNoFrame(observer, (m) => {
+        const f = m as { type?: string; messageId?: number };
+        return f.type === "message_edit" && f.messageId === msgId;
+      });
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("no message_edit broadcast when an expired-window PATCH is rejected (403)", async () => {
+    // Seed a message owned by the editor but with created_at set 6 minutes in the past,
+    // which exceeds the 5-minute edit window.  The PATCH must return 403 and must NOT
+    // broadcast a message_edit frame.
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel, created_at)
+       VALUES ($1, 'old-editor-message', 'general', NOW() - INTERVAL '6 minutes') RETURNING id`,
+      [editBcastEdId],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    const observer = openWsObserver(editBcastObsId, editBcastObsUsername);
+
+    // Wait for the WS handshake to complete
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("WS open timeout")), 3_000);
+      const ws = new WebSocket(
+        `${wsBaseUrl}?token=${encodeURIComponent(
+          signToken({ userId: editBcastObsId, username: editBcastObsUsername }),
+        )}`,
+      );
+      ws.once("open",  () => { clearTimeout(t); ws.terminate(); resolve(); });
+      ws.once("error", (e) => { clearTimeout(t); reject(e); });
+    });
+
+    try {
+      // Pro user tries to edit an expired message → must be 403
+      const patchRes = await req(
+        "PATCH", `/global-chat/messages/${msgId}`,
+        editBcastEdId, editBcastEdUsername,
+        { content: "too late to edit this" },
+      );
+      assert.equal(
+        patchRes.status, 403,
+        `expected 403 (expired window), got ${patchRes.status}: ${JSON.stringify(patchRes.body)}`,
+      );
+
+      // Assert that no message_edit frame for this message id arrives within 500 ms
+      await assertNoFrame(observer, (m) => {
+        const f = m as { type?: string; messageId?: number };
+        return f.type === "message_edit" && f.messageId === msgId;
+      });
     } finally {
       observer.close();
     }

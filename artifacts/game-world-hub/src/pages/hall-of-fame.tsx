@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { Star, Award, Calendar } from "lucide-react";
 import { Link } from "wouter";
 import { ProBadge } from "@/components/pro-badge";
+import { PrestigeBadge } from "@/components/prestige-badge";
 
 interface HofEntry {
   rank: number;
@@ -13,6 +14,7 @@ interface HofEntry {
   avatarUrl: string | null;
   totalXp: number;
   factionSlug: string | null;
+  prestigeLevel: number;
 }
 
 interface HofSeason {
@@ -165,6 +167,7 @@ export default function HallOfFamePage() {
                       <Link href={`/profile/${entry.userId}`} className={`font-mono text-sm font-bold hover:text-primary transition-colors truncate ${entry.rank === 1 ? "text-yellow-400" : ""}`}>
                         {entry.displayName}
                       </Link>
+                      <PrestigeBadge level={entry.prestigeLevel ?? 0} size="xs" />
                     </div>
                     <p className="font-mono text-[10px] text-muted-foreground">@{entry.username}</p>
                   </div>

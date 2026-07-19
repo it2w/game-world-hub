@@ -35,6 +35,7 @@ import bountiesRouter from "./bounties";
 import factionsRouter from "./factions";
 import proHuntRouter from "./pro-hunt";
 import eventsRouter from "./events";
+import prestigeRouter from "./prestige";
 
 const router: IRouter = Router();
 
@@ -100,5 +101,6 @@ router.use(bountiesRouter);
 router.use(factionsRouter);
 router.use(proHuntRouter);
 router.use(eventsRouter);
+router.use(prestigeRouter);
 
 export default router;

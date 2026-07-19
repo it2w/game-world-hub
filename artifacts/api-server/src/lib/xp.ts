@@ -135,6 +135,19 @@ export async function getUserProgress(userId: number): Promise<{
     bonusXp = rows[0]?.bonus_xp ?? 0;
   } catch { /* table may not exist on first deploy */ }
 
+  // Prestige XP offset — effective XP is totalXp minus the offset accumulated
+  // at each prestige. This makes the level reset to 1 after prestige without
+  // deleting any activity history.
+  let prestigeXpOffset = 0;
+  try {
+    const { pool } = await import("@workspace/db");
+    const { rows } = await pool.query<{ prestige_xp_offset: string }>(
+      `SELECT prestige_xp_offset FROM users WHERE id = $1`,
+      [userId],
+    );
+    prestigeXpOffset = parseInt(rows[0]?.prestige_xp_offset ?? "0", 10);
+  } catch { /* column may not exist on first deploy */ }
+
   const [friends, partiesCreated, partiesJoined, messagesSent, lfgPosts, lfgResponses, games, platforms] =
     await Promise.all([
       cw(friendshipsTable, friendshipsTable.userId),
@@ -157,7 +170,9 @@ export async function getUserProgress(userId: number): Promise<{
     games,
     platforms,
   });
-  const totalXp = activityXp + bonusXp;
+  const rawTotalXp = activityXp + bonusXp;
+  // Effective XP resets to 0 at each prestige cycle.
+  const totalXp = Math.max(0, rawTotalXp - prestigeXpOffset);
   const { level, xpIntoLevel, xpForNext } = computeLevel(totalXp);
   return { totalXp, level, xpIntoLevel, xpForNext, tier: getTier(level) };
 }

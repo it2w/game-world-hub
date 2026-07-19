@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -49,6 +49,12 @@ export const usersTable = pgTable("users", {
   // Force-logout: any JWT whose iat (Unix seconds) is before this timestamp is rejected.
   // Set by POST /owner/users/:id/force-logout to instantly invalidate all active sessions.
   sessionsInvalidatedBefore: timestamp("sessions_invalidated_before", { withTimezone: true }),
+  // Prestige system: resets level to 1 when user hits TRANSCENDENT (level 106).
+  // prestige_xp_offset stores the cumulative effective XP at each prestige point;
+  // getUserProgress subtracts it so level resets to 1 after each prestige.
+  // Both columns are created via ALTER TABLE IF NOT EXISTS in ensurePrestigeTables().
+  prestigeLevel:    integer("prestige_level").notNull().default(0),
+  prestigeXpOffset: integer("prestige_xp_offset").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

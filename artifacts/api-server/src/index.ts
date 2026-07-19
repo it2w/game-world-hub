@@ -8,6 +8,7 @@ import { attachSignaling } from "./ws/signaling";
 import { ensureInitialOwner } from "./lib/owner";
 import { startLfgBotRunner } from "./routes/lfg-bot";
 import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events";
+import { ensurePrestigeTables } from "./routes/prestige";
 
 // How long after the last heartbeat we treat a game as no longer running.
 const PRESENCE_STALE = "4 minutes";
@@ -53,6 +54,14 @@ attachSignaling(server);
 
 server.listen(port, async () => {
   logger.info({ port }, "Server listening");
+
+  // Prestige DDL must run before seed() because the Drizzle schema now
+  // includes prestige_level/prestige_xp_offset and seed() queries users.
+  try {
+    await ensurePrestigeTables();
+  } catch (e) {
+    logger.error({ err: e }, "Prestige tables initialization failed");
+  }
 
   try {
     await seed();

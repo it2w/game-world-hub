@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { ProBadge } from "@/components/pro-badge";
 import { Shield } from "lucide-react";
+import { PrestigeBadge } from "@/components/prestige-badge";
 
 export function AppSidebar() {
   const { t, i18n } = useTranslation("common");
@@ -268,6 +269,7 @@ export function AppSidebar() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-bold leading-none text-foreground">{user.displayName}</span>
                   {user.isPro && <ProBadge size="icon" />}
+                  <PrestigeBadge level={(user as any).prestigeLevel ?? 0} size="xs" />
                 </div>
                 <span className="text-xs text-muted-foreground font-mono leading-none mt-1">@{user.username}</span>
               </div>

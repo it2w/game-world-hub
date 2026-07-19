@@ -16,9 +16,11 @@ import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { displayImageUrl } from "@/lib/image-url";
+import { PrestigeBadge } from "@/components/prestige-badge";
 
 export default function Profile() {
   const { t } = useTranslation("profile");
+  const { t: pt } = useTranslation("prestige");
   const [, params] = useRoute("/profile/:userId");
   const userId = params?.userId ? parseInt(params.userId) : 0;
   const { toast } = useToast();
@@ -97,6 +99,20 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  // Profile Analytics — Pro-only, owner only. We only fetch when conditions are met.
+  const { data: analyticsData } = useQuery<{
+    views: { day: number; week: number; all: number };
+    topVisitors: Array<{ userId: number; username: string; displayName: string; avatarUrl: string | null; lastVisitedAt: string; visitCount: number }>;
+    friendAcceptRate: number | null;
+    lfgResponseRate: number | null;
+  }>({
+    queryKey: ["analytics-me"],
+    queryFn: () => customFetch(`/api/auth/me/analytics`),
+    staleTime: 60_000,
+    enabled: isOwner && !!me?.isPro,
+    retry: false,
+  });
+
   const refreshUser = () => {
     queryClient.invalidateQueries({ queryKey: getGetUserQueryKey(userId) });
     queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -145,6 +161,27 @@ export default function Profile() {
   // Vouch dialog
   const [vouchOpen, setVouchOpen] = useState(false);
   const [isVouching, setIsVouching] = useState(false);
+  const [prestigeConfirmOpen, setPrestigeConfirmOpen] = useState(false);
+  const [isPrestiging, setIsPrestiging] = useState(false);
+
+  // Prestige tiers (mirrors PRESTIGE_TIERS in prestige.ts)
+  const NEXT_TIER_LABELS = ["Prestige I", "Prestige II", "Prestige III", "Prestige IV", "Prestige V", "Prestige VI"];
+  const nextPrestigeLabel = NEXT_TIER_LABELS[((user as any)?.prestigeLevel ?? 0)] ?? "Prestige VI";
+
+  const handlePrestige = async () => {
+    setIsPrestiging(true);
+    try {
+      await customFetch("/api/auth/me/prestige", { method: "POST" });
+      toast({ title: pt("success", { tier: nextPrestigeLabel }) });
+      setPrestigeConfirmOpen(false);
+      refreshUser();
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? pt("errors.failed");
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsPrestiging(false);
+    }
+  };
 
   const handleVouch = async (tag: string) => {
     setIsVouching(true);
@@ -456,6 +493,7 @@ export default function Profile() {
                 {user.displayName}
               </h1>
               {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
+              <PrestigeBadge level={(user as any).prestigeLevel ?? 0} />
               {factionData && (
                 <span
                   className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest border px-2 py-0.5"
@@ -496,6 +534,16 @@ export default function Profile() {
               >
                 <Smile className="w-3 h-3" /> {t("setStatus.button")}
               </button>
+              {/* Prestige button — shown when at max level (TRANSCENDENT) and below max prestige */}
+              {(user.tierLevel ?? 0) >= 106 && ((user as any).prestigeLevel ?? 0) < 6 && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 px-2.5 py-1 transition-colors"
+                  onClick={() => setPrestigeConfirmOpen(true)}
+                >
+                  ★ {pt("button")}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1052,6 +1100,91 @@ export default function Profile() {
           </div>
         )}
       </div>
+      {/* ── PROFILE ANALYTICS (owner + Pro only) ───────────────────────── */}
+      {isOwner && (
+        <div className="bg-card border border-border p-5">
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2 mb-5">
+            <BarChart2 className="w-4 h-4" /> {pt("analytics.title")}
+          </h2>
+          {!me?.isPro ? (
+            /* Locked state for non-Pro owners */
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="w-10 h-10 border border-border flex items-center justify-center opacity-40">
+                <BarChart2 className="w-5 h-5" />
+              </div>
+              <p className="font-mono text-sm text-muted-foreground">{pt("analytics.lockedDesc")}</p>
+              <a href="/pro" className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider border border-primary/40 text-primary hover:bg-primary/10 px-3 py-1.5 transition-colors">
+                {pt("analytics.upgradeCta")}
+              </a>
+            </div>
+          ) : !analyticsData ? (
+            <div className="text-sm font-mono text-muted-foreground italic">{pt("analytics.loading")}</div>
+          ) : (
+            <div className="space-y-5">
+              {/* View counts */}
+              <div className="grid grid-cols-3 gap-3">
+                {([["day", analyticsData.views.day], ["week", analyticsData.views.week], ["all", analyticsData.views.all]] as const).map(([key, val]) => (
+                  <div key={key} className="border border-border bg-background px-4 py-3 text-center">
+                    <div className="font-mono text-2xl font-black text-primary">{val}</div>
+                    <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                      {pt(`analytics.views.${key}`)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rates */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-3 border border-border px-4 py-2.5 bg-background">
+                  <UserCheck className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="font-mono text-sm font-bold text-foreground">
+                      {analyticsData.friendAcceptRate !== null ? `${analyticsData.friendAcceptRate}%` : "—"}
+                    </div>
+                    <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{pt("analytics.friendAcceptRate")}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 border border-border px-4 py-2.5 bg-background">
+                  <MessageSquareText className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <div className="font-mono text-sm font-bold text-foreground">
+                      {analyticsData.lfgResponseRate !== null ? `${analyticsData.lfgResponseRate}%` : "—"}
+                    </div>
+                    <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{pt("analytics.lfgResponseRate")}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top visitors */}
+              {analyticsData.topVisitors.length > 0 && (
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">{pt("analytics.topVisitors")}</p>
+                  <div className="space-y-2">
+                    {analyticsData.topVisitors.slice(0, 5).map(v => (
+                      <div key={v.userId} className="flex items-center gap-3">
+                        <Link href={`/profile/${v.userId}`} className="shrink-0">
+                          <div className="w-8 h-8 border border-border bg-muted overflow-hidden flex items-center justify-center">
+                            {v.avatarUrl ? (
+                              <img src={v.avatarUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="font-mono text-xs text-muted-foreground">{v.displayName.charAt(0)}</span>
+                            )}
+                          </div>
+                        </Link>
+                        <Link href={`/profile/${v.userId}`} className="font-mono text-sm hover:text-primary flex-1 truncate">
+                          {v.displayName}
+                        </Link>
+                        <span className="font-mono text-[10px] text-muted-foreground shrink-0">×{v.visitCount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Vouch Tag Dialog */}
       {vouchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setVouchOpen(false)}>
@@ -1086,6 +1219,55 @@ export default function Profile() {
                   <span className="font-mono text-xs font-bold" style={{ color: tag.color }}>{tag.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prestige Confirmation Dialog */}
+      {prestigeConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => !isPrestiging && setPrestigeConfirmOpen(false)}>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+          <div
+            className="relative z-10 bg-card border border-yellow-500/40 p-6 w-full max-w-sm mx-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-mono text-sm uppercase tracking-widest text-yellow-400">
+                ★ {pt("confirmDialog.title")}
+              </h3>
+              <button
+                type="button"
+                onClick={() => !isPrestiging && setPrestigeConfirmOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs font-mono text-muted-foreground mb-2 leading-relaxed">
+              {pt("confirmDialog.desc")}
+            </p>
+            <p className="text-xs font-mono text-yellow-400/80 mb-5 leading-relaxed border border-yellow-500/20 bg-yellow-500/5 px-3 py-2">
+              {pt("confirmDialog.reward", { tier: nextPrestigeLabel })}
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 font-mono rounded-none text-xs"
+                onClick={() => setPrestigeConfirmOpen(false)}
+                disabled={isPrestiging}
+              >
+                {pt("confirmDialog.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 font-mono rounded-none text-xs bg-yellow-500 hover:bg-yellow-600 text-black"
+                onClick={handlePrestige}
+                disabled={isPrestiging}
+              >
+                {isPrestiging ? pt("confirmDialog.confirming") : pt("confirmDialog.confirm")}
+              </Button>
             </div>
           </div>
         </div>
@@ -1196,4 +1378,4 @@ export default function Profile() {
 }
 
 // Needed to fix import error above
-import { Library, Play, Award, Trophy, Zap, Flame } from "lucide-react";
+import { Library, Play, Award, Trophy, Zap, Flame, BarChart2 } from "lucide-react";

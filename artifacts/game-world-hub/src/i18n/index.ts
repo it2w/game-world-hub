@@ -56,6 +56,8 @@ import enProHunt from './locales/en/proHunt.json';
 import arProHunt from './locales/ar/proHunt.json';
 import enEvents from './locales/en/events.json';
 import arEvents from './locales/ar/events.json';
+import enPrestige from './locales/en/prestige.json';
+import arPrestige from './locales/ar/prestige.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -89,6 +91,7 @@ const resources = {
     factions: enFactions,
     proHunt: enProHunt,
     events: enEvents,
+    prestige: enPrestige,
   },
   ar: {
     common: arCommon,
@@ -118,6 +121,7 @@ const resources = {
     factions: arFactions,
     proHunt: arProHunt,
     events: arEvents,
+    prestige: arPrestige,
   },
 };
 

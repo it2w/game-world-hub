@@ -1,0 +1,36 @@
+{
+  "badge": {
+    "title": "Prestige",
+    "level": "Prestige {{level}}"
+  },
+  "button": "Prestige Now",
+  "confirmDialog": {
+    "title": "Reset & Prestige?",
+    "desc": "Your level will reset to 1. You will earn a permanent prestige badge — a mark of mastery.",
+    "reward": "You will earn the {{tier}} badge.",
+    "confirm": "Yes, Prestige!",
+    "confirming": "Prestiging…",
+    "cancel": "Cancel"
+  },
+  "success": "{{tier}} achieved! Your level has been reset.",
+  "errors": {
+    "notMaxLevel": "You must reach Level 106 (TRANSCENDENT) to prestige.",
+    "maxPrestige": "You have reached the maximum prestige level.",
+    "failed": "Prestige failed — please try again."
+  },
+  "analytics": {
+    "title": "Profile Analytics",
+    "lockedDesc": "Profile analytics are a Pro feature. Upgrade to see who visited your profile.",
+    "upgradeCta": "Upgrade to Pro",
+    "loading": "Loading analytics…",
+    "views": {
+      "title": "Profile Views",
+      "day": "Today",
+      "week": "This week",
+      "all": "All time"
+    },
+    "topVisitors": "Recent Visitors",
+    "friendAcceptRate": "Friend Request Acceptance",
+    "lfgResponseRate": "LFG Response Rate"
+  }
+}

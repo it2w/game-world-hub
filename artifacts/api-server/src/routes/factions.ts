@@ -491,9 +491,13 @@ router.get("/hall-of-fame", requireAuth, async (_req, res): Promise<void> => {
     const { rows: entries } = await pool.query<{
       rank: number; user_id: number; display_name: string; username: string;
       avatar_url: string | null; total_xp: number; faction_slug: string | null;
+      prestige_level: number;
     }>(
-      `SELECT rank, user_id, display_name, username, avatar_url, total_xp, faction_slug
-       FROM hall_of_fame WHERE season_id = $1 ORDER BY rank ASC`,
+      `SELECT h.rank, h.user_id, h.display_name, h.username, h.avatar_url, h.total_xp, h.faction_slug,
+              COALESCE(u.prestige_level, 0) AS prestige_level
+       FROM hall_of_fame h
+       LEFT JOIN users u ON u.id = h.user_id
+       WHERE h.season_id = $1 ORDER BY h.rank ASC`,
       [season.id],
     );
     return {
@@ -506,6 +510,7 @@ router.get("/hall-of-fame", requireAuth, async (_req, res): Promise<void> => {
         avatarUrl: toPublicImageUrl(e.avatar_url),
         totalXp: e.total_xp,
         factionSlug: e.faction_slug,
+        prestigeLevel: e.prestige_level,
       })),
     };
   }));

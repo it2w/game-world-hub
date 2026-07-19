@@ -27,6 +27,7 @@ import { revokedTokensTable } from "@workspace/db";
 import { isBlockedBetween } from "./blocks";
 import { ObjectStorageService, toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
+import { recordProfileView } from "./prestige";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -61,6 +62,7 @@ function safeUser(
     profileFrameColor: u.profileFrameColor ?? null,
     profileBgUrl: u.profileBgUrl ?? null,
     usernameChangedAt: u.usernameChangedAt ? u.usernameChangedAt.toISOString() : null,
+    prestigeLevel: u.prestigeLevel ?? 0,
   };
 }
 
@@ -212,6 +214,9 @@ router.get("/users/:userId", requireAuth, async (req, res): Promise<void> => {
       linkedAt: p.linkedAt.toISOString(),
     })),
   });
+
+  // Silent profile view tracking — fire-and-forget; never delays the response.
+  void recordProfileView(req.auth!.userId, userId);
 });
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/;

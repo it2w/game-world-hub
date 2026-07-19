@@ -35,6 +35,7 @@ import {
   CheckCircle,
   TrendingUp,
   Loader2,
+  MessageSquareX,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -90,6 +91,7 @@ export default function Admin() {
   }, []);
 
   const canViewAnalytics = adminMe?.permissions.can_view_analytics ?? false;
+  const canViewReports   = adminMe?.permissions.can_view_reports   ?? false;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -100,7 +102,7 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="rounded-none bg-card border border-border p-0 h-auto">
+        <TabsList className="rounded-none bg-card border border-border p-0 h-auto flex-wrap">
           <TabsTrigger value="users" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Users className="w-3.5 h-3.5 me-2" /> {t("tabs.users")}
           </TabsTrigger>
@@ -113,6 +115,11 @@ export default function Admin() {
           {canViewAnalytics && (
             <TabsTrigger value="analytics" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <TrendingUp className="w-3.5 h-3.5 me-2" /> {t("tabs.analytics")}
+            </TabsTrigger>
+          )}
+          {canViewReports && (
+            <TabsTrigger value="chatDeletions" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <MessageSquareX className="w-3.5 h-3.5 me-2" /> {t("tabs.chatDeletions")}
             </TabsTrigger>
           )}
         </TabsList>
@@ -129,6 +136,11 @@ export default function Admin() {
         {canViewAnalytics && (
           <TabsContent value="analytics" className="mt-6">
             <AnalyticsPanel />
+          </TabsContent>
+        )}
+        {canViewReports && (
+          <TabsContent value="chatDeletions" className="mt-6">
+            <ChatDeletionsPanel />
           </TabsContent>
         )}
       </Tabs>
@@ -488,6 +500,136 @@ function SubscriptionsPanel() {
           )}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+interface ChatDeletion {
+  id: number;
+  messageId: number;
+  originalContent: string;
+  deletedAt: string;
+  deletedBy: { id: number; username: string; displayName: string };
+  originalAuthor: { id: number; username: string | null; displayName: string | null };
+}
+
+function ChatDeletionsPanel() {
+  const { t } = useTranslation("admin");
+  const [items, setItems] = useState<ChatDeletion[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 50;
+
+  const load = useCallback(async (off: number) => {
+    setLoading(true);
+    setError(false);
+    try {
+      const result = await customFetch<{ total: number; limit: number; offset: number; items: ChatDeletion[] }>(
+        `/api/admin/chat-deletions?limit=${LIMIT}&offset=${off}`,
+      );
+      setItems(result.items);
+      setTotal(result.total);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(offset); }, [offset, load]);
+
+  if (error) {
+    return (
+      <div className="border border-destructive/40 bg-destructive/5 p-6 text-center font-mono text-sm text-destructive">
+        {t("chatDeletions.loadError")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-muted-foreground uppercase">
+          {total} total
+        </span>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-none font-mono text-xs h-7"
+            disabled={offset === 0 || loading}
+            onClick={() => setOffset(Math.max(0, offset - LIMIT))}
+          >
+            ←
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-none font-mono text-xs h-7"
+            disabled={offset + LIMIT >= total || loading}
+            onClick={() => setOffset(offset + LIMIT)}
+          >
+            →
+          </Button>
+        </div>
+      </div>
+
+      <div className="border border-border bg-card overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="font-mono text-xs uppercase w-20">{t("chatDeletions.messageId")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("chatDeletions.originalAuthor")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("chatDeletions.content")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("chatDeletions.deletedBy")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("chatDeletions.deletedAt")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="font-mono text-sm text-center">
+                  <Loader2 className="w-4 h-4 animate-spin inline me-2" />{t("loading")}
+                </TableCell>
+              </TableRow>
+            ) : items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="font-mono text-sm text-center text-muted-foreground">
+                  {t("chatDeletions.empty")}
+                </TableCell>
+              </TableRow>
+            ) : (
+              items.map((d) => (
+                <TableRow key={d.id} className="border-border align-top">
+                  <TableCell className="font-mono text-xs text-muted-foreground">#{d.messageId}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-xs">{d.originalAuthor.displayName ?? "-"}</span>
+                      {d.originalAuthor.username && (
+                        <span className="font-mono text-[10px] text-muted-foreground">@{d.originalAuthor.username}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-xs">
+                    <span className="text-xs line-clamp-3 break-words">{d.originalContent}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-xs">{d.deletedBy.displayName}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">@{d.deletedBy.username}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                    {new Date(d.deletedAt).toLocaleString()}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

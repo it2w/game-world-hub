@@ -90,6 +90,16 @@ async function ensureTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS global_chat_top10_cache (
       user_id INTEGER NOT NULL PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS global_chat_deletions (
+      id                  SERIAL PRIMARY KEY,
+      message_id          INTEGER NOT NULL,
+      deleted_by_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      original_content    TEXT    NOT NULL,
+      original_author_id  INTEGER NOT NULL,
+      deleted_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS gcd_deleted_at_idx ON global_chat_deletions(deleted_at DESC);
   `);
 }
 
@@ -750,10 +760,59 @@ router.delete(
     const messageId = parseInt(req.params.id, 10);
     if (isNaN(messageId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-    const { rowCount } = await pool.query(
-      `DELETE FROM global_chat_messages WHERE id = $1`, [messageId],
-    );
-    if ((rowCount ?? 0) === 0) { res.status(404).json({ error: "Message not found" }); return; }
+    const deletedBy = req.adminUser!.id;
+
+    // All steps run inside a single transaction on the same client.
+    // SELECT … FOR UPDATE locks the row so a concurrent delete cannot race:
+    //   - the second moderator blocks until the first commits
+    //   - after commit the row is gone, so the second sees no row and gets 404
+    // DELETE … RETURNING confirms the row was actually removed (rowCount check
+    // guards against any edge case where the lock was released between steps).
+    const client = await pool.connect();
+    let notFound = false;
+    try {
+      await client.query("BEGIN");
+
+      // Lock the row — returns nothing if already deleted
+      const { rows: snap } = await client.query<{ content: string; user_id: number }>(
+        `SELECT content, user_id FROM global_chat_messages WHERE id = $1 FOR UPDATE`,
+        [messageId],
+      );
+      if (!snap[0]) {
+        notFound = true;
+        await client.query("ROLLBACK");
+      } else {
+        // Write audit record
+        await client.query(
+          `INSERT INTO global_chat_deletions
+             (message_id, deleted_by_user_id, original_content, original_author_id)
+           VALUES ($1, $2, $3, $4)`,
+          [messageId, deletedBy, snap[0].content, snap[0].user_id],
+        );
+
+        // Delete — RETURNING lets us double-check exactly one row was removed
+        const { rowCount } = await client.query(
+          `DELETE FROM global_chat_messages WHERE id = $1 RETURNING id`,
+          [messageId],
+        );
+        if ((rowCount ?? 0) === 0) {
+          // Should not happen after FOR UPDATE, but guard anyway
+          notFound = true;
+          await client.query("ROLLBACK");
+        } else {
+          await client.query("COMMIT");
+        }
+      }
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      logger.error({ err, messageId }, "global-chat: delete failed");
+      res.status(500).json({ error: "Delete failed" });
+      return;
+    } finally {
+      client.release();
+    }
+
+    if (notFound) { res.status(404).json({ error: "Message not found" }); return; }
 
     broadcastAll({ type: "global_chat_delete", messageId });
     res.json({ deleted: true, messageId });

@@ -4,7 +4,8 @@
     "users": "Users",
     "codes": "Codes",
     "subscriptions": "Subscriptions",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "chatDeletions": "Chat Deletions"
   },
   "loading": "Loading...",
   "users": {
@@ -60,6 +61,15 @@
     "proConvRate": "Pro Conv. Rate",
     "totalLfg": "Total LFG Posts",
     "loadError": "Failed to load analytics data."
+  },
+  "chatDeletions": {
+    "messageId": "Msg ID",
+    "deletedBy": "Deleted By",
+    "originalAuthor": "Original Author",
+    "content": "Content",
+    "deletedAt": "Deleted At",
+    "empty": "No deleted messages on record.",
+    "loadError": "Failed to load deletion log."
   },
   "toasts": {
     "proActivated": "Pro activated for user.",

@@ -286,6 +286,67 @@ router.get("/admin/analytics", requireAdminPermission("can_view_analytics"), asy
   });
 });
 
+router.get("/admin/chat-deletions", requireAdminPermission("can_view_reports"), async (req, res): Promise<void> => {
+  const limit  = Math.min(parseInt((req.query.limit as string) ?? "100", 10) || 100, 200);
+  const offset = parseInt((req.query.offset as string) ?? "0", 10) || 0;
+
+  const { rows } = await pool.query<{
+    id: number;
+    message_id: number;
+    original_content: string;
+    deleted_at: string;
+    deleted_by_id: number;
+    deleted_by_username: string;
+    deleted_by_display_name: string;
+    original_author_id: number;
+    original_author_username: string | null;
+    original_author_display_name: string | null;
+  }>(`
+    SELECT
+      d.id,
+      d.message_id,
+      d.original_content,
+      d.deleted_at,
+      d.deleted_by_user_id    AS deleted_by_id,
+      db.username             AS deleted_by_username,
+      db.display_name         AS deleted_by_display_name,
+      d.original_author_id,
+      oa.username             AS original_author_username,
+      oa.display_name         AS original_author_display_name
+    FROM global_chat_deletions d
+    JOIN users db ON db.id = d.deleted_by_user_id
+    LEFT JOIN users oa ON oa.id = d.original_author_id
+    ORDER BY d.deleted_at DESC
+    LIMIT $1 OFFSET $2
+  `, [limit, offset]);
+
+  const { rows: countRows } = await pool.query<{ total: string }>(
+    `SELECT COUNT(*)::text AS total FROM global_chat_deletions`,
+  );
+
+  res.json({
+    total: parseInt(countRows[0]?.total ?? "0", 10),
+    limit,
+    offset,
+    items: rows.map(r => ({
+      id:                        r.id,
+      messageId:                 r.message_id,
+      originalContent:           r.original_content,
+      deletedAt:                 r.deleted_at,
+      deletedBy: {
+        id:          r.deleted_by_id,
+        username:    r.deleted_by_username,
+        displayName: r.deleted_by_display_name,
+      },
+      originalAuthor: {
+        id:          r.original_author_id,
+        username:    r.original_author_username ?? null,
+        displayName: r.original_author_display_name ?? null,
+      },
+    })),
+  });
+});
+
 router.get("/admin/pro-subscriptions", async (req, res): Promise<void> => {
   const subs = await db
     .select({

@@ -4,7 +4,8 @@
     "users": "المستخدمون",
     "codes": "الأكواد",
     "subscriptions": "الاشتراكات",
-    "analytics": "الإحصاءات"
+    "analytics": "الإحصاءات",
+    "chatDeletions": "سجل الحذف"
   },
   "loading": "جارٍ التحميل...",
   "users": {
@@ -60,6 +61,15 @@
     "proConvRate": "نسبة تحويل Pro",
     "totalLfg": "إجمالي منشورات LFG",
     "loadError": "تعذّر تحميل بيانات الإحصاءات."
+  },
+  "chatDeletions": {
+    "messageId": "رقم الرسالة",
+    "deletedBy": "حُذف بواسطة",
+    "originalAuthor": "الكاتب الأصلي",
+    "content": "المحتوى",
+    "deletedAt": "وقت الحذف",
+    "empty": "لا توجد رسائل محذوفة مسجّلة.",
+    "loadError": "تعذّر تحميل سجل الحذف."
   },
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",

@@ -33,6 +33,13 @@ import { recordProfileView } from "./prestige";
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+// Ensure spotlight_opt_out column exists — added after initial schema creation.
+// Runs at module load so tests (which import app directly without index.ts) also
+// benefit from the idempotent ADD COLUMN IF NOT EXISTS guard.
+pool
+  .query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spotlight_opt_out BOOLEAN NOT NULL DEFAULT false`)
+  .catch(err => logger.error({ err }, "users: failed to ensure spotlight_opt_out column"));
+
 const MAX_PROFILE_PHOTOS = 12;
 
 function safeUser(

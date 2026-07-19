@@ -408,3 +408,125 @@ describe("GET /factions — weekly_points consistency with member weeklyPts", ()
     );
   });
 });
+
+describe("GET /factions/:id/weekly-top — consistency with GET /factions/:id/members", () => {
+  test("weekly-top weeklyPoints matches members weeklyPts for the top contributor (activeUser)", async () => {
+    const [{ status: mStatus, body: mBody }, { status: wStatus, body: wBody }] = await Promise.all([
+      authedGet(`/factions/${testFactionId}/members?limit=50`),
+      authedGet(`/factions/${testFactionId}/weekly-top?limit=25`),
+    ]);
+    assert.equal(mStatus, 200, `members returned ${mStatus}: ${JSON.stringify(mBody)}`);
+    assert.equal(wStatus, 200, `weekly-top returned ${wStatus}: ${JSON.stringify(wBody)}`);
+
+    const membersResp = mBody as { members: Array<Record<string, unknown>> };
+    const topResp = wBody as { contributors: Array<Record<string, unknown>> };
+
+    const activeMember = membersResp.members.find(m => m.userId === activeUserId);
+    assert.ok(activeMember, `activeUser (id=${activeUserId}) not found in members`);
+
+    const activeContributor = topResp.contributors.find(c => c.userId === activeUserId);
+    assert.ok(activeContributor, `activeUser (id=${activeUserId}) not found in weekly-top`);
+
+    assert.equal(
+      activeContributor.weeklyPoints,
+      activeMember.weeklyPts,
+      `weekly-top weeklyPoints (${activeContributor.weeklyPoints}) must match members weeklyPts (${activeMember.weeklyPts}) for activeUser`,
+    );
+  });
+
+  test("weekly-top weeklyPoints matches members weeklyPts for quietUser", async () => {
+    const [{ status: mStatus, body: mBody }, { status: wStatus, body: wBody }] = await Promise.all([
+      authedGet(`/factions/${testFactionId}/members?limit=50`),
+      authedGet(`/factions/${testFactionId}/weekly-top?limit=25`),
+    ]);
+    assert.equal(mStatus, 200);
+    assert.equal(wStatus, 200);
+
+    const membersResp = mBody as { members: Array<Record<string, unknown>> };
+    const topResp = wBody as { contributors: Array<Record<string, unknown>> };
+
+    const quietMember = membersResp.members.find(m => m.userId === quietUserId);
+    assert.ok(quietMember, `quietUser (id=${quietUserId}) not found in members`);
+
+    const quietContributor = topResp.contributors.find(c => c.userId === quietUserId);
+    assert.ok(quietContributor, `quietUser (id=${quietUserId}) not found in weekly-top`);
+
+    assert.equal(
+      quietContributor.weeklyPoints,
+      quietMember.weeklyPts,
+      `weekly-top weeklyPoints (${quietContributor.weeklyPoints}) must match members weeklyPts (${quietMember.weeklyPts}) for quietUser`,
+    );
+  });
+
+  test("zeroUser weeklyPoints is 0 in weekly-top and matches members weeklyPts", async () => {
+    const [{ status: mStatus, body: mBody }, { status: wStatus, body: wBody }] = await Promise.all([
+      authedGet(`/factions/${testFactionId}/members?limit=50`),
+      authedGet(`/factions/${testFactionId}/weekly-top?limit=25`),
+    ]);
+    assert.equal(mStatus, 200);
+    assert.equal(wStatus, 200);
+
+    const membersResp = mBody as { members: Array<Record<string, unknown>> };
+    const topResp = wBody as { contributors: Array<Record<string, unknown>> };
+
+    const zeroMember = membersResp.members.find(m => m.userId === zeroUserId);
+    assert.ok(zeroMember, `zeroUser (id=${zeroUserId}) not found in members`);
+    assert.equal(zeroMember.weeklyPts, 0, `zeroUser weeklyPts in members should be 0`);
+
+    // zeroUser may or may not appear in weekly-top (zero pts, still a member)
+    const zeroContributor = topResp.contributors.find(c => c.userId === zeroUserId);
+    if (zeroContributor) {
+      assert.equal(
+        zeroContributor.weeklyPoints,
+        zeroMember.weeklyPts,
+        `weekly-top weeklyPoints (${zeroContributor.weeklyPoints}) must match members weeklyPts (${zeroMember.weeklyPts}) for zeroUser`,
+      );
+    }
+  });
+
+  test("all weekly-top contributors have a matching weeklyPts in the members list", async () => {
+    const [{ status: mStatus, body: mBody }, { status: wStatus, body: wBody }] = await Promise.all([
+      authedGet(`/factions/${testFactionId}/members?limit=50`),
+      authedGet(`/factions/${testFactionId}/weekly-top?limit=25`),
+    ]);
+    assert.equal(mStatus, 200);
+    assert.equal(wStatus, 200);
+
+    const membersResp = mBody as { members: Array<Record<string, unknown>> };
+    const topResp = wBody as { contributors: Array<Record<string, unknown>> };
+
+    // Build a lookup from userId → weeklyPts from the members endpoint
+    const memberPtsById = new Map<number, number>();
+    for (const m of membersResp.members) {
+      memberPtsById.set(m.userId as number, m.weeklyPts as number);
+    }
+
+    for (const contributor of topResp.contributors) {
+      const uid = contributor.userId as number;
+      assert.ok(
+        memberPtsById.has(uid),
+        `contributor userId=${uid} from weekly-top not found in members list`,
+      );
+      assert.equal(
+        contributor.weeklyPoints,
+        memberPtsById.get(uid),
+        `contributor userId=${uid}: weekly-top weeklyPoints (${contributor.weeklyPoints}) !== members weeklyPts (${memberPtsById.get(uid)})`,
+      );
+    }
+  });
+
+  test("weekly-top activeUser weeklyPoints equals the expected seeded value", async () => {
+    const { status, body } = await authedGet(`/factions/${testFactionId}/weekly-top?limit=25`);
+    assert.equal(status, 200);
+
+    const topResp = body as { contributors: Array<Record<string, unknown>> };
+    const activeContributor = topResp.contributors.find(c => c.userId === activeUserId);
+    assert.ok(activeContributor, `activeUser (id=${activeUserId}) not found in weekly-top`);
+
+    assert.equal(
+      activeContributor.weeklyPoints,
+      ACTIVE_WEEKLY_PTS,
+      `weekly-top weeklyPoints should be ${ACTIVE_WEEKLY_PTS} for activeUser, got ${activeContributor.weeklyPoints}`,
+    );
+  });
+});

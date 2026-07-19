@@ -30,17 +30,20 @@ import {
   type IncomingMessage,
 } from "node:http";
 import { AddressInfo } from "node:net";
+import { WebSocket } from "ws";
 import { inArray } from "drizzle-orm";
 import { db, pool, usersTable } from "@workspace/db";
 import { signToken } from "../../middlewares/auth";
+import { attachSignaling } from "../../ws/signaling";
 import app from "../../app";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
-let server: Server;
-let baseUrl: string;
+let server:    Server;
+let baseUrl:   string;
+let wsBaseUrl: string;
 
 // GIF gate — each test gets its own user to avoid rate-limit cross-talk
 let gifFreeId = 0; let gifFreeUsername = "";
@@ -70,6 +73,10 @@ let expProId = 0; let expProUsername = "";
 // Message-edit gate — Pro-expiry simulation
 let editProId  = 0; let editProUsername  = "";
 let editFreeId = 0; let editFreeUsername = "";
+
+// GIF broadcast — WS payload stripping
+let bcastPro1Id = 0; let bcastPro1Username = "";
+let bcastPro2Id = 0; let bcastPro2Username = "";
 
 const createdUserIds:    number[] = [];
 const createdMessageIds: number[] = [];
@@ -153,6 +160,52 @@ async function postMsg(
   return req("POST", "/global-chat/messages", userId, username, payload);
 }
 
+/** Open a WS connection and collect every frame.  Resolves the next frame that
+ *  satisfies `predicate` within `timeoutMs` (default 3 000 ms). */
+function openWsObserver(userId: number, username: string): {
+  waitFor: (predicate: (msg: unknown) => boolean, timeoutMs?: number) => Promise<unknown>;
+  close: () => void;
+} {
+  const token = signToken({ userId, username });
+  const ws    = new WebSocket(`${wsBaseUrl}?token=${encodeURIComponent(token)}`);
+  const queue: unknown[] = [];
+  const waiters: Array<{ predicate: (m: unknown) => boolean; resolve: (v: unknown) => void; reject: (e: Error) => void }> = [];
+
+  ws.on("message", (raw) => {
+    let msg: unknown;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+    queue.push(msg);
+    for (let i = waiters.length - 1; i >= 0; i--) {
+      if (waiters[i].predicate(msg)) {
+        waiters.splice(i, 1)[0].resolve(msg);
+      }
+    }
+  });
+
+  function waitFor(predicate: (m: unknown) => boolean, timeoutMs = 3_000): Promise<unknown> {
+    // Check the backlog first
+    const found = queue.find(predicate);
+    if (found !== undefined) return Promise.resolve(found);
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        const idx = waiters.findIndex(w => w.resolve === resolve);
+        if (idx >= 0) waiters.splice(idx, 1);
+        reject(new Error(`WS: timed out after ${timeoutMs} ms waiting for matching frame`));
+      }, timeoutMs);
+      waiters.push({
+        predicate,
+        resolve: (v) => { clearTimeout(t); resolve(v); },
+        reject,
+      });
+    });
+  }
+
+  return {
+    waitFor,
+    close: () => { ws.terminate(); },
+  };
+}
+
 // ── Setup / teardown ──────────────────────────────────────────────────────────
 
 before(async () => {
@@ -187,6 +240,8 @@ before(async () => {
       pro("exp"),
       pro("editpro"),
       free("editfree"),
+      pro("bcast1"),
+      pro("bcast2"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -206,14 +261,18 @@ before(async () => {
     [expProId,     expProUsername],
     [editProId,    editProUsername],
     [editFreeId,   editFreeUsername],
+    [bcastPro1Id,  bcastPro1Username],
+    [bcastPro2Id,  bcastPro2Username],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
 
   server = createServer(app);
+  attachSignaling(server);   // needed so broadcastAll() reaches WS test clients
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const { port } = server.address() as AddressInfo;
-  baseUrl = `http://127.0.0.1:${port}/api`;
+  baseUrl   = `http://127.0.0.1:${port}/api`;
+  wsBaseUrl = `ws://127.0.0.1:${port}/api/ws`;
 });
 
 after(async () => {
@@ -627,5 +686,98 @@ describe("Message edit gate — Pro-only and subscription-expiry", () => {
       body.error?.toLowerCase().includes("5 min"),
       `error should mention time limit, got: ${body.error}`,
     );
+  });
+});
+
+describe("GIF broadcast — gifUrl domain stripping in WebSocket payload", () => {
+  // These tests verify that the broadcastAll() call in the POST route uses the
+  // sanitised `safeMeta` object (not raw req.body), so WS clients never receive
+  // an invalid gifUrl even if the DB row is clean.
+  //
+  // bcastPro1 is the WS observer; bcastPro2 is the HTTP poster.
+  // They are different users so the poster's cooldown doesn't affect the observer.
+
+  test("WS broadcast for a gif with an invalid gifUrl domain has no gifUrl in metadata", async () => {
+    const observer = openWsObserver(bcastPro1Id, bcastPro1Username);
+
+    // Wait for the WS connection to open before posting
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("WS open timeout")), 3_000);
+      const ws = new WebSocket(
+        `${wsBaseUrl}?token=${encodeURIComponent(signToken({ userId: bcastPro1Id, username: bcastPro1Username }))}`,
+      );
+      ws.once("open",  () => { clearTimeout(t); ws.terminate(); resolve(); });
+      ws.once("error", (e) => { clearTimeout(t); reject(e); });
+    });
+
+    // Post a gif message with an evil gifUrl
+    const postRes = await postMsg(bcastPro2Id, bcastPro2Username, {
+      content:     "evil broadcast",
+      messageType: "gif",
+      metadata:    { gifUrl: "https://evil.example.com/steal.gif" },
+      channel:     "general",
+    });
+    assert.equal(postRes.status, 201, `POST failed: ${JSON.stringify(postRes.body)}`);
+    const posted = postRes.body as { id: number };
+    if (posted.id) createdMessageIds.push(posted.id);
+
+    try {
+      // Wait for the broadcast frame that matches this specific message id
+      const frame = await observer.waitFor((m) => {
+        const msg = m as { type?: string; message?: { id?: number } };
+        return msg.type === "global_chat" && msg.message?.id === posted.id;
+      });
+
+      const broadcast = frame as {
+        type: string;
+        message: { id: number; metadata: Record<string, unknown> };
+      };
+
+      assert.equal(
+        broadcast.message.metadata.gifUrl,
+        undefined,
+        `gifUrl must be absent from WS broadcast metadata, got: ${JSON.stringify(broadcast.message.metadata)}`,
+      );
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("WS broadcast for a gif with a valid Giphy gifUrl includes the gifUrl in metadata", async () => {
+    const validUrl = "https://media.giphy.com/media/valid123/giphy.gif";
+    const observer = openWsObserver(bcastPro1Id, bcastPro1Username);
+
+    // Small delay so the previous test's cooldown has cleared for bcastPro2
+    await new Promise(r => setTimeout(r, 600));
+
+    const postRes = await postMsg(bcastPro2Id, bcastPro2Username, {
+      content:     "valid broadcast gif",
+      messageType: "gif",
+      metadata:    { gifUrl: validUrl },
+      channel:     "general",
+    });
+    assert.equal(postRes.status, 201, `POST failed: ${JSON.stringify(postRes.body)}`);
+    const posted = postRes.body as { id: number };
+    if (posted.id) createdMessageIds.push(posted.id);
+
+    try {
+      const frame = await observer.waitFor((m) => {
+        const msg = m as { type?: string; message?: { id?: number } };
+        return msg.type === "global_chat" && msg.message?.id === posted.id;
+      });
+
+      const broadcast = frame as {
+        type: string;
+        message: { id: number; metadata: Record<string, unknown> };
+      };
+
+      assert.equal(
+        broadcast.message.metadata.gifUrl,
+        validUrl,
+        `valid gifUrl should be present in WS broadcast, got: ${JSON.stringify(broadcast.message.metadata)}`,
+      );
+    } finally {
+      observer.close();
+    }
   });
 });

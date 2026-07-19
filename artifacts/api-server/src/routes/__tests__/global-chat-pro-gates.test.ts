@@ -86,6 +86,11 @@ let metaProId   = 0; let metaProUsername   = "";
 // Pro-metadata lapse: user was Pro, stored fields, then subscription expires mid-session
 let lapsedProId = 0; let lapsedProUsername = "";
 
+// Pro lapse — length cap and GIF gate: dedicated users, each makes exactly one POST while Pro
+// and one POST after is_pro is flipped, so no cross-test rate-limit collisions.
+let lapsedLenId = 0; let lapsedLenUsername = "";
+let lapsedGifId = 0; let lapsedGifUsername = "";
+
 // Type-gated metadata stripping — lfg_signal / trade_offer fields on a plain text message
 let lfgTextId = 0; let lfgTextUsername = "";
 let tradeTextId = 0; let tradeTextUsername = "";
@@ -258,6 +263,8 @@ before(async () => {
       free("meta2"),
       pro("meta"),
       pro("lapsedmeta"),
+      pro("lapsedlen"),
+      pro("lapsedgif"),
       free("lfgtxt"),
       free("tradetxt"),
     ])
@@ -285,6 +292,8 @@ before(async () => {
     [metaFree2Id,  metaFree2Username],
     [metaProId,    metaProUsername],
     [lapsedProId,  lapsedProUsername],
+    [lapsedLenId,  lapsedLenUsername],
+    [lapsedGifId,  lapsedGifUsername],
     [lfgTextId,    lfgTextUsername],
     [tradeTextId,  tradeTextUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
@@ -1029,6 +1038,85 @@ describe("Type-gated metadata stripping — lfg_signal / trade_offer fields on a
         undefined,
         `trade field "${field}" must not be persisted in DB for text message, got: ${JSON.stringify(stored)}`,
       );
+    }
+  });
+});
+
+describe("Pro lapse — length cap and GIF gate", () => {
+  // The POST route re-reads is_pro from the DB on every request.
+  // Flipping is_pro → false between requests simulates a mid-session
+  // subscription expiry and must immediately revoke both the extended
+  // message-length allowance (800 → 300 chars) and GIF posting.
+  //
+  // Each test uses its own dedicated user so no cross-test cooldown
+  // collision can produce a false 429.
+
+  test("lapsed Pro: 800-char message is rejected with 400 after subscription expires", async () => {
+    // Step 1 — while still Pro, an 800-char message is accepted
+    const res1 = await postMsg(lapsedLenId, lapsedLenUsername, {
+      content: "b".repeat(800),
+    });
+    assert.equal(
+      res1.status, 201,
+      `expected 201 (pre-lapse) got ${res1.status}: ${JSON.stringify(res1.body)}`,
+    );
+    const body1 = res1.body as { id: number };
+    if (body1.id) createdMessageIds.push(body1.id);
+
+    // Step 2 — simulate subscription expiry
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [lapsedLenId]);
+
+    try {
+      // Pro cooldown was 500 ms; free-user cooldown is 1 000 ms.
+      // Wait long enough to clear the free-user rate-limit window.
+      await new Promise(r => setTimeout(r, 1_100));
+
+      // Step 3 — the same 800-char message now exceeds the 300-char free limit
+      const res2 = await postMsg(lapsedLenId, lapsedLenUsername, {
+        content: "b".repeat(800),
+      });
+      assert.equal(
+        res2.status, 400,
+        `expected 400 (post-lapse length cap) got ${res2.status}: ${JSON.stringify(res2.body)}`,
+      );
+    } finally {
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapsedLenId]);
+    }
+  });
+
+  test("lapsed Pro: gif message is rejected with 403 after subscription expires", async () => {
+    // Step 1 — while still Pro, a gif message is accepted
+    const res1 = await postMsg(lapsedGifId, lapsedGifUsername, {
+      content:     "look at this gif",
+      messageType: "gif",
+      metadata:    { gifUrl: "https://media.giphy.com/media/abc123/giphy.gif" },
+    });
+    assert.equal(
+      res1.status, 201,
+      `expected 201 (pre-lapse gif) got ${res1.status}: ${JSON.stringify(res1.body)}`,
+    );
+    const body1 = res1.body as { id: number };
+    if (body1.id) createdMessageIds.push(body1.id);
+
+    // Step 2 — simulate subscription expiry
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [lapsedGifId]);
+
+    try {
+      // Wait for the free-user cooldown to clear
+      await new Promise(r => setTimeout(r, 1_100));
+
+      // Step 3 — gif posting is now blocked for non-Pro users
+      const res2 = await postMsg(lapsedGifId, lapsedGifUsername, {
+        content:     "still trying to post a gif",
+        messageType: "gif",
+        metadata:    { gifUrl: "https://media.giphy.com/media/abc123/giphy.gif" },
+      });
+      assert.equal(
+        res2.status, 403,
+        `expected 403 (post-lapse gif gate) got ${res2.status}: ${JSON.stringify(res2.body)}`,
+      );
+    } finally {
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapsedGifId]);
     }
   });
 });

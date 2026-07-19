@@ -1,6 +1,7 @@
 {
   "nav": {
     "about": "About",
+    "features": "Features",
     "download": "Windows App",
     "pricing": "Plans",
     "support": "Support",
@@ -13,12 +14,55 @@
   },
   "hero": {
     "status": "SYSTEM_ONLINE",
+    "title": "Your squad is waiting right now",
     "typed": "Gaming alone? Wrong.",
     "sub": "One second and you know who's online, who's playing what. Join the party, share your screen, find your squad — GWH is the only place you need.",
-    "start": "Start free",
+    "start": "Start for free",
     "login": "Log in",
     "scroll": "Scroll to explore",
     "counterLabel": "players online now"
+  },
+  "social": {
+    "prompt": "> players --online --pro",
+    "title": "Active players right now",
+    "body": "Real players, real games — no bots. Join them.",
+    "proTag": "PRO",
+    "loading": "Loading players..."
+  },
+  "features": {
+    "prompt": "> features --list",
+    "title": "Everything your squad needs",
+    "body": "Six powerful features, one platform. Built for the gaming world.",
+    "lfg": { "title": "Looking for Group", "desc": "Post a request or respond to teammates searching for one more in your game." },
+    "voice": { "title": "Voice Rooms", "desc": "One-click voice rooms for your party. Low latency, no limit on conversation." },
+    "quests": { "title": "Daily Quests", "desc": "Complete daily missions, earn XP, and level up your profile every day." },
+    "tournaments": { "title": "Tournaments", "desc": "Compete in brackets, track results live, and claim trophies for your profile." },
+    "factions": { "title": "Faction Wars", "desc": "Join Shadows, Titans, or Ghosts and fight for weekly faction supremacy." },
+    "battlepass": { "title": "Battle Pass", "desc": "Season-long rewards track with exclusive badges, titles, and cosmetics." }
+  },
+  "warmap": {
+    "prompt": "> faction-war --live",
+    "title": "Faction War — Live",
+    "body": "Three factions battle for weekly dominance. Which side are you on?",
+    "points": "pts",
+    "members": "members",
+    "joinPrompt": "Pick your faction and fight"
+  },
+  "twin": {
+    "prompt": "> find --twin-gamer",
+    "title": "Find your gaming twin",
+    "body": "Enter your favourite games and we'll find a real player online right now who plays the same.",
+    "placeholder": "Pick games…",
+    "search": "Find my twin",
+    "found": "Found a match!",
+    "join": "Join and meet them",
+    "notFound": "No online match found right now — try again soon.",
+    "retry": "Try again"
+  },
+  "fomo": {
+    "title": "{{count}} players joined today",
+    "body": "Don't let your squad find a new player before you show up.",
+    "cta": "Join now — it's free"
   },
   "about": {
     "prompt": "> cat about.txt",
@@ -54,8 +98,8 @@
     "installing": "INSTALLER_STATUS: READY"
   },
   "pricing": {
-    "prompt": "> plans --list",
-    "title": "Plans & perks",
+    "prompt": "> plans --compare",
+    "title": "Free vs Pro",
     "body": "Every core feature is free. Upgrade to PRO for the full gaming command center.",
     "freeName": "PLAYER",
     "freePrice": "Free",
@@ -66,11 +110,13 @@
     "freeF4": "Steam library sync and 2FA security",
     "proName": "PRO",
     "proPrice": "SAR 120",
-    "proTag": "Available now",
+    "proTag": "Upgrade now",
     "proF1": "Animated PRO badge and custom profile",
     "proF2": "Squad tools: bigger voice rooms, roles, scheduled LFG",
     "proF3": "Clans, tournaments, and game highlights",
     "proF4": "Boosted LFG posts and verified ranks",
+    "proF5": "Profile analytics: views, visitors, acceptance rate",
+    "proF6": "Prestige system: earn coloured star badges",
     "note": "Pay securely through Salla. Enter your GWH username at checkout.",
     "cta": "Create your free account",
     "proCta": "Upgrade to PRO"
@@ -80,11 +126,11 @@
     "title": "Support",
     "body": "The most common questions — and if you can't find your answer, message us directly.",
     "q1": "How do I get started?",
-    "a1": "Create a free account with the “Start free” button, then add your friends by username and start your first voice party.",
+    "a1": "Create a free account with the \"Start free\" button, then add your friends by username and start your first voice party.",
     "q2": "Is it really free?",
     "a2": "Yes — everything available today is completely free. The future PRO tier is optional and won't lock away core features.",
     "q3": "How do I link my Steam library?",
-    "a3": "From the “Library” page inside the app, link your Steam account and your games and playtime will appear automatically.",
+    "a3": "From the \"Library\" page inside the app, link your Steam account and your games and playtime will appear automatically.",
     "q4": "Voice not working or calls failing?",
     "a4": "First make sure your browser has microphone permission, then try another network if you can — some networks block calls. If the problem persists, message support and we'll help.",
     "cta": "Didn't find your answer? Contact support",
@@ -101,6 +147,7 @@
   "footer": {
     "tagline": "Your social platform for the gaming world.",
     "links": "Sections",
-    "rights": "© {{year}} Game World Hub — All rights reserved."
+    "rights": "© {{year}} Game World Hub — All rights reserved.",
+    "joinedToday": "{{count}} joined today"
   }
 }

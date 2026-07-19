@@ -314,6 +314,19 @@ html[lang='ar'] {
 @keyframes gwh-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .gwh-msg { animation: gwh-msg-in 0.3s ease both; }
 
+/* ── Pro crown glow (pricing section) ── */
+@keyframes gwh-crown-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(251,191,36,0.5)); }
+  50%       { filter: drop-shadow(0 0 8px rgba(251,191,36,1)) drop-shadow(0 0 14px rgba(251,191,36,0.6)); }
+}
+.gwh-crown-glow {
+  color: #fbbf24;
+  animation: gwh-crown-glow 2.2s ease-in-out infinite;
+}
+
+/* ── Social proof carousel — JS-driven; just prevent overflow ── */
+.gwh-carousel-track { will-change: transform; }
+
 /* ── Reduced-motion overrides ── */
 @media (prefers-reduced-motion: reduce) {
   .gwh-landing-scanline, .gwh-ticker-track, .gwh-cursor, .gwh-progress-bar,

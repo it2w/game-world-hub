@@ -118,8 +118,8 @@ function commentAuthor(u: typeof usersTable.$inferSelect) {
 let spotlightCache: { users: ReturnType<typeof safeUser>[]; ts: number } | null = null;
 const SPOTLIGHT_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-// GET /users/spotlight — 6 random active Pro users for the Dashboard carousel
-router.get("/users/spotlight", requireAuth, async (req, res): Promise<void> => {
+// GET /users/spotlight — 6 random active Pro users; public (used on landing page too)
+router.get("/users/spotlight", async (req, res): Promise<void> => {
   const now = Date.now();
   if (spotlightCache && now - spotlightCache.ts < SPOTLIGHT_TTL_MS) {
     res.json(spotlightCache.users);
@@ -558,6 +558,74 @@ router.delete("/users/me/photos/:photoId", requireAuth, async (req, res): Promis
   }
   await db.delete(profilePhotosTable).where(eq(profilePhotosTable.id, photo.id));
   res.status(204).end();
+});
+
+// GET /users/match?games=Valorant,CS2 — public; returns one online user who plays the given games
+router.get("/users/match", async (req, res): Promise<void> => {
+  const raw = (req.query.games as string) ?? "";
+  const games = raw.split(",").map((g) => g.trim()).filter(Boolean).slice(0, 10);
+
+  if (!games.length) {
+    res.json(null);
+    return;
+  }
+
+  try {
+    // Try to find an online user who has one of these games in their library
+    const { rows } = await pool.query<{
+      id: number; display_name: string; username: string;
+      avatar_url: string | null; status: string; game_name: string;
+    }>(
+      `SELECT u.id, u.display_name, u.username, u.avatar_url, u.status, g.name AS game_name
+       FROM users u
+       JOIN user_games ug ON ug.user_id = u.id
+       JOIN games g ON g.id = ug.game_id
+       WHERE g.name = ANY($1::text[])
+         AND u.status != 'offline'
+       ORDER BY RANDOM()
+       LIMIT 1`,
+      [games],
+    );
+
+    if (rows.length) {
+      const u = rows[0];
+      res.json({
+        id: u.id,
+        displayName: u.display_name,
+        username: u.username,
+        avatarUrl: toPublicImageUrl(u.avatar_url),
+        status: u.status,
+        matchedGame: u.game_name,
+      });
+      return;
+    }
+
+    // Fallback: any online user
+    const { rows: fallback } = await pool.query<{
+      id: number; display_name: string; username: string;
+      avatar_url: string | null; status: string;
+    }>(
+      `SELECT id, display_name, username, avatar_url, status
+       FROM users WHERE status != 'offline'
+       ORDER BY RANDOM() LIMIT 1`,
+    );
+
+    if (fallback.length) {
+      const u = fallback[0];
+      res.json({
+        id: u.id,
+        displayName: u.display_name,
+        username: u.username,
+        avatarUrl: toPublicImageUrl(u.avatar_url),
+        status: u.status,
+        matchedGame: games[0] ?? null,
+      });
+    } else {
+      res.json(null);
+    }
+  } catch {
+    res.json(null);
+  }
 });
 
 export default router;

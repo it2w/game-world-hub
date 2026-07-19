@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import {
   Check,
   ChevronDown,
   Crosshair,
+  Crown,
   Download,
-  Globe,
   Library,
   LifeBuoy,
   Mail,
@@ -14,12 +14,42 @@ import {
   MessagesSquare,
   Mic,
   MonitorUp,
+  Shield,
+  Swords,
+  Target,
+  Trophy,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/animated-logo";
 import { cn } from "@/lib/utils";
+
+// ─── types ────────────────────────────────────────────────────────────────────
+
+type FactionScore = {
+  id: number; name: string; slug: string;
+  color: string; iconEmoji: string;
+  weeklyPoints: number; memberCount: number;
+};
+
+type LiveStats = {
+  onlineCount: number;
+  todayRegistrations: number;
+  factionScores: FactionScore[];
+};
+
+type SpotlightUser = {
+  id: number; username: string; displayName: string;
+  avatarUrl: string | null; tier: string | null; tierLevel: number | null;
+  currentGame: string | null; isPro: boolean; prestigeLevel?: number;
+};
+
+type MatchedUser = {
+  id: number; username: string; displayName: string;
+  avatarUrl: string | null; status: string; matchedGame: string | null;
+};
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -27,10 +57,16 @@ const CONTACT_EMAIL = "info@gmes.app";
 
 const TICKER_ITEMS = [
   "FRIENDS", "PARTIES", "VOICE", "SCREEN SHARE",
-  "LFG", "STEAM LIBRARY", "RANKS", "CHAT", "2FA",
+  "LFG", "STEAM LIBRARY", "RANKS", "CHAT", "2FA", "FACTIONS", "BATTLE PASS",
 ];
 
-const SECTION_IDS = ["about", "download", "pricing", "support", "contact"] as const;
+const SECTION_IDS = ["features", "download", "pricing", "support", "contact"] as const;
+
+const POPULAR_GAMES = [
+  "Valorant", "CS2", "Apex Legends", "League of Legends",
+  "Fortnite", "PUBG", "Overwatch 2", "Rocket League",
+  "GTA Online", "Call of Duty: Warzone", "Minecraft", "FIFA",
+];
 
 interface ChatMsg { name: string; text: string; system: boolean }
 
@@ -96,15 +132,9 @@ function useTypewriter(text: string, speed = 48) {
 type RevealVariant = "up" | "left" | "right" | "pop" | "fade";
 
 function Reveal({
-  children,
-  className,
-  delay = 0,
-  variant = "up",
+  children, className, delay = 0, variant = "up",
 }: {
-  children: ReactNode;
-  className?: string;
-  delay?: number;
-  variant?: RevealVariant;
+  children: ReactNode; className?: string; delay?: number; variant?: RevealVariant;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -146,88 +176,82 @@ function ParticleCanvas() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    type P = { x: number; y: number; vx: number; vy: number };
-    const COUNT = 55;
-    let w = 0, h = 0, raf = 0;
-    const pts: P[] = [];
+    type Particle = { x: number; y: number; vx: number; vy: number; r: number };
+    let particles: Particle[] = [];
+    let raf = 0;
 
     const resize = () => {
-      w = canvas.width = canvas.offsetWidth;
-      h = canvas.height = canvas.offsetHeight;
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
     };
     const init = () => {
-      pts.length = 0;
-      for (let i = 0; i < COUNT; i++)
-        pts.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4 });
+      const count = Math.floor((canvas.width * canvas.height) / 12_000);
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        r: Math.random() * 1.5 + 0.5,
+      }));
     };
     const draw = () => {
-      ctx.clearRect(0, 0, w, h);
-      const { x: mx, y: my } = mouseRef.current;
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+      for (const p of particles) {
         const dx = mx - p.x, dy = my - p.y;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < 160) { p.vx += (dx / d) * 0.016; p.vy += (dy / d) * 0.016; }
-        p.vx *= 0.97; p.vy *= 0.97;
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0 || p.x > w) p.vx *= -1;
-        if (p.y < 0 || p.y > h) p.vy *= -1;
-        p.x = Math.max(0, Math.min(w, p.x));
-        p.y = Math.max(0, Math.min(h, p.y));
-
+        if (d < 80) { p.vx -= dx / d * 0.08; p.vy -= dy / d * 0.08; }
+        p.vx *= 0.995; p.vy *= 0.995;
+        p.x = (p.x + p.vx + canvas.width)  % canvas.width;
+        p.y = (p.y + p.vy + canvas.height) % canvas.height;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = "hsl(135 100% 50% / 0.6)";
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(var(--primary-rgb,34,197,94),0.5)";
         ctx.fill();
-
-        for (let j = i + 1; j < pts.length; j++) {
-          const q = pts[j];
-          const ddx = q.x - p.x, ddy = q.y - p.y;
+        for (const q of particles) {
+          const ddx = p.x - q.x, ddy = p.y - q.y;
           const dd = Math.sqrt(ddx * ddx + ddy * ddy);
-          if (dd < 115) {
+          if (dd < 90) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
-            ctx.strokeStyle = `hsl(135 100% 50% / ${(1 - dd / 115) * 0.25})`;
-            ctx.lineWidth = 0.7;
+            ctx.strokeStyle = `rgba(var(--primary-rgb,34,197,94),${0.08 * (1 - dd / 90)})`;
+            ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
       }
       raf = requestAnimationFrame(draw);
     };
-
     const ro = new ResizeObserver(() => { resize(); init(); });
-    resize(); init(); draw();
     ro.observe(canvas);
-
+    resize(); init(); draw();
     const onMove = (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       mouseRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
     };
     const onLeave = () => { mouseRef.current = { x: -9999, y: -9999 }; };
-    const parent = canvas.parentElement;
-    parent?.addEventListener("mousemove", onMove);
-    parent?.addEventListener("mouseleave", onLeave);
-
+    canvas.addEventListener("mousemove", onMove);
+    canvas.addEventListener("mouseleave", onLeave);
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      parent?.removeEventListener("mousemove", onMove);
-      parent?.removeEventListener("mouseleave", onLeave);
+      canvas.removeEventListener("mousemove", onMove);
+      canvas.removeEventListener("mouseleave", onLeave);
     };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
-      aria-hidden
       className="absolute inset-0 w-full h-full pointer-events-none"
       style={{ zIndex: 4 }}
+      aria-hidden
     />
   );
 }
 
-// ─── matrix rain canvas ──────────────────────────────────────────────────────
+// ─── matrix canvas ────────────────────────────────────────────────────────────
 
 function MatrixCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -238,108 +262,75 @@ function MatrixCanvas() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    const CHARS = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF";
-    const FS = 13;
-    let w = 0, h = 0, cols = 0, raf = 0;
+    const CHARS = "アイウエオカキクケコGWH01アイウエオカキクケコGWH01".split("");
     let drops: number[] = [];
+    let raf = 0;
 
     const resize = () => {
-      w = canvas.width = canvas.offsetWidth;
-      h = canvas.height = canvas.offsetHeight;
-      cols = Math.floor(w / FS);
-      drops = Array.from({ length: cols }, () => Math.floor(Math.random() * -60));
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      drops = Array.from({ length: Math.ceil(canvas.width / 14) }, () => Math.random() * -50);
     };
     const draw = () => {
-      ctx.fillStyle = "rgba(0,0,0,0.05)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "hsl(135 100% 48% / 0.55)";
-      ctx.font = `${FS}px monospace`;
-      for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(34,197,94,0.07)";
+      ctx.font = "12px monospace";
+      drops.forEach((y, i) => {
         const ch = CHARS[Math.floor(Math.random() * CHARS.length)];
-        ctx.fillText(ch, i * FS, drops[i] * FS);
-        if (drops[i] * FS > h && Math.random() > 0.975) drops[i] = 0;
-        drops[i] += 0.55;
-      }
+        ctx.fillText(ch, i * 14, y * 14);
+        drops[i] = y > canvas.height / 14 && Math.random() > 0.975 ? 0 : y + 0.5;
+      });
       raf = requestAnimationFrame(draw);
     };
-
     const ro = new ResizeObserver(resize);
-    resize(); draw();
     ro.observe(canvas);
+    resize(); draw();
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none opacity-30"
+      style={{ zIndex: 0 }}
       aria-hidden
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 0, opacity: 0.28 }}
     />
   );
 }
 
-// ─── glitch title ────────────────────────────────────────────────────────────
+// ─── glitch title ─────────────────────────────────────────────────────────────
 
 function GlitchTitle({ text }: { text: string }) {
   const [active, setActive] = useState(false);
-
   useEffect(() => {
     if (prefersReducedMotion()) return;
-    let timeout: ReturnType<typeof setTimeout>;
     const schedule = () => {
-      timeout = setTimeout(() => {
+      const delay = Math.random() * 8_000 + 3_000;
+      return setTimeout(() => {
         setActive(true);
-        setTimeout(() => { setActive(false); schedule(); }, 380);
-      }, 4_500 + Math.random() * 5_000);
+        setTimeout(() => { setActive(false); schedule(); }, 300);
+      }, delay);
     };
-    schedule();
-    return () => clearTimeout(timeout);
+    const t = schedule();
+    return () => clearTimeout(t);
   }, []);
 
   return (
     <h1
-      dir="ltr"
-      data-text={text}
       className={cn(
-        "gwh-glitch font-mono font-bold text-3xl sm:text-5xl md:text-6xl tracking-[0.12em] md:tracking-[0.18em]",
+        "font-mono font-black uppercase tracking-[0.12em] text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-primary select-none gwh-glitch",
         active && "gwh-glitch--active",
       )}
-      style={{ textShadow: "0 0 32px hsl(135 100% 50% / 0.32)" }}
+      data-text={text}
+      aria-label={text}
     >
       {text}
     </h1>
   );
 }
 
-// ─── live player counter ─────────────────────────────────────────────────────
-
-function LiveCounter({ label }: { label: string }) {
-  const [count, setCount] = useState(1_247);
-  const [flash, setFlash] = useState(false);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setCount((c) => Math.max(1_000, c + Math.floor(Math.random() * 7) - 3));
-      setFlash(true);
-      setTimeout(() => setFlash(false), 450);
-    }, 3_200);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div dir="ltr" className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-      <span className="w-1.5 h-1.5 rounded-full bg-primary gwh-counter-dot" />
-      <span className={cn("text-primary font-bold tabular-nums transition-colors duration-300", flash && "text-foreground")}>
-        {count.toLocaleString()}
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-// ─── fake chat widget (hero, desktop only) ───────────────────────────────────
+// ─── fake chat widget ─────────────────────────────────────────────────────────
 
 function FakeChatWidget() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -347,14 +338,7 @@ function FakeChatWidget() {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-
-    if (prefersReducedMotion()) {
-      setMsgs(CHAT_SCRIPT);
-      return;
-    }
-
     const run = () => {
-      setMsgs([]);
       CHAT_SCRIPT.forEach((item, i) => {
         const t = setTimeout(() => setMsgs((prev) => [...prev, item]), CHAT_DELAYS[i]);
         timers.push(t);
@@ -367,44 +351,38 @@ function FakeChatWidget() {
   }, []);
 
   useEffect(() => {
-    const el = bodyRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    bodyRef.current?.scrollTo({ top: 9999, behavior: "smooth" });
   }, [msgs]);
 
   return (
     <div
-      className="absolute bottom-20 end-4 md:end-8 w-60 border border-primary/30 bg-background/95 backdrop-blur hidden lg:flex flex-col shadow-lg shadow-primary/5"
+      className="hidden lg:flex absolute bottom-20 end-6 flex-col w-64 bg-card/95 border border-border backdrop-blur-sm shadow-2xl overflow-hidden"
       style={{ zIndex: 15 }}
+      aria-hidden
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 bg-primary/5">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary gwh-counter-dot" />
-        <span dir="ltr" className="font-mono text-[9px] tracking-[0.2em] text-primary flex-1">LIVE_CHAT</span>
-        <span dir="ltr" className="font-mono text-[9px] text-muted-foreground">3 online</span>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/80">
+        <span className="w-2 h-2 rounded-full bg-primary gwh-counter-dot" />
+        <span className="font-mono text-[10px] uppercase tracking-widest text-primary">
+          PARTY CHAT — LIVE
+        </span>
       </div>
-      <div ref={bodyRef} className="p-2.5 flex flex-col gap-1.5 h-36 overflow-y-auto scrollbar-none">
-        {msgs.map((m, i) =>
-          m.system ? (
-            <div key={i} className="gwh-msg font-mono text-primary/55 text-center text-[9px] tracking-wide">
-              // {m.text}
-            </div>
-          ) : (
-            <div key={i} className="gwh-msg text-[11px] leading-snug">
-              <span className="font-mono text-primary font-bold">{m.name}</span>
-              <span className="text-muted-foreground">: {m.text}</span>
-            </div>
-          )
-        )}
-        {msgs.length === 0 && (
-          <div className="font-mono text-[9px] text-muted-foreground/50 text-center mt-4">waiting...</div>
-        )}
+      <div ref={bodyRef} className="flex flex-col gap-1 p-2 max-h-36 overflow-hidden text-[11px]">
+        {msgs.slice(-8).map((m, i) => (
+          <div key={i} className={cn("flex gap-1.5", m.system && "opacity-50 italic")}>
+            {!m.system && (
+              <span className="font-mono text-primary shrink-0">{m.name.slice(0, 8)}</span>
+            )}
+            <span className={m.system ? "text-muted-foreground" : "text-foreground"}>
+              {m.text}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── app mockup window (download section) ────────────────────────────────────
-
-const MOCKUP_GAMES = ["VALORANT", "CS2", "Apex Legends", "League of Legends"];
+// ─── app mockup window ────────────────────────────────────────────────────────
 
 function AppMockupWindow() {
   const [chatIdx,  setChatIdx]  = useState(0);
@@ -416,110 +394,112 @@ function AppMockupWindow() {
     return () => clearInterval(id);
   }, []);
 
-  // Simulate game detection cycling
   useEffect(() => {
-    const id = setTimeout(() => {
+    const t = setTimeout(() => {
       setShowGame(true);
       const loop = setInterval(() => {
-        setGameIdx(i => (i + 1) % MOCKUP_GAMES.length);
-      }, 3_000);
+        setGameIdx((i) => (i + 1) % MOCKUP_FRIENDS.length);
+      }, 1_800);
       return () => clearInterval(loop);
-    }, 1_500);
-    return () => clearTimeout(id);
+    }, 1_400);
+    return () => clearTimeout(t);
   }, []);
 
+  const activeFriend = MOCKUP_FRIENDS[gameIdx];
+
   return (
-    <div className="border border-primary/35 bg-card shadow-xl shadow-primary/5">
+    <div
+      dir="ltr"
+      className="gwh-corner-card relative bg-card border border-border overflow-hidden shadow-2xl"
+      aria-hidden
+    >
       {/* title bar */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2 bg-background/50">
-        <span className="w-2 h-2 rounded-full bg-muted" />
-        <span className="w-2 h-2 rounded-full bg-muted" />
-        <span className="w-2 h-2 rounded-full bg-primary gwh-counter-dot" />
-        <span dir="ltr" className="ms-auto font-mono text-[9px] tracking-[0.2em] text-primary">
-          GWH_DESKTOP.EXE ● RUNNING
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border bg-card/80">
+        <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+        <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+        <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+        <span className="ms-2 font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+          GWH_DESKTOP.EXE
         </span>
       </div>
 
-      {/* game detection banner */}
-      {showGame && (
-        <div dir="ltr" className="flex items-center gap-2 border-b border-border bg-primary/5 px-3 py-1">
-          <span className="text-[10px]">🎮</span>
-          <span className="font-mono text-[9px] text-primary/80 tracking-wider">
-            DETECTED: {MOCKUP_GAMES[gameIdx]}
-          </span>
-          <span className="ms-auto font-mono text-[8px] text-muted-foreground">STATUS AUTO-UPDATED</span>
-        </div>
-      )}
-
-      {/* body */}
-      <div className="flex divide-x divide-border" style={{ direction: "ltr" }}>
+      <div className="flex h-56 sm:h-64">
         {/* sidebar */}
-        <div className="w-36 shrink-0 p-3 flex flex-col gap-2.5">
-          <div className="font-mono text-[8px] tracking-widest text-muted-foreground uppercase mb-0.5">Friends</div>
-          {MOCKUP_FRIENDS.map((f) => (
-            <div key={f.name} className="flex items-center gap-1.5 min-w-0">
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", f.online ? "bg-primary" : "bg-muted-foreground/40")} />
-              <div className="min-w-0">
-                <div className="font-mono text-[10px] text-foreground truncate">{f.name}</div>
-                <div className="font-mono text-[9px] text-muted-foreground truncate">{f.status}</div>
-              </div>
+        <div className="w-28 border-e border-border flex flex-col gap-0.5 p-1.5 bg-card/60">
+          {MOCKUP_FRIENDS.map((f, i) => (
+            <div
+              key={f.name}
+              className={cn(
+                "flex items-center gap-1.5 p-1 rounded text-[10px]",
+                i === gameIdx && "bg-primary/10 border border-primary/30",
+              )}
+            >
+              <span
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  f.online ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+              />
+              <span className="truncate text-[9px] text-foreground/80">{f.name}</span>
             </div>
           ))}
         </div>
-        {/* main panel */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* voice banner */}
-          <div className="flex items-center gap-2 border-b border-border bg-primary/8 px-3 py-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary gwh-counter-dot shrink-0" />
-            <span className="font-mono text-[9px] text-primary tracking-wider truncate">PARTY VOICE — 3 MEMBERS</span>
-          </div>
-          {/* chat */}
-          <div className="p-3 flex flex-col gap-1.5 h-28 overflow-hidden">
+
+        {/* main pane */}
+        <div className="flex-1 flex flex-col">
+          {showGame && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-primary/5">
+              <div className="w-4 h-4 rounded bg-primary/20 border border-primary/40 flex items-center justify-center">
+                <span className="text-[8px] text-primary">▶</span>
+              </div>
+              <span className="font-mono text-[10px] text-primary truncate">
+                {activeFriend.name} is playing {activeFriend.status}
+              </span>
+            </div>
+          )}
+          <div className="flex-1 flex flex-col gap-1 p-2 overflow-hidden text-[11px]">
             {MOCKUP_CHAT.slice(0, chatIdx + 1).map((m, i) => (
-              <div key={i} className="gwh-msg font-mono text-[10px] leading-snug min-w-0">
-                <span className="text-primary font-bold">{m.name}: </span>
-                <span className="text-muted-foreground">{m.text}</span>
+              <div key={i} className="flex gap-1.5">
+                <span className="font-mono text-primary shrink-0 text-[9px]">{m.name}</span>
+                <span>{m.text}</span>
               </div>
             ))}
           </div>
-          {/* input */}
-          <div className="mt-auto border-t border-border px-3 py-1.5 font-mono text-[9px] text-muted-foreground">
-            &gt; <span className="gwh-cursor">_</span>
+          <div className="border-t border-border px-2 py-1.5">
+            <div className="bg-background/60 border border-border px-2 py-0.5 font-mono text-[9px] text-muted-foreground">
+              Type a message…
+            </div>
           </div>
         </div>
       </div>
-
-      {/* overlay toast preview */}
-      {showGame && (
-        <div dir="ltr" className="border-t border-border bg-background/80 px-3 py-1.5 flex items-center gap-2">
-          <span className="text-[9px]">🔔</span>
-          <span className="font-mono text-[8px] text-muted-foreground">OVERLAY: Friend request from XPlayer99</span>
-          <span className="ms-auto font-mono text-[8px] text-primary/60">5s ▓▓▓░░</span>
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── section shell ───────────────────────────────────────────────────────────
+// ─── section wrapper ──────────────────────────────────────────────────────────
 
 function Section({
-  id, prompt, title, body, children,
+  id, prompt, title, body, children, className,
 }: {
-  id: string; prompt: string; title: string; body?: string; children: ReactNode;
+  id?: string; prompt: string; title: string; body?: string;
+  children?: ReactNode; className?: string;
 }) {
   return (
-    <section id={id} className="scroll-mt-20 border-t border-border">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-16 md:py-24">
-        <Reveal variant="fade">
-          <div className="mb-10 md:mb-12">
-            <div className="font-mono text-xs text-primary/90 tracking-wider mb-3">
-              <span dir="ltr" className="inline-block">
-                {prompt}<span className="gwh-cursor">_</span>
-              </span>
+    <section id={id} className={cn("py-16 md:py-24 border-b border-border", className)}>
+      <div className="max-w-6xl mx-auto px-4 md:px-6">
+        <Reveal variant="up">
+          <div className="mb-10 md:mb-14">
+            <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary mb-3">
+              {prompt}
             </div>
-            <h2 className="text-2xl md:text-4xl font-bold font-mono uppercase tracking-wider">{title}</h2>
-            {body && <p className="mt-4 text-muted-foreground max-w-3xl leading-relaxed">{body}</p>}
+            <h2 className="font-mono font-bold text-2xl md:text-3xl lg:text-4xl uppercase tracking-tight mb-4">
+              {title}
+            </h2>
+            {body && (
+              <p className="max-w-2xl text-sm md:text-base text-muted-foreground leading-relaxed">
+                {body}
+              </p>
+            )}
           </div>
         </Reveal>
         {children}
@@ -528,7 +508,7 @@ function Section({
   );
 }
 
-// ─── nav ─────────────────────────────────────────────────────────────────────
+// ─── nav ──────────────────────────────────────────────────────────────────────
 
 function LandingNav() {
   const { t, i18n } = useTranslation("landing");
@@ -537,76 +517,87 @@ function LandingNav() {
   const links = SECTION_IDS.map((id) => ({ id, label: t(`nav.${id}`) }));
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-border bg-background/90 backdrop-blur">
-      <div className="max-w-6xl mx-auto h-full px-4 md:px-6 flex items-center gap-3">
-        <a href="#top" onClick={scrollToSection("top")} className="flex items-center gap-3 me-auto" data-testid="link-nav-home">
-          <AnimatedLogo className="h-7 w-auto text-primary" />
-          <span dir="ltr" className="font-mono text-xs md:text-sm font-bold tracking-[0.25em]">GAME WORLD HUB</span>
+    <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+        {/* logo */}
+        <a href="#top" onClick={scrollToSection("top")} className="flex items-center gap-2 shrink-0">
+          <AnimatedLogo className="h-6 w-auto text-primary" />
+          <span dir="ltr" className="hidden sm:block font-mono text-xs font-bold tracking-[0.25em] text-foreground">
+            GAME WORLD HUB
+          </span>
         </a>
 
-        <nav className="hidden lg:flex items-center">
+        {/* desktop nav */}
+        <nav className="hidden md:flex items-center gap-1">
           {links.map((l) => (
             <a
-              key={l.id}
-              href={`#${l.id}`}
-              onClick={scrollToSection(l.id)}
-              className="group px-3 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              key={l.id} href={`#${l.id}`} onClick={scrollToSection(l.id)}
+              className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors px-3 py-1.5"
               data-testid={`link-nav-${l.id}`}
             >
-              <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">[</span>
-              <span className="mx-0.5">{l.label}</span>
-              <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity">]</span>
+              {l.label}
             </a>
           ))}
         </nav>
 
-        <Button
-          variant="ghost" size="sm"
-          onClick={() => i18n.changeLanguage(isArabic ? "en" : "ar")}
-          className="font-mono text-xs gap-1.5"
-          data-testid="button-lang-toggle"
-        >
-          <Globe className="w-3.5 h-3.5" />
-          {t("nav.switchLang")}
-        </Button>
+        {/* cta */}
+        <div className="hidden md:flex items-center gap-2">
+          <Button
+            variant="ghost" size="sm" asChild
+            className="rounded-none font-mono uppercase tracking-wider text-[11px]"
+          >
+            <Link href="/login" data-testid="link-nav-login">{t("nav.login")}</Link>
+          </Button>
+          <Button
+            size="sm" asChild
+            className="rounded-none font-mono uppercase tracking-wider text-[11px]"
+          >
+            <Link href="/register" data-testid="link-nav-start">{t("nav.start")}</Link>
+          </Button>
+          <button
+            className="font-mono text-[10px] text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider"
+            onClick={() => i18n.changeLanguage(isArabic ? "en" : "ar")}
+          >
+            {t("nav.switchLang")}
+          </button>
+        </div>
 
-        <Button asChild size="sm" className="rounded-none font-mono uppercase tracking-wider hidden sm:inline-flex">
-          <Link href="/login" data-testid="button-nav-login">{t("nav.login")}</Link>
-        </Button>
-
-        <Button
-          variant="ghost" size="icon" className="lg:hidden"
-          onClick={() => setMenuOpen((o) => !o)}
+        {/* mobile menu toggle */}
+        <button
+          className="md:hidden p-2 text-muted-foreground hover:text-primary transition-colors"
+          onClick={() => setMenuOpen((v) => !v)}
           aria-label={menuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
-          aria-expanded={menuOpen}
-          data-testid="button-mobile-menu"
         >
           {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        </button>
       </div>
 
+      {/* mobile menu */}
       {menuOpen && (
-        <div className="lg:hidden absolute top-full inset-x-0 bg-background border-b border-border z-50">
-          <nav className="flex flex-col p-4 gap-1">
-            {links.map((l) => (
-              <a
-                key={l.id} href={`#${l.id}`}
-                onClick={(e) => { scrollToSection(l.id)(e); setMenuOpen(false); }}
-                className="px-3 py-2.5 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-primary"
-                data-testid={`link-mobilenav-${l.id}`}
-              >
-                <span className="text-primary me-2">&gt;</span>{l.label}
-              </a>
-            ))}
-            <div className="flex gap-2 mt-3">
-              <Button asChild className="flex-1 rounded-none font-mono uppercase tracking-wider">
-                <Link href="/login" data-testid="button-mobilenav-login">{t("nav.login")}</Link>
-              </Button>
-              <Button asChild variant="outline" className="flex-1 rounded-none font-mono uppercase tracking-wider">
-                <Link href="/register" data-testid="button-mobilenav-start">{t("nav.start")}</Link>
-              </Button>
-            </div>
-          </nav>
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 py-4 flex flex-col gap-3">
+          {links.map((l) => (
+            <a
+              key={l.id} href={`#${l.id}`}
+              onClick={(e) => { scrollToSection(l.id)(e); setMenuOpen(false); }}
+              className="font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors"
+            >
+              {l.label}
+            </a>
+          ))}
+          <div className="flex gap-2 pt-2 border-t border-border">
+            <Button variant="outline" size="sm" asChild className="rounded-none font-mono uppercase tracking-wider flex-1">
+              <Link href="/login">{t("nav.login")}</Link>
+            </Button>
+            <Button size="sm" asChild className="rounded-none font-mono uppercase tracking-wider flex-1">
+              <Link href="/register">{t("nav.start")}</Link>
+            </Button>
+          </div>
+          <button
+            className="font-mono text-[11px] text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider text-start"
+            onClick={() => i18n.changeLanguage(isArabic ? "en" : "ar")}
+          >
+            {t("nav.switchLang")}
+          </button>
         </div>
       )}
     </header>
@@ -615,13 +606,36 @@ function LandingNav() {
 
 // ─── hero ─────────────────────────────────────────────────────────────────────
 
-function Hero() {
-  const { t } = useTranslation("landing");
+function Hero({ liveStats }: { liveStats: LiveStats | null }) {
+  const { t, i18n } = useTranslation("landing");
+  const isArabic = !!i18n.resolvedLanguage?.startsWith("ar");
   const typed = useTypewriter(t("hero.typed"), 55);
+  const heroTitle = t("hero.title");
+  const [displayCount, setDisplayCount] = useState(liveStats?.onlineCount ?? 0);
+
+  // Animate counter when online count updates
+  useEffect(() => {
+    const target = liveStats?.onlineCount ?? 0;
+    if (target === displayCount) return;
+    const step = target > displayCount ? 1 : -1;
+    const diff = Math.abs(target - displayCount);
+    const inc = Math.ceil(diff / 30);
+    let cur = displayCount;
+    const id = setInterval(() => {
+      cur += step * inc;
+      if ((step > 0 && cur >= target) || (step < 0 && cur <= target)) {
+        setDisplayCount(target);
+        clearInterval(id);
+      } else {
+        setDisplayCount(cur);
+      }
+    }, 30);
+    return () => clearInterval(id);
+  }, [liveStats?.onlineCount]);
 
   return (
     <section id="top" className="relative overflow-hidden border-b border-border">
-      {/* layers: matrix (0) → grid (2) → scanline (3) → particles (4) → content (10) → chat (15) */}
+      {/* animated backgrounds (matrix → grid → scanline → particles → content) */}
       <MatrixCanvas />
       <div
         className="absolute inset-0 bg-[linear-gradient(to_right,#80808010_1px,transparent_1px),linear-gradient(to_bottom,#80808010_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"
@@ -632,9 +646,10 @@ function Hero() {
 
       {/* content */}
       <div
-        className="relative max-w-6xl mx-auto px-4 md:px-6 min-h-[calc(100svh-4rem)] flex flex-col items-center justify-center text-center gap-6 py-20"
+        className="relative max-w-6xl mx-auto px-4 md:px-6 min-h-[calc(100svh-3.5rem)] flex flex-col items-center justify-center text-center gap-6 py-20"
         style={{ zIndex: 10 }}
       >
+        {/* live status pill */}
         <div
           dir="ltr"
           className="flex items-center gap-2 border border-primary/30 bg-primary/5 px-3 py-1 font-mono text-[10px] tracking-[0.25em] text-primary"
@@ -644,10 +659,17 @@ function Hero() {
           {t("hero.status")}
         </div>
 
-        <AnimatedLogo className="h-20 md:h-28 w-auto text-primary" />
+        <AnimatedLogo className="h-16 md:h-24 w-auto text-primary" />
 
-        <GlitchTitle text="GAME WORLD HUB" />
+        {/* main headline — always show Arabic title regardless of lang setting */}
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-tight tracking-tight text-foreground">
+            {heroTitle}
+          </h1>
+          <GlitchTitle text="GAME WORLD HUB" />
+        </div>
 
+        {/* typewriter sub */}
         <p
           className="font-mono text-primary text-base sm:text-lg md:text-xl min-h-[1.6em]"
           aria-label={t("hero.typed")}
@@ -660,20 +682,31 @@ function Hero() {
           {t("hero.sub")}
         </p>
 
+        {/* CTAs */}
         <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
-          <Button asChild size="lg" className="rounded-none font-mono uppercase tracking-widest px-8">
+          <Button asChild size="lg" className="rounded-none font-mono uppercase tracking-widest px-8 text-base">
             <Link href="/register" data-testid="link-hero-start">{t("hero.start")}</Link>
           </Button>
-          <Button asChild size="lg" variant="outline" className="rounded-none font-mono uppercase tracking-widest px-8">
+          <Button asChild size="lg" variant="outline" className="rounded-none font-mono uppercase tracking-widest px-8 text-base">
             <Link href="/login" data-testid="link-hero-login">{t("hero.login")}</Link>
           </Button>
         </div>
 
-        <LiveCounter label={t("hero.counterLabel")} />
+        {/* live online counter */}
+        <div className="flex items-center gap-3 mt-2">
+          <span className="w-2 h-2 rounded-full bg-primary gwh-counter-dot" />
+          <span className="font-mono text-lg md:text-2xl font-bold text-primary tabular-nums">
+            {displayCount.toLocaleString()}
+          </span>
+          <span className="font-mono text-sm text-muted-foreground">
+            {t("hero.counterLabel")}
+          </span>
+        </div>
 
+        {/* scroll cue */}
         <a
-          href="#about"
-          onClick={scrollToSection("about")}
+          href="#social"
+          onClick={scrollToSection("social")}
           className="mt-4 flex flex-col items-center gap-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-primary transition-colors"
           data-testid="link-hero-scroll"
         >
@@ -710,36 +743,191 @@ function Hero() {
   );
 }
 
-// ─── about section ────────────────────────────────────────────────────────────
+// ─── social proof carousel ────────────────────────────────────────────────────
 
-function AboutSection() {
+function SocialProofCarousel() {
   const { t } = useTranslation("landing");
-  const features = [
-    { key: "presence", Icon: Users },
-    { key: "parties",  Icon: Mic },
-    { key: "screen",   Icon: MonitorUp },
-    { key: "chat",     Icon: MessagesSquare },
-    { key: "lfg",      Icon: Crosshair },
-    { key: "library",  Icon: Library },
+  const [users, setUsers] = useState<SpotlightUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/users/spotlight")
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (Array.isArray(data)) setUsers(data as SpotlightUser[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Auto-scroll carousel
+  useEffect(() => {
+    if (!users.length || prefersReducedMotion()) return;
+    const track = trackRef.current;
+    if (!track) return;
+    let pos = 0;
+    const speed = 0.6;
+    const id = setInterval(() => {
+      pos += speed;
+      if (pos >= track.scrollWidth / 2) pos = 0;
+      track.style.transform = `translateX(-${pos}px)`;
+    }, 16);
+    return () => clearInterval(id);
+  }, [users]);
+
+  const PALETTE = ["#EC4899","#06B6D4","#A855F7","#22C55E","#F97316","#FFD700"];
+  const TIER_COLORS: Record<string, string> = {
+    TRANSCENDENT: "#FFD700", LEGENDARY: "#EC4899", EPIC: "#A855F7",
+    DIAMOND: "#38BDF8", GOLD: "#F97316", SILVER: "#94A3B8", BRONZE: "#A3733F",
+  };
+
+  const cards = loading
+    ? Array.from({ length: 6 }, (_, i) => ({
+        id: i, displayName: "---", username: "loading", tier: null,
+        tierLevel: null, currentGame: null, isPro: true, avatarUrl: null,
+      } as SpotlightUser))
+    : users;
+
+  const doubled = [...cards, ...cards]; // seamless loop
+
+  return (
+    <section id="social" className="py-14 border-b border-border overflow-hidden">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 mb-8">
+        <Reveal variant="up">
+          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary mb-2">
+            {t("social.prompt")}
+          </div>
+          <h2 className="font-mono font-bold text-xl md:text-2xl uppercase tracking-tight">
+            {t("social.title")}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">{t("social.body")}</p>
+        </Reveal>
+      </div>
+
+      <div className="relative">
+        {/* fade edges */}
+        <div className="absolute inset-y-0 start-0 w-16 z-10 bg-gradient-to-r from-background to-transparent pointer-events-none" />
+        <div className="absolute inset-y-0 end-0 w-16 z-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+
+        <div className="overflow-hidden px-4">
+          <div
+            ref={trackRef}
+            className="flex gap-4 w-max"
+            style={{ willChange: "transform" }}
+          >
+            {doubled.map((u, i) => {
+              const color = PALETTE[u.id % PALETTE.length] ?? "#22C55E";
+              const tierColor = u.tier ? (TIER_COLORS[u.tier] ?? "#22C55E") : "#22C55E";
+              return (
+                <div
+                  key={`${u.id}-${i}`}
+                  className="gwh-corner-card relative w-44 shrink-0 bg-card border border-border p-4 flex flex-col gap-3"
+                  style={{ borderColor: `${color}30` }}
+                  aria-hidden={i >= cards.length}
+                >
+                  {/* avatar */}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm shrink-0"
+                      style={{ borderColor: color, background: `${color}20`, color }}
+                    >
+                      {u.avatarUrl
+                        ? <img src={u.avatarUrl} alt={u.displayName} className="w-full h-full rounded-full object-cover" />
+                        : (u.displayName || "?").charAt(0).toUpperCase()
+                      }
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs font-bold truncate">{loading ? "·····" : u.displayName}</div>
+                      <div className="font-mono text-[9px] text-muted-foreground truncate">@{loading ? "···" : u.username}</div>
+                    </div>
+                  </div>
+
+                  {/* tier */}
+                  {u.tier && (
+                    <div
+                      className="font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 border"
+                      style={{ borderColor: `${tierColor}50`, color: tierColor, background: `${tierColor}10` }}
+                    >
+                      {u.tier} {u.tierLevel ? `· ${u.tierLevel}` : ""}
+                    </div>
+                  )}
+
+                  {/* game */}
+                  {u.currentGame && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[8px] text-primary">▶</span>
+                      <span className="font-mono text-[9px] text-muted-foreground truncate">{u.currentGame}</span>
+                    </div>
+                  )}
+
+                  {/* pro badge */}
+                  {u.isPro && (
+                    <div className="absolute top-2 end-2 text-[9px] font-mono font-bold text-amber-400 border border-amber-400/40 bg-amber-400/10 px-1 py-0.5 leading-none">
+                      {t("social.proTag")}
+                    </div>
+                  )}
+
+                  {/* online indicator */}
+                  <div className="absolute bottom-2 end-2 w-2 h-2 rounded-full bg-primary gwh-counter-dot" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── feature showcase ─────────────────────────────────────────────────────────
+
+function FeatureShowcase() {
+  const { t } = useTranslation("landing");
+
+  const FEATURES = [
+    { key: "lfg",         Icon: Crosshair,   color: "#EC4899" },
+    { key: "voice",       Icon: Mic,          color: "#06B6D4" },
+    { key: "quests",      Icon: Target,       color: "#22C55E" },
+    { key: "tournaments", Icon: Trophy,       color: "#FFD700" },
+    { key: "factions",    Icon: Swords,       color: "#A855F7" },
+    { key: "battlepass",  Icon: Shield,       color: "#F97316" },
   ] as const;
+
   const variants: RevealVariant[] = ["left", "up", "right", "left", "up", "right"];
 
   return (
-    <Section id="about" prompt={t("about.prompt")} title={t("about.title")} body={t("about.body")}>
+    <Section
+      id="features"
+      prompt={t("features.prompt")}
+      title={t("features.title")}
+      body={t("features.body")}
+    >
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {features.map((f, i) => (
-          <Reveal key={f.key} delay={i * 80} variant={variants[i]} className="h-full">
+        {FEATURES.map((f, i) => (
+          <Reveal key={f.key} delay={i * 70} variant={variants[i]} className="h-full">
             <div
-              className="gwh-corner-card relative h-full bg-card border border-border p-6 hover:border-primary/50 transition-colors"
+              className="gwh-corner-card relative h-full bg-card border border-border p-6 hover:border-primary/40 transition-all group"
               data-testid={`card-feature-${f.key}`}
+              style={{ "--fc": f.color } as React.CSSProperties}
             >
-              <f.Icon className="w-6 h-6 text-primary mb-4" />
+              <div
+                className="w-10 h-10 rounded border flex items-center justify-center mb-4 transition-colors group-hover:bg-opacity-20"
+                style={{ borderColor: `${f.color}40`, background: `${f.color}15` }}
+              >
+                <f.Icon className="w-5 h-5" style={{ color: f.color }} />
+              </div>
               <h3 className="font-mono font-bold uppercase tracking-wider text-sm mb-2">
-                {t(`about.features.${f.key}.title`)}
+                {t(`features.${f.key}.title` as any)}
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {t(`about.features.${f.key}.desc`)}
+                {t(`features.${f.key}.desc` as any)}
               </p>
+              {/* hover glow */}
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                style={{ boxShadow: `inset 0 0 40px ${f.color}08` }}
+              />
             </div>
           </Reveal>
         ))}
@@ -748,68 +936,246 @@ function AboutSection() {
   );
 }
 
-// ─── download section ─────────────────────────────────────────────────────────
+// ─── faction war map ──────────────────────────────────────────────────────────
 
-function DownloadSection() {
+const FACTION_FALLBACKS: FactionScore[] = [
+  { id: 1, name: "Shadows",  slug: "shadows", color: "#7c3aed", iconEmoji: "👤", weeklyPoints: 4820, memberCount: 38 },
+  { id: 2, name: "Titans",   slug: "titans",  color: "#dc2626", iconEmoji: "⚔️", weeklyPoints: 3910, memberCount: 31 },
+  { id: 3, name: "Ghosts",   slug: "ghosts",  color: "#0891b2", iconEmoji: "👻", weeklyPoints: 2750, memberCount: 27 },
+];
+
+function FactionWarMap({ liveStats }: { liveStats: LiveStats | null }) {
   const { t } = useTranslation("landing");
-  const points = ["p1", "p2", "p3", "p4", "p5", "p6"] as const;
+  const factions = (liveStats?.factionScores?.length ?? 0) > 0
+    ? liveStats!.factionScores
+    : FACTION_FALLBACKS;
+
+  const maxPts = Math.max(...factions.map((f) => f.weeklyPoints), 1);
 
   return (
-    <Section id="download" prompt={t("download.prompt")} title={t("download.title")} body={t("download.body")}>
-      <div className="grid lg:grid-cols-2 gap-10 items-center">
-        <Reveal variant="left">
-          <ul className="flex flex-col gap-3">
-            {points.map((p) => (
-              <li key={p} className="flex items-start gap-3 text-sm">
-                <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <span>{t(`download.${p}`)}</span>
-              </li>
-            ))}
-          </ul>
+    <Section
+      id="warmap"
+      prompt={t("warmap.prompt")}
+      title={t("warmap.title")}
+      body={t("warmap.body")}
+      className="bg-card/20"
+    >
+      <div className="max-w-3xl flex flex-col gap-6">
+        {factions.map((f, i) => {
+          const pct = Math.round((f.weeklyPoints / maxPts) * 100);
+          return (
+            <Reveal key={f.id} delay={i * 100} variant="left">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{f.iconEmoji}</span>
+                    <div>
+                      <div
+                        className="font-mono font-bold uppercase tracking-widest text-sm"
+                        style={{ color: f.color }}
+                      >
+                        {f.name}
+                      </div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        {f.memberCount.toLocaleString()} {t("warmap.members")}
+                      </div>
+                    </div>
+                    {i === 0 && (
+                      <span
+                        className="font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 border"
+                        style={{ borderColor: `${f.color}60`, color: f.color, background: `${f.color}15` }}
+                      >
+                        #1 LEAD
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono font-bold tabular-nums" style={{ color: f.color }}>
+                    {f.weeklyPoints.toLocaleString()} <span className="text-xs text-muted-foreground font-normal">{t("warmap.points")}</span>
+                  </div>
+                </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button
-              asChild size="lg"
-              className="rounded-none font-mono uppercase tracking-widest"
-              data-testid="button-download-windows"
-            >
-              <a href="/api/download/windows" download>
-                <Download className="w-4 h-4" />
-                {t("download.button")}
-              </a>
+                {/* progress bar */}
+                <div className="h-3 bg-border/40 rounded-full overflow-hidden">
+                  <Reveal variant="fade">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000"
+                      style={{
+                        width: `${pct}%`,
+                        background: `linear-gradient(90deg, ${f.color}90, ${f.color})`,
+                        boxShadow: `0 0 8px ${f.color}60`,
+                      }}
+                    />
+                  </Reveal>
+                </div>
+              </div>
+            </Reveal>
+          );
+        })}
+
+        <Reveal delay={350} variant="up">
+          <div className="flex items-center gap-3 pt-2">
+            <Swords className="w-4 h-4 text-primary" />
+            <p className="text-sm text-muted-foreground">{t("warmap.joinPrompt")}</p>
+            <Button asChild size="sm" className="rounded-none font-mono uppercase tracking-wider ms-auto">
+              <Link href="/register">{t("nav.start")}</Link>
             </Button>
-            <span className="border border-primary/40 bg-primary/10 text-primary font-mono text-[10px] uppercase tracking-widest px-2 py-1">
-              {t("download.available")}
-            </span>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.sizeNote")}</p>
-
-          <div className="mt-8 border-t border-border pt-6">
-            <p className="text-sm text-muted-foreground mb-3">{t("download.webNote")}</p>
-            <Button asChild variant="outline" className="rounded-none font-mono uppercase tracking-wider">
-              <Link href="/register" data-testid="link-download-web">{t("download.webCta")}</Link>
-            </Button>
-          </div>
-        </Reveal>
-
-        <Reveal delay={120} variant="right">
-          <AppMockupWindow />
         </Reveal>
       </div>
     </Section>
   );
 }
 
-// ─── pricing section ──────────────────────────────────────────────────────────
+// ─── twin gamer widget ────────────────────────────────────────────────────────
+
+function TwinGamer() {
+  const { t } = useTranslation("landing");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [match, setMatch] = useState<MatchedUser | null | "none">(null);
+
+  const toggle = useCallback((g: string) => {
+    setSelected((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g].slice(0, 5),
+    );
+    setMatch(null);
+  }, []);
+
+  const search = async () => {
+    if (!selected.length) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/users/match?games=${selected.map(encodeURIComponent).join(",")}`);
+      const data = await r.json();
+      setMatch(data ?? "none");
+    } catch {
+      setMatch("none");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const PALETTE = ["#EC4899","#06B6D4","#A855F7","#22C55E","#F97316","#FFD700","#EF4444","#38BDF8"];
+
+  return (
+    <Section
+      id="twin"
+      prompt={t("twin.prompt")}
+      title={t("twin.title")}
+      body={t("twin.body")}
+    >
+      <div className="max-w-2xl">
+        {/* game chips */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {POPULAR_GAMES.map((g, i) => {
+            const on = selected.includes(g);
+            const color = PALETTE[i % PALETTE.length];
+            return (
+              <button
+                key={g}
+                onClick={() => toggle(g)}
+                className="font-mono text-[11px] uppercase tracking-wider px-3 py-1.5 border transition-all"
+                style={on
+                  ? { borderColor: color, background: `${color}20`, color }
+                  : { borderColor: "#333", color: "#666" }
+                }
+              >
+                {g}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* search button */}
+        <Button
+          size="lg"
+          className="rounded-none font-mono uppercase tracking-widest mb-6"
+          disabled={!selected.length || loading}
+          onClick={search}
+        >
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full border border-primary-foreground/50 border-t-primary-foreground animate-spin" />
+              {t("twin.search")}
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              {t("twin.search")}
+            </span>
+          )}
+        </Button>
+
+        {/* result */}
+        {match === "none" && (
+          <Reveal variant="up">
+            <div className="border border-border bg-card/50 p-4 font-mono text-sm text-muted-foreground">
+              {t("twin.notFound")}
+              <button
+                className="ms-3 text-primary hover:underline text-xs"
+                onClick={() => { setMatch(null); setSelected([]); }}
+              >
+                {t("twin.retry")}
+              </button>
+            </div>
+          </Reveal>
+        )}
+
+        {match && match !== "none" && (
+          <Reveal variant="pop">
+            <div className="gwh-corner-card border border-primary/40 bg-card p-5 flex items-center gap-4">
+              <div
+                className="w-12 h-12 rounded-full border-2 border-primary flex items-center justify-center font-bold text-lg text-primary bg-primary/10 shrink-0"
+              >
+                {match.avatarUrl
+                  ? <img src={match.avatarUrl} alt={match.displayName} className="w-full h-full rounded-full object-cover" />
+                  : match.displayName.charAt(0).toUpperCase()
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-mono font-bold text-sm">{match.displayName}</div>
+                <div className="font-mono text-[11px] text-muted-foreground">@{match.username}</div>
+                {match.matchedGame && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-[9px] text-primary">▶</span>
+                    <span className="font-mono text-[11px] text-primary">{match.matchedGame}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 shrink-0">
+                <div className="font-mono text-[10px] text-green-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 gwh-counter-dot" />
+                  ONLINE
+                </div>
+                <Button asChild size="sm" className="rounded-none font-mono uppercase tracking-wider text-[10px]">
+                  <Link href="/register">{t("twin.join")}</Link>
+                </Button>
+              </div>
+            </div>
+          </Reveal>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// ─── pro comparison table ─────────────────────────────────────────────────────
 
 function PricingSection() {
   const { t } = useTranslation("landing");
   const freeFeatures = ["freeF1", "freeF2", "freeF3", "freeF4"] as const;
-  const proFeatures  = ["proF1",  "proF2",  "proF3",  "proF4"]  as const;
+  const proFeatures  = ["proF1",  "proF2",  "proF3",  "proF4",  "proF5",  "proF6"] as const;
 
   return (
-    <Section id="pricing" prompt={t("pricing.prompt")} title={t("pricing.title")} body={t("pricing.body")}>
+    <Section
+      id="pricing"
+      prompt={t("pricing.prompt")}
+      title={t("pricing.title")}
+      body={t("pricing.body")}
+      className="bg-card/10"
+    >
       <div className="grid md:grid-cols-2 gap-6 max-w-4xl">
+        {/* Free */}
         <Reveal className="h-full" variant="pop">
           <div className="relative h-full bg-card border border-primary p-8 flex flex-col gap-6" data-testid="card-plan-free">
             <span className="absolute -top-2.5 start-6 bg-primary text-primary-foreground font-mono text-[10px] uppercase tracking-widest px-2 py-0.5">
@@ -833,19 +1199,23 @@ function PricingSection() {
           </div>
         </Reveal>
 
+        {/* Pro */}
         <Reveal delay={120} className="h-full" variant="pop">
-          <div className="relative h-full bg-card border border-primary p-8 flex flex-col gap-6" data-testid="card-plan-pro">
+          <div className="relative h-full bg-card border border-amber-400/60 p-8 flex flex-col gap-6" data-testid="card-plan-pro"
+            style={{ boxShadow: "0 0 30px rgba(251,191,36,0.08)" }}>
             <span className="absolute -top-2.5 start-6 bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-mono text-[10px] uppercase tracking-widest px-2 py-0.5">
               {t("pricing.proTag")}
             </span>
             <div>
               <div dir="ltr" className="font-mono text-xs tracking-[0.35em] text-muted-foreground">{t("pricing.proName")}</div>
-              <div className="mt-2 font-mono text-4xl font-bold text-primary">{t("pricing.proPrice")}</div>
+              <div className="mt-2 font-mono text-4xl font-bold bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+                {t("pricing.proPrice")}
+              </div>
             </div>
             <ul className="flex flex-col gap-3 flex-1">
               {proFeatures.map((f) => (
                 <li key={f} className="flex items-start gap-3 text-sm">
-                  <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <Crown className="w-4 h-4 shrink-0 mt-0.5 gwh-crown-glow" />
                   <span>{t(`pricing.${f}`)}</span>
                 </li>
               ))}
@@ -859,6 +1229,91 @@ function PricingSection() {
         </Reveal>
       </div>
       <p className="mt-6 font-mono text-xs text-muted-foreground">{t("pricing.note")}</p>
+    </Section>
+  );
+}
+
+// ─── fomo section ─────────────────────────────────────────────────────────────
+
+function FomoSection({ liveStats }: { liveStats: LiveStats | null }) {
+  const { t } = useTranslation("landing");
+  const count = liveStats?.todayRegistrations ?? 0;
+
+  return (
+    <section className="py-16 md:py-24 border-b border-border relative overflow-hidden">
+      {/* subtle glow behind */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-96 h-96 rounded-full bg-primary/5 blur-3xl" />
+      </div>
+
+      <div className="relative max-w-6xl mx-auto px-4 md:px-6 text-center">
+        <Reveal variant="up">
+          <div className="font-mono font-black text-5xl md:text-7xl lg:text-8xl text-primary tabular-nums mb-2">
+            {count > 0 ? count.toLocaleString() : "—"}
+          </div>
+          <h2 className="font-mono font-bold text-xl md:text-3xl uppercase tracking-tight mb-3">
+            {t("fomo.title", { count: count > 0 ? count.toLocaleString() : "—" })}
+          </h2>
+          <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+            {t("fomo.body")}
+          </p>
+          <Button
+            asChild size="lg"
+            className="rounded-none font-mono uppercase tracking-widest px-10 text-base"
+            style={{ boxShadow: "0 0 20px rgba(34,197,94,0.3)" }}
+          >
+            <Link href="/register" data-testid="link-fomo-cta">{t("fomo.cta")}</Link>
+          </Button>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+// ─── download section ─────────────────────────────────────────────────────────
+
+function DownloadSection() {
+  const { t } = useTranslation("landing");
+  const points = ["p1", "p2", "p3", "p4", "p5", "p6"] as const;
+
+  return (
+    <Section id="download" prompt={t("download.prompt")} title={t("download.title")} body={t("download.body")}>
+      <div className="grid lg:grid-cols-2 gap-10 items-center">
+        <Reveal variant="left">
+          <ul className="flex flex-col gap-3">
+            {points.map((p) => (
+              <li key={p} className="flex items-start gap-3 text-sm">
+                <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <span>{t(`download.${p}`)}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Button asChild size="lg" className="rounded-none font-mono uppercase tracking-widest" data-testid="button-download-windows">
+              <a href="/api/download/windows" download>
+                <Download className="w-4 h-4" />
+                {t("download.button")}
+              </a>
+            </Button>
+            <span className="border border-primary/40 bg-primary/10 text-primary font-mono text-[10px] uppercase tracking-widest px-2 py-1">
+              {t("download.available")}
+            </span>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground font-mono">{t("download.sizeNote")}</p>
+
+          <div className="mt-8 border-t border-border pt-6">
+            <p className="text-sm text-muted-foreground mb-3">{t("download.webNote")}</p>
+            <Button asChild variant="outline" className="rounded-none font-mono uppercase tracking-wider">
+              <Link href="/register" data-testid="link-download-web">{t("download.webCta")}</Link>
+            </Button>
+          </div>
+        </Reveal>
+
+        <Reveal delay={120} variant="right">
+          <AppMockupWindow />
+        </Reveal>
+      </div>
     </Section>
   );
 }
@@ -932,33 +1387,57 @@ function ContactSection() {
 
 // ─── footer ──────────────────────────────────────────────────────────────────
 
-function LandingFooter() {
+function LandingFooter({ liveStats }: { liveStats: LiveStats | null }) {
   const { t } = useTranslation("landing");
   const links = SECTION_IDS.map((id) => ({ id, label: t(`nav.${id}`) }));
+  const todayCount = liveStats?.todayRegistrations ?? 0;
 
   return (
     <footer className="border-t border-border">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-10 flex flex-col md:flex-row items-center gap-6 md:justify-between">
-        <div className="flex items-center gap-3">
-          <AnimatedLogo className="h-6 w-auto text-primary" />
-          <div>
-            <div dir="ltr" className="font-mono text-xs font-bold tracking-[0.25em]">GAME WORLD HUB</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{t("footer.tagline")}</div>
+      <div className="max-w-6xl mx-auto px-4 md:px-6 pt-8 pb-4">
+        {/* top row */}
+        <div className="flex flex-col md:flex-row items-center gap-6 md:justify-between pb-6 border-b border-border">
+          <div className="flex items-center gap-3">
+            <AnimatedLogo className="h-6 w-auto text-primary" />
+            <div>
+              <div dir="ltr" className="font-mono text-xs font-bold tracking-[0.25em]">GAME WORLD HUB</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{t("footer.tagline")}</div>
+            </div>
           </div>
+          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            {links.map((l) => (
+              <a
+                key={l.id} href={`#${l.id}`} onClick={scrollToSection(l.id)}
+                className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors"
+                data-testid={`link-footer-${l.id}`}
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+          {todayCount > 0 && (
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary gwh-counter-dot" />
+              <span className="text-primary font-bold">{todayCount.toLocaleString()}</span>
+              <span className="text-muted-foreground">
+                {t("footer.joinedToday", { count: todayCount.toLocaleString() })}
+              </span>
+            </div>
+          )}
         </div>
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          {links.map((l) => (
-            <a
-              key={l.id} href={`#${l.id}`} onClick={scrollToSection(l.id)}
-              className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors"
-              data-testid={`link-footer-${l.id}`}
-            >
-              {l.label}
-            </a>
-          ))}
-        </nav>
-        <div className="font-mono text-[11px] text-muted-foreground text-center">
-          {t("footer.rights", { year: new Date().getFullYear() })}
+        {/* bottom row */}
+        <div className="pt-4 flex flex-col md:flex-row items-center justify-between gap-2">
+          <div className="font-mono text-[11px] text-muted-foreground">
+            {t("footer.rights", { year: new Date().getFullYear() })}
+          </div>
+          <div className="flex gap-4">
+            <Button asChild size="sm" variant="ghost" className="rounded-none font-mono uppercase tracking-wider text-[10px] h-auto py-1">
+              <Link href="/register">{t("nav.start")}</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost" className="rounded-none font-mono uppercase tracking-wider text-[10px] h-auto py-1">
+              <Link href="/login">{t("nav.login")}</Link>
+            </Button>
+          </div>
         </div>
       </div>
     </footer>
@@ -968,9 +1447,26 @@ function LandingFooter() {
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function Landing() {
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+
+  // Fetch live stats every 30 s; never breaks the page if API is down
+  useEffect(() => {
+    const fetchStats = () => {
+      fetch("/api/stats/live")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d: LiveStats | null) => { if (d) setLiveStats(d); })
+        .catch(() => {});
+    };
+    fetchStats();
+    const id = setInterval(fetchStats, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Scroll to anchor hash on mount
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    if (hash && (SECTION_IDS as readonly string[]).includes(hash)) {
+    const validAnchors = [...SECTION_IDS, "top", "social", "warmap", "twin"];
+    if (hash && validAnchors.includes(hash)) {
       requestAnimationFrame(() => {
         document.getElementById(hash)?.scrollIntoView({ behavior: "auto", block: "start" });
       });
@@ -981,14 +1477,18 @@ export default function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       <LandingNav />
       <main>
-        <Hero />
-        <AboutSection />
-        <DownloadSection />
+        <Hero liveStats={liveStats} />
+        <SocialProofCarousel />
+        <FeatureShowcase />
+        <FactionWarMap liveStats={liveStats} />
+        <TwinGamer />
         <PricingSection />
+        <FomoSection liveStats={liveStats} />
+        <DownloadSection />
         <SupportSection />
         <ContactSection />
       </main>
-      <LandingFooter />
+      <LandingFooter liveStats={liveStats} />
     </div>
   );
 }

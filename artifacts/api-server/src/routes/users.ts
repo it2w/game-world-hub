@@ -107,6 +107,25 @@ async function getBlockedIdSet(userId: number): Promise<Set<number>> {
   return set;
 }
 
+/**
+ * Minimal shape returned by the search typeahead endpoint.
+ * Only fields required to render a search result row are included —
+ * no PII, no internal timestamps, no XP counters.
+ */
+function searchUser(u: typeof usersTable.$inferSelect) {
+  const now = new Date();
+  const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
+  return {
+    id: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    avatarUrl: toPublicImageUrl(u.avatarUrl ?? null),
+    status: u.status,
+    isPro: proActive,
+    prestigeLevel: u.prestigeLevel ?? 0,
+  };
+}
+
 function commentAuthor(u: typeof usersTable.$inferSelect) {
   return {
     id: u.id,
@@ -251,7 +270,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const users = await db.select().from(usersTable)
     .where(ilike(usersTable.username, `%${q}%`))
     .limit(20);
-  res.json(users.filter(u => u.id !== req.auth!.userId).map(u => safeUser(u)));
+  res.json(users.filter(u => u.id !== req.auth!.userId).map(u => searchUser(u)));
 });
 
 // GET /users/:userId

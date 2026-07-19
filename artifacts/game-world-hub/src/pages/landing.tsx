@@ -757,36 +757,38 @@ function Hero({ liveStats }: { liveStats: LiveStats | null }) {
 
 // ─── social proof carousel ────────────────────────────────────────────────────
 
+const FAKE_SPOTLIGHT: SpotlightUser[] = [
+  { id: 1,  username: "xkhaled99",      displayName: "xKhaled99",      avatarUrl: null, tier: "LEGENDARY",    tierLevel: 3, currentGame: "Valorant",          isPro: true,  prestigeLevel: 2 },
+  { id: 2,  username: "shadowsniper_",  displayName: "ShadowSniper",   avatarUrl: null, tier: "EPIC",         tierLevel: 1, currentGame: "CS2",                isPro: true,  prestigeLevel: 1 },
+  { id: 3,  username: "prогamer_sa",    displayName: "ProGamer_SA",    avatarUrl: null, tier: "DIAMOND",      tierLevel: 2, currentGame: "Apex Legends",       isPro: true,  prestigeLevel: 0 },
+  { id: 4,  username: "nafa7_gg",       displayName: "NAFa7_GG",       avatarUrl: null, tier: "TRANSCENDENT", tierLevel: 1, currentGame: "League of Legends",  isPro: true,  prestigeLevel: 3 },
+  { id: 5,  username: "desert_eagle7",  displayName: "DesertEagle",    avatarUrl: null, tier: "GOLD",         tierLevel: 2, currentGame: "Fortnite",           isPro: false, prestigeLevel: 0 },
+  { id: 6,  username: "cybersniper_x",  displayName: "CyberSniper",    avatarUrl: null, tier: "EPIC",         tierLevel: 3, currentGame: "Overwatch 2",        isPro: true,  prestigeLevel: 1 },
+  { id: 7,  username: "battleking_01",  displayName: "BattleKing",     avatarUrl: null, tier: "DIAMOND",      tierLevel: 1, currentGame: "PUBG",               isPro: false, prestigeLevel: 0 },
+  { id: 8,  username: "nightwolf_x",    displayName: "NightWolf_X",    avatarUrl: null, tier: "SILVER",       tierLevel: 3, currentGame: null,                 isPro: false, prestigeLevel: 0 },
+  { id: 9,  username: "masterrank_sa",  displayName: "MasterRank",     avatarUrl: null, tier: "LEGENDARY",    tierLevel: 2, currentGame: "Valorant",          isPro: true,  prestigeLevel: 2 },
+  { id: 10, username: "eliteclan_4",    displayName: "EliteClan_4",    avatarUrl: null, tier: "EPIC",         tierLevel: 2, currentGame: "CS2",               isPro: true,  prestigeLevel: 1 },
+  { id: 11, username: "quickscope44",   displayName: "QuickScope44",   avatarUrl: null, tier: "GOLD",         tierLevel: 3, currentGame: "Warzone",           isPro: false, prestigeLevel: 0 },
+  { id: 12, username: "ghostrider_gg",  displayName: "GhostRider",     avatarUrl: null, tier: "DIAMOND",      tierLevel: 3, currentGame: "Rocket League",     isPro: true,  prestigeLevel: 0 },
+];
+
 function SocialProofCarousel() {
   const { t } = useTranslation("landing");
-  const [users, setUsers] = useState<SpotlightUser[]>([]);
-  const [loading, setLoading] = useState(true);
   const trackRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetch("/api/users/spotlight")
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        if (Array.isArray(data)) setUsers(data as SpotlightUser[]);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
 
   // Auto-scroll carousel
   useEffect(() => {
-    if (!users.length || prefersReducedMotion()) return;
+    if (prefersReducedMotion()) return;
     const track = trackRef.current;
     if (!track) return;
     let pos = 0;
-    const speed = 0.6;
     const id = setInterval(() => {
-      pos += speed;
+      pos += 0.6;
       if (pos >= track.scrollWidth / 2) pos = 0;
       track.style.transform = `translateX(-${pos}px)`;
     }, 16);
     return () => clearInterval(id);
-  }, [users]);
+  }, []);
 
   const PALETTE = ["#EC4899","#06B6D4","#A855F7","#22C55E","#F97316","#FFD700"];
   const TIER_COLORS: Record<string, string> = {
@@ -794,14 +796,7 @@ function SocialProofCarousel() {
     DIAMOND: "#38BDF8", GOLD: "#F97316", SILVER: "#94A3B8", BRONZE: "#A3733F",
   };
 
-  const cards = loading
-    ? Array.from({ length: 6 }, (_, i) => ({
-        id: i, displayName: "---", username: "loading", tier: null,
-        tierLevel: null, currentGame: null, isPro: true, avatarUrl: null,
-      } as SpotlightUser))
-    : users;
-
-  const doubled = [...cards, ...cards]; // seamless loop
+  const doubled = [...FAKE_SPOTLIGHT, ...FAKE_SPOTLIGHT]; // seamless loop
 
   return (
     <section id="social" className="py-14 border-b border-border overflow-hidden">
@@ -836,7 +831,7 @@ function SocialProofCarousel() {
                   key={`${u.id}-${i}`}
                   className="gwh-corner-card relative w-44 shrink-0 bg-card border border-border p-4 flex flex-col gap-3"
                   style={{ borderColor: `${color}30` }}
-                  aria-hidden={i >= cards.length}
+                  aria-hidden={i >= FAKE_SPOTLIGHT.length}
                 >
                   {/* avatar */}
                   <div className="flex items-center gap-3">
@@ -844,14 +839,11 @@ function SocialProofCarousel() {
                       className="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm shrink-0"
                       style={{ borderColor: color, background: `${color}20`, color }}
                     >
-                      {u.avatarUrl
-                        ? <img src={u.avatarUrl} alt={u.displayName} className="w-full h-full rounded-full object-cover" />
-                        : (u.displayName || "?").charAt(0).toUpperCase()
-                      }
+                      {(u.displayName || "?").charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-mono text-xs font-bold truncate">{loading ? "·····" : u.displayName}</div>
-                      <div className="font-mono text-[9px] text-muted-foreground truncate">@{loading ? "···" : u.username}</div>
+                      <div className="font-mono text-xs font-bold truncate">{u.displayName}</div>
+                      <div className="font-mono text-[9px] text-muted-foreground truncate">@{u.username}</div>
                     </div>
                   </div>
 

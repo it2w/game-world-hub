@@ -16,6 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { getToken } from '@/lib/auth-token';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { WsProvider } from '@/contexts/WsContext';
 
 // ─── API client configuration (module level, outside any component) ───────────
 // Expo bundles run outside the web proxy and need absolute URLs.
@@ -82,7 +83,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <RootLayoutNav />
+                <WsProvider>
+                  <RootLayoutNav />
+                </WsProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

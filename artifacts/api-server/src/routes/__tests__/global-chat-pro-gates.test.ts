@@ -55,10 +55,11 @@ let lenFree2Id = 0; let lenFree2Username = "";
 let lenPro1Id  = 0; let lenPro1Username  = "";
 let lenPro2Id  = 0; let lenPro2Username  = "";
 
-// Pin gate — owner + two Pro users
+// Pin gate — owner + two Pro users + one lapse-simulation user
 let pinFreeId  = 0; let pinFreeUsername  = "";
 let pinProId   = 0; let pinProUsername   = "";
 let pinPro2Id  = 0; let pinPro2Username  = "";
+let lapPinId   = 0; let lapPinUsername   = "";
 
 // Channel-isolation viewer (read-only, no cooldown concerns)
 let isoUserId = 0; let isoUsername = "";
@@ -267,6 +268,7 @@ before(async () => {
       pro("lapsedgif"),
       free("lfgtxt"),
       free("tradetxt"),
+      pro("lappin"),
     ])
     .returning({ id: usersTable.id, username: usersTable.username });
 
@@ -296,6 +298,7 @@ before(async () => {
     [lapsedGifId,  lapsedGifUsername],
     [lfgTextId,    lfgTextUsername],
     [tradeTextId,  tradeTextUsername],
+    [lapPinId,     lapPinUsername],
   ] = users.map(u => [u.id, u.username]) as [number, string][];
 
   createdUserIds.push(...users.map(u => u.id));
@@ -429,6 +432,56 @@ describe("Pin gate", () => {
     assert.equal(res.status, 200, `expected 200 got ${res.status}: ${JSON.stringify(res.body)}`);
     const body = res.body as { messageId: number };
     assert.equal(body.messageId, msgId);
+  });
+
+  test("lapsed Pro: pin access is revoked immediately when is_pro flips to false", async () => {
+    // Use 'trading' channel so this pin doesn't interfere with the lfg channel-isolation tests.
+    // Step 1 — while still Pro, pin own message → 200
+    // Clear any existing trading pins first so we start with a clean slate.
+    await pool.query(`DELETE FROM global_chat_pins WHERE channel = 'trading'`);
+
+    const { rows: mr1 } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'lappin-pre-lapse', 'trading') RETURNING id`,
+      [lapPinId],
+    );
+    const msgId1 = mr1[0].id;
+    createdMessageIds.push(msgId1);
+
+    const res1 = await req("POST", `/global-chat/messages/${msgId1}/pin`, lapPinId, lapPinUsername);
+    assert.equal(res1.status, 200, `expected 200 (pre-lapse pin) got ${res1.status}: ${JSON.stringify(res1.body)}`);
+    const pinBody = res1.body as { messageId: number };
+    assert.equal(pinBody.messageId, msgId1);
+
+    // Step 2 — simulate subscription expiry by flipping is_pro → false in the DB
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [lapPinId]);
+
+    try {
+      // Step 3 — insert another own message and attempt to pin it → must be 403
+      const { rows: mr2 } = await pool.query<{ id: number }>(
+        `INSERT INTO global_chat_messages (user_id, content, channel)
+         VALUES ($1, 'lappin-post-lapse', 'trading') RETURNING id`,
+        [lapPinId],
+      );
+      const msgId2 = mr2[0].id;
+      createdMessageIds.push(msgId2);
+
+      const res2 = await req("POST", `/global-chat/messages/${msgId2}/pin`, lapPinId, lapPinUsername);
+      assert.equal(
+        res2.status, 403,
+        `expected 403 after Pro lapse, got ${res2.status}: ${JSON.stringify(res2.body)}`,
+      );
+      const body = res2.body as { error: string };
+      assert.ok(
+        body.error?.toLowerCase().includes("pro"),
+        `error should mention Pro, got: ${body.error}`,
+      );
+    } finally {
+      // Restore Pro status so teardown can proceed cleanly
+      await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [lapPinId]);
+      // Remove the pin we created so the 'trading' channel is clean for Pin expiry tests
+      await pool.query(`DELETE FROM global_chat_pins WHERE channel = 'trading' AND pinner_id = $1`, [lapPinId]);
+    }
   });
 });
 

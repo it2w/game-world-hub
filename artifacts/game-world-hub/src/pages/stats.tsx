@@ -32,6 +32,7 @@ export default function StatsPage() {
     queryKey: ["stats", "me"],
     queryFn: () => customFetch("/api/stats/me"),
     enabled: !!me,
+    refetchInterval: 30_000,
   });
 
   const { data: weeklyRaw } = useQuery<{ lfgPosts: number[]; lfgResponses: number[]; messages: number[] }>({

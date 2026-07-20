@@ -239,3 +239,114 @@ describe("StatsPage — weekly chart resets to zero when a new week starts", () 
     });
   });
 });
+
+// ─── Stat card live-update tests ──────────────────────────────────────────────
+
+const STATS_UPDATED = {
+  ...STATS,
+  totalLfgPosts: 25,
+  totalMessages: 80,
+  totalFriends: 7,
+};
+
+describe("StatsPage — summary stat cards update live without a page reload", () => {
+  test("stat cards display initial totals from the cache", () => {
+    const qc = makeClient(WEEKLY_WITH_ACTIVITY);
+    renderStats(qc);
+
+    expect(screen.getByText("10")).toBeInTheDocument(); // totalLfgPosts
+    expect(screen.getByText("20")).toBeInTheDocument(); // totalMessages
+    expect(screen.getByText("3")).toBeInTheDocument();  // totalFriends
+  });
+
+  test("stat cards re-render with new totals when the summary cache is updated", async () => {
+    const qc = makeClient(WEEKLY_WITH_ACTIVITY);
+    const { rerender } = renderStats(qc);
+
+    // Confirm initial values are shown.
+    expect(screen.getByText("10")).toBeInTheDocument();
+    expect(screen.getByText("20")).toBeInTheDocument();
+
+    // Simulate a background refetch updating the ["stats", "me"] cache.
+    await act(async () => {
+      qc.setQueryData(["stats", "me"], STATS_UPDATED);
+    });
+
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StatsPage />
+      </QueryClientProvider>,
+    );
+
+    // New values must appear; stale values must be gone.
+    expect(screen.getByText("25")).toBeInTheDocument(); // updated totalLfgPosts
+    expect(screen.getByText("80")).toBeInTheDocument(); // updated totalMessages
+    expect(screen.getByText("7")).toBeInTheDocument();  // updated totalFriends
+    expect(screen.queryByText("10")).not.toBeInTheDocument(); // old lfgPosts gone
+  });
+
+  test("updating only totalLfgPosts leaves other counters intact", async () => {
+    const qc = makeClient(WEEKLY_WITH_ACTIVITY);
+    const { rerender } = renderStats(qc);
+
+    await act(async () => {
+      qc.setQueryData(["stats", "me"], { ...STATS, totalLfgPosts: 99 });
+    });
+
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StatsPage />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("99")).toBeInTheDocument();  // updated
+    expect(screen.getByText("20")).toBeInTheDocument();  // messages unchanged
+    expect(screen.getByText("3")).toBeInTheDocument();   // friends unchanged
+  });
+
+  test("updating only totalMessages leaves other counters intact", async () => {
+    const qc = makeClient(WEEKLY_WITH_ACTIVITY);
+    const { rerender } = renderStats(qc);
+
+    await act(async () => {
+      qc.setQueryData(["stats", "me"], { ...STATS, totalMessages: 150 });
+    });
+
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StatsPage />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("150")).toBeInTheDocument(); // updated
+    expect(screen.getByText("10")).toBeInTheDocument();  // lfgPosts unchanged
+  });
+
+  test("stat cards show updated values from two successive cache writes", async () => {
+    const qc = makeClient(WEEKLY_WITH_ACTIVITY);
+    const { rerender } = renderStats(qc);
+
+    // First update.
+    await act(async () => {
+      qc.setQueryData(["stats", "me"], { ...STATS, totalLfgPosts: 30 });
+    });
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StatsPage />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("30")).toBeInTheDocument();
+
+    // Second update — simulates a further refetch cycle.
+    await act(async () => {
+      qc.setQueryData(["stats", "me"], { ...STATS, totalLfgPosts: 45 });
+    });
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StatsPage />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("45")).toBeInTheDocument();
+    expect(screen.queryByText("30")).not.toBeInTheDocument();
+  });
+});

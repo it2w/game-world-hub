@@ -79,6 +79,9 @@
     "filterApply": "تطبيق",
     "filterClear": "مسح"
   },
+  "suspended": "الحساب موقوف",
+  "suspendedDesc": "تم إيقاف حسابك الإداري. لم يعد بإمكانك الوصول إلى لوحة الإدارة.",
+  "suspendedLogout": "تسجيل الخروج",
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",
     "proActivateFailed": "تعذّر تفعيل Pro.",

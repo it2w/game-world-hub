@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Tabs,
   TabsContent,
@@ -83,15 +84,48 @@ export default function Admin() {
   const { t } = useTranslation("admin");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState("users");
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
+  const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
-    customFetch<AdminMe>("/api/admin/me").then(setAdminMe).catch(() => null);
+    customFetch<AdminMe>("/api/admin/me")
+      .then(setAdminMe)
+      .catch((err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } | null };
+        if (apiErr?.status === 403 && apiErr?.data?.error === "suspended") {
+          setIsSuspended(true);
+        }
+      });
   }, []);
 
   const canViewAnalytics = adminMe?.permissions.can_view_analytics ?? false;
   const canViewReports   = adminMe?.permissions.can_view_reports   ?? false;
+
+  if (isSuspended) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-6 p-6">
+        <div className="max-w-sm w-full border border-destructive/40 bg-destructive/5 p-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center mx-auto">
+            <span className="text-destructive text-2xl">⊘</span>
+          </div>
+          <h2 className="font-mono font-bold text-lg uppercase tracking-widest text-destructive">
+            {t("suspended")}
+          </h2>
+          <p className="font-mono text-xs text-muted-foreground leading-relaxed">
+            {t("suspendedDesc")}
+          </p>
+          <button
+            className="font-mono rounded-none text-xs border border-border bg-background px-4 py-2 hover:bg-muted transition-colors"
+            onClick={logout}
+          >
+            {t("suspendedLogout")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

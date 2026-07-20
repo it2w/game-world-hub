@@ -79,6 +79,9 @@
     "filterApply": "Apply",
     "filterClear": "Clear"
   },
+  "suspended": "Account Suspended",
+  "suspendedDesc": "Your admin account has been suspended. You no longer have access to the admin panel.",
+  "suspendedLogout": "Sign Out",
   "toasts": {
     "proActivated": "Pro activated for user.",
     "proActivateFailed": "Could not activate Pro.",

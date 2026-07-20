@@ -55,6 +55,11 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
       return;
     }
 
+    if (user.status === "suspended") {
+      res.status(403).json({ error: "suspended" });
+      return;
+    }
+
     req.adminUser = user;
     next();
   });

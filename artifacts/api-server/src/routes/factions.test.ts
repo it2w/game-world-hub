@@ -97,6 +97,19 @@ before(async () => {
 
   // Clear any stale log entry from a previous interrupted test run
   await pool.query(`DELETE FROM faction_war_notif_log WHERE week_key = $1`, [EXPECTED_WEEK_KEY]);
+
+  // The factions module auto-starts sweepWeeklyWarNotifications() on import.
+  // Since today's date == MOCK_NOW (both W29), that auto-sweep may race with this
+  // before() and deliver 0–2 notifications to our test users before we clear the
+  // log entry above.  Wipe them now so the first-run test always starts from zero.
+  await db
+    .delete(notificationsTable)
+    .where(
+      and(
+        inArray(notificationsTable.userId, [user1Id, user2Id]),
+        eq(notificationsTable.type, "faction_war_result"),
+      ),
+    );
 });
 
 after(async () => {

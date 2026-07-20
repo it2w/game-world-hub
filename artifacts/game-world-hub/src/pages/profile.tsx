@@ -52,7 +52,13 @@ export default function Profile() {
   const deleteBanner = useDeleteMyBanner();
   const isOwner = !!me && me.id === userId;
 
-  const { data: streakData } = useQuery<{ currentStreak: number; longestStreak: number; shieldCount?: number; bonusXp?: number }>({
+  const { data: streakData } = useQuery<{
+    currentStreak: number;
+    longestStreak: number;
+    shieldCount?: number;
+    bonusXp?: number;
+    milestones: Array<{ days: number; reachedAt: string }>;
+  }>({
     queryKey: ["user-streak", userId],
     queryFn: () => customFetch(`/api/users/${userId}/streak`),
     staleTime: 60_000,
@@ -701,56 +707,101 @@ export default function Profile() {
       </div>
 
       {/* Streak section — always shown when data is available, including zero values */}
-      {streakData && (
-        <div className="bg-card border border-border p-5 flex flex-wrap items-center gap-6">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl leading-none select-none">🔥</span>
-            <div>
-              <div className="font-mono text-2xl font-black text-foreground leading-none">
-                {streakData.currentStreak}
-              </div>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-                {t("streak.currentLabel")}
-              </div>
-            </div>
-          </div>
-
-          <div className="w-px h-10 bg-border hidden sm:block" />
-
-          <div className="flex items-center gap-3">
-            <span className="text-2xl leading-none select-none opacity-50">🔥</span>
-            <div>
-              <div className="font-mono text-xl font-black text-muted-foreground leading-none">
-                {streakData.longestStreak}
-              </div>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-                {t("streak.longestLabel")}
-              </div>
-            </div>
-          </div>
-
-          {isOwner && streakData.shieldCount !== undefined && (
-            <>
-              <div className="w-px h-10 bg-border hidden sm:block" />
+      {streakData && (() => {
+        const PROFILE_MILESTONES = [
+          { days: 7,   emoji: "🌟", nameKey: "streak.milestoneNames.7"   },
+          { days: 30,  emoji: "🏅", nameKey: "streak.milestoneNames.30"  },
+          { days: 100, emoji: "💎", nameKey: "streak.milestoneNames.100" },
+        ];
+        const reachedMap = new Map(
+          (streakData.milestones ?? []).map((m) => [m.days, m.reachedAt])
+        );
+        return (
+          <div className="bg-card border border-border p-5 flex flex-col gap-4">
+            {/* Row 1: streak counters */}
+            <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-3">
-                <span className="text-2xl leading-none select-none">🛡️</span>
+                <span className="text-3xl leading-none select-none">🔥</span>
                 <div>
-                  <div className="font-mono text-xl font-black text-foreground leading-none">
-                    {streakData.shieldCount}
+                  <div className="font-mono text-2xl font-black text-foreground leading-none">
+                    {streakData.currentStreak}
                   </div>
                   <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-                    {t("streak.shieldsLabel")}
+                    {t("streak.currentLabel")}
                   </div>
                 </div>
               </div>
-            </>
-          )}
 
-          <div className="ms-auto font-mono text-[10px] text-muted-foreground uppercase tracking-widest hidden md:block">
-            {t("streak.sectionTitle")}
+              <div className="w-px h-10 bg-border hidden sm:block" />
+
+              <div className="flex items-center gap-3">
+                <span className="text-2xl leading-none select-none opacity-50">🔥</span>
+                <div>
+                  <div className="font-mono text-xl font-black text-muted-foreground leading-none">
+                    {streakData.longestStreak}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                    {t("streak.longestLabel")}
+                  </div>
+                </div>
+              </div>
+
+              {isOwner && streakData.shieldCount !== undefined && (
+                <>
+                  <div className="w-px h-10 bg-border hidden sm:block" />
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl leading-none select-none">🛡️</span>
+                    <div>
+                      <div className="font-mono text-xl font-black text-foreground leading-none">
+                        {streakData.shieldCount}
+                      </div>
+                      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+                        {t("streak.shieldsLabel")}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="ms-auto font-mono text-[10px] text-muted-foreground uppercase tracking-widest hidden md:block">
+                {t("streak.sectionTitle")}
+              </div>
+            </div>
+
+            {/* Row 2: milestone badges */}
+            <div className="flex flex-wrap gap-2 pt-1 border-t border-border">
+              <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground self-center me-1">
+                {t("streak.milestonesLabel")}
+              </span>
+              {PROFILE_MILESTONES.map(({ days, emoji, nameKey }) => {
+                const reachedAt = reachedMap.get(days);
+                const reached = !!reachedAt;
+                return (
+                  <div
+                    key={days}
+                    title={
+                      reached
+                        ? t("streak.milestoneReachedOn", { date: format(new Date(reachedAt!), "MMM d, yyyy") })
+                        : t("streak.milestoneNotReached", { days })
+                    }
+                    className={[
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] border transition-colors",
+                      reached
+                        ? "border-primary/50 bg-primary/10 text-foreground"
+                        : "border-border bg-transparent text-muted-foreground opacity-40",
+                    ].join(" ")}
+                  >
+                    <span style={{ fontSize: 14 }}>{emoji}</span>
+                    <span className="font-bold">{t(nameKey as any)}</span>
+                    <span className="opacity-60">{days}d</span>
+                    {reached && <span className="text-primary">✓</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── REPUTATION VOUCHES ──────────────────────────────────────── */}
       {((reputationData?.tags.length ?? 0) > 0 || (!isOwner && reputationData?.canVouch !== undefined)) && (

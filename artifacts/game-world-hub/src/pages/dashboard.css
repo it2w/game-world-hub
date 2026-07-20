@@ -332,7 +332,8 @@
 .quest-complete-btn { font-family:monospace;font-size:8px;text-transform:uppercase;letter-spacing:.12em;padding:3px 8px;border:1px solid hsl(var(--border));background:transparent;color:hsl(var(--foreground));cursor:pointer;flex-shrink:0;transition:border-color .15s,opacity .15s; }
 .quest-complete-btn:hover:not(:disabled) { border-color:hsl(var(--primary));color:hsl(var(--primary)); }
 .quest-complete-btn:disabled { opacity:.4;cursor:not-allowed; }
-.quest-widget__footer { border-top:1px solid hsl(var(--border));padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px; }
+.quest-widget__footer { border-top:1px solid hsl(var(--border));padding:8px 14px;display:flex;flex-direction:column;gap:6px; }
+.quest-widget__footer-row { display:flex;align-items:center;justify-content:space-between;gap:8px; }
 .quest-streak-stats { display:flex;gap:12px; }
 .quest-streak-stat { text-align:center; }
 .quest-streak-stat__val { display:block;font-size:13px;font-weight:900;color:hsl(var(--foreground)); }
@@ -342,6 +343,11 @@
 .quest-shield-btn { font-family:monospace;font-size:8px;text-transform:uppercase;letter-spacing:.1em;padding:3px 8px;border:1px solid #A855F7;background:transparent;color:#A855F7;cursor:pointer;transition:opacity .15s; }
 .quest-shield-btn:disabled { opacity:.35;cursor:not-allowed; }
 .quest-shield-btn:hover:not(:disabled) { background:#A855F710; }
+.quest-milestones { display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 0 2px; }
+.quest-milestone-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border:1px solid hsl(var(--border));font-size:8px;font-family:monospace;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground));transition:border-color .15s,background .15s; }
+.quest-milestone-badge--reached { border-color:hsl(var(--primary)/50%);background:hsl(var(--primary)/8%);color:hsl(var(--foreground)); }
+.quest-milestone-badge__days { opacity:.6; }
+.quest-milestone-badge__check { color:hsl(var(--primary));font-weight:900; }
 
 /* ═══════════════════════════════════════════════════════
    GLOBAL CHAT

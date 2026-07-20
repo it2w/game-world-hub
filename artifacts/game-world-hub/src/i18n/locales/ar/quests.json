@@ -15,6 +15,7 @@
     "current": "الحالية",
     "longest": "الأطول",
     "days": "يوم",
+    "daysSuffix": "ي",
     "shieldTitle": "درع السلسلة",
     "shieldDesc": "يحمي سلسلتك إذا فوّتَّ يوماً",
     "shieldCount": "{{count}} درع",
@@ -22,7 +23,14 @@
     "buyShield": "اشتري درعاً (50 XP)",
     "notEnoughXp": "XP المهام غير كافٍ",
     "shieldBought": "تم شراء الدرع! 🛡️",
-    "bonusXp": "XP المهام: {{xp}}"
+    "bonusXp": "XP المهام: {{xp}}",
+    "milestoneReached": "وصلت لمحطة {{days}} يوم!",
+    "milestoneGoal": "حقق سلسلة {{days}} يوم للفتح",
+    "milestones": {
+      "7": "محارب الأسبوع",
+      "30": "سيد الشهر",
+      "100": "أسطورة المئة يوم"
+    }
   },
   "toasts": {
     "questDone": "مهمة مكتملة! +{{xp}} XP 🎉",

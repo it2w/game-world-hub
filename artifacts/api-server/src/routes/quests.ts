@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { pool, db, lfgPostsTable, lfgResponsesTable, messagesTable, friendRequestsTable } from "@workspace/db";
+import { pool, db, lfgPostsTable, lfgResponsesTable, messagesTable, friendRequestsTable, notificationsTable } from "@workspace/db";
 import { count, eq, gte, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 
@@ -89,6 +89,19 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// ── Streak milestone definitions ───────────────────────────────────────────────
+const STREAK_MILESTONES: Array<{
+  days: number;
+  xp: number;
+  emoji: string;
+  labelEn: string;
+  labelAr: string;
+}> = [
+  { days: 7,   xp: 200,  emoji: "🌟", labelEn: "Week Warrior",    labelAr: "محارب الأسبوع" },
+  { days: 30,  xp: 500,  emoji: "🏅", labelEn: "Month Master",    labelAr: "سيد الشهر" },
+  { days: 100, xp: 2000, emoji: "💎", labelEn: "Century Legend",  labelAr: "أسطورة المئة يوم" },
+];
+
 // ── Ensure tables exist (idempotent, runs at module load) ─────────────────────
 async function ensureTables(): Promise<void> {
   await pool.query(`
@@ -110,6 +123,12 @@ async function ensureTables(): Promise<void> {
       bonus_xp INTEGER NOT NULL DEFAULT 0,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS user_streak_milestones (
+      user_id INTEGER NOT NULL,
+      milestone INTEGER NOT NULL,
+      reached_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, milestone)
+    );
   `);
 }
 
@@ -122,6 +141,11 @@ interface StreakRow {
   last_active_date: string | null;
   shield_count: number;
   bonus_xp: number;
+}
+
+interface MilestoneRow {
+  milestone: number;
+  reached_at: string;
 }
 
 async function getOrInitStreak(userId: number): Promise<StreakRow> {
@@ -139,10 +163,22 @@ async function getOrInitStreak(userId: number): Promise<StreakRow> {
   };
 }
 
-async function touchStreak(userId: number): Promise<void> {
+async function getMilestones(userId: number): Promise<MilestoneRow[]> {
+  const { rows } = await pool.query<MilestoneRow>(
+    `SELECT milestone, reached_at FROM user_streak_milestones WHERE user_id = $1 ORDER BY milestone`,
+    [userId],
+  );
+  return rows;
+}
+
+/**
+ * Updates the streak for today. Returns the milestone just hit (if any),
+ * or null if no milestone was reached this call.
+ */
+async function touchStreak(userId: number): Promise<number | null> {
   const today = todayUtc();
   const streak = await getOrInitStreak(userId);
-  if (streak.last_active_date === today) return; // already recorded for today
+  if (streak.last_active_date === today) return null; // already recorded for today
 
   const yesterday = new Date(today + "T00:00:00Z");
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
@@ -182,6 +218,45 @@ async function touchStreak(userId: number): Promise<void> {
            updated_at = NOW()`,
     [userId, newStreak, newLongest, today, newShields, streak.bonus_xp],
   );
+
+  // ── Check for newly crossed milestones ──────────────────────────────────────
+  // A milestone is "newly crossed" when newStreak >= milestone AND the previous
+  // streak was below it (meaning we either just hit it or it reset past it).
+  // We use INSERT ... ON CONFLICT DO NOTHING to guarantee idempotency.
+  const prevStreak = streak.current_streak;
+
+  let milestoneHit: number | null = null;
+
+  for (const ms of STREAK_MILESTONES) {
+    if (newStreak >= ms.days && prevStreak < ms.days) {
+      // Attempt atomic insert — if already recorded, the row is skipped
+      const { rowCount } = await pool.query(
+        `INSERT INTO user_streak_milestones (user_id, milestone, reached_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id, milestone) DO NOTHING`,
+        [userId, ms.days],
+      );
+
+      if ((rowCount ?? 0) > 0) {
+        // New milestone recorded — award bonus XP and send a notification
+        await addBonusXp(userId, ms.xp);
+
+        await db.insert(notificationsTable).values({
+          userId,
+          type: "streak_milestone",
+          title: `${ms.emoji} ${ms.labelEn}`,
+          body: `You hit a ${ms.days}-day streak! +${ms.xp} bonus XP awarded.`,
+          relatedId: ms.days,
+        });
+
+        milestoneHit = ms.days;
+        // Only award the highest single newly-crossed milestone per call
+        break;
+      }
+    }
+  }
+
+  return milestoneHit;
 }
 
 async function addBonusXp(userId: number, xp: number): Promise<void> {
@@ -214,7 +289,10 @@ router.get("/quests/daily", requireAuth, async (req, res): Promise<void> => {
   );
 
   const progressMap = new Map(rows.map((r) => [r.quest_key, r]));
-  const streak = await getOrInitStreak(userId);
+  const [streak, milestones] = await Promise.all([
+    getOrInitStreak(userId),
+    getMilestones(userId),
+  ]);
 
   res.json({
     date: today,
@@ -237,6 +315,11 @@ router.get("/quests/daily", requireAuth, async (req, res): Promise<void> => {
       longest: streak.longest_streak,
       shieldCount: streak.shield_count,
       bonusXp: streak.bonus_xp,
+      milestoneHit: null,
+      milestones: milestones.map((m) => ({
+        days: m.milestone,
+        reachedAt: m.reached_at,
+      })),
     },
   });
 });
@@ -357,12 +440,16 @@ router.post("/quests/daily/:key/complete", requireAuth, async (req, res): Promis
   }
 
   // Award XP + update streak only for a confirmed new completion
+  let milestoneHit: number | null = null;
   if (newlyCompleted) {
-    await touchStreak(userId);
+    milestoneHit = await touchStreak(userId);
     await addBonusXp(userId, quest.xp);
   }
 
-  const streak = await getOrInitStreak(userId);
+  const [streak, milestones] = await Promise.all([
+    getOrInitStreak(userId),
+    getMilestones(userId),
+  ]);
 
   res.json({
     key,
@@ -375,6 +462,11 @@ router.post("/quests/daily/:key/complete", requireAuth, async (req, res): Promis
       longest: streak.longest_streak,
       shieldCount: streak.shield_count,
       bonusXp: streak.bonus_xp,
+      milestoneHit,
+      milestones: milestones.map((m) => ({
+        days: m.milestone,
+        reachedAt: m.reached_at,
+      })),
     },
   });
 });
@@ -422,10 +514,17 @@ router.get("/users/:userId/streak", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: "Invalid user id" });
     return;
   }
-  const streak = await getOrInitStreak(targetUserId);
+  const [streak, milestones] = await Promise.all([
+    getOrInitStreak(targetUserId),
+    getMilestones(targetUserId),
+  ]);
   res.json({
     currentStreak: streak.current_streak,
     longestStreak: streak.longest_streak,
+    milestones: milestones.map((m) => ({
+      days: m.milestone,
+      reachedAt: m.reached_at,
+    })),
     ...(req.auth!.userId === targetUserId ? { shieldCount: streak.shield_count, bonusXp: streak.bonus_xp } : {}),
   });
 });

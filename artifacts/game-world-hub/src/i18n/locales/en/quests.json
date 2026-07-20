@@ -15,6 +15,7 @@
     "current": "Current",
     "longest": "Longest",
     "days": "days",
+    "daysSuffix": "d",
     "shieldTitle": "Streak Shield",
     "shieldDesc": "Protects your streak if you miss a day",
     "shieldCount": "{{count}} shield",
@@ -22,7 +23,14 @@
     "buyShield": "Buy Shield (50 XP)",
     "notEnoughXp": "Not enough quest XP",
     "shieldBought": "Shield purchased! 🛡️",
-    "bonusXp": "Quest XP: {{xp}}"
+    "bonusXp": "Quest XP: {{xp}}",
+    "milestoneReached": "{{days}}-day milestone reached!",
+    "milestoneGoal": "Reach a {{days}}-day streak to unlock",
+    "milestones": {
+      "7": "Week Warrior",
+      "30": "Month Master",
+      "100": "Century Legend"
+    }
   },
   "toasts": {
     "questDone": "Quest Complete! +{{xp}} XP 🎉",

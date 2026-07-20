@@ -107,7 +107,16 @@
     "sectionTitle": "سلسلة النشاط",
     "currentLabel": "السلسلة الحالية",
     "longestLabel": "أطول سلسلة",
-    "shieldsLabel": "الدروع"
+    "shieldsLabel": "الدروع",
+    "milestonesLabel": "المحطات",
+    "milestoneReached": "محطة {{days}} يوم",
+    "milestoneReachedOn": "وصلت في {{date}}",
+    "milestoneNotReached": "تحتاج {{days}} يوم متواصل",
+    "milestoneNames": {
+      "7": "محارب الأسبوع",
+      "30": "سيد الشهر",
+      "100": "أسطورة المئة يوم"
+    }
   },
   "reputation": {
     "title": "السمعة",

@@ -107,7 +107,16 @@
     "sectionTitle": "Activity Streak",
     "currentLabel": "Current streak",
     "longestLabel": "Longest streak",
-    "shieldsLabel": "Shields"
+    "shieldsLabel": "Shields",
+    "milestonesLabel": "Milestones",
+    "milestoneReached": "{{days}}-day milestone",
+    "milestoneReachedOn": "Reached on {{date}}",
+    "milestoneNotReached": "{{days}}-day streak needed",
+    "milestoneNames": {
+      "7": "Week Warrior",
+      "30": "Month Master",
+      "100": "Century Legend"
+    }
   },
   "reputation": {
     "title": "Reputation",

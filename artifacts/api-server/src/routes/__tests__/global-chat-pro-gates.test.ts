@@ -653,6 +653,45 @@ describe("Pin gate", () => {
       observer.close();
     }
   });
+
+  test("successful pin broadcasts a pin_update frame with the correct messageId", async () => {
+    // Insert a message owned by the Pro user who will pin it
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'pin-bcast-happy-msg', 'general') RETURNING id`,
+      [pinPro2Id],
+    );
+    const msgId = rows[0].id;
+    createdMessageIds.push(msgId);
+
+    // Connect an observer BEFORE pinning so no broadcast can be missed
+    const observer = openWsObserver(pinBcastObs2Id, pinBcastObs2Username);
+    await observer.ready;
+
+    try {
+      // Pin the message as its Pro owner
+      const res = await req(
+        "POST",
+        `/global-chat/messages/${msgId}/pin`,
+        pinPro2Id,
+        pinPro2Username,
+      );
+      assert.equal(res.status, 200, `expected 200 got ${res.status}: ${JSON.stringify(res.body)}`);
+
+      // A pin_update frame must arrive within 3 000 ms and reference the pinned message
+      const frame = await observer.waitFor(
+        (m) =>
+          (m as { type?: string }).type === "pin_update" &&
+          (m as { pin?: { messageId?: number } }).pin?.messageId === msgId,
+        3_000,
+      ) as { type: string; channel: string; pin: { messageId: number } };
+
+      assert.equal(frame.type, "pin_update");
+      assert.equal(frame.pin.messageId, msgId);
+    } finally {
+      observer.close();
+    }
+  });
 });
 
 describe("Channel isolation — pinned messages", () => {

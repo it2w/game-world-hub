@@ -18,107 +18,124 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarInactiveTintColor: '#555555',
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: colors.border,
+          backgroundColor: isIOS ? 'transparent' : '#080808',
+          borderTopWidth: 0,
+          borderTopColor: 'transparent',
           elevation: 0,
           paddingBottom: isWeb ? 0 : insets.bottom,
-          ...(isWeb ? { height: 84 } : {}),
+          height: isWeb ? 84 : 64 + insets.bottom,
+          // top shadow / glow line
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: -1 },
+          shadowRadius: 12,
+          shadowOpacity: 0.25,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={80}
-              tint="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={95} tint="dark" style={StyleSheet.absoluteFill} />
           ) : (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: colors.background },
-              ]}
-            />
+            <View style={[StyleSheet.absoluteFill, styles.androidBg]} />
           ),
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '700',
-          letterSpacing: 0.3,
+          letterSpacing: 0.4,
+          marginBottom: 3,
+        },
+        tabBarItemStyle: {
+          paddingTop: 6,
         },
       }}
     >
-      {/* ── Active tabs ──────────────────────────────────────────── */}
+      {/* ── الرئيسية ─────────────────────────────────────────────── */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'الرئيسية',
-          tabBarIcon: ({ color }) =>
+          tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="house.fill" tintColor={color} size={22} />
+              <SymbolView name={focused ? 'house.fill' : 'house'} tintColor={color} size={23} />
             ) : (
-              <Feather name="home" size={22} color={color} />
+              <Feather name="home" size={23} color={color} />
             ),
         }}
       />
 
+      {/* ── استكشاف ──────────────────────────────────────────────── */}
       <Tabs.Screen
-        name="messages"
+        name="explore"
         options={{
-          title: 'رسائل',
-          tabBarIcon: ({ color }) =>
+          title: 'استكشاف',
+          tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="bubble.left.fill" tintColor={color} size={22} />
+              <SymbolView name={focused ? 'magnifyingglass.circle.fill' : 'magnifyingglass.circle'} tintColor={color} size={23} />
             ) : (
-              <Feather name="message-square" size={22} color={color} />
+              <Feather name="compass" size={23} color={color} />
             ),
         }}
       />
 
+      {/* ── الدردشة ───────────────────────────────────────────────── */}
       <Tabs.Screen
         name="chat"
         options={{
           title: 'الدردشة',
-          tabBarIcon: ({ color }) =>
+          tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="bubble.left.and.bubble.right.fill" tintColor={color} size={22} />
+              <SymbolView
+                name={focused ? 'bubble.left.and.bubble.right.fill' : 'bubble.left.and.bubble.right'}
+                tintColor={color}
+                size={23}
+              />
             ) : (
-              <Feather name="message-circle" size={22} color={color} />
+              <Feather name="message-circle" size={23} color={color} />
             ),
         }}
       />
 
+      {/* ── رسائل ─────────────────────────────────────────────────── */}
       <Tabs.Screen
-        name="parties"
+        name="messages"
         options={{
-          title: 'البارتيات',
-          tabBarIcon: ({ color }) =>
+          title: 'رسائل',
+          tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="person.3.fill" tintColor={color} size={22} />
+              <SymbolView name={focused ? 'tray.fill' : 'tray'} tintColor={color} size={23} />
             ) : (
-              <Feather name="users" size={22} color={color} />
+              <Feather name="mail" size={23} color={color} />
             ),
         }}
       />
 
+      {/* ── ملفي ──────────────────────────────────────────────────── */}
       <Tabs.Screen
         name="profile"
         options={{
           title: 'ملفي',
-          tabBarIcon: ({ color }) =>
+          tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="person.fill" tintColor={color} size={22} />
+              <SymbolView name={focused ? 'person.fill' : 'person'} tintColor={color} size={23} />
             ) : (
-              <Feather name="user" size={22} color={color} />
+              <Feather name="user" size={23} color={color} />
             ),
         }}
       />
 
-      {/* ── Hidden from tab bar ───────────────────────────────────── */}
+      {/* ── Hidden ────────────────────────────────────────────────── */}
       <Tabs.Screen name="lfg"      options={{ href: null }} />
       <Tabs.Screen name="factions" options={{ href: null }} />
+      <Tabs.Screen name="parties"  options={{ href: null }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  androidBg: {
+    backgroundColor: '#0a0a0a',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#1a1a1a',
+  },
+});

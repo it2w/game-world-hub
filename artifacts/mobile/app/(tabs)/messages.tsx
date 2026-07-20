@@ -12,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -29,11 +30,8 @@ import {
 function formatTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffH = diffMs / 3_600_000;
-  if (diffH < 24) {
-    return d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-  }
+  const diffH = (now.getTime() - d.getTime()) / 3_600_000;
+  if (diffH < 24) return d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
   if (diffH < 48) return 'أمس';
   return d.toLocaleDateString('ar', { day: 'numeric', month: 'short' });
 }
@@ -42,12 +40,10 @@ function getOther(conv: Conversation, myId: number): User | undefined {
   return conv.participants.find((p) => p.id !== myId);
 }
 
-// ── Conversation row ──────────────────────────────────────────────────────────
+// ── Conv row ──────────────────────────────────────────────────────────────────
 
 function ConvRow({
-  conv,
-  myId,
-  onPress,
+  conv, myId, onPress,
 }: {
   conv: Conversation;
   myId: number;
@@ -59,118 +55,97 @@ function ConvRow({
     conv.type === 'party'
       ? (conv.name ?? 'مجموعة')
       : other?.displayName || other?.username || 'محادثة';
-  const avatarUri = conv.type === 'party' ? undefined : other?.avatarUrl ?? undefined;
-  const avatarName = name;
-  const preview = conv.lastMessage?.content ?? '…';
-  const time = conv.lastMessage ? formatTime(conv.lastMessage.createdAt) : '';
+
+  const lastMsg = conv.lastMessage;
   const unread = (conv.unreadCount ?? 0) > 0;
+  const avatarUri = conv.type === 'party' ? undefined : other?.avatarUrl;
+  const avatarName = name;
+  const avatarStatus = conv.type === 'direct' ? other?.status : undefined;
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        rowStyles.container,
+        rowStyles.row,
         {
-          backgroundColor: pressed ? colors.secondary : colors.background,
-          borderBottomColor: colors.border,
+          backgroundColor: unread ? `${colors.primary}08` : colors.card,
+          borderColor: unread ? `${colors.primary}33` : colors.border,
+          opacity: pressed ? 0.8 : 1,
         },
       ]}
     >
-      {/* Avatar */}
-      <View style={rowStyles.avatarWrap}>
-        <Avatar
-          uri={avatarUri}
-          name={avatarName}
-          size={48}
-          status={conv.type === 'party' ? undefined : other?.status}
-          showStatus={conv.type !== 'party'}
-        />
-        {conv.type === 'party' && (
-          <View style={[rowStyles.partyBadge, { backgroundColor: colors.primary }]}>
-            <Feather name="users" size={8} color={colors.primaryForeground} />
+      {/* Unread accent strip */}
+      {unread && <View style={[rowStyles.unreadStrip, { backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 0 }, shadowRadius: 4, shadowOpacity: 0.8 }]} />}
+
+      <View style={rowStyles.avatarSection}>
+        {conv.type === 'party' ? (
+          <View style={[rowStyles.groupIconBox, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}44` }]}>
+            <Feather name="users" size={22} color={colors.primary} />
           </View>
+        ) : (
+          <Avatar uri={avatarUri} name={avatarName} size={48} status={avatarStatus} showStatus />
         )}
       </View>
 
-      {/* Text */}
-      <View style={rowStyles.body}>
-        <View style={rowStyles.topRow}>
+      <View style={rowStyles.textBlock}>
+        <View style={rowStyles.topLine}>
           <Text
-            style={[
-              rowStyles.name,
-              { color: unread ? colors.foreground : colors.foreground },
-              unread && { fontWeight: '700' },
-            ]}
+            style={[rowStyles.name, { color: colors.foreground, fontWeight: unread ? '700' : '600' }]}
             numberOfLines={1}
           >
             {name}
           </Text>
-          {time ? (
-            <Text style={[rowStyles.time, { color: colors.mutedForeground }]}>
-              {time}
+          {lastMsg?.createdAt && (
+            <Text style={[rowStyles.time, { color: unread ? colors.primary : colors.mutedForeground }]}>
+              {formatTime(lastMsg.createdAt)}
             </Text>
-          ) : null}
+          )}
         </View>
-        <View style={rowStyles.bottomRow}>
+
+        <View style={rowStyles.bottomLine}>
           <Text
             style={[
               rowStyles.preview,
-              { color: unread ? colors.foreground : colors.mutedForeground },
-              unread && { fontWeight: '600' },
+              { color: unread ? colors.foreground : colors.mutedForeground, fontWeight: unread ? '500' : '400' },
             ]}
             numberOfLines={1}
           >
-            {preview}
+            {lastMsg?.content ?? 'ابدأ المحادثة…'}
           </Text>
           {unread && (
-            <View style={[rowStyles.unreadDot, { backgroundColor: colors.primary }]}>
-              <Text style={[rowStyles.unreadText, { color: colors.primaryForeground }]}>
-                {conv.unreadCount! > 9 ? '9+' : conv.unreadCount}
+            <View style={[rowStyles.badge, { backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 0 }, shadowRadius: 6, shadowOpacity: 0.6 }]}>
+              <Text style={[rowStyles.badgeText, { color: colors.primaryForeground }]}>
+                {(conv.unreadCount ?? 0) > 99 ? '99+' : conv.unreadCount}
               </Text>
             </View>
           )}
         </View>
+
+        {conv.type === 'party' && conv.name && (
+          <View style={[rowStyles.partyTag, { backgroundColor: colors.secondary }]}>
+            <Text style={[rowStyles.partyTagText, { color: colors.primary }]}>بارتي</Text>
+          </View>
+        )}
       </View>
     </Pressable>
   );
 }
 
 const rowStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  avatarWrap: { position: 'relative' },
-  partyBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: { flex: 1, gap: 4 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { fontSize: 15, fontWeight: '600', flex: 1 },
-  time: { fontSize: 11, marginLeft: 8 },
-  preview: { fontSize: 13, flex: 1 },
-  unreadDot: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    marginLeft: 8,
-  },
-  unreadText: { fontSize: 10, fontWeight: '800' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 12, paddingRight: 16, overflow: 'hidden' },
+  unreadStrip: { width: 3, alignSelf: 'stretch', marginRight: -8, marginLeft: 13 },
+  avatarSection: { width: 48, alignItems: 'center' },
+  groupIconBox: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  textBlock: { flex: 1, gap: 4 },
+  topLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  name: { flex: 1, fontSize: 14 },
+  time: { fontSize: 11 },
+  bottomLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  preview: { flex: 1, fontSize: 12 },
+  badge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 10, fontWeight: '800' },
+  partyTag: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, marginTop: 2 },
+  partyTagText: { fontSize: 10, fontWeight: '700' },
 });
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -182,50 +157,68 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
-  const { data: convs, isLoading, refetch } = useListConversations();
-  const list = convs ?? [];
+  const { data: convs, isLoading, isError, refetch } = useListConversations();
+
+  const sorted = React.useMemo(() => {
+    const list: Conversation[] = convs ?? [];
+    return [...list].sort((a, b) => {
+      const aT = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const bT = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return bT - aT;
+    });
+  }, [convs]);
+
+  const totalUnread = sorted.reduce((acc, c) => acc + (c.unreadCount ?? 0), 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: topPad + 12,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.foreground }]}>رسائل</Text>
-        <View style={[styles.accentLine, { backgroundColor: colors.primary }]} />
-      </View>
+      {/* Header with gradient */}
+      <LinearGradient colors={['#081a09', '#080808']} style={[styles.header, { paddingTop: topPad + 12 }]}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={[styles.title, { color: colors.foreground }]}>رسائل</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              {isLoading ? 'جارٍ التحميل…' : `${sorted.length} محادثة${totalUnread > 0 ? ` · ${totalUnread} غير مقروء` : ''}`}
+            </Text>
+          </View>
+          {totalUnread > 0 && (
+            <View style={[styles.totalBadge, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+              <Text style={[styles.totalBadgeText, { color: colors.primaryForeground }]}>{totalUnread}</Text>
+            </View>
+          )}
+        </View>
+        <View style={[styles.divider, { backgroundColor: colors.primary }]} />
+      </LinearGradient>
 
-      {isLoading && list.length === 0 ? (
+      {/* List */}
+      {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
-      ) : list.length === 0 ? (
+      ) : isError ? (
         <View style={styles.center}>
-          <Feather name="message-square" size={48} color={colors.border} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            لا توجد محادثات بعد
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-            ابدأ محادثة مع أحد أصدقائك من صفحته الشخصية
+          <Feather name="wifi-off" size={40} color={colors.border} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>تعذّر التحميل</Text>
+          <Pressable onPress={() => void refetch()} style={[styles.retryBtn, { borderColor: colors.primary }]}>
+            <Text style={[{ color: colors.primary, fontWeight: '600', fontSize: 13 }]}>إعادة المحاولة</Text>
+          </Pressable>
+        </View>
+      ) : sorted.length === 0 ? (
+        <View style={styles.center}>
+          <View style={[styles.emptyIconBox, { backgroundColor: `${colors.primary}12`, borderColor: `${colors.primary}33` }]}>
+            <Feather name="mail" size={36} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>لا توجد رسائل بعد</Text>
+          <Text style={[styles.emptyHint, { color: colors.mutedForeground }]}>
+            ابدأ محادثة من خلال الضغط على أيقونة الرسائل في بطاقة صديق
           </Text>
         </View>
       ) : (
         <FlatList
-          data={list}
-          keyExtractor={(c) => String(c.id)}
-          renderItem={({ item }) => (
-            <ConvRow
-              conv={item}
-              myId={user?.id ?? 0}
-              onPress={() => router.push(`/conversation/${item.id}` as never)}
-            />
-          )}
+          data={sorted}
+          keyExtractor={(item) => String(item.id)}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={isLoading}
@@ -233,10 +226,13 @@ export default function MessagesScreen() {
               tintColor={colors.primary}
             />
           }
-          contentContainerStyle={{
-            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 84 : 80),
-          }}
-          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <ConvRow
+              conv={item}
+              myId={user?.id ?? 0}
+              onPress={() => router.push(`/conversation/${item.id}` as never)}
+            />
+          )}
         />
       )}
     </View>
@@ -245,21 +241,17 @@ export default function MessagesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-  },
+  header: { paddingBottom: 0 },
+  headerContent: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14 },
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  accentLine: { height: 2, width: 32 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  subtitle: { fontSize: 12, marginTop: 2 },
+  totalBadge: { paddingHorizontal: 10, paddingVertical: 4, marginBottom: 4, shadowOffset: { width: 0, height: 0 }, shadowRadius: 8, shadowOpacity: 0.5 },
+  totalBadgeText: { fontSize: 13, fontWeight: '800' },
+  divider: { height: 1, shadowOffset: { width: 0, height: 0 }, shadowRadius: 6, shadowOpacity: 0.4 },
+  listContent: { paddingBottom: 90 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 32 },
+  emptyIconBox: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  emptyTitle: { fontSize: 17, fontWeight: '700' },
+  emptyHint: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 9, borderWidth: 1 },
 });

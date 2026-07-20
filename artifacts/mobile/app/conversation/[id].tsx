@@ -123,7 +123,7 @@ export default function ConversationScreen() {
     isLoading,
     refetch,
   } = useGetMessages(convId, {
-    query: { refetchInterval: 5_000 },
+    query: { queryKey: [`/api/conversations/${convId}/messages`], refetchInterval: 5_000 },
   });
   const messages: Message[] = msgs ?? [];
 

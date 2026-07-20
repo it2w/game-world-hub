@@ -260,7 +260,7 @@ function CreatePartyPanel({ onClose }: { onClose: () => void }) {
         <Pressable
           onPress={() => {
             if (!name.trim()) return;
-            createMutation.mutate({ data: { name: name.trim(), game: game.trim() || undefined } });
+            createMutation.mutate({ data: { name: name.trim(), game: game.trim() || undefined, maxSize: 5 } });
           }}
           disabled={!name.trim() || createMutation.isPending}
           style={({ pressed }) => [

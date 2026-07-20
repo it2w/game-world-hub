@@ -161,7 +161,7 @@ function TopBar() {
     // Navigate to the relevant page
     if (n.type === "message" && n.relatedId) {
       navigate(`/chat/${n.relatedId}`);
-    } else if (n.type === "challenge_invite" || n.type === "challenge_accepted" || n.type === "challenge_declined") {
+    } else if ((n.type as string) === "challenge_invite" || (n.type as string) === "challenge_accepted" || (n.type as string) === "challenge_declined") {
       navigate("/challenges");
     } else if (n.type === "friend_request" || n.type === "friend_online") {
       navigate("/friends");
@@ -206,7 +206,7 @@ function TopBar() {
                 <div className="flex flex-col">
                   {notifications.map(n => {
                     const isClickable = (n.type === "message" && n.relatedId) ||
-                      n.type === "challenge_invite" || n.type === "challenge_accepted" || n.type === "challenge_declined" ||
+                      (n.type as string) === "challenge_invite" || (n.type as string) === "challenge_accepted" || (n.type as string) === "challenge_declined" ||
                       n.type === "friend_request" || n.type === "friend_online" ||
                       (n.type === "party_invite" && n.relatedId) ||
                       n.type === "lfg_response";

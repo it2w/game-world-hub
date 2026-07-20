@@ -211,7 +211,7 @@ export default function Profile() {
       setEditBio(user.bio ?? "");
       setEditFrameColor(user.profileFrameColor ?? "");
       setEditStatusValue(user.status ?? "offline");
-      setEditStatusText(user.statusText ?? "");
+      setEditStatusText((user as any).statusText ?? "");
     }
   }, [user]);
 
@@ -509,10 +509,10 @@ export default function Profile() {
 
         {/* STATUS TEXT + BUTTONS — below banner, under the avatar row */}
         <div className="px-6 pt-5">
-          {user.statusText && (
+          {(user as any).statusText && (
             <div className="mb-3">
               <div className="inline-block bg-muted border border-border px-3 py-1.5 rounded-xl text-sm font-mono text-foreground/90 break-words max-w-sm">
-                {user.statusText}
+                {(user as any).statusText}
               </div>
             </div>
           )}
@@ -1283,7 +1283,7 @@ export default function Profile() {
           onOpenChange={setStatusOpen}
           user={user}
           initialStatus={user.status ?? "offline"}
-          initialText={user.statusText ?? ""}
+          initialText={(user as any).statusText ?? ""}
           onSave={(status, text) => {
             updateStatus.mutate(
               { data: { status, statusText: text || null } },

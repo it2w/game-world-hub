@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Flame, Users, Star, Shield, Clock, ChevronRight, ChevronDown, Trophy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TierBadge } from "@/components/tier-badge";
+import { ProBadge } from "@/components/pro-badge";
 
 interface RosterMember {
   userId: number;
@@ -99,7 +100,7 @@ function FactionRosterModal({ roster, onClose }: { roster: RosterState; onClose:
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-sm truncate">{m.displayName}</span>
-                  {m.isPro && <TierBadge isPro size="sm" />}
+                  {m.isPro && <ProBadge size="sm" />}
                 </div>
                 <p className="font-mono text-[10px] text-muted-foreground">@{m.username}</p>
               </div>

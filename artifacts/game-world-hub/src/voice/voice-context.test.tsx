@@ -176,7 +176,7 @@ async function mountVoice() {
  * Join a party voice channel and wait for the LiveKit connection to settle.
  * Returns the FakeRoom that was connected.
  */
-async function joinParty(result: ReturnType<typeof renderHook>["result"], partyId = 10) {
+async function joinParty(result: { readonly current: ReturnType<typeof useVoice> }, partyId = 10) {
   await act(async () => {
     await result.current.joinPartyVoice(partyId, "Squad");
   });

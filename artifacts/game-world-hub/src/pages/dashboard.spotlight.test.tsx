@@ -64,6 +64,8 @@ const PRO_USER = {
   displayName: "Pro Player",
   isPro: true,
   spotlightOptOut: false,
+  status: "online" as const,
+  createdAt: "2024-01-01T00:00:00.000Z",
 };
 
 const SPOTLIGHT_WITH_USER = [

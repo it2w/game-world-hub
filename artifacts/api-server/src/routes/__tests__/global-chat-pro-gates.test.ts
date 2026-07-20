@@ -692,6 +692,160 @@ describe("Pin gate", () => {
       observer.close();
     }
   });
+
+  // ── Unpin broadcast tests ──────────────────────────────────────────────────
+
+  test("successful unpin broadcasts a pin_update frame with pin: null", async () => {
+    // Seed a message owned by pinPro2 in the general channel
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'unpin-bcast-happy-msg', 'general') RETURNING id`,
+      [pinPro2Id],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    // Insert an active pin via the POST route (verifies pinning still works)
+    const pinRes = await req(
+      "POST",
+      `/global-chat/messages/${msgId}/pin`,
+      pinPro2Id,
+      pinPro2Username,
+    );
+    assert.equal(pinRes.status, 200, `pin setup failed: ${JSON.stringify(pinRes.body)}`);
+    const { channel: pinnedChannel } = pinRes.body as { messageId: number; channel: string; pinnedUntil: string };
+
+    // Connect an observer BEFORE unpinning so no broadcast can be missed
+    const observer = openWsObserver(pinBcastObs1Id, pinBcastObs1Username);
+    await observer.ready;
+
+    try {
+      // Unpin as the same Pro owner
+      const res = await req(
+        "DELETE",
+        `/global-chat/messages/${msgId}/pin`,
+        pinPro2Id,
+        pinPro2Username,
+      );
+      assert.equal(res.status, 200, `expected 200 got ${res.status}: ${JSON.stringify(res.body)}`);
+      const body = res.body as { unpinned: boolean; messageId: number; channel: string };
+      assert.equal(body.unpinned, true);
+      assert.equal(body.messageId, msgId);
+
+      // A pin_update frame with pin: null must arrive within 3 000 ms on the correct channel
+      const frame = await observer.waitFor(
+        (m) =>
+          (m as { type?: string }).type === "pin_update" &&
+          (m as { pin?: unknown }).pin === null &&
+          (m as { channel?: string }).channel === (pinnedChannel ?? body.channel),
+        3_000,
+      ) as { type: string; channel: string; pin: null };
+
+      assert.equal(frame.type, "pin_update");
+      assert.equal(frame.pin, null, "pin payload must be null for an unpin broadcast");
+    } finally {
+      observer.close();
+    }
+  });
+
+  test("failed unpin (non-Pro user) does not emit a pin_update WS frame", async () => {
+    // Seed a message owned by the free user and insert a pin row directly (bypassing the Pro gate)
+    // so there IS an active pin to attempt removal of, but the caller is not Pro.
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'unpin-nonpro-msg', 'general') RETURNING id`,
+      [pinFreeId],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    // Insert the pin row directly (free user wouldn't normally have one, but we
+    // want to prove the route rejects on is_pro, not on absence of a pin row).
+    const { rows: pr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_pins (message_id, pinner_id, channel, pinned_until)
+       VALUES ($1, $2, 'general', NOW() + INTERVAL '10 minutes') RETURNING id`,
+      [msgId, pinFreeId],
+    );
+    createdPinIds.push(pr[0].id);
+
+    const observer = openWsObserver(pinBcastObs2Id, pinBcastObs2Username);
+    await observer.ready;
+
+    try {
+      // Attempt unpin as a non-Pro user — must be rejected with 403
+      const res = await req(
+        "DELETE",
+        `/global-chat/messages/${msgId}/pin`,
+        pinFreeId,
+        pinFreeUsername,
+      );
+      assert.equal(res.status, 403, `expected 403 got ${res.status}: ${JSON.stringify(res.body)}`);
+
+      // No pin_update frame must be broadcast
+      await assertNoFrame(
+        observer,
+        (m) => (m as { type?: string }).type === "pin_update",
+        500,
+      );
+    } finally {
+      observer.close();
+      // Clean up the manually inserted pin row
+      await pool.query(`DELETE FROM global_chat_pins WHERE id = $1`, [pr[0].id]);
+    }
+  });
+
+  test("failed unpin (Pro user, not the message owner) does not emit a pin_update WS frame", async () => {
+    // pinPro2 pins their own message; pinPro (a different Pro user) tries to unpin it.
+    const { rows: mr } = await pool.query<{ id: number }>(
+      `INSERT INTO global_chat_messages (user_id, content, channel)
+       VALUES ($1, 'unpin-wrongowner-msg', 'general') RETURNING id`,
+      [pinPro2Id],
+    );
+    const msgId = mr[0].id;
+    createdMessageIds.push(msgId);
+
+    // Create the pin via the POST route
+    const pinRes = await req(
+      "POST",
+      `/global-chat/messages/${msgId}/pin`,
+      pinPro2Id,
+      pinPro2Username,
+    );
+    assert.equal(pinRes.status, 200, `pin setup failed: ${JSON.stringify(pinRes.body)}`);
+
+    const observer = openWsObserver(pinBcastObs1Id, pinBcastObs1Username);
+    await observer.ready;
+
+    try {
+      // pinProId is a different Pro user — they don't own the message or the pin
+      const res = await req(
+        "DELETE",
+        `/global-chat/messages/${msgId}/pin`,
+        pinProId,
+        pinProUsername,
+      );
+      // Route returns 404 because the WHERE clause requires both message ownership
+      // and pinner_id to match the requesting user
+      assert.equal(
+        res.status, 404,
+        `expected 404 got ${res.status}: ${JSON.stringify(res.body)}`,
+      );
+
+      // No pin_update frame must be broadcast
+      await assertNoFrame(
+        observer,
+        (m) => (m as { type?: string }).type === "pin_update",
+        500,
+      );
+    } finally {
+      observer.close();
+      // Clean up the pin created by pinPro2
+      await pool.query(
+        `DELETE FROM global_chat_pins WHERE message_id = $1 AND pinner_id = $2`,
+        [msgId, pinPro2Id],
+      );
+    }
+  });
 });
 
 describe("Channel isolation — pinned messages", () => {

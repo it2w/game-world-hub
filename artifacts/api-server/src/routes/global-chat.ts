@@ -625,6 +625,43 @@ router.post("/global-chat/messages/:id/pin", requireAuth, async (req, res): Prom
   res.json(pinPayload.pin);
 });
 
+// ── DELETE /global-chat/messages/:id/pin — remove active pin (owner only) ─────
+router.delete("/global-chat/messages/:id/pin", requireAuth, async (req, res): Promise<void> => {
+  const userId    = req.auth!.userId;
+  const messageId = parseInt(String(req.params.id), 10);
+  if (isNaN(messageId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // Must be Pro to manage pins
+  const { rows: ur } = await pool.query<{ is_pro: boolean }>(
+    `SELECT is_pro FROM users WHERE id = $1`, [userId],
+  );
+  if (!ur[0]?.is_pro) { res.status(403).json({ error: "Pro required to manage pins" }); return; }
+
+  // Only the original pinner (who must also be the message owner) can unpin.
+  // We join against global_chat_messages to verify message ownership.
+  const { rows: pr } = await pool.query<{ id: number; channel: string }>(
+    `SELECT p.id, p.channel
+     FROM global_chat_pins p
+     JOIN global_chat_messages g ON g.id = p.message_id
+     WHERE p.message_id = $1
+       AND g.user_id   = $2
+       AND p.pinner_id = $2
+       AND p.pinned_until > NOW()
+     LIMIT 1`,
+    [messageId, userId],
+  );
+  if (!pr[0]) {
+    res.status(404).json({ error: "No active pin found for your message" }); return;
+  }
+
+  await pool.query(`DELETE FROM global_chat_pins WHERE id = $1`, [pr[0].id]);
+
+  const unpinPayload = { type: "pin_update", channel: pr[0].channel, pin: null };
+  broadcastAll(unpinPayload);
+
+  res.json({ unpinned: true, messageId, channel: pr[0].channel });
+});
+
 // ── PATCH /global-chat/messages/:id — edit own message (Pro, ≤5 min) ─────────
 router.patch("/global-chat/messages/:id", requireAuth, async (req, res): Promise<void> => {
   const userId    = req.auth!.userId;

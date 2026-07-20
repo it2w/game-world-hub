@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { pool, db, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { requireAdmin, requireAdminPermission } from "../middlewares/admin";
 import { eq } from "drizzle-orm";
 import type { PoolClient } from "pg";
 
@@ -96,6 +97,19 @@ async function ensureTables(): Promise<void> {
       PRIMARY KEY (user_id, season_id, tier_level)
     )
   `);
+  // Timed XP multiplier events (bonus weekends, double-XP days, etc.)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS battle_pass_xp_events (
+      id          SERIAL PRIMARY KEY,
+      label       TEXT NOT NULL,
+      multiplier  NUMERIC(4,2) NOT NULL DEFAULT 2.0,
+      starts_at   TIMESTAMPTZ NOT NULL,
+      ends_at     TIMESTAMPTZ NOT NULL,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT bp_xp_events_multiplier_positive CHECK (multiplier > 0)
+    )
+  `);
 }
 
 // ── Season: transactional creation with advisory lock ─────────────────────────
@@ -165,22 +179,61 @@ async function ensureActiveSeason(): Promise<{
   }
 }
 
+// ── Fetch the currently active XP multiplier event (if any) ──────────────────
+interface XpEvent {
+  id: number;
+  label: string;
+  multiplier: number;
+  startsAt: string;
+  endsAt: string;
+}
+
+async function getActiveXpEvent(): Promise<XpEvent | null> {
+  const { rows } = await pool.query<{
+    id: number; label: string; multiplier: string; starts_at: string; ends_at: string;
+  }>(
+    `SELECT id, label, multiplier, starts_at, ends_at
+     FROM battle_pass_xp_events
+     WHERE starts_at <= NOW() AND ends_at > NOW()
+     ORDER BY starts_at DESC
+     LIMIT 1`,
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+  return { id: r.id, label: r.label, multiplier: parseFloat(r.multiplier), startsAt: r.starts_at, endsAt: r.ends_at };
+}
+
 // ── Compute seasonal XP from activity since season start ─────────────────────
+// Activity during an XP-event window earns (multiplier × rate); activity outside
+// earns the base rate.  Achieved by computing base XP for the full season, then
+// adding (multiplier − 1) × XP earned inside each event window as a bonus.
+// Streak bonus_xp is a lump already stored at reward-time and is not time-windowed.
 async function getSeasonXp(userId: number, seasonStartDate: string): Promise<number> {
-  const start = new Date(seasonStartDate + "T00:00:00Z");
+  const seasonStart = new Date(seasonStartDate + "T00:00:00Z");
+
+  // Fetch past and current events that overlap with this season
+  const { rows: events } = await pool.query<{
+    multiplier: string; starts_at: Date; ends_at: Date;
+  }>(
+    `SELECT multiplier, starts_at, ends_at
+     FROM battle_pass_xp_events
+     WHERE ends_at > $1
+     ORDER BY starts_at ASC`,
+    [seasonStart],
+  );
 
   const [msgRes, lfgRes, friendRes, streakRes] = await Promise.all([
     pool.query<{ c: string }>(
       `SELECT COUNT(*) AS c FROM messages WHERE sender_id = $1 AND created_at >= $2`,
-      [userId, start],
+      [userId, seasonStart],
     ),
     pool.query<{ c: string }>(
       `SELECT COUNT(*) AS c FROM lfg_posts WHERE author_id = $1 AND created_at >= $2 AND status != 'deleted'`,
-      [userId, start],
+      [userId, seasonStart],
     ),
     pool.query<{ c: string }>(
       `SELECT COUNT(*) AS c FROM friendships WHERE user_id = $1 AND since >= $2`,
-      [userId, start],
+      [userId, seasonStart],
     ),
     pool.query<{ bonus_xp: number }>(
       `SELECT COALESCE(bonus_xp, 0) AS bonus_xp FROM user_streaks WHERE user_id = $1`,
@@ -188,12 +241,50 @@ async function getSeasonXp(userId: number, seasonStartDate: string): Promise<num
     ),
   ]);
 
-  return (
+  const baseXp =
     parseInt(msgRes.rows[0]?.c    ?? "0") * 4  +
     parseInt(lfgRes.rows[0]?.c    ?? "0") * 70 +
     parseInt(friendRes.rows[0]?.c ?? "0") * 50 +
-    (streakRes.rows[0]?.bonus_xp  ?? 0)
-  );
+    (streakRes.rows[0]?.bonus_xp  ?? 0);
+
+  // For each event, compute the bonus XP earned inside its window
+  let bonusXp = 0;
+  for (const ev of events) {
+    const mult = parseFloat(ev.multiplier);
+    if (mult <= 1) continue;
+
+    // Clamp event start to season start
+    const windowStart = new Date(ev.starts_at) < seasonStart ? seasonStart : new Date(ev.starts_at);
+    const windowEnd   = new Date(ev.ends_at);
+
+    const [evMsg, evLfg, evFriend] = await Promise.all([
+      pool.query<{ c: string }>(
+        `SELECT COUNT(*) AS c FROM messages
+         WHERE sender_id = $1 AND created_at >= $2 AND created_at < $3`,
+        [userId, windowStart, windowEnd],
+      ),
+      pool.query<{ c: string }>(
+        `SELECT COUNT(*) AS c FROM lfg_posts
+         WHERE author_id = $1 AND created_at >= $2 AND created_at < $3 AND status != 'deleted'`,
+        [userId, windowStart, windowEnd],
+      ),
+      pool.query<{ c: string }>(
+        `SELECT COUNT(*) AS c FROM friendships
+         WHERE user_id = $1 AND since >= $2 AND since < $3`,
+        [userId, windowStart, windowEnd],
+      ),
+    ]);
+
+    const windowXp =
+      parseInt(evMsg.rows[0]?.c    ?? "0") * 4  +
+      parseInt(evLfg.rows[0]?.c    ?? "0") * 70 +
+      parseInt(evFriend.rows[0]?.c ?? "0") * 50;
+
+    // Add only the extra portion on top of the base rate already counted
+    bonusXp += Math.floor(windowXp * (mult - 1));
+  }
+
+  return baseXp + bonusXp;
 }
 
 // ── Apply a single reward inside an open transaction ──────────────────────────
@@ -305,12 +396,13 @@ ensureTables()
 router.get("/battle-pass/current", requireAuth, async (req, res): Promise<void> => {
   const userId = req.auth!.userId;
 
-  // Fetch season + user pro status in parallel (read-only, no transaction needed)
-  const [season, [userRow]] = await Promise.all([
+  // Fetch season, user pro status, and active XP event in parallel
+  const [season, [userRow], activeXpEvent] = await Promise.all([
     ensureActiveSeason(),
     db.select({ isPro: usersTable.isPro, proExpiresAt: usersTable.proExpiresAt })
       .from(usersTable)
       .where(eq(usersTable.id, userId)),
+    getActiveXpEvent(),
   ]);
 
   const now         = new Date();
@@ -380,6 +472,7 @@ router.get("/battle-pass/current", requireAuth, async (req, res): Promise<void> 
       rewardLabel: lang === "ar" ? t.rewardLabel.ar : t.rewardLabel.en,
       rewardIcon:  t.rewardIcon,
     })),
+    activeXpEvent: activeXpEvent ?? null,
   });
 });
 
@@ -399,6 +492,91 @@ router.get("/battle-pass/tiers", requireAuth, async (req, res): Promise<void> =>
     maxLevel:     MAX_LEVEL,
     freeMaxLevel: FREE_MAX_LEVEL,
   });
+});
+
+// ── Admin: list all XP events ─────────────────────────────────────────────────
+router.get("/admin/battle-pass/xp-events", requireAdmin, requireAdminPermission("can_manage_pro"), async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; label: string; multiplier: string;
+    starts_at: string; ends_at: string; created_at: string;
+  }>(
+    `SELECT id, label, multiplier, starts_at, ends_at, created_at
+     FROM battle_pass_xp_events
+     ORDER BY starts_at DESC`,
+  );
+  res.json({
+    items: rows.map(r => ({
+      id:         r.id,
+      label:      r.label,
+      multiplier: parseFloat(r.multiplier),
+      startsAt:   r.starts_at,
+      endsAt:     r.ends_at,
+      createdAt:  r.created_at,
+    })),
+  });
+});
+
+// ── Admin: create an XP event ─────────────────────────────────────────────────
+router.post("/admin/battle-pass/xp-events", requireAdmin, requireAdminPermission("can_manage_pro"), async (req, res): Promise<void> => {
+  const { label, multiplier, startsAt, endsAt } = req.body as {
+    label?: unknown; multiplier?: unknown; startsAt?: unknown; endsAt?: unknown;
+  };
+
+  if (typeof label !== "string" || !label.trim()) {
+    res.status(400).json({ error: "label is required" });
+    return;
+  }
+  const mult = Number(multiplier);
+  if (!Number.isFinite(mult) || mult <= 0) {
+    res.status(400).json({ error: "multiplier must be a positive number" });
+    return;
+  }
+  const start = new Date(startsAt as string);
+  const end   = new Date(endsAt   as string);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    res.status(400).json({ error: "startsAt and endsAt must be valid ISO dates" });
+    return;
+  }
+  if (end <= start) {
+    res.status(400).json({ error: "endsAt must be after startsAt" });
+    return;
+  }
+
+  const { rows: [row] } = await pool.query<{
+    id: number; label: string; multiplier: string; starts_at: string; ends_at: string; created_at: string;
+  }>(
+    `INSERT INTO battle_pass_xp_events (label, multiplier, starts_at, ends_at, created_by)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, label, multiplier, starts_at, ends_at, created_at`,
+    [label.trim(), mult, start.toISOString(), end.toISOString(), req.adminUser?.id ?? null],
+  );
+
+  res.status(201).json({
+    id:         row.id,
+    label:      row.label,
+    multiplier: parseFloat(row.multiplier),
+    startsAt:   row.starts_at,
+    endsAt:     row.ends_at,
+    createdAt:  row.created_at,
+  });
+});
+
+// ── Admin: end an XP event immediately ───────────────────────────────────────
+router.delete("/admin/battle-pass/xp-events/:id", requireAdmin, requireAdminPermission("can_manage_pro"), async (req, res): Promise<void> => {
+  const eventId = Number(req.params.id);
+  if (!Number.isInteger(eventId) || eventId <= 0) {
+    res.status(400).json({ error: "invalid event id" });
+    return;
+  }
+  const { rowCount } = await pool.query(
+    `UPDATE battle_pass_xp_events SET ends_at = NOW() WHERE id = $1 AND ends_at > NOW()`,
+    [eventId],
+  );
+  if (!rowCount || rowCount === 0) {
+    res.status(404).json({ error: "Event not found or already ended" });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 export default router;

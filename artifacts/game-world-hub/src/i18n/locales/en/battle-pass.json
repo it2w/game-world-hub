@@ -28,6 +28,11 @@
     "frame_color": "Profile Frame",
     "title": "Title"
   },
+  "xpEvent": {
+    "endsIn": "Ends in {{d}}d {{h}}h {{m}}m {{s}}s",
+    "active": "BONUS XP EVENT ACTIVE",
+    "multiplier": "{{multiplier}}× XP on all activities"
+  },
   "dashboard": {
     "title": "Battle Pass",
     "level": "LVL {{level}}",

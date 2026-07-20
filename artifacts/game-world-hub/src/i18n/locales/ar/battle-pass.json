@@ -28,6 +28,11 @@
     "frame_color": "إطار البروفايل",
     "title": "لقب"
   },
+  "xpEvent": {
+    "endsIn": "ينتهي خلال {{d}}ي {{h}}س {{m}}د {{s}}ث",
+    "active": "فعالية XP مضاعف نشطة",
+    "multiplier": "{{multiplier}}× XP على جميع الأنشطة"
+  },
   "dashboard": {
     "title": "باس المعركة",
     "level": "مستوى {{level}}",

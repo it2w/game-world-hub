@@ -40,6 +40,7 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
+  Zap,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -105,6 +106,7 @@ export default function Admin() {
 
   const canViewAnalytics = adminMe?.permissions.can_view_analytics ?? false;
   const canViewReports   = adminMe?.permissions.can_view_reports   ?? false;
+  const canManagePro     = adminMe?.permissions.can_manage_pro     ?? false;
 
   if (isSuspended) {
     return (
@@ -159,6 +161,11 @@ export default function Admin() {
               <MessageSquareX className="w-3.5 h-3.5 me-2" /> {t("tabs.chatDeletions")}
             </TabsTrigger>
           )}
+          {canManagePro && (
+            <TabsTrigger value="xpEvents" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Zap className="w-3.5 h-3.5 me-2" /> {t("tabs.xpEvents")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="users" className="mt-6">
@@ -178,6 +185,11 @@ export default function Admin() {
         {canViewReports && (
           <TabsContent value="chatDeletions" className="mt-6">
             <ChatDeletionsPanel />
+          </TabsContent>
+        )}
+        {canManagePro && (
+          <TabsContent value="xpEvents" className="mt-6">
+            <XpEventsPanel />
           </TabsContent>
         )}
       </Tabs>
@@ -906,6 +918,209 @@ function ChatDeletionsPanel() {
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+// ── XP Events Panel ───────────────────────────────────────────────────────────
+
+interface XpEvent {
+  id: number;
+  label: string;
+  multiplier: number;
+  startsAt: string;
+  endsAt: string;
+  createdAt: string;
+}
+
+function XpEventsPanel() {
+  const { t } = useTranslation("admin");
+  const { toast } = useToast();
+  const [events, setEvents] = useState<XpEvent[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [label, setLabel] = useState("");
+  const [multiplier, setMultiplier] = useState("2");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [endingId, setEndingId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await customFetch<{ items: XpEvent[] }>("/api/admin/battle-pass/xp-events");
+      setEvents(data.items);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      await customFetch("/api/admin/battle-pass/xp-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, multiplier: Number(multiplier), startsAt, endsAt }),
+      });
+      toast({ title: t("toasts.xpEventCreated") });
+      setLabel(""); setMultiplier("2"); setStartsAt(""); setEndsAt("");
+      await load();
+    } catch {
+      toast({ title: t("toasts.xpEventCreateFailed"), variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEnd = async (id: number) => {
+    setEndingId(id);
+    try {
+      await customFetch(`/api/admin/battle-pass/xp-events/${id}`, { method: "DELETE" });
+      toast({ title: t("toasts.xpEventEnded") });
+      await load();
+    } catch {
+      toast({ title: t("toasts.xpEventEndFailed"), variant: "destructive" });
+    } finally {
+      setEndingId(null);
+    }
+  };
+
+  const now = Date.now();
+  const getStatus = (ev: XpEvent) => {
+    const start = new Date(ev.startsAt).getTime();
+    const end   = new Date(ev.endsAt).getTime();
+    if (now >= start && now < end) return "active";
+    if (now < start)              return "scheduled";
+    return "ended";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Create form */}
+      <div className="border border-border p-4 space-y-3">
+        <h2 className="font-mono text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+          <Zap className="w-4 h-4 text-primary" /> {t("xpEvents.createTitle")}
+        </h2>
+        <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="space-y-1 lg:col-span-1">
+            <label className="font-mono text-xs text-muted-foreground uppercase">{t("xpEvents.labelLabel")}</label>
+            <Input
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              placeholder={t("xpEvents.labelPlaceholder")}
+              required
+              className="font-mono text-sm rounded-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-mono text-xs text-muted-foreground uppercase">{t("xpEvents.multiplierLabel")}</label>
+            <Input
+              type="number"
+              step="0.25"
+              min="1"
+              max="10"
+              value={multiplier}
+              onChange={e => setMultiplier(e.target.value)}
+              placeholder={t("xpEvents.multiplierPlaceholder")}
+              required
+              className="font-mono text-sm rounded-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-mono text-xs text-muted-foreground uppercase">{t("xpEvents.startsAtLabel")}</label>
+            <Input
+              type="datetime-local"
+              value={startsAt}
+              onChange={e => setStartsAt(e.target.value)}
+              required
+              className="font-mono text-sm rounded-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-mono text-xs text-muted-foreground uppercase">{t("xpEvents.endsAtLabel")}</label>
+            <Input
+              type="datetime-local"
+              value={endsAt}
+              onChange={e => setEndsAt(e.target.value)}
+              required
+              className="font-mono text-sm rounded-none"
+            />
+          </div>
+          <div className="flex items-end">
+            <Button type="submit" disabled={creating} className="rounded-none font-mono text-xs uppercase w-full">
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 me-1" />}
+              {t("xpEvents.createButton")}
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      {/* Events table */}
+      {loadError ? (
+        <p className="font-mono text-xs text-destructive">{t("xpEvents.loadError")}</p>
+      ) : events.length === 0 ? (
+        <p className="font-mono text-xs text-muted-foreground">{t("xpEvents.empty")}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.label")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.multiplier")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.starts")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.ends")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.status")}</TableHead>
+              <TableHead className="font-mono text-xs uppercase">{t("xpEvents.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {events.map(ev => {
+              const status = getStatus(ev);
+              return (
+                <TableRow key={ev.id}>
+                  <TableCell className="font-mono text-sm">{ev.label}</TableCell>
+                  <TableCell className="font-mono text-sm font-bold text-primary">{ev.multiplier}×</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {new Date(ev.startsAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {new Date(ev.endsAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={status === "active" ? "default" : "secondary"}
+                      className="font-mono text-xs rounded-none"
+                    >
+                      {status === "active" && <Zap className="w-3 h-3 me-1" />}
+                      {t(`xpEvents.${status}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {status !== "ended" && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="rounded-none font-mono text-xs uppercase"
+                        disabled={endingId === ev.id}
+                        onClick={() => handleEnd(ev.id)}
+                      >
+                        {endingId === ev.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Trash2 className="w-3 h-3 me-1" />
+                        }
+                        {t("xpEvents.end")}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
     </div>
   );
 }

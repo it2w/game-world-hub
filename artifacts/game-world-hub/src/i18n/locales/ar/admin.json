@@ -5,7 +5,8 @@
     "codes": "الأكواد",
     "subscriptions": "الاشتراكات",
     "analytics": "الإحصاءات",
-    "chatDeletions": "سجل الحذف"
+    "chatDeletions": "سجل الحذف",
+    "xpEvents": "فعاليات XP"
   },
   "loading": "جارٍ التحميل...",
   "users": {
@@ -92,6 +93,28 @@
     "loadError": "تعذّر تحميل التزكيات.",
     "confirmRemove": "هل تريد إزالة هذه التزكية؟"
   },
+  "xpEvents": {
+    "createTitle": "إنشاء فعالية XP",
+    "labelLabel": "اسم الفعالية",
+    "labelPlaceholder": "مثال: عطلة XP مضاعف",
+    "multiplierLabel": "مضاعف XP",
+    "multiplierPlaceholder": "مثال: 2",
+    "startsAtLabel": "تبدأ في",
+    "endsAtLabel": "تنتهي في",
+    "createButton": "إنشاء الفعالية",
+    "label": "الاسم",
+    "multiplier": "المضاعف",
+    "starts": "البداية",
+    "ends": "النهاية",
+    "status": "الحالة",
+    "actions": "إجراءات",
+    "active": "نشطة",
+    "scheduled": "مجدولة",
+    "ended": "انتهت",
+    "end": "إنهاء الآن",
+    "empty": "لا توجد فعاليات XP بعد.",
+    "loadError": "تعذّر تحميل فعاليات XP."
+  },
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",
     "proActivateFailed": "تعذّر تفعيل Pro.",
@@ -107,6 +130,10 @@
     "unsuspended": "تم رفع إيقاف المستخدم.",
     "suspendFailed": "تعذّر تحديث حالة الإيقاف.",
     "vouchRemoved": "تمت إزالة التزكية.",
-    "vouchRemoveFailed": "تعذّر إزالة التزكية."
+    "vouchRemoveFailed": "تعذّر إزالة التزكية.",
+    "xpEventCreated": "تم إنشاء فعالية XP.",
+    "xpEventCreateFailed": "تعذّر إنشاء فعالية XP.",
+    "xpEventEnded": "تم إنهاء فعالية XP.",
+    "xpEventEndFailed": "تعذّر إنهاء فعالية XP."
   }
 }

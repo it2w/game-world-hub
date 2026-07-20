@@ -5,7 +5,8 @@
     "codes": "Codes",
     "subscriptions": "Subscriptions",
     "analytics": "Analytics",
-    "chatDeletions": "Chat Deletions"
+    "chatDeletions": "Chat Deletions",
+    "xpEvents": "XP Events"
   },
   "loading": "Loading...",
   "users": {
@@ -92,6 +93,28 @@
     "loadError": "Failed to load vouches.",
     "confirmRemove": "Remove this vouch?"
   },
+  "xpEvents": {
+    "createTitle": "CREATE XP EVENT",
+    "labelLabel": "Event Label",
+    "labelPlaceholder": "e.g. Bonus Weekend",
+    "multiplierLabel": "XP Multiplier",
+    "multiplierPlaceholder": "e.g. 2",
+    "startsAtLabel": "Starts At",
+    "endsAtLabel": "Ends At",
+    "createButton": "Create Event",
+    "label": "Label",
+    "multiplier": "Multiplier",
+    "starts": "Starts",
+    "ends": "Ends",
+    "status": "Status",
+    "actions": "Actions",
+    "active": "Active",
+    "scheduled": "Scheduled",
+    "ended": "Ended",
+    "end": "End Now",
+    "empty": "No XP events yet.",
+    "loadError": "Failed to load XP events."
+  },
   "toasts": {
     "proActivated": "Pro activated for user.",
     "proActivateFailed": "Could not activate Pro.",
@@ -107,6 +130,10 @@
     "unsuspended": "User unsuspended.",
     "suspendFailed": "Could not update suspension status.",
     "vouchRemoved": "Vouch removed.",
-    "vouchRemoveFailed": "Could not remove vouch."
+    "vouchRemoveFailed": "Could not remove vouch.",
+    "xpEventCreated": "XP event created.",
+    "xpEventCreateFailed": "Could not create XP event.",
+    "xpEventEnded": "XP event ended.",
+    "xpEventEndFailed": "Could not end XP event."
   }
 }

@@ -19,6 +19,14 @@ interface BpTier {
   accessible: boolean;
 }
 
+interface ActiveXpEvent {
+  id: number;
+  label: string;
+  multiplier: number;
+  startsAt: string;
+  endsAt: string;
+}
+
 interface BpData {
   season: { id: number; name: string; startDate: string; endDate: string; endsInMs: number };
   currentLevel: number;
@@ -32,6 +40,7 @@ interface BpData {
   earnedTitles: string[];
   tiers: BpTier[];
   justUnlocked: Array<{ level: number; rewardType: string; rewardValue: string; rewardLabel: string; rewardIcon: string }>;
+  activeXpEvent: ActiveXpEvent | null;
 }
 
 // ── Countdown hook ─────────────────────────────────────────────────────────────
@@ -164,6 +173,66 @@ function TrackSection({
   );
 }
 
+// ── Active XP event banner ────────────────────────────────────────────────────
+
+function XpEventBanner({ event }: { event: ActiveXpEvent }) {
+  const { t } = useTranslation("battle-pass");
+  const endsInMs = Math.max(0, new Date(event.endsAt).getTime() - Date.now());
+  const { d, h, m, s, over } = useCountdown(endsInMs);
+
+  if (over) return null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        background: "linear-gradient(90deg, hsl(var(--primary)/0.15), hsl(var(--primary)/0.05))",
+        border: "1px solid hsl(var(--primary)/0.5)",
+        padding: "10px 16px",
+        marginBottom: 4,
+      }}
+    >
+      <span style={{ fontSize: 22 }}>⚡</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "monospace",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "hsl(var(--primary))",
+            marginBottom: 2,
+          }}
+        >
+          {t("xpEvent.active")}
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: 12, color: "#e5e5e5", fontWeight: 600 }}>
+          {event.label} — {t("xpEvent.multiplier", { multiplier: event.multiplier })}
+        </div>
+      </div>
+      <div
+        style={{
+          fontFamily: "monospace",
+          fontSize: 10,
+          color: "hsl(var(--muted-foreground))",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        {t("xpEvent.endsIn", {
+          d: String(d).padStart(2, "0"),
+          h: String(h).padStart(2, "0"),
+          m: String(m).padStart(2, "0"),
+          s: String(s).padStart(2, "0"),
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── New-reward toast banner ────────────────────────────────────────────────────
 
 function UnlockBanner({ rewards, onDismiss }: {
@@ -233,6 +302,9 @@ export default function BattlePassPage() {
         </div>
         <p className="bp-subtitle">{t("subtitle")}</p>
       </div>
+
+      {/* Active XP event banner */}
+      {data?.activeXpEvent && <XpEventBanner event={data.activeXpEvent} />}
 
       {/* Countdown */}
       {data && <Countdown endsInMs={data.season.endsInMs} />}

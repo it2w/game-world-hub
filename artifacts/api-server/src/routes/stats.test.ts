@@ -409,3 +409,247 @@ describe("GET /stats/me/weekly — week reset and response shape", () => {
     }
   });
 });
+
+// ─── Timezone boundary tests ───────────────────────────────────────────────────
+//
+// The endpoint always uses UTC-based day-of-week (EXTRACT(DOW FROM created_at AT
+// TIME ZONE 'UTC')).  Users in UTC+N timezones experience the Sunday/Monday
+// boundary at a different local clock time, but the bucket must still reflect UTC.
+//
+// Representative offsets tested:
+//   UTC+14 (Kiribati) — the furthest-ahead timezone; their "Sunday" starts 14 h
+//           before UTC Sunday, i.e. while it is still Saturday UTC.
+//   UTC+12 (NZ/Fiji)  — common far-ahead zone.
+//   UTC-12 (Baker Is) — the furthest-behind zone; their "Sunday" starts 12 h
+//           after UTC Sunday, i.e. while it is already Monday UTC.
+//   UTC-5  (US East)  — common behind zone.
+//
+// Each test inserts one lfg_post at a precise UTC timestamp, then verifies the
+// endpoint returns that post in the expected UTC DOW bucket.
+
+describe("GET /stats/me/weekly — timezone boundary bucket assignment", () => {
+  // ── Helper: insert a post at an absolute offset from the week start and clean up ──
+  async function withPostAt(
+    offsetSql: string,
+    fn: (postId: number) => Promise<void>,
+  ): Promise<void> {
+    const postId = await insertPostAt(`${WEEK_START_SQL} + ${offsetSql}`);
+    createdPostIds.push(postId);
+    try {
+      await fn(postId);
+    } finally {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [postId]));
+      const idx = createdPostIds.indexOf(postId);
+      if (idx !== -1) createdPostIds.splice(idx, 1);
+    }
+  }
+
+  // ── UTC+14 perspective ─────────────────────────────────────────────────────
+  // In UTC+14, Sunday starts at Saturday 10:00 UTC.
+  // A post at Saturday 10:30 UTC (Sunday 00:30 local) is still DOW=6 (Saturday UTC).
+  test("UTC+14: post at Saturday 10:30 UTC (local Sunday morning) lands in DOW=6 (Saturday)", async () => {
+    // Saturday 10:30 UTC = WEEK_START - 13 hours 30 minutes
+    const postId = await insertPostAt(`${WEEK_START_SQL} - INTERVAL '13 hours 30 minutes'`);
+    createdPostIds.push(postId);
+    try {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      // This timestamp is before the week start so it is EXCLUDED from the current week.
+      // That is the correct behaviour: a UTC Saturday is never in the UTC Sunday-based week.
+      assert.equal(
+        totalActivity(wb),
+        0,
+        `UTC+14 Saturday-UTC post must be excluded from the current week; got total=${totalActivity(wb)}`,
+      );
+    } finally {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [postId]));
+      const idx = createdPostIds.indexOf(postId);
+      if (idx !== -1) createdPostIds.splice(idx, 1);
+    }
+  });
+
+  // A post at Saturday 23:30 UTC (UTC+14 = Sunday 13:30 local) is still DOW=6.
+  // Since it is before the week start it must NOT appear in the current week.
+  test("UTC+14: post at Saturday 23:30 UTC (local Sunday afternoon) is excluded from current week", async () => {
+    const postId = await insertPostAt(`${WEEK_START_SQL} - INTERVAL '30 minutes'`);
+    createdPostIds.push(postId);
+    try {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        totalActivity(wb),
+        0,
+        `Saturday-UTC post (30 min before week start) must be excluded; got total=${totalActivity(wb)}`,
+      );
+    } finally {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [postId]));
+      const idx = createdPostIds.indexOf(postId);
+      if (idx !== -1) createdPostIds.splice(idx, 1);
+    }
+  });
+
+  // ── UTC+12 perspective ─────────────────────────────────────────────────────
+  // In UTC+12, Sunday ends at Sunday 12:00 UTC (= Monday 00:00 local).
+  // A post at Sunday 23:00 UTC (= Monday 11:00 local in UTC+12) must still land
+  // in DOW=0 (Sunday UTC), not DOW=1 (Monday).
+  test("UTC+12: post at Sunday 23:00 UTC (local Monday morning) still lands in DOW=0 (Sunday)", async () => {
+    await withPostAt("INTERVAL '23 hours'", async () => {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        wb.lfgPosts[0],
+        1,
+        `Sunday-23:00-UTC post must land in DOW=0 (Sunday); got lfgPosts[0]=${wb.lfgPosts[0]}`,
+      );
+      assert.equal(
+        wb.lfgPosts[1],
+        0,
+        `DOW=1 (Monday) must be 0; got lfgPosts[1]=${wb.lfgPosts[1]}`,
+      );
+    });
+  });
+
+  // ── UTC-5 perspective ──────────────────────────────────────────────────────
+  // In UTC-5, Sunday midnight local = Sunday 05:00 UTC.
+  // A post at Monday 01:00 UTC (= Sunday 20:00 local in UTC-5) must land in
+  // DOW=1 (Monday UTC), even though locally it feels like Sunday evening.
+  test("UTC-5: post at Monday 01:00 UTC (local Sunday evening) lands in DOW=1 (Monday UTC), not Sunday", async () => {
+    await withPostAt("INTERVAL '1 day 1 hour'", async () => {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        wb.lfgPosts[1],
+        1,
+        `Monday-01:00-UTC post must land in DOW=1 (Monday); got lfgPosts[1]=${wb.lfgPosts[1]}`,
+      );
+      assert.equal(
+        wb.lfgPosts[0],
+        0,
+        `DOW=0 (Sunday) must be 0; got lfgPosts[0]=${wb.lfgPosts[0]}`,
+      );
+    });
+  });
+
+  // ── UTC-12 perspective ─────────────────────────────────────────────────────
+  // In UTC-12, Sunday starts at Sunday 12:00 UTC.
+  // A post at Sunday 00:01 UTC (= Saturday 12:01 local in UTC-12) must land in
+  // DOW=0 (Sunday UTC), even though locally it feels like Saturday.
+  test("UTC-12: post at Sunday 00:01 UTC (local Saturday noon) lands in DOW=0 (Sunday UTC)", async () => {
+    await withPostAt("INTERVAL '1 minute'", async () => {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        wb.lfgPosts[0],
+        1,
+        `Sunday-00:01-UTC post must land in DOW=0 (Sunday); got lfgPosts[0]=${wb.lfgPosts[0]}`,
+      );
+      assert.equal(
+        wb.lfgPosts[6],
+        0,
+        `DOW=6 (Saturday) must be 0; got lfgPosts[6]=${wb.lfgPosts[6]}`,
+      );
+    });
+  });
+
+  // ── Exact UTC midnight boundary — the Sunday/Saturday dividing line ────────
+  // One second before Sunday 00:00 UTC must be excluded (Saturday = prior week).
+  // One second after  Sunday 00:00 UTC must be included as DOW=0 (Sunday).
+  test("1 second before UTC Sunday midnight is excluded from the current week", async () => {
+    const postId = await insertPostAt(`${WEEK_START_SQL} - INTERVAL '1 second'`);
+    createdPostIds.push(postId);
+    try {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        totalActivity(wb),
+        0,
+        `post 1 s before UTC Sunday midnight must be excluded; got total=${totalActivity(wb)}`,
+      );
+    } finally {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [postId]));
+      const idx = createdPostIds.indexOf(postId);
+      if (idx !== -1) createdPostIds.splice(idx, 1);
+    }
+  });
+
+  test("1 second after UTC Sunday midnight is included and lands in DOW=0 (Sunday)", async () => {
+    await withPostAt("INTERVAL '1 second'", async () => {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        wb.lfgPosts[0],
+        1,
+        `post 1 s after UTC Sunday midnight must land in DOW=0 (Sunday); got lfgPosts[0]=${wb.lfgPosts[0]}`,
+      );
+      assert.equal(
+        totalActivity(wb),
+        1,
+        `total must be 1; got ${totalActivity(wb)}`,
+      );
+    });
+  });
+
+  // ── Cross-day bucket correctness at timezone-sensitive hours ──────────────
+  // Saturday 12:00 UTC is:
+  //   • Sunday 00:00 in UTC+12  — locally the new week, but UTC says Saturday (DOW=6)
+  //   • Friday 24:00 in UTC-12  — locally still Friday evening
+  // Either way the endpoint must report DOW=6 (Saturday) for that moment.
+  test("Saturday 12:00 UTC (local Sunday in UTC+12) is excluded from current week and would be DOW=6", async () => {
+    // Saturday 12:00 UTC = WEEK_START - 12 hours (prior week)
+    const postId = await insertPostAt(`${WEEK_START_SQL} - INTERVAL '12 hours'`);
+    createdPostIds.push(postId);
+    try {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      // Must be excluded (prior week)
+      assert.equal(
+        totalActivity(wb),
+        0,
+        `Saturday-12:00-UTC post (UTC+12 local Sunday) must be excluded from current week; got total=${totalActivity(wb)}`,
+      );
+    } finally {
+      await db.delete(lfgPostsTable).where(inArray(lfgPostsTable.id, [postId]));
+      const idx = createdPostIds.indexOf(postId);
+      if (idx !== -1) createdPostIds.splice(idx, 1);
+    }
+  });
+
+  // Sunday 12:00 UTC is:
+  //   • Sunday 00:00 in UTC-12  — locally just the start of Sunday for UTC-12 users
+  //   • Monday 00:00 in UTC+12  — locally the start of Monday for UTC+12 users
+  // The endpoint must report DOW=0 (Sunday) for that moment.
+  test("Sunday 12:00 UTC (local Monday in UTC+12, local Sunday start in UTC-12) lands in DOW=0 (Sunday)", async () => {
+    await withPostAt("INTERVAL '12 hours'", async () => {
+      const { status, body } = await authedGet("/stats/me/weekly");
+      assert.equal(status, 200, `expected 200, got ${status}`);
+      assertWeeklyShape(body);
+      const wb = body as WeeklyBody;
+      assert.equal(
+        wb.lfgPosts[0],
+        1,
+        `Sunday-12:00-UTC post must land in DOW=0 (Sunday); got lfgPosts[0]=${wb.lfgPosts[0]}`,
+      );
+      assert.equal(
+        wb.lfgPosts[1],
+        0,
+        `DOW=1 (Monday) must be 0 for a Sunday-UTC post; got lfgPosts[1]=${wb.lfgPosts[1]}`,
+      );
+    });
+  });
+});

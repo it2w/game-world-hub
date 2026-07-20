@@ -11,6 +11,10 @@ import {
   getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey,
   getListPartyInvitesQueryKey, getGetMeQueryKey,
   type User,
+  type LfgPost,
+  type Party,
+  type FriendEntry,
+  type PartyActivity,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -22,6 +26,11 @@ import i18n from "@/i18n";
 // ── Palette helpers ────────────────────────────────────────────────────────────
 const PALETTE = ["#EC4899","#06B6D4","#A855F7","#22C55E","#F97316","#FFD700","#EF4444","#38BDF8"];
 const fColor = (id: number) => PALETTE[id % PALETTE.length];
+
+// ── Narrow local interfaces for data not fully covered by generated types ──────
+interface WeeklyStats { kd?: number; winRate?: number; rank?: number; streak?: number }
+interface DashChallenge { status: string; title: string; description: string; progress: number; goal: number; xpReward: number; expiresAt?: string }
+interface DisplayAchievement { icon?: string; name: string; description?: string; rarity?: string; color?: string }
 
 // ── Static data (no API equivalent) ───────────────────────────────────────────
 const SPIN_PRIZES_BASE = [
@@ -242,7 +251,7 @@ function DailySpin({ userId }: { userId?:number }) {
 }
 
 // ── WeeklyGraph ────────────────────────────────────────────────────────────────
-function WeeklyGraph({ stats }: { stats?:any }) {
+function WeeklyGraph({ stats }: { stats?: WeeklyStats }) {
   const { t } = useTranslation("dashboard");
   const WEEK_DAYS = [0,1,2,3,4,5,6].map(i => t(`graph.days_${i}`));
   const max = Math.max(...WEEK_GRAPH);
@@ -295,7 +304,7 @@ function WeeklyGraph({ stats }: { stats?:any }) {
 }
 
 // ── HubCard ────────────────────────────────────────────────────────────────────
-function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
+function HubCard({ lfgPosts, parties }: { lfgPosts: LfgPost[]; parties: Party[] }) {
   const { t } = useTranslation("dashboard");
   const [tab, setTab] = useState<"game"|"lfg"|"news"|"party">("game");
   const TABS = [
@@ -345,7 +354,7 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
             <span style={{fontSize:9,color:"#555"}}>{t("hub.openRequests")}</span>
             <span className="hub-live-dot-wrap"><span className="online-dot"/>{t("hub.live")}</span>
           </div>
-          {lfgPosts.slice(0,3).map((p:any,i)=>{
+          {lfgPosts.slice(0,3).map((p,i)=>{
             const color=fColor(p.author?.id??i);
             const done=responded.has(p.id)||p.viewerHasResponded;
             return (
@@ -357,7 +366,7 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
                 </div>
                 <div style={{textAlign:"end",flexShrink:0}}>
                   {p.neededPlayers&&<div className="hub-lfg-need">{t("hub.slots",{count:p.neededPlayers})}</div>}
-                  <div className="hub-lfg-ago">{p.ago??""}</div>
+                  <div className="hub-lfg-ago">{`${Math.max(1, Math.floor((Date.now()-new Date(p.createdAt).getTime())/60000))}m`}</div>
                 </div>
                 <button className="hub-lfg-btn" style={{borderColor:color,color}} disabled={done} onClick={()=>respond(p.id)}>
                   {done?"✓":t("hub.respond")}
@@ -391,7 +400,7 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
             <span style={{fontSize:9,color:"#555"}}>{t("hub.activeParties")}</span>
             <span className="hub-live-dot-wrap"><span className="online-dot"/>LIVE</span>
           </div>
-          {parties.slice(0,3).map((p:any,i)=>{
+          {parties.slice(0,3).map((p,i)=>{
             const color=fColor(p.id??i);
             const members=p.members?.slice(0,3)??[];
             const slots=Math.max(0,(p.maxSize??4)-members.length);
@@ -399,9 +408,9 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
               <div key={p.id??i} className="hub-party-row" style={{borderColor:`${color}20`}}>
                 <div style={{flex:1}}>
                   <div className="hub-party-game" style={{color}}>{p.game??p.name}</div>
-                  <div className="hub-party-mode">{p.mode??""} • {t("hub.freeSlots",{count:slots})}</div>
+                  <div className="hub-party-mode">{t("hub.freeSlots",{count:slots})}</div>
                   <div className="hub-party-avs">
-                    {members.map((m:any,j:number)=><div key={j} className="hub-party-av" style={{background:`${color}30`,borderColor:color,color}}>{m.displayName?.charAt(0)??"?"}</div>)}
+                    {members.map((m,j)=><div key={j} className="hub-party-av" style={{background:`${color}30`,borderColor:color,color}}>{m.displayName?.charAt(0)??"?"}</div>)}
                     {[...Array(slots)].map((_,j)=><div key={`e${j}`} className="hub-party-av hub-party-av--empty">+</div>)}
                   </div>
                 </div>
@@ -419,10 +428,10 @@ function HubCard({ lfgPosts, parties }: { lfgPosts:any[]; parties:any[] }) {
 
 // ── FriendsGrid ────────────────────────────────────────────────────────────────
 function FriendsGrid({ friends, onCall, onDm, onBlock }: {
-  friends:any[];
-  onCall:(f:any)=>void;
-  onDm:(f:any)=>void;
-  onBlock:(f:any)=>void;
+  friends: FriendEntry[];
+  onCall: (f: User) => void;
+  onDm: (f: User) => void;
+  onBlock: (f: User) => void;
 }) {
   const { t } = useTranslation("dashboard");
   const online = friends.filter(e=>e.friend.status==="online").length;
@@ -438,7 +447,7 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
       <div className="friends-grid">
         {friends.map(entry=>{
           const f=entry.friend;
-          const color=(f as any).profileFrameColor??fColor(f.id);
+          const color=f.profileFrameColor??fColor(f.id);
           return (
             <Link key={f.id} href={`/profile/${f.id}`}
               className="fc"
@@ -482,10 +491,10 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
 }
 
 // ── CommunityHighlights ────────────────────────────────────────────────────────
-function CommunityHighlights({ activity }: { activity:any[] }) {
+function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
   const { t } = useTranslation("dashboard");
   const highlights = activity.length
-    ? activity.slice(0,4).map((a:any,i:number)=>({
+    ? activity.slice(0,4).map((a, i)=>({
         user: a.actor.displayName,
         avatarUrl: a.actor.avatarUrl ?? null,
         clip: `${a.actor.displayName} ${a.action==="created"?t("highlights.created"):a.action==="joined"?t("highlights.joined"):t("highlights.left")} ${a.party.name}`,
@@ -527,7 +536,7 @@ function CommunityHighlights({ activity }: { activity:any[] }) {
 }
 
 // ── SmartMatch ─────────────────────────────────────────────────────────────────
-function SmartMatch({ friends, openParties }: { friends:any[]; openParties:any[] }) {
+function SmartMatch({ friends, openParties }: { friends: FriendEntry[]; openParties: Party[] }) {
   const { t } = useTranslation("dashboard");
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
@@ -574,9 +583,9 @@ function SmartMatch({ friends, openParties }: { friends:any[]; openParties:any[]
         <div className="match-live-badge"><span className="match-live-dot"/>LIVE</div>
       </div>
       <div className="match-game">{party?.game ?? "Valorant"}</div>
-      <div className="match-meta">"{party?.name ?? "Rush Squad"}" • {t("smartMatch.players",{count:(party?.memberCount ?? shown.length) || 3})}</div>
+      <div className="match-meta">"{party?.name ?? "Rush Squad"}" • {t("smartMatch.players",{count:(party?.members?.length ?? shown.length) || 3})}</div>
       <div className="match-avatars">
-        {shown.length ? shown.map((e:any)=>{const f=e.friend;const color=fColor(f.id);return(
+        {shown.length ? shown.map((e)=>{const f=e.friend;const color=fColor(f.id);return(
           <div key={f.id} className="match-av" style={{background:`linear-gradient(135deg,${color}88,${color}33)`,borderColor:color}}>
             {f.avatarUrl?<img src={f.avatarUrl} alt=""/>:f.displayName.charAt(0)}
           </div>
@@ -604,9 +613,9 @@ function SmartMatch({ friends, openParties }: { friends:any[]; openParties:any[]
 }
 
 // ── ChallengeVs ────────────────────────────────────────────────────────────────
-function ChallengeVs({ me, friends }: { me: User | null | undefined; friends:any[] }) {
+function ChallengeVs({ me, friends }: { me: User | null | undefined; friends: FriendEntry[] }) {
   const { t } = useTranslation("dashboard");
-  const [sel, setSel] = useState<any>(null);
+  const [sel, setSel] = useState<User | null>(null);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [, nav] = useLocation();
@@ -725,7 +734,7 @@ function TournamentCard() {
 }
 
 // ── ChallengeCard ──────────────────────────────────────────────────────────────
-function ChallengeCard({ challenges }: { challenges:any[] }) {
+function ChallengeCard({ challenges }: { challenges: DashChallenge[] }) {
   const { t } = useTranslation("dashboard");
   const [animated, setAnimated] = useState(false);
   useEffect(()=>{setTimeout(()=>setAnimated(true),400);},[]);
@@ -755,7 +764,7 @@ function ChallengeCard({ challenges }: { challenges:any[] }) {
 }
 
 // ── Leaderboard ────────────────────────────────────────────────────────────────
-function Leaderboard({ me, friends }: { me: User | null | undefined; friends:any[] }) {
+function Leaderboard({ me, friends }: { me: User | null | undefined; friends: FriendEntry[] }) {
   const { t } = useTranslation("dashboard");
   const base = friends.map(e=>({
     name: e.friend.displayName,
@@ -790,7 +799,7 @@ function Leaderboard({ me, friends }: { me: User | null | undefined; friends:any
 }
 
 // ── AchievementShowcase ────────────────────────────────────────────────────────
-function AchievementShowcase({ achievements }: { achievements:any[] }) {
+function AchievementShowcase({ achievements }: { achievements: DisplayAchievement[] }) {
   const { t } = useTranslation("dashboard");
   const fallback = [
     {icon:"🏆",name:t("achievements.fallback0Name"),description:t("achievements.fallback0Desc"),rarity:"LEGENDARY",color:"#FFD700"},
@@ -1095,27 +1104,27 @@ export default function Dashboard() {
   const acceptInvite  = useAcceptPartyInvite();
   const declineInvite = useDeclinePartyInvite();
 
-  const { data: lfgSuggestions } = useQuery<any[]>({
+  const { data: lfgSuggestions } = useQuery<LfgPost[]>({
     queryKey: ["lfg-suggestions"],
     queryFn: () => customFetch("/api/lfg/suggestions"),
     refetchInterval: 30000,
   });
-  const { data: challenges } = useQuery<any[]>({
+  const { data: challenges } = useQuery<DashChallenge[]>({
     queryKey: ["challenges-dash"],
     queryFn: () => customFetch("/api/challenges"),
     refetchInterval: 60000,
   });
-  const { data: achievements } = useQuery<any[]>({
+  const { data: achievements } = useQuery<DisplayAchievement[]>({
     queryKey: ["achievements-dash"],
     queryFn: () => customFetch("/api/achievements"),
     staleTime: 120000,
   });
-  const { data: parties } = useQuery<any[]>({
+  const { data: parties } = useQuery<Party[]>({
     queryKey: ["parties-active-dash"],
     queryFn: () => customFetch("/api/parties?status=open"),
     refetchInterval: 15000,
   });
-  const { data: stats } = useQuery<any>({
+  const { data: stats } = useQuery<WeeklyStats>({
     queryKey: ["stats-me-dashboard"],
     queryFn: () => customFetch("/api/stats/me"),
     staleTime: 60000,
@@ -1133,7 +1142,7 @@ export default function Dashboard() {
     { text:"🎮 CS2 weapon balance update — Premier S4",   color:"#38BDF8" },
     { text:"⭐ New Ranked season started — climb now",    color:"#EF4444" },
   ];
-  const realEvents = (partyActivity??[]).slice(0,8).map((a:any,i:number)=>({
+  const realEvents = (partyActivity??[]).slice(0,8).map((a, i)=>({
     text: `${a.actor.displayName} ${a.action==="created"?t("activity.created"):a.action==="joined"?t("activity.joined"):a.action==="left"?t("activity.left"):t("activity.invited")} ${a.party.name}`,
     color: TICKER_COLORS[i % TICKER_COLORS.length],
   }));
@@ -1150,7 +1159,7 @@ export default function Dashboard() {
   const hour = new Date().getHours();
   const greeting = hour<5 ? t("header.greetingNight") : hour<12 ? t("header.greetingMorning") : hour<17 ? t("header.greetingAfternoon") : t("header.greetingEvening");
 
-  const openDm = async (f: any) => {
+  const openDm = async (f: User) => {
     try {
       const conv = await customFetch<{ id:number }>(`/api/conversations/direct/${f.id}`);
       navigate(`/chat/${conv.id}`);

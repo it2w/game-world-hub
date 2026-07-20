@@ -384,6 +384,72 @@ router.get("/admin/chat-deletions", requireAdminPermission("can_view_reports"), 
   });
 });
 
+// ─── Vouches: list and remove ─────────────────────────────────────────────────
+
+router.get("/admin/users/:userId/vouches", async (req, res): Promise<void> => {
+  const userId = Number(req.params.userId);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const { rows } = await pool.query<{
+    id: number;
+    tag: string;
+    created_at: string;
+    giver_id: number;
+    giver_username: string;
+    giver_display_name: string;
+  }>(
+    `SELECT rv.id,
+            rv.tag,
+            rv.created_at::text,
+            rv.giver_id,
+            u.username  AS giver_username,
+            u.display_name AS giver_display_name
+     FROM reputation_vouches rv
+     JOIN users u ON u.id = rv.giver_id
+     WHERE rv.receiver_id = $1
+     ORDER BY rv.created_at DESC`,
+    [userId],
+  );
+
+  res.json({
+    items: rows.map(r => ({
+      id: r.id,
+      tag: r.tag,
+      createdAt: r.created_at,
+      giver: {
+        id: r.giver_id,
+        username: r.giver_username,
+        displayName: r.giver_display_name,
+      },
+    })),
+  });
+});
+
+router.delete("/admin/users/:userId/vouches/:vouchId", requireAdminPermission("can_delete_content"), async (req, res): Promise<void> => {
+  const userId  = Number(req.params.userId);
+  const vouchId = Number(req.params.vouchId);
+  if (isNaN(userId) || isNaN(vouchId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { rows } = await pool.query<{ id: number; tag: string; giver_id: number }>(
+    `SELECT id, tag, giver_id FROM reputation_vouches WHERE id = $1 AND receiver_id = $2`,
+    [vouchId, userId],
+  );
+  const vouch = rows[0];
+  if (!vouch) { res.status(404).json({ error: "Vouch not found" }); return; }
+
+  await pool.query(`DELETE FROM reputation_vouches WHERE id = $1`, [vouchId]);
+
+  logger.info(
+    { vouchId, userId, tag: vouch.tag, giverId: vouch.giver_id, removedBy: req.adminUser?.id },
+    "admin: removed reputation vouch",
+  );
+
+  res.status(200).json({ ok: true });
+});
+
 router.get("/admin/pro-subscriptions", async (req, res): Promise<void> => {
   const subs = await db
     .select({

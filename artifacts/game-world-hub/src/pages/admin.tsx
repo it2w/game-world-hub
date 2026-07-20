@@ -37,6 +37,9 @@ import {
   TrendingUp,
   Loader2,
   MessageSquareX,
+  ChevronDown,
+  ChevronUp,
+  Star,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -182,12 +185,143 @@ export default function Admin() {
   );
 }
 
+// ─── Vouches panel ────────────────────────────────────────────────────────────
+
+interface Vouch {
+  id: number;
+  tag: string;
+  createdAt: string;
+  giver: { id: number; username: string; displayName: string };
+}
+
+const TAG_EMOJI: Record<string, string> = {
+  clutch: "🎯",
+  team_player: "🤝",
+  chill: "😎",
+  leader: "👑",
+  toxic: "☠️",
+};
+
+function UserVouchesPanel({ userId }: { userId: number }) {
+  const { t } = useTranslation("admin");
+  const { toast } = useToast();
+  const [vouches, setVouches] = useState<Vouch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [removing, setRemoving] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const result = await customFetch<{ items: Vouch[] }>(`/api/admin/users/${userId}/vouches`);
+      setVouches(result.items);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRemove = async (vouchId: number) => {
+    if (!window.confirm(t("vouches.confirmRemove"))) return;
+    setRemoving(vouchId);
+    try {
+      await customFetch(`/api/admin/users/${userId}/vouches/${vouchId}`, { method: "DELETE" });
+      toast({ title: t("toasts.vouchRemoved") });
+      setVouches(prev => prev.filter(v => v.id !== vouchId));
+    } catch {
+      toast({ title: t("toasts.vouchRemoveFailed"), variant: "destructive" });
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-3 px-4 font-mono text-xs text-muted-foreground">
+        <Loader2 className="w-3 h-3 animate-spin" /> {t("loading")}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="py-3 px-4 font-mono text-xs text-destructive">
+        {t("vouches.loadError")}
+      </div>
+    );
+  }
+
+  if (vouches.length === 0) {
+    return (
+      <div className="py-3 px-4 font-mono text-xs text-muted-foreground">
+        {t("vouches.empty")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border hover:bg-transparent">
+            <TableHead className="font-mono text-[10px] uppercase ps-4">{t("vouches.giver")}</TableHead>
+            <TableHead className="font-mono text-[10px] uppercase">{t("vouches.tag")}</TableHead>
+            <TableHead className="font-mono text-[10px] uppercase">{t("vouches.date")}</TableHead>
+            <TableHead className="font-mono text-[10px] uppercase text-end pe-4">{t("users.actions")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {vouches.map(v => (
+            <TableRow key={v.id} className="border-border">
+              <TableCell className="ps-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold">{v.giver.displayName}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">@{v.giver.username}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className="font-mono text-xs">
+                  {TAG_EMOJI[v.tag] ?? "🏷️"} {v.tag}
+                </span>
+              </TableCell>
+              <TableCell className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                {new Date(v.createdAt).toLocaleString()}
+              </TableCell>
+              <TableCell className="text-end pe-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-none font-mono text-xs h-7 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                  disabled={removing === v.id}
+                  onClick={() => onRemove(v.id)}
+                >
+                  {removing === v.id
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <><Trash2 className="w-3 h-3 me-1" />{t("vouches.remove")}</>
+                  }
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// ─── Users panel ──────────────────────────────────────────────────────────────
+
 function UsersPanel() {
   const { t } = useTranslation("admin");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [expandedVouches, setExpandedVouches] = useState<number | null>(null);
 
   const { data, isLoading } = useListAdminUsers({
     q: debouncedSearch || undefined,
@@ -199,6 +333,9 @@ function UsersPanel() {
   const deactivate = useAdminDeactivatePro();
   const promote = useAdminPromoteUser();
   const [suspendingId, setSuspendingId] = useState<number | null>(null);
+
+  const toggleVouches = (userId: number) =>
+    setExpandedVouches(prev => (prev === userId ? null : userId));
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,71 +426,97 @@ function UsersPanel() {
               <TableRow><TableCell colSpan={6} className="font-mono text-sm text-center text-muted-foreground">{t("users.empty")}</TableCell></TableRow>
             ) : (
               data?.items.map((u) => (
-                <TableRow key={u.id} className="border-border">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {u.avatarUrl ? (
-                        <img src={u.avatarUrl} alt={u.displayName} className="w-8 h-8 rounded-sm object-cover border border-border" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-sm bg-muted flex items-center justify-center border border-border font-mono text-xs">
-                          {u.displayName.charAt(0).toUpperCase()}
+                <>
+                  <TableRow key={u.id} className="border-border">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {u.avatarUrl ? (
+                          <img src={u.avatarUrl} alt={u.displayName} className="w-8 h-8 rounded-sm object-cover border border-border" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-sm bg-muted flex items-center justify-center border border-border font-mono text-xs">
+                            {u.displayName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm">{u.displayName}</span>
+                          <span className="font-mono text-xs text-muted-foreground">@{u.username}</span>
                         </div>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">{u.displayName}</span>
-                        <span className="font-mono text-xs text-muted-foreground">@{u.username}</span>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{u.status}</TableCell>
-                  <TableCell className="font-mono text-xs">{u.tier ?? "-"}</TableCell>
-                  <TableCell>
-                    {u.isPro ? <ProBadge size="icon" /> : <span className="text-muted-foreground text-sm">-</span>}
-                  </TableCell>
-                  <TableCell>
-                    {u.isAdmin ? (
-                      <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase border-primary text-primary">
-                        {t("users.adminYes")}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-end">
-                    <div className="flex items-center justify-end gap-2 flex-wrap">
-                      {u.isPro ? (
-                        <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onDeactivate(u.id)}>
-                          <Crown className="w-3 h-3 me-1" /> {t("users.deactivatePro")}
-                        </Button>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{u.status}</TableCell>
+                    <TableCell className="font-mono text-xs">{u.tier ?? "-"}</TableCell>
+                    <TableCell>
+                      {u.isPro ? <ProBadge size="icon" /> : <span className="text-muted-foreground text-sm">-</span>}
+                    </TableCell>
+                    <TableCell>
+                      {u.isAdmin ? (
+                        <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase border-primary text-primary">
+                          {t("users.adminYes")}
+                        </Badge>
                       ) : (
-                        <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onActivate(u.id)}>
-                          <Crown className="w-3 h-3 me-1" /> {t("users.activatePro")}
-                        </Button>
+                        <span className="text-muted-foreground text-sm">-</span>
                       )}
-                      {(u.status as string) === "suspended" ? (
+                    </TableCell>
+                    <TableCell className="text-end">
+                      <div className="flex items-center justify-end gap-2 flex-wrap">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-none font-mono text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
-                          disabled={suspendingId === u.id}
-                          onClick={() => onSuspend(u.id, true)}
+                          className={`rounded-none font-mono text-xs h-7 ${expandedVouches === u.id ? "border-primary/50 text-primary" : ""}`}
+                          onClick={() => toggleVouches(u.id)}
                         >
-                          <CheckCircle className="w-3 h-3 me-1" /> {t("users.unsuspend")}
+                          <Star className="w-3 h-3 me-1" />
+                          {t("vouches.title")}
+                          {expandedVouches === u.id
+                            ? <ChevronUp className="w-3 h-3 ms-1" />
+                            : <ChevronDown className="w-3 h-3 ms-1" />}
                         </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-none font-mono text-xs h-7 border-red-500/50 text-red-400 hover:bg-red-500/10"
-                          disabled={suspendingId === u.id}
-                          onClick={() => onSuspend(u.id, false)}
-                        >
-                          <Ban className="w-3 h-3 me-1" /> {t("users.suspend")}
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                        {u.isPro ? (
+                          <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onDeactivate(u.id)}>
+                            <Crown className="w-3 h-3 me-1" /> {t("users.deactivatePro")}
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" className="rounded-none font-mono text-xs h-7" onClick={() => onActivate(u.id)}>
+                            <Crown className="w-3 h-3 me-1" /> {t("users.activatePro")}
+                          </Button>
+                        )}
+                        {(u.status as string) === "suspended" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-none font-mono text-xs h-7 border-green-500/50 text-green-400 hover:bg-green-500/10"
+                            disabled={suspendingId === u.id}
+                            onClick={() => onSuspend(u.id, true)}
+                          >
+                            <CheckCircle className="w-3 h-3 me-1" /> {t("users.unsuspend")}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-none font-mono text-xs h-7 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                            disabled={suspendingId === u.id}
+                            onClick={() => onSuspend(u.id, false)}
+                          >
+                            <Ban className="w-3 h-3 me-1" /> {t("users.suspend")}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {expandedVouches === u.id && (
+                    <TableRow key={`vouches-${u.id}`} className="border-border bg-muted/20">
+                      <TableCell colSpan={6} className="p-0">
+                        <div className="border-t border-border/50">
+                          <div className="px-4 py-2 font-mono text-[10px] uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
+                            <Star className="w-3 h-3" /> {t("vouches.title")} — @{u.username}
+                          </div>
+                          <UserVouchesPanel userId={u.id} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               ))
             )}
           </TableBody>

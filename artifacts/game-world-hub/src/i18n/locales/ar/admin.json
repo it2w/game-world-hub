@@ -82,6 +82,16 @@
   "suspended": "الحساب موقوف",
   "suspendedDesc": "تم إيقاف حسابك الإداري. لم يعد بإمكانك الوصول إلى لوحة الإدارة.",
   "suspendedLogout": "تسجيل الخروج",
+  "vouches": {
+    "title": "تزكيات السمعة",
+    "giver": "المُزكّي",
+    "tag": "الوسم",
+    "date": "التاريخ",
+    "remove": "إزالة",
+    "empty": "لا توجد تزكيات مسجّلة.",
+    "loadError": "تعذّر تحميل التزكيات.",
+    "confirmRemove": "هل تريد إزالة هذه التزكية؟"
+  },
   "toasts": {
     "proActivated": "تم تفعيل Pro للمستخدم.",
     "proActivateFailed": "تعذّر تفعيل Pro.",
@@ -95,6 +105,8 @@
     "codeDisableFailed": "تعذّر تعطيل الكود.",
     "suspended": "تم إيقاف المستخدم.",
     "unsuspended": "تم رفع إيقاف المستخدم.",
-    "suspendFailed": "تعذّر تحديث حالة الإيقاف."
+    "suspendFailed": "تعذّر تحديث حالة الإيقاف.",
+    "vouchRemoved": "تمت إزالة التزكية.",
+    "vouchRemoveFailed": "تعذّر إزالة التزكية."
   }
 }

@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test": "vitest run",
     "e2e": "playwright test --config playwright.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "pnpm -w typecheck:libs && tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

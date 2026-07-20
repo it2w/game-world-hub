@@ -82,10 +82,12 @@ async function postMessage(content: string, channel = 'general'): Promise<void> 
 function ChannelTabs({
   active,
   onSelect,
+  unread,
   colors,
 }: {
   active: string;
   onSelect: (id: string) => void;
+  unread: Record<string, number>;
   colors: ReturnType<typeof useColors>;
 }) {
   return (
@@ -96,7 +98,8 @@ function ChannelTabs({
       contentContainerStyle={tabStyles.content}
     >
       {CHANNELS.map((ch) => {
-        const isActive = ch.id === active;
+        const isActive  = ch.id === active;
+        const badgeCount = unread[ch.id] ?? 0;
         return (
           <Pressable
             key={ch.id}
@@ -106,15 +109,24 @@ function ChannelTabs({
               isActive && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
             ]}
           >
-            <Text
-              style={[
-                tabStyles.label,
-                { color: isActive ? colors.primary : colors.mutedForeground },
-                isActive && { fontWeight: '700' },
-              ]}
-            >
-              {ch.label}
-            </Text>
+            <View style={tabStyles.labelRow}>
+              <Text
+                style={[
+                  tabStyles.label,
+                  { color: isActive ? colors.primary : colors.mutedForeground },
+                  isActive && { fontWeight: '700' },
+                ]}
+              >
+                {ch.label}
+              </Text>
+              {!isActive && badgeCount > 0 && (
+                <View style={[tabStyles.badge, { backgroundColor: colors.primary }]}>
+                  <Text style={tabStyles.badgeText}>
+                    {badgeCount > 99 ? '99+' : String(badgeCount)}
+                  </Text>
+                </View>
+              )}
+            </View>
           </Pressable>
         );
       })}
@@ -136,9 +148,28 @@ const tabStyles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
   label: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: 12,
   },
 });
 
@@ -207,6 +238,9 @@ export default function ChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Unread counts per channel — incremented by WS frames on inactive channels,
+  // cleared when the user switches to that channel.
+  const [unread, setUnread] = useState<Record<string, number>>({});
 
   // Keep a ref so WS handlers always see the latest channel without stale closure
   const channelRef = useRef(channel);
@@ -247,13 +281,24 @@ export default function ChatScreen() {
     if (id === channelRef.current) return;
     setMessages([]);
     setChannel(id);
+    // Clear the unread badge for the channel we are switching TO
+    setUnread((prev) => {
+      if (!prev[id]) return prev; // nothing to clear — avoid re-render
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
-  // ── WS: new message — only show if it belongs to the active channel ──────────
+  // ── WS: new message ──────────────────────────────────────────────────────────
   useWsFrame<GlobalChatFrame>('global_chat', (frame) => {
     if (!frame.message) return;
-    // Ignore messages that belong to a different channel
-    if (frame.message.channel !== channelRef.current) return;
+    if (frame.message.channel !== channelRef.current) {
+      // Message belongs to an inactive channel — increment its unread badge
+      const ch = frame.message.channel;
+      setUnread((prev) => ({ ...prev, [ch]: (prev[ch] ?? 0) + 1 }));
+      return;
+    }
     setMessages((prev) => {
       if (prev.some((m) => m.id === frame.message.id)) return prev;
       return [...prev, frame.message];
@@ -309,6 +354,7 @@ export default function ChatScreen() {
       <ChannelTabs
         active={channel}
         onSelect={handleSelectChannel}
+        unread={unread}
         colors={colors}
       />
 

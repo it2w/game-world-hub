@@ -34,6 +34,12 @@ export default function StatsPage() {
     enabled: !!me,
   });
 
+  const { data: weeklyRaw } = useQuery<{ days: number[] }>({
+    queryKey: ["stats", "me", "weekly"],
+    queryFn: () => customFetch("/api/stats/me/weekly"),
+    enabled: !!me,
+  });
+
   if (isLoading || !me || !stats) {
     return (
       <div className="p-6 max-w-5xl mx-auto">
@@ -57,7 +63,7 @@ export default function StatsPage() {
   const days: string[] = t("days", { returnObjects: true }) as string[];
   const weeklyData = days.map((day, i) => ({
     day,
-    activity: Math.floor(((me.id * 7 + i * 31) % 90) + 10),
+    activity: weeklyRaw?.days[i] ?? 0,
   }));
 
   const statCards = [

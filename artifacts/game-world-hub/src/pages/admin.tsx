@@ -910,7 +910,7 @@ function ChatDeletionsPanel() {
   );
 }
 
-function AnalyticsPanel() {
+export function AnalyticsPanel() {
   const { t } = useTranslation("admin");
   const [range, setRange] = useState<30 | 90>(30);
   const [data, setData] = useState<AnalyticsData | null>(null);

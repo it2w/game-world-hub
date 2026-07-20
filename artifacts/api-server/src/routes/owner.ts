@@ -1298,13 +1298,55 @@ router.post("/owner/users/bulk", requireOwner, async (req, res): Promise<void> =
   res.json({ succeeded, failed });
 });
 
+/* ─── Export rate limiting ───────────────────────────────────────────────── */
+
+/** Maximum export requests per owner per window before returning 429. */
+const EXPORT_RATE_MAX       = 10;
+const EXPORT_RATE_WINDOW_MS = 60 * 1000; // 1 minute
+
+interface ExportBucket { count: number; windowStart: number }
+const exportBuckets = new Map<string, ExportBucket>();
+
+/** Exposed for tests to reset state between runs. */
+export function _resetExportRateBucket(key: string): void {
+  exportBuckets.delete(key);
+}
+
+/**
+ * Returns whether the request is within the export rate limit.
+ * Always increments the counter — call on every request.
+ * Key should be unique per owner per endpoint, e.g. `"export-users:42"`.
+ */
+function checkExportRate(key: string): { allowed: boolean; retryAfterSecs: number } {
+  const now = Date.now();
+  const bucket = exportBuckets.get(key);
+  if (!bucket || now - bucket.windowStart > EXPORT_RATE_WINDOW_MS) {
+    exportBuckets.set(key, { count: 1, windowStart: now });
+    return { allowed: true, retryAfterSecs: 0 };
+  }
+  bucket.count += 1;
+  if (bucket.count > EXPORT_RATE_MAX) {
+    const retryAfterSecs = Math.ceil((EXPORT_RATE_WINDOW_MS - (now - bucket.windowStart)) / 1000);
+    return { allowed: false, retryAfterSecs };
+  }
+  return { allowed: true, retryAfterSecs: 0 };
+}
+
 /* ─── Export (CSV, token also accepted via ?token= for window.open) ──────── */
 
 router.get("/owner/export/users", async (req, res): Promise<void> => {
   const rawToken = typeof req.query.token === "string"
     ? req.query.token
     : (req.headers.authorization ?? "").replace("Bearer ", "");
-  try { verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+  let ownerPayload: { ownerId: number };
+  try { ownerPayload = verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { allowed, retryAfterSecs } = checkExportRate(`export-users:${ownerPayload.ownerId}`);
+  if (!allowed) {
+    res.setHeader("Retry-After", String(retryAfterSecs));
+    res.status(429).json({ error: "Too many export requests. Please try again later." });
+    return;
+  }
 
   const { rows } = await pool.query<{
     id: number; username: string; display_name: string | null; email: string | null;
@@ -1325,7 +1367,15 @@ router.get("/owner/export/log", async (req, res): Promise<void> => {
   const rawToken = typeof req.query.token === "string"
     ? req.query.token
     : (req.headers.authorization ?? "").replace("Bearer ", "");
-  try { verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+  let ownerPayload: { ownerId: number };
+  try { ownerPayload = verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { allowed, retryAfterSecs } = checkExportRate(`export-log:${ownerPayload.ownerId}`);
+  if (!allowed) {
+    res.setHeader("Retry-After", String(retryAfterSecs));
+    res.status(429).json({ error: "Too many export requests. Please try again later." });
+    return;
+  }
 
   const { rows } = await pool.query<{
     id: number; action: string; target_id: number | null; target_name: string | null;

@@ -20,7 +20,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db, usersTable, superAdminsTable, lfgPostsTable, partiesTable, pool } from "@workspace/db";
 import { signOwnerToken } from "../middlewares/owner";
 import { signToken } from "../middlewares/auth";
-import { _resetLoginBucket, _resetResetRateBucket, _resetProbeAlertCooldown, sweepRateBuckets, purgeExpiredResetRateBuckets } from "./owner";
+import { _resetLoginBucket, _resetResetRateBucket, _resetProbeAlertCooldown, sweepRateBuckets, purgeExpiredResetRateBuckets, _resetExportRateBucket } from "./owner";
 import app from "../app";
 
 const SUFFIX = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -1538,5 +1538,93 @@ describe("sweepRateBuckets", () => {
   test("sweepRateBuckets handles empty maps without throwing", () => {
     // Ensure maps are in a clean state, then sweep — must not throw.
     assert.doesNotThrow(() => sweepRateBuckets());
+  });
+});
+
+/* ── Export rate limiting ────────────────────────────────────────────────── */
+
+describe("Export rate limiting", () => {
+  /**
+   * Use a dedicated owner so we don't interfere with the bucket counts
+   * accumulated by the earlier export test suites.
+   */
+  let exportRlOwnerId = 0;
+  let exportRlToken = "";
+
+  before(async () => {
+    const [row] = await db
+      .insert(superAdminsTable)
+      .values({ username: `owner_rl_${SUFFIX}`, passwordHash: "x" })
+      .returning({ id: superAdminsTable.id });
+    exportRlOwnerId = row.id;
+    exportRlToken = signOwnerToken({ ownerId: row.id, username: `owner_rl_${SUFFIX}`, purpose: "owner" });
+  });
+
+  after(async () => {
+    await db.delete(superAdminsTable).where(eq(superAdminsTable.id, exportRlOwnerId)).catch(() => {});
+  });
+
+  test("/owner/export/users — first 10 requests succeed, 11th returns 429", async () => {
+    // Ensure the bucket starts empty for this owner.
+    _resetExportRateBucket(`export-users:${exportRlOwnerId}`);
+
+    for (let i = 0; i < 10; i++) {
+      const r = await get("/owner/export/users", exportRlToken);
+      assert.strictEqual(r.status, 200, `request ${i + 1} must be 200, got ${r.status}`);
+    }
+
+    const over = await get("/owner/export/users", exportRlToken);
+    assert.strictEqual(over.status, 429, `11th request must return 429, got ${over.status}`);
+    assert.ok(
+      typeof (over.body as { error?: string }).error === "string",
+      "429 body must contain an error string",
+    );
+  });
+
+  test("/owner/export/users — 429 response includes Retry-After header", async () => {
+    // Bucket is already exhausted from the previous test; next call must 429.
+    const res = await fetch(`${baseUrl}/owner/export/users`, {
+      headers: { Authorization: `Bearer ${exportRlToken}` },
+    });
+    assert.strictEqual(res.status, 429);
+    const retryAfter = res.headers.get("retry-after");
+    assert.ok(retryAfter !== null, "Retry-After header must be present on 429");
+    assert.ok(Number(retryAfter) > 0, `Retry-After must be a positive number of seconds; got: ${retryAfter}`);
+  });
+
+  test("/owner/export/log — first 10 requests succeed, 11th returns 429", async () => {
+    // Log export has its own bucket — reset it independently.
+    _resetExportRateBucket(`export-log:${exportRlOwnerId}`);
+
+    for (let i = 0; i < 10; i++) {
+      const r = await get("/owner/export/log", exportRlToken);
+      assert.strictEqual(r.status, 200, `request ${i + 1} must be 200, got ${r.status}`);
+    }
+
+    const over = await get("/owner/export/log", exportRlToken);
+    assert.strictEqual(over.status, 429, `11th request must return 429, got ${over.status}`);
+    assert.ok(
+      typeof (over.body as { error?: string }).error === "string",
+      "429 body must contain an error string",
+    );
+  });
+
+  test("/owner/export/log — 429 response includes Retry-After header", async () => {
+    const res = await fetch(`${baseUrl}/owner/export/log`, {
+      headers: { Authorization: `Bearer ${exportRlToken}` },
+    });
+    assert.strictEqual(res.status, 429);
+    const retryAfter = res.headers.get("retry-after");
+    assert.ok(retryAfter !== null, "Retry-After header must be present on 429");
+    assert.ok(Number(retryAfter) > 0, `Retry-After must be a positive number of seconds; got: ${retryAfter}`);
+  });
+
+  test("rate limit is per-owner — a different owner's bucket is not affected", async () => {
+    // The shared ownerToken (testOwnerId) was used in the earlier export tests
+    // but never exhausted its own bucket (EXPORT_RATE_MAX=10 per endpoint,
+    // earlier tests called each at most 7 times). A fresh call must still 200.
+    _resetExportRateBucket(`export-users:${ownerId}`);
+    const r = await get("/owner/export/users", ownerToken);
+    assert.strictEqual(r.status, 200, "a different owner's bucket must be independent");
   });
 });

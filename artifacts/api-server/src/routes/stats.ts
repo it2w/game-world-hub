@@ -137,34 +137,44 @@ router.get("/stats/me", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-// GET /stats/me/weekly — per-day activity for the current Sun–Sat week
+// GET /stats/me/weekly — per-day activity broken down by source for the current Sun–Sat week
 router.get("/stats/me/weekly", requireAuth, async (req, res): Promise<void> => {
   const myId = req.auth!.userId;
 
   // Sunday-based week start: date_trunc('week', NOW()) gives Monday, so subtract 1 day
-  const { rows } = await pool.query<{ day_of_week: number; cnt: string }>(
-    `
-    SELECT EXTRACT(DOW FROM created_at AT TIME ZONE 'UTC')::INT AS day_of_week,
-           COUNT(*)::TEXT AS cnt
-    FROM (
-      SELECT created_at FROM lfg_posts      WHERE author_id = $1 AND created_at >= date_trunc('week', NOW() + INTERVAL '1 day') - INTERVAL '1 day'
-      UNION ALL
-      SELECT created_at FROM lfg_responses  WHERE user_id   = $1 AND created_at >= date_trunc('week', NOW() + INTERVAL '1 day') - INTERVAL '1 day'
-      UNION ALL
-      SELECT created_at FROM messages       WHERE sender_id = $1 AND created_at >= date_trunc('week', NOW() + INTERVAL '1 day') - INTERVAL '1 day'
-    ) AS activity
-    GROUP BY day_of_week
-    `,
-    [myId],
-  );
+  const weekStart = `date_trunc('week', NOW() + INTERVAL '1 day') - INTERVAL '1 day'`;
 
-  // Build a 7-element array indexed by day-of-week (0=Sun … 6=Sat)
-  const counts = Array<number>(7).fill(0);
-  for (const row of rows) {
-    counts[row.day_of_week] = parseInt(row.cnt, 10);
-  }
+  const [lfgPostsRes, lfgResponsesRes, messagesRes] = await Promise.all([
+    pool.query<{ day_of_week: number; cnt: string }>(
+      `SELECT EXTRACT(DOW FROM created_at AT TIME ZONE 'UTC')::INT AS day_of_week, COUNT(*)::TEXT AS cnt
+       FROM lfg_posts WHERE author_id = $1 AND created_at >= ${weekStart}
+       GROUP BY day_of_week`,
+      [myId],
+    ),
+    pool.query<{ day_of_week: number; cnt: string }>(
+      `SELECT EXTRACT(DOW FROM created_at AT TIME ZONE 'UTC')::INT AS day_of_week, COUNT(*)::TEXT AS cnt
+       FROM lfg_responses WHERE user_id = $1 AND created_at >= ${weekStart}
+       GROUP BY day_of_week`,
+      [myId],
+    ),
+    pool.query<{ day_of_week: number; cnt: string }>(
+      `SELECT EXTRACT(DOW FROM created_at AT TIME ZONE 'UTC')::INT AS day_of_week, COUNT(*)::TEXT AS cnt
+       FROM messages WHERE sender_id = $1 AND created_at >= ${weekStart}
+       GROUP BY day_of_week`,
+      [myId],
+    ),
+  ]);
 
-  res.json({ days: counts });
+  // Build per-source 7-element arrays indexed by day-of-week (0=Sun … 6=Sat)
+  const lfgPosts    = Array<number>(7).fill(0);
+  const lfgResponses = Array<number>(7).fill(0);
+  const messages    = Array<number>(7).fill(0);
+
+  for (const row of lfgPostsRes.rows)    lfgPosts[row.day_of_week]    = parseInt(row.cnt, 10);
+  for (const row of lfgResponsesRes.rows) lfgResponses[row.day_of_week] = parseInt(row.cnt, 10);
+  for (const row of messagesRes.rows)    messages[row.day_of_week]    = parseInt(row.cnt, 10);
+
+  res.json({ lfgPosts, lfgResponses, messages });
 });
 
 export default router;

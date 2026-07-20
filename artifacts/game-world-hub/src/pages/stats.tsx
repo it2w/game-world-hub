@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { customFetch, useGetMe } from "@workspace/api-client-react";
 import { BarChart2, MessageSquare, Users, Gamepad2, Camera, Zap, Crown } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { TierBadge } from "@/components/tier-badge";
 import { ProBadge } from "@/components/pro-badge";
 
@@ -34,7 +34,7 @@ export default function StatsPage() {
     enabled: !!me,
   });
 
-  const { data: weeklyRaw } = useQuery<{ days: number[] }>({
+  const { data: weeklyRaw } = useQuery<{ lfgPosts: number[]; lfgResponses: number[]; messages: number[] }>({
     queryKey: ["stats", "me", "weekly"],
     queryFn: () => customFetch("/api/stats/me/weekly"),
     enabled: !!me,
@@ -63,7 +63,9 @@ export default function StatsPage() {
   const days: string[] = t("days", { returnObjects: true }) as string[];
   const weeklyData = days.map((day, i) => ({
     day,
-    activity: weeklyRaw?.days[i] ?? 0,
+    lfgPosts:    weeklyRaw?.lfgPosts[i]    ?? 0,
+    lfgResponses: weeklyRaw?.lfgResponses[i] ?? 0,
+    messages:    weeklyRaw?.messages[i]    ?? 0,
   }));
 
   const statCards = [
@@ -138,19 +140,37 @@ export default function StatsPage() {
           <Crown className="w-4 h-4" />
           {t("weeklyActivity")}
         </h2>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }} barSize={14}>
             <XAxis dataKey="day" tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fontFamily: "monospace", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip
               contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 0, fontFamily: "monospace", fontSize: 12 }}
               cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+              formatter={(value: number, name: string) => {
+                const labels: Record<string, string> = {
+                  lfgPosts: t("legend.lfgPosts"),
+                  lfgResponses: t("legend.lfgResponses"),
+                  messages: t("legend.messages"),
+                };
+                return [value, labels[name] ?? name];
+              }}
             />
-            <Bar dataKey="activity" radius={0}>
-              {weeklyData.map((_, i) => (
-                <Cell key={i} fill={i === new Date().getDay() ? "hsl(var(--primary))" : "hsl(var(--muted-foreground)/0.4)"} />
-              ))}
-            </Bar>
+            <Legend
+              iconType="square"
+              iconSize={8}
+              formatter={(value: string) => {
+                const labels: Record<string, string> = {
+                  lfgPosts: t("legend.lfgPosts"),
+                  lfgResponses: t("legend.lfgResponses"),
+                  messages: t("legend.messages"),
+                };
+                return <span style={{ fontFamily: "monospace", fontSize: 10 }}>{labels[value] ?? value}</span>;
+              }}
+            />
+            <Bar dataKey="lfgPosts"    stackId="a" fill="hsl(var(--primary))"        radius={0} />
+            <Bar dataKey="lfgResponses" stackId="a" fill="hsl(48 96% 53%)"           radius={0} />
+            <Bar dataKey="messages"    stackId="a" fill="hsl(142 71% 45%)"           radius={[2,2,0,0]} />
           </BarChart>
         </ResponsiveContainer>
         {!stats.isPro && (

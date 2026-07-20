@@ -3,6 +3,11 @@
   "subtitle": "Profile Stats — Since {{date}}",
   "level": "Level {{level}} — {{tier}}",
   "weeklyActivity": "Weekly Activity",
+  "legend": {
+    "lfgPosts": "LFG Posts",
+    "lfgResponses": "LFG Responses",
+    "messages": "Messages"
+  },
   "upgradeTitle": "Upgrade to Pro",
   "upgradeDesc": "Get detailed charts, LFG priority, permanent voice rooms, and more.",
   "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],

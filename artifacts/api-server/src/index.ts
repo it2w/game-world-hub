@@ -9,6 +9,7 @@ import { ensureInitialOwner } from "./lib/owner";
 import { startLfgBotRunner } from "./routes/lfg-bot";
 import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events";
 import { ensurePrestigeTables } from "./routes/prestige";
+import { startDenylistCleanup } from "./lib/denylist-cleanup";
 
 async function ensureSpotlightOptOutColumn(): Promise<void> {
   await pool.query(
@@ -92,6 +93,7 @@ server.listen(port, async () => {
   }
 
   startPresenceSweep();
+  startDenylistCleanup();
   startLfgBotRunner();
   startFlashEventScheduler();
   startGameNightSweeper();

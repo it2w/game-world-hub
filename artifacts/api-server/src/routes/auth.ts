@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { generateSecret, generateURI, verify as verifyTotp } from "otplib";
+import rateLimit from "express-rate-limit";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { db, usersTable, pool } from "@workspace/db";
 import {
@@ -19,12 +20,13 @@ import {
 } from "@workspace/api-zod";
 import {
   requireAuth,
+  requireRecentAuth,
   signToken,
   signChallengeToken,
   verifyChallengeToken,
 } from "../middlewares/auth";
 import { sendEmail } from "../lib/email";
-import { issueCode, verifyAndConsumeCode } from "../lib/otp";
+import { issueCode, verifyAndConsumeCode, isTotpChallengeConsumed, consumeTotpChallenge } from "../lib/otp";
 import { logger } from "../lib/logger";
 import { getUserProgress } from "../lib/xp";
 
@@ -35,6 +37,70 @@ const TOTP_ISSUER = "Game World Hub";
 // Tolerate one 30s time-step of clock drift when verifying TOTP codes.
 const TOTP_EPOCH_TOLERANCE = 30;
 const PASSWORD_COMPLEXITY_RE = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&*)(_\-+=\\/؟!]).{12,}$/;
+
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+// Applied to unauthenticated auth endpoints to prevent brute-force,
+// credential-stuffing, mass account creation, and password-reset spam.
+
+// Rate limiters are active only in production. In development/test environments
+// they are bypassed so that E2E test suites can register/login freely without
+// hitting the IP-based thresholds.
+const isProduction = process.env.NODE_ENV === "production";
+const skipInDev = () => !isProduction;
+
+/** Login: 10 attempts per 15 minutes per IP. */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInDev,
+  message: { error: "Too many login attempts — try again later" },
+});
+
+/** Registration: 5 accounts per hour per IP. */
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInDev,
+  message: { error: "Too many registrations from this IP — try again later" },
+});
+
+/** Password-reset request: 5 per 15 minutes per IP.
+ *  This also acts as the anti-spam guard that prevents re-requesting a new
+ *  code to bypass the per-code 5-attempt limit. */
+const passwordResetRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInDev,
+  message: { error: "Too many password-reset requests — try again later" },
+});
+
+/** Password-reset confirm: 10 per 15 minutes per IP. */
+const passwordResetConfirmLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInDev,
+  message: { error: "Too many password-reset attempts — try again later" },
+});
+
+// ── Timing-safe dummy hash ────────────────────────────────────────────────────
+// Used in the login path when the username is not found so that the response
+// time is indistinguishable from a wrong-password attempt. Without this, an
+// attacker can enumerate valid usernames by measuring response latency.
+let _dummyHash: string | null = null;
+async function getDummyHash(): Promise<string> {
+  if (!_dummyHash) {
+    _dummyHash = await bcrypt.hash("dummy-password-that-is-never-valid-gwh", 10);
+  }
+  return _dummyHash;
+}
 
 async function isTotpCodeValid(code: string, secret: string): Promise<boolean> {
   try {
@@ -102,7 +168,7 @@ async function findUserByIdentifier(identifier: string) {
 }
 
 // POST /auth/register
-router.post("/auth/register", async (req, res): Promise<void> => {
+router.post("/auth/register", registerLimiter, async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -194,7 +260,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 });
 
 // POST /auth/login
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -204,6 +270,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
   if (!user) {
+    // Always run bcrypt.compare against a dummy hash so that the response time
+    // is indistinguishable from a wrong-password attempt. Without this, timing
+    // differences expose a username-enumeration oracle.
+    await bcrypt.compare(password, await getDummyHash());
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
@@ -248,6 +318,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 // In-memory single-use tracking for 2FA login challenges. Email codes are
 // already consumed in the DB; this additionally caps attempts per challenge
 // token and blocks reuse after a successful login (relevant for TOTP).
+// TOTP-consumed JTIs are also persisted to the DB (via consumeTotpChallenge)
+// so they remain rejected across server restarts within the 5-minute window.
 const CHALLENGE_TTL_MS = 6 * 60_000; // token lifetime (5m) + slack
 const CHALLENGE_MAX_ATTEMPTS = 5;
 const challengeAttempts = new Map<string, { attempts: number; consumed: boolean; expiresAt: number }>();
@@ -283,14 +355,31 @@ router.post("/auth/login/2fa", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Challenge expired — sign in again" });
     return;
   }
-  attempt.attempts += 1;
-  challengeAttempts.set(challenge.jti, attempt);
 
+  // For TOTP: also check the DB to reject replays that survive a server restart.
+  // (Email 2FA codes are consumed in the DB by verifyAndConsumeCode, so they
+  // are already protected across restarts.)
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, challenge.userId));
   if (!user || user.twoFactorMethod === "none") {
     res.status(401).json({ error: "Challenge expired — sign in again" });
     return;
   }
+
+  if (user.twoFactorMethod === "totp") {
+    try {
+      if (await isTotpChallengeConsumed(challenge.jti)) {
+        res.status(401).json({ error: "Challenge expired — sign in again" });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "Failed to check TOTP challenge JTI");
+      res.status(503).json({ error: "Service temporarily unavailable" });
+      return;
+    }
+  }
+
+  attempt.attempts += 1;
+  challengeAttempts.set(challenge.jti, attempt);
 
   let valid = false;
   if (user.twoFactorMethod === "totp") {
@@ -302,7 +391,17 @@ router.post("/auth/login/2fa", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid or expired code" });
     return;
   }
-  attempt.consumed = true; // challenge token is single-use
+  attempt.consumed = true; // challenge token is single-use (in-memory guard)
+
+  // Persist the TOTP JTI to the DB so restart-replay is also rejected.
+  if (user.twoFactorMethod === "totp") {
+    try {
+      await consumeTotpChallenge(user.id, challenge.jti);
+    } catch (err) {
+      logger.error({ err }, "Failed to persist TOTP challenge JTI — proceeding anyway");
+      // Non-fatal: the in-memory guard already consumed it for this process lifetime.
+    }
+  }
 
   await db.update(usersTable).set({ status: "online" }).where(eq(usersTable.id, user.id));
   const token = signToken({ userId: user.id, username: user.username });
@@ -310,7 +409,7 @@ router.post("/auth/login/2fa", async (req, res): Promise<void> => {
 });
 
 // POST /auth/password-reset/request
-router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
+router.post("/auth/password-reset/request", passwordResetRequestLimiter, async (req, res): Promise<void> => {
   const parsed = RequestPasswordResetBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -334,7 +433,7 @@ router.post("/auth/password-reset/request", async (req, res): Promise<void> => {
 });
 
 // POST /auth/password-reset/confirm
-router.post("/auth/password-reset/confirm", async (req, res): Promise<void> => {
+router.post("/auth/password-reset/confirm", passwordResetConfirmLimiter, async (req, res): Promise<void> => {
   const parsed = ConfirmPasswordResetBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -349,12 +448,21 @@ router.post("/auth/password-reset/confirm", async (req, res): Promise<void> => {
     return;
   }
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
-  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+  // Invalidate all existing sessions so a stale token cannot be used after a
+  // password reset. This protects against the scenario where an attacker
+  // completes a reset and retains a previously-issued JWT even after the
+  // legitimate user reclaims the account.
+  await db
+    .update(usersTable)
+    .set({ passwordHash, sessionsInvalidatedBefore: new Date() })
+    .where(eq(usersTable.id, user.id));
   res.json({ success: true });
 });
 
 // POST /auth/me/email — set or change recovery email (sends verification code)
-router.post("/auth/me/email", requireAuth, async (req, res): Promise<void> => {
+// requireRecentAuth enforces token freshness: a long-lived token that may have
+// been stolen cannot be used to change the recovery email.
+router.post("/auth/me/email", requireAuth, requireRecentAuth, async (req, res): Promise<void> => {
   const parsed = SetMyEmailBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -439,7 +547,9 @@ router.post("/auth/me/email/verify", requireAuth, async (req, res): Promise<void
 });
 
 // POST /auth/me/2fa/setup — begin enabling 2FA
-router.post("/auth/me/2fa/setup", requireAuth, async (req, res): Promise<void> => {
+// requireRecentAuth enforces token freshness so a captured long-lived token
+// cannot be used to enroll an attacker-controlled TOTP device.
+router.post("/auth/me/2fa/setup", requireAuth, requireRecentAuth, async (req, res): Promise<void> => {
   const parsed = SetupTwoFactorBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

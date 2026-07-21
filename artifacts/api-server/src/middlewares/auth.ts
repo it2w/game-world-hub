@@ -142,3 +142,31 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   req.auth = auth;
   next();
 }
+
+// ── Token freshness check ─────────────────────────────────────────────────────
+// Sensitive account-management operations (email change, 2FA setup) must be
+// performed with a recently-issued token. A 30-day session JWT that was stolen
+// or left on a shared device would otherwise grant full account control for the
+// entire JWT lifetime. "Recent" is defined as issued within the last hour.
+//
+// This middleware must be chained AFTER requireAuth so req.auth is populated.
+
+const FRESHNESS_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+export function requireRecentAuth(req: Request, res: Response, next: NextFunction): void {
+  const iat = req.auth?.iat;
+  if (iat === undefined) {
+    // requireAuth should have set this; fail closed if somehow missing.
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const issuedMs = iat * 1000;
+  if (Date.now() - issuedMs > FRESHNESS_WINDOW_MS) {
+    res.status(401).json({
+      error: "Please sign in again to perform this action",
+      code: "TOKEN_TOO_OLD",
+    });
+    return;
+  }
+  next();
+}

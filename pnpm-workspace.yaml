@@ -44,6 +44,7 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  postcss: '>=8.5.10'
   js-yaml: ^4.3.0
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@esbuild-kit/core-utils': npm:tsx@^4.21.0

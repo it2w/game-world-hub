@@ -1532,7 +1532,7 @@ export const SendMessageParams = zod.object({
 
 
 export const SendMessageBody = zod.object({
-  "content": zod.string().min(1),
+  "content": zod.string().min(1).max(2000),
   "replyToId": zod.number().optional()
 })
 

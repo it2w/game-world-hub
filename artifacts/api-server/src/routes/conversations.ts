@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, desc, sql, notExists } from "drizzle-orm";
+import { eq, and, inArray, desc, sql, notExists, gt, ne, lt } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -132,14 +132,14 @@ async function buildConversation(conv: typeof conversationsTable.$inferSelect, m
 
   const lastReadAt = readRow?.lastReadAt ?? new Date(0);
 
-  const unreadMessages = await db
-    .select()
+  const [{ unreadCount }] = await db
+    .select({ unreadCount: sql<number>`count(*)::int` })
     .from(messagesTable)
-    .where(eq(messagesTable.conversationId, conv.id));
-
-  const unreadCount = unreadMessages.filter(
-    (m) => m.createdAt > lastReadAt && m.senderId !== myId
-  ).length;
+    .where(and(
+      eq(messagesTable.conversationId, conv.id),
+      gt(messagesTable.createdAt, lastReadAt),
+      ne(messagesTable.senderId, myId),
+    ));
 
   const lastMsg = lastMessages[0];
 
@@ -275,6 +275,11 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
   const raw = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
   const conversationId = parseInt(raw, 10);
 
+  // Pagination: cursor-based via `before` (message ID) and `limit` (max 100)
+  const PAGE_SIZE = 50;
+  const limitParam = Math.min(Math.max(parseInt(req.query.limit as string, 10) || PAGE_SIZE, 1), 100);
+  const beforeId = req.query.before ? parseInt(req.query.before as string, 10) : undefined;
+
   const membership = await db
     .select()
     .from(conversationParticipantsTable)
@@ -320,9 +325,12 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
             eq(messageDeletionsTable.userId, myId)
           )
         )
-      )
+      ),
+      // Cursor-based pagination: only fetch messages before the given ID
+      ...(beforeId !== undefined ? [lt(messagesTable.id, beforeId)] : []),
     ))
-    .orderBy(messagesTable.createdAt);
+    .orderBy(desc(messagesTable.id))
+    .limit(limitParam);
 
   if (messages.length === 0) {
     res.json([]);
@@ -354,8 +362,11 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
   ];
   const photoFallbacks = await batchPhotoFallbacks(allSenderIds);
 
+  // Results come back newest-first (DESC); reverse so the client gets chronological order
+  const ordered = [...messages].reverse();
+
   res.json(
-    messages.map((m) => {
+    ordered.map((m) => {
       const reply = m.msg.replyToId ? replyMap.get(m.msg.replyToId) : null;
       return {
         id: m.msg.id,
@@ -387,6 +398,10 @@ router.patch("/conversations/:conversationId/messages/:messageId", requireAuth, 
   const { content } = req.body as { content: string };
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     res.status(400).json({ error: "Content required" });
+    return;
+  }
+  if (content.length > 2000) {
+    res.status(400).json({ error: "Message content exceeds maximum length of 2000 characters" });
     return;
   }
 

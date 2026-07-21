@@ -422,7 +422,9 @@ export function disconnectUser(userId: number): void {
 // ─── Server attachment ────────────────────────────────────────────────────────
 
 export function attachSignaling(server: Server): void {
-  const wss = new WebSocketServer({ noServer: true });
+  // Limit incoming frame size to 64 KB to prevent memory exhaustion from large payloads.
+  // All legitimate signaling messages (typing, call-invite, admin-mute, ping) are tiny.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 
   server.on("upgrade", async (req, socket, head) => {
     let pathname: string;

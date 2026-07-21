@@ -33,6 +33,20 @@ import { recordProfileView } from "./prestige";
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+// ─── /users/match rate limiting + cache ───────────────────────────────────────
+// Simple in-process IP rate limiter: max 10 requests/minute per IP
+const matchRateLimit = new Map<string, { count: number; resetAt: number }>();
+const MATCH_RATE_WINDOW_MS = 60_000;
+const MATCH_RATE_MAX = 10;
+
+// Cache results for 30 s per sorted game-name key
+interface MatchCacheEntry {
+  result: unknown;
+  expiresAt: number;
+}
+const matchCache = new Map<string, MatchCacheEntry>();
+const MATCH_CACHE_TTL_MS = 30_000;
+
 // Ensure spotlight_opt_out column exists — added after initial schema creation.
 // Runs at module load so tests (which import app directly without index.ts) also
 // benefit from the idempotent ADD COLUMN IF NOT EXISTS guard.
@@ -201,6 +215,20 @@ router.get("/users/spotlight", async (req, res): Promise<void> => {
 
 // GET /users/match?games=Valorant,CS2 — public; returns one online user who plays the given games
 router.get("/users/match", async (req, res): Promise<void> => {
+  // IP-based rate limiting: 10 req/min per IP
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+  const now = Date.now();
+  const ipEntry = matchRateLimit.get(ip);
+  if (ipEntry && now < ipEntry.resetAt) {
+    if (ipEntry.count >= MATCH_RATE_MAX) {
+      res.status(429).json({ error: "Too many requests. Please try again later." });
+      return;
+    }
+    ipEntry.count++;
+  } else {
+    matchRateLimit.set(ip, { count: 1, resetAt: now + MATCH_RATE_WINDOW_MS });
+  }
+
   const raw = (req.query.games as string) ?? "";
   const games = raw.split(",").map((g) => g.trim()).filter(Boolean).slice(0, 10);
 
@@ -209,59 +237,70 @@ router.get("/users/match", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check cache
+  const cacheKey = [...games].sort().join(",");
+  const cached = matchCache.get(cacheKey);
+  if (cached && now < cached.expiresAt) {
+    res.json(cached.result);
+    return;
+  }
+
   try {
-    // Try to find an online user who has one of these games in their library
+    // Use TABLESAMPLE BERNOULLI + a small LIMIT to avoid full-table ORDER BY RANDOM() scans.
+    // We sample up to 200 candidate rows then pick randomly in JS — much cheaper than sorting all rows.
     const { rows } = await pool.query<{
       id: number; display_name: string; username: string;
       avatar_url: string | null; status: string; game_name: string;
     }>(
       `SELECT u.id, u.display_name, u.username, u.avatar_url, u.status, g.name AS game_name
-       FROM users u
+       FROM users u TABLESAMPLE BERNOULLI(10)
        JOIN user_games ug ON ug.user_id = u.id
        JOIN games g ON g.id = ug.game_id
        WHERE g.name = ANY($1::text[])
          AND u.status != 'offline'
-       ORDER BY RANDOM()
-       LIMIT 1`,
+       LIMIT 200`,
       [games],
     );
 
+    let result: unknown = null;
+
     if (rows.length) {
-      const u = rows[0];
-      res.json({
+      const u = rows[Math.floor(Math.random() * rows.length)];
+      result = {
         id: u.id,
         displayName: u.display_name,
         username: u.username,
         avatarUrl: toPublicImageUrl(u.avatar_url),
         status: u.status,
         matchedGame: u.game_name,
-      });
-      return;
-    }
-
-    // Fallback: any online user
-    const { rows: fallback } = await pool.query<{
-      id: number; display_name: string; username: string;
-      avatar_url: string | null; status: string;
-    }>(
-      `SELECT id, display_name, username, avatar_url, status
-       FROM users WHERE status != 'offline'
-       ORDER BY RANDOM() LIMIT 1`,
-    );
-
-    if (fallback.length) {
-      const u = fallback[0];
-      res.json({
-        id: u.id,
-        displayName: u.display_name,
-        username: u.username,
-        avatarUrl: toPublicImageUrl(u.avatar_url),
-        status: u.status,
-        matchedGame: games[0] ?? null,
-      });
+      };
     } else {
-      res.json(null);
+      // Fallback: any online user via TABLESAMPLE
+      const { rows: fallback } = await pool.query<{
+        id: number; display_name: string; username: string;
+        avatar_url: string | null; status: string;
+      }>(
+        `SELECT id, display_name, username, avatar_url, status
+         FROM users TABLESAMPLE BERNOULLI(10)
+         WHERE status != 'offline'
+         LIMIT 200`,
+      );
+
+      if (fallback.length) {
+        const u = fallback[Math.floor(Math.random() * fallback.length)];
+        result = {
+          id: u.id,
+          displayName: u.display_name,
+          username: u.username,
+          avatarUrl: toPublicImageUrl(u.avatar_url),
+          status: u.status,
+          matchedGame: games[0] ?? null,
+        };
+      }
     }
+
+    matchCache.set(cacheKey, { result, expiresAt: now + MATCH_CACHE_TTL_MS });
+    res.json(result);
   } catch {
     res.json(null);
   }

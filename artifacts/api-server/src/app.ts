@@ -60,14 +60,30 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow same-origin / non-browser requests (no Origin header) and
     // explicitly listed origins only.
+    // NOTE: use (null, false) — not new Error() — so a rejected origin returns
+    // a 403 via the explicit handler below, never an unhandled-error 500.
     if (!origin || _corsOrigins.has(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(null, false);
     }
   },
   credentials: true,
 }));
+
+// Explicit 403 for cross-origin requests that were denied by the CORS
+// callback above.  Without this, Express falls through to the default 500
+// error handler, which leaks stack traces to the client.
+app.use((req, res, next) => {
+  // If cors() ran and rejected the origin, it does NOT set the
+  // Access-Control-Allow-Origin header.  Detect that and return 403.
+  const origin = req.headers.origin as string | undefined;
+  if (origin && !_corsOrigins.has(origin) && !res.headersSent) {
+    res.status(403).json({ error: "CORS: origin not allowed" });
+    return;
+  }
+  next();
+});
 
 // Salla webhook must receive the raw body to verify HMAC signatures.
 app.use("/api/webhooks/salla", express.raw({ type: "application/json" }), proRouter);

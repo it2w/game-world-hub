@@ -30,9 +30,35 @@ function init(): {
 
 export const pool = new Proxy({} as InstanceType<typeof Pool>, {
   get(_target, prop) {
+    // Check for test-time overrides set directly on the target (e.g. mock.method).
+    if (Object.prototype.hasOwnProperty.call(_target, prop)) {
+      return (_target as any)[prop as string];
+    }
     const target = init().pool;
     const value = (target as any)[prop as string];
     return typeof value === "function" ? (value as Function).bind(target) : value;
+  },
+  set(_target, prop, value) {
+    // Allow direct property assignment on the proxy target (used by mock.method
+    // to store the mock function and later restore the original).
+    (_target as any)[prop as string] = value;
+    return true;
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    // Return a descriptor so Node's mock.method (which uses
+    // Object.getOwnPropertyDescriptor walking the prototype chain) can find the
+    // real method and replace it.
+    if (Object.prototype.hasOwnProperty.call(_target, prop)) {
+      return Object.getOwnPropertyDescriptor(_target, prop);
+    }
+    const target = init().pool;
+    let obj: object | null = target;
+    while (obj) {
+      const desc = Object.getOwnPropertyDescriptor(obj, prop);
+      if (desc) return { ...desc, configurable: true, writable: true };
+      obj = Object.getPrototypeOf(obj);
+    }
+    return undefined;
   },
 });
 

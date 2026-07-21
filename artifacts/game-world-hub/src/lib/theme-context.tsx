@@ -1,9 +1,13 @@
 /**
- * Accent Color Theme System
- * Stores the chosen accent in localStorage and injects it into
- * the CSS custom properties on <html> so every component responds automatically.
+ * Theme System — Accent Color + Design Theme
+ *
+ * Accent: 7 color options injected as CSS custom props on <html>
+ * Design: "classic" (original neon cyber) | "emerald" (new luxury clean)
+ *         injected as --dash-* CSS variables + data-design attribute on <html>
  */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+// ─── Accent Colors ────────────────────────────────────────────────────────────
 
 export interface AccentOption {
   id: string;
@@ -26,56 +30,137 @@ export const ACCENTS: AccentOption[] = [
   { id: "white",   label: "ابيض فاخر",    hsl: "0 0% 92%",     hex: "#EBEBEB", fg: "0 0% 0%"   },
 ];
 
-const STORAGE_KEY = "gwh_accent";
-const DEFAULT_ID  = "default";
-
 function applyAccent(accent: AccentOption) {
   const root = document.documentElement;
-  root.style.setProperty("--primary",                   accent.hsl);
-  root.style.setProperty("--accent",                    accent.hsl);
-  root.style.setProperty("--ring",                      accent.hsl);
-  root.style.setProperty("--sidebar-primary",           accent.hsl);
-  root.style.setProperty("--primary-foreground",        accent.fg);
-  root.style.setProperty("--accent-foreground",         accent.fg);
-  root.style.setProperty("--sidebar-primary-foreground",accent.fg);
+  root.style.setProperty("--primary",                    accent.hsl);
+  root.style.setProperty("--accent",                     accent.hsl);
+  root.style.setProperty("--ring",                       accent.hsl);
+  root.style.setProperty("--sidebar-primary",            accent.hsl);
+  root.style.setProperty("--primary-foreground",         accent.fg);
+  root.style.setProperty("--accent-foreground",          accent.fg);
+  root.style.setProperty("--sidebar-primary-foreground", accent.fg);
 }
+
+// ─── Design Themes ────────────────────────────────────────────────────────────
+
+export type DesignThemeId = "classic" | "emerald";
+
+export interface DesignThemeOption {
+  id: DesignThemeId;
+  label: string;
+  labelEn: string;
+  description: string;
+}
+
+export const DESIGN_THEMES: DesignThemeOption[] = [
+  {
+    id: "classic",
+    label: "كلاسيك",
+    labelEn: "Classic",
+    description: "التصميم الأصلي — كثيف ونيون",
+  },
+  {
+    id: "emerald",
+    label: "إيمرالد",
+    labelEn: "Emerald",
+    description: "تصميم فاخر — أرقام كبيرة وهواء",
+  },
+];
+
+/**
+ * CSS variables applied per design theme.
+ * dashboard.css reads these via var(--dash-*).
+ */
+function applyDesign(id: DesignThemeId) {
+  const root = document.documentElement;
+  root.setAttribute("data-design", id);
+
+  if (id === "classic") {
+    root.style.setProperty("--dash-stat-size",    "17px");
+    root.style.setProperty("--dash-stat-pad",     "9px 13px");
+    root.style.setProperty("--dash-stat-minw",    "82px");
+    root.style.setProperty("--dash-section-clr",  "#666");
+  } else {
+    root.style.setProperty("--dash-stat-size",    "30px");
+    root.style.setProperty("--dash-stat-pad",     "14px 16px");
+    root.style.setProperty("--dash-stat-minw",    "90px");
+    root.style.setProperty("--dash-section-clr",  "hsl(var(--primary))");
+  }
+}
+
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 interface ThemeContextValue {
-  accentId:  string;
-  setAccent: (id: string) => void;
-  accents:   AccentOption[];
+  // Accent
+  accentId:     string;
+  setAccent:    (id: string) => void;
+  accents:      AccentOption[];
+  // Design
+  designId:     DesignThemeId;
+  setDesign:    (id: DesignThemeId) => void;
+  designThemes: DesignThemeOption[];
 }
 
+const ACCENT_KEY = "gwh_accent";
+const DESIGN_KEY = "gwh_design";
+
 const ThemeContext = createContext<ThemeContextValue>({
-  accentId:  DEFAULT_ID,
-  setAccent: () => {},
-  accents:   ACCENTS,
+  accentId:     "default",
+  setAccent:    () => {},
+  accents:      ACCENTS,
+  designId:     "classic",
+  setDesign:    () => {},
+  designThemes: DESIGN_THEMES,
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [accentId, setAccentId] = useState<string>(() => {
-    try { return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_ID; }
-    catch { return DEFAULT_ID; }
+    try { return localStorage.getItem(ACCENT_KEY) ?? "default"; }
+    catch { return "default"; }
   });
 
-  // Apply on mount + whenever accentId changes
+  const [designId, setDesignId] = useState<DesignThemeId>(() => {
+    try {
+      const saved = localStorage.getItem(DESIGN_KEY);
+      return (saved === "classic" || saved === "emerald") ? saved : "classic";
+    } catch { return "classic"; }
+  });
+
+  // Apply accent on mount + change
   useEffect(() => {
     const accent = ACCENTS.find(a => a.id === accentId) ?? ACCENTS[0];
     applyAccent(accent);
-    try { localStorage.setItem(STORAGE_KEY, accentId); } catch {}
+    try { localStorage.setItem(ACCENT_KEY, accentId); } catch {}
   }, [accentId]);
+
+  // Apply design on mount + change
+  useEffect(() => {
+    applyDesign(designId);
+    try { localStorage.setItem(DESIGN_KEY, designId); } catch {}
+  }, [designId]);
 
   const setAccent = (id: string) => {
     if (ACCENTS.some(a => a.id === id)) setAccentId(id);
   };
 
+  const setDesign = (id: DesignThemeId) => {
+    if (DESIGN_THEMES.some(d => d.id === id)) setDesignId(id);
+  };
+
   return (
-    <ThemeContext.Provider value={{ accentId, setAccent, accents: ACCENTS }}>
+    <ThemeContext.Provider value={{
+      accentId, setAccent, accents: ACCENTS,
+      designId, setDesign, designThemes: DESIGN_THEMES,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
 export function useAccentColor() {
+  return useContext(ThemeContext);
+}
+
+export function useDesignTheme() {
   return useContext(ThemeContext);
 }

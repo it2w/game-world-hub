@@ -29,12 +29,12 @@
 @keyframes xp-anim { 0%{transform:translateX(-100%)} 100%{transform:translateX(300%)} }
 .xp-glow { position:absolute;top:-4px;width:12px;height:14px;background:hsl(var(--primary));border-radius:50%;filter:blur(6px);opacity:0.8;transform:translateX(-50%);transition:left 1.5s; }
 .dash-stats-row { display:flex;gap:8px;flex-wrap:wrap; }
-.stat-card { position:relative;background:#0e0e0e;border:1px solid #1c1c1c;padding:14px 16px;min-width:90px;overflow:hidden;cursor:default;transition:border-color .2s,transform .2s; }
+.stat-card { position:relative;background:#0e0e0e;border:1px solid #1c1c1c;padding:var(--dash-stat-pad,14px 16px);min-width:var(--dash-stat-minw,90px);overflow:hidden;cursor:default;transition:border-color .2s,transform .2s; }
 .stat-card:hover { border-color:var(--sc,hsl(var(--primary)));transform:translateY(-2px); }
 .stat-top { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px; }
 .stat-icon { font-size:13px; }
 .stat-corner { width:6px;height:6px; }
-.stat-value { font-size:30px;font-weight:900;letter-spacing:-0.5px;line-height:1; }
+.stat-value { font-size:var(--dash-stat-size,30px);font-weight:900;letter-spacing:-0.5px;line-height:1; }
 .stat-label { font-size:10px;color:#555;letter-spacing:1px;text-transform:uppercase;margin-top:2px; }
 .stat-sub { font-size:9px;color:#444;margin-top:1px; }
 .stat-glow { position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70%;height:20px;filter:blur(12px);opacity:0.25;border-radius:50%; }
@@ -70,7 +70,7 @@
 /* ── Section Box ──────────────────────────────────────────────────────────────── */
 .section-box { background:#0d0d0d;border:1px solid #1c1c1c;overflow:hidden;position:relative; }
 .section-hd { display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #181818;background:#0b0b0b; }
-.section-title { font-size:10px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:hsl(var(--primary)); }
+.section-title { font-size:10px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:var(--dash-section-clr,hsl(var(--primary))); }
 .section-hd-right { display:flex;align-items:center;gap:8px; }
 .section-link { font-size:9px;color:hsl(var(--primary));cursor:pointer;letter-spacing:1px;opacity:.8;text-decoration:none; }
 .online-pill { display:flex;align-items:center;gap:4px;font-size:9px;color:hsl(var(--primary));background:hsl(var(--primary) / 0.08);border:1px solid hsl(var(--primary) / 0.19);padding:2px 7px; }

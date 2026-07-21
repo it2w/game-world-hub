@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, AlertTriangle, Palette, Check } from "lucide-react";
-import { useAccentColor } from "@/lib/theme-context";
+import { useAccentColor, useDesignTheme, type DesignThemeId } from "@/lib/theme-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -439,6 +439,9 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-8">
+          {/* Design Theme */}
+          <DesignCard />
+
           {/* Appearance */}
           <AccentCard />
 
@@ -983,6 +986,119 @@ export default function Settings() {
         </AlertDialog>
       </div>
 
+    </div>
+  );
+}
+
+// ── Mini dashboard preview thumbnails ──────────────────────────────────────
+function ClassicPreview() {
+  return (
+    <div className="w-full h-full bg-black p-2 flex flex-col gap-1.5 overflow-hidden">
+      {/* top bar */}
+      <div className="flex gap-1">
+        {["W","L","K/D"].map(s => (
+          <div key={s} className="flex-1 bg-[#0e0e0e] border border-[#1c1c1c] p-1">
+            <div className="text-[7px] font-mono text-[#888] uppercase tracking-widest">{s}</div>
+            <div className="text-[10px] font-mono font-black text-white leading-none">—</div>
+          </div>
+        ))}
+      </div>
+      {/* section title */}
+      <div className="text-[6px] font-mono font-black tracking-widest uppercase text-[#666] mt-0.5">أصدقاء</div>
+      {/* friend rows */}
+      {[1,2].map(i => (
+        <div key={i} className="flex items-center gap-1 bg-[#0a0a0a] border border-[#161616] px-1 py-0.5">
+          <div className="w-3 h-3 rounded-full bg-[#1a1a1a] border border-[#333]" />
+          <div className="flex-1 h-1.5 bg-[#1a1a1a] rounded-sm" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+        </div>
+      ))}
+      {/* neon tag */}
+      <div className="mt-auto self-start px-1 py-0.5 border border-[#00FF40] text-[6px] font-mono text-[#00FF40]">ONLINE</div>
+    </div>
+  );
+}
+
+function EmeraldPreview() {
+  return (
+    <div className="w-full h-full bg-black p-2 flex flex-col gap-2 overflow-hidden">
+      {/* top bar — big numbers */}
+      <div className="flex gap-1.5">
+        {["W","L","K/D"].map(s => (
+          <div key={s} className="flex-1 bg-[#0e0e0e] border border-[#1c1c1c] p-1.5">
+            <div className="text-[7px] font-mono text-[#555] uppercase tracking-widest">{s}</div>
+            <div className="text-[16px] font-mono font-black text-white leading-none">—</div>
+          </div>
+        ))}
+      </div>
+      {/* section title — accent colored */}
+      <div className="text-[6px] font-mono font-black tracking-widest uppercase" style={{color:"#22C55E"}}>أصدقاء</div>
+      {/* friend rows — more spacing */}
+      {[1,2].map(i => (
+        <div key={i} className="flex items-center gap-1.5 bg-[#0a0a0a] border border-[#1a1a1a] px-1.5 py-1">
+          <div className="w-3.5 h-3.5 rounded-full bg-[#1a1a1a] border border-[#333]" />
+          <div className="flex-1 h-1.5 bg-[#1a1a1a] rounded-sm" />
+          <div className="w-2 h-2 rounded-full bg-[#22C55E]" />
+        </div>
+      ))}
+      {/* emerald pill */}
+      <div className="mt-auto self-start px-1.5 py-0.5 text-[6px] font-mono font-black text-black" style={{background:"#22C55E"}}>ONLINE</div>
+    </div>
+  );
+}
+
+function DesignCard() {
+  const { designId, setDesign, designThemes } = useDesignTheme();
+
+  const previews: Record<DesignThemeId, React.ReactNode> = {
+    classic: <ClassicPreview />,
+    emerald: <EmeraldPreview />,
+  };
+
+  return (
+    <div className="bg-card border border-border p-6">
+      <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
+        <Settings2 className="w-4 h-4" /> تصميم الواجهة
+      </h2>
+      <p className="font-mono text-xs text-muted-foreground mb-5">
+        اختر شكل لوحة التحكم
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        {designThemes.map((d) => {
+          const isActive = designId === d.id;
+          return (
+            <button
+              key={d.id}
+              onClick={() => setDesign(d.id as DesignThemeId)}
+              className="group flex flex-col gap-0 border transition-all duration-150 focus:outline-none overflow-hidden rounded-none"
+              style={{
+                borderColor: isActive ? "hsl(var(--primary))" : "#1c1c1c",
+                background:  isActive ? "hsl(var(--primary) / 0.04)" : "#0a0a0a",
+              }}
+            >
+              {/* Mini preview */}
+              <div className="relative w-full aspect-[16/9] overflow-hidden border-b" style={{ borderColor: isActive ? "hsl(var(--primary) / 0.3)" : "#1c1c1c" }}>
+                {previews[d.id as DesignThemeId]}
+                {isActive && (
+                  <div className="absolute top-1.5 end-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "hsl(var(--primary))" }}>
+                    <Check className="w-2.5 h-2.5" style={{ color: "hsl(var(--primary-foreground))" }} />
+                  </div>
+                )}
+              </div>
+              {/* Label row */}
+              <div className="px-3 py-2 flex items-center justify-between">
+                <span className="font-mono text-xs font-bold" style={{ color: isActive ? "hsl(var(--primary))" : "#888" }}>
+                  {d.label}
+                </span>
+                <span className="font-mono text-[9px] text-muted-foreground">{d.labelEn}</span>
+              </div>
+              <div className="px-3 pb-2">
+                <span className="font-mono text-[9px] text-muted-foreground">{d.description}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

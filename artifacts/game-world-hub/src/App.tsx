@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { VoiceProvider } from '@/voice/voice-context';
 import { Shell } from '@/components/layout/shell';
+import { ThemeProvider } from '@/lib/theme-context';
 import '@/lib/api';
 import { useEffect, type ReactNode } from 'react';
 import { DirectionProvider } from '@radix-ui/react-direction';
@@ -149,19 +150,21 @@ function LocaleShell({ children }: { children: ReactNode }) {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <LocaleShell>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <AuthProvider>
-              <VoiceProvider>
-                <ElectronNavigationBridge />
-                <Router />
-              </VoiceProvider>
-            </AuthProvider>
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </LocaleShell>
+      <ThemeProvider>
+        <LocaleShell>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <AuthProvider>
+                <VoiceProvider>
+                  <ElectronNavigationBridge />
+                  <Router />
+                </VoiceProvider>
+              </AuthProvider>
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </LocaleShell>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, AlertTriangle } from "lucide-react";
+import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, AlertTriangle, Palette, Check } from "lucide-react";
+import { useAccentColor } from "@/lib/theme-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -438,6 +439,9 @@ export default function Settings() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-8">
+          {/* Appearance */}
+          <AccentCard />
+
           {/* Language */}
           <LanguageCard />
 
@@ -979,6 +983,58 @@ export default function Settings() {
         </AlertDialog>
       </div>
 
+    </div>
+  );
+}
+
+function AccentCard() {
+  const { accentId, setAccent, accents } = useAccentColor();
+
+  return (
+    <div className="bg-card border border-border p-6">
+      <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+        <Palette className="w-4 h-4" /> لون التطبيق
+      </h2>
+      <p className="font-mono text-xs text-muted-foreground mb-5">
+        اختر لون التمييز الذي يظهر في جميع أنحاء الواجهة
+      </p>
+      <div className="grid grid-cols-4 gap-3">
+        {accents.map((a) => {
+          const isActive = accentId === a.id;
+          return (
+            <button
+              key={a.id}
+              onClick={() => setAccent(a.id)}
+              title={a.label}
+              className="group flex flex-col items-center gap-2 p-3 border transition-all duration-150 rounded-none hover:border-primary focus:outline-none"
+              style={{
+                borderColor: isActive ? `hsl(${a.hsl})` : undefined,
+                background: isActive ? `hsl(${a.hsl} / 0.06)` : undefined,
+              }}
+            >
+              {/* Swatch */}
+              <div
+                className="relative w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: a.hex, border: isActive ? `2px solid hsl(${a.hsl})` : "2px solid transparent" }}
+              >
+                {isActive && (
+                  <Check
+                    className="w-4 h-4"
+                    style={{ color: `hsl(${a.fg})` }}
+                  />
+                )}
+              </div>
+              {/* Label */}
+              <span
+                className="font-mono text-[10px] text-center leading-tight"
+                style={{ color: isActive ? `hsl(${a.hsl})` : undefined }}
+              >
+                {a.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

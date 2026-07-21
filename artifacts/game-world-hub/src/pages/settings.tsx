@@ -1071,30 +1071,46 @@ function DesignCard() {
               key={d.id}
               type="button"
               onClick={() => setDesign(d.id as DesignThemeId)}
-              className="group flex flex-col gap-0 border transition-all duration-150 focus:outline-none overflow-hidden rounded-none"
+              className="group flex flex-col gap-0 transition-all duration-150 focus:outline-none overflow-hidden rounded-none text-start"
               style={{
-                borderColor: isActive ? "hsl(var(--primary))" : "#1c1c1c",
-                background:  isActive ? "hsl(var(--primary) / 0.04)" : "#0a0a0a",
+                border: isActive
+                  ? "2px solid hsl(var(--primary))"
+                  : "2px solid #3a3a3a",
+                background: isActive ? "hsl(var(--primary) / 0.06)" : "#161616",
               }}
             >
               {/* Mini preview */}
-              <div className="relative w-full aspect-[16/9] overflow-hidden border-b" style={{ borderColor: isActive ? "hsl(var(--primary) / 0.3)" : "#1c1c1c" }}>
+              <div
+                className="relative w-full overflow-hidden"
+                style={{
+                  height: 120,
+                  borderBottom: isActive
+                    ? "1px solid hsl(var(--primary) / 0.4)"
+                    : "1px solid #2a2a2a",
+                }}
+              >
                 {previews[d.id as DesignThemeId]}
                 {isActive && (
-                  <div className="absolute top-1.5 end-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "hsl(var(--primary))" }}>
-                    <Check className="w-2.5 h-2.5" style={{ color: "hsl(var(--primary-foreground))" }} />
+                  <div
+                    className="absolute top-2 end-2 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: "hsl(var(--primary))" }}
+                  >
+                    <Check className="w-3 h-3" style={{ color: "hsl(var(--primary-foreground))" }} />
                   </div>
                 )}
               </div>
               {/* Label row */}
-              <div className="px-3 py-2 flex items-center justify-between">
-                <span className="font-mono text-xs font-bold" style={{ color: isActive ? "hsl(var(--primary))" : "#888" }}>
+              <div className="px-3 pt-2 pb-1 flex items-center justify-between">
+                <span
+                  className="font-mono text-xs font-black"
+                  style={{ color: isActive ? "hsl(var(--primary))" : "#ccc" }}
+                >
                   {d.label}
                 </span>
-                <span className="font-mono text-[9px] text-muted-foreground">{d.labelEn}</span>
+                <span className="font-mono text-[9px] text-[#666] uppercase tracking-widest">{d.labelEn}</span>
               </div>
-              <div className="px-3 pb-2">
-                <span className="font-mono text-[9px] text-muted-foreground">{d.description}</span>
+              <div className="px-3 pb-3">
+                <span className="font-mono text-[9px] text-[#666]">{d.description}</span>
               </div>
             </button>
           );
@@ -1121,12 +1137,13 @@ function AccentCard() {
           return (
             <button
               key={a.id}
+              type="button"
               onClick={() => setAccent(a.id)}
               title={a.label}
-              className="group flex flex-col items-center gap-2 p-3 border transition-all duration-150 rounded-none hover:border-primary focus:outline-none"
+              className="group flex flex-col items-center gap-2 p-3 transition-all duration-150 rounded-none focus:outline-none"
               style={{
-                borderColor: isActive ? `hsl(${a.hsl})` : undefined,
-                background: isActive ? `hsl(${a.hsl} / 0.06)` : undefined,
+                border: isActive ? `2px solid hsl(${a.hsl})` : "2px solid #3a3a3a",
+                background: isActive ? `hsl(${a.hsl} / 0.08)` : "#161616",
               }}
             >
               {/* Swatch */}

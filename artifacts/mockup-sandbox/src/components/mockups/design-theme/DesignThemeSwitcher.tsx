@@ -151,19 +151,20 @@ export function DesignThemeSwitcher() {
               return (
                 <button
                   key={d.id}
+                  type="button"
                   onClick={() => setActive(d.id)}
-                  className="flex flex-col overflow-hidden border transition-all duration-150 focus:outline-none cursor-pointer"
+                  className="flex flex-col overflow-hidden transition-all duration-150 focus:outline-none cursor-pointer text-start"
                   style={{
-                    borderColor: isActive ? "#22C55E" : "#1c1c1c",
-                    background: isActive ? "rgba(34,197,94,0.04)" : "#0a0a0a",
+                    border: isActive ? "2px solid #22C55E" : "2px solid #3a3a3a",
+                    background: isActive ? "rgba(34,197,94,0.06)" : "#161616",
                   }}
                 >
                   {/* Preview */}
                   <div
-                    className="relative w-full overflow-hidden border-b"
+                    className="relative w-full overflow-hidden"
                     style={{
-                      height: 180,
-                      borderColor: isActive ? "rgba(34,197,94,0.3)" : "#141414",
+                      height: 150,
+                      borderBottom: isActive ? "1px solid rgba(34,197,94,0.4)" : "1px solid #2a2a2a",
                     }}
                   >
                     {PREVIEWS[d.id]}
@@ -189,17 +190,17 @@ export function DesignThemeSwitcher() {
                   </div>
 
                   {/* Label */}
-                  <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                  <div className="px-3 pt-2 pb-1 flex items-center justify-between">
                     <span
                       className="text-xs font-black tracking-wide"
-                      style={{ color: isActive ? "#22C55E" : "#888" }}
+                      style={{ color: isActive ? "#22C55E" : "#ccc" }}
                     >
                       {d.label}
                     </span>
-                    <span className="text-[9px] text-[#333] tracking-widest uppercase">{d.labelEn}</span>
+                    <span className="text-[9px] tracking-widest uppercase" style={{ color: "#555" }}>{d.labelEn}</span>
                   </div>
-                  <div className="px-4 pb-3">
-                    <span className="text-[9px] text-[#444]">{d.description}</span>
+                  <div className="px-3 pb-3">
+                    <span className="text-[9px]" style={{ color: "#666" }}>{d.description}</span>
                   </div>
                 </button>
               );

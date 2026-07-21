@@ -55,6 +55,8 @@ import {
   VideoOff,
   Headphones,
   MessageSquare,
+  UserPlus,
+  Check,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -184,6 +186,8 @@ export function VoicePanel() {
     screenAudioVolumes,
     setPeerVolume,
     setScreenAudioVolume,
+    inviteToCall,
+    groupInviteStates,
   } = useVoice();
 
   const [, navigate] = useLocation();
@@ -192,6 +196,13 @@ export function VoicePanel() {
   const [theaterHoveredId, setTheaterHoveredId] = useState<number | null>(null);
   const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
+
+  // ── Invite dialog state ────────────────────────────────────────────────────
+  type FriendItem = { id: number; username: string; displayName: string; avatarUrl: string | null; status: string };
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteFriends, setInviteFriends] = useState<FriendItem[]>([]);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   /* ── Drag state ───────────────────────────────────────────────────────── */
   const panelRef = useRef<HTMLDivElement>(null);
@@ -291,6 +302,17 @@ export function VoicePanel() {
     }
   }, [theater, sharing, localScreenStream, cameraEnabled, localCameraStream, peers]);
 
+  // Fetch friend list when the invite dialog opens.
+  useEffect(() => {
+    if (!inviteOpen) return;
+    setInviteLoading(true);
+    customFetch<FriendItem[]>("/api/friends")
+      .then((data) => setInviteFriends(data))
+      .catch(() => setInviteFriends([]))
+      .finally(() => setInviteLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inviteOpen]);
+
   if (!activeRoom) return null;
   const effectiveRoom     = activeRoom;
   const effectivePeers    = peers;
@@ -366,14 +388,24 @@ export function VoicePanel() {
               {effectivePeers.length + 1}
             </span>
             {effectiveRoom.kind === "call" && (
-              <button
-                onClick={() => openCallChat(effectiveRoom.peer.userId)}
-                title="Open chat"
-                aria-label="Open chat"
-                className="text-muted-foreground hover:text-primary transition-colors"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-              </button>
+              <>
+                <button
+                  onClick={() => { setInviteOpen(true); setInviteSearch(""); }}
+                  title="Invite to call"
+                  aria-label="Invite to call"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => openCallChat(effectiveRoom.peer.userId)}
+                  title="Open chat"
+                  aria-label="Open chat"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
             <button
               onClick={() => setExpanded((e) => !e)}
@@ -781,6 +813,153 @@ export function VoicePanel() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Invite to call dialog ──────────────────────────────────────────── */}
+      {(() => {
+        const inCallIds = new Set([
+          ...(me ? [me.id] : []),
+          ...effectivePeers.map((p) => p.userId),
+        ]);
+
+        const filtered = inviteFriends
+          .filter((f) =>
+            !inviteSearch ||
+            f.displayName.toLowerCase().includes(inviteSearch.toLowerCase()) ||
+            f.username.toLowerCase().includes(inviteSearch.toLowerCase()),
+          )
+          .sort((a, b) => {
+            const ao = a.status === "online" || a.status === "away" || a.status === "busy" ? 1 : 0;
+            const bo = b.status === "online" || b.status === "away" || b.status === "busy" ? 1 : 0;
+            return bo - ao;
+          });
+
+        return (
+          <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) setInviteSearch(""); }}>
+            <DialogContent
+              className="p-0 overflow-hidden rounded-none border-0 font-mono"
+              style={{
+                background: "linear-gradient(180deg,#0e0e1c 0%,#080812 100%)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 32px 64px rgba(0,0,0,0.9)",
+                maxWidth: "340px",
+              }}
+            >
+              {/* top gradient bar */}
+              <div className="h-[2px] w-full shrink-0" style={{ background: "linear-gradient(90deg,hsl(var(--primary)) 0%,#00bfff 55%,transparent 100%)" }} />
+
+              <DialogHeader className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <DialogTitle className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-bold">
+                  <UserPlus className="w-3.5 h-3.5 text-primary shrink-0" />
+                  دعوة إلى المكالمة
+                </DialogTitle>
+              </DialogHeader>
+
+              {/* search */}
+              <div className="px-3 py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <input
+                  type="text"
+                  placeholder="ابحث عن أصدقائك..."
+                  value={inviteSearch}
+                  onChange={(e) => setInviteSearch(e.target.value)}
+                  className="w-full bg-transparent text-[11px] outline-none placeholder:text-muted-foreground text-foreground"
+                  style={{ caretColor: "hsl(var(--primary))" }}
+                  autoFocus
+                />
+              </div>
+
+              {/* friend list */}
+              <div className="max-h-[320px] overflow-y-auto">
+                {inviteLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+                    لا يوجد أصدقاء للدعوة
+                  </div>
+                ) : (
+                  filtered.map((friend) => {
+                    const state = groupInviteStates[friend.id];
+                    const alreadyIn = inCallIds.has(friend.id);
+                    const isOnline = friend.status === "online" || friend.status === "away" || friend.status === "busy";
+
+                    return (
+                      <div
+                        key={friend.id}
+                        className="flex items-center gap-3 px-3 py-2.5"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                      >
+                        {/* avatar */}
+                        <div className="relative shrink-0">
+                          <div
+                            className="w-8 h-8 flex items-center justify-center text-[11px] font-bold text-white"
+                            style={{ background: friend.avatarUrl ? "transparent" : nameColor(friend.displayName) }}
+                          >
+                            {friend.avatarUrl
+                              ? <img src={friend.avatarUrl} alt="" className="w-8 h-8 object-cover" />
+                              : nameInitials(friend.displayName)
+                            }
+                          </div>
+                          <span
+                            className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full"
+                            style={{
+                              background: isOnline ? "#22c55e" : "#6b7280",
+                              border: "1.5px solid #080812",
+                            }}
+                          />
+                        </div>
+
+                        {/* name */}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-semibold truncate text-foreground">{friend.displayName}</div>
+                          <div className="text-[9px] text-muted-foreground truncate">@{friend.username}</div>
+                        </div>
+
+                        {/* action */}
+                        {alreadyIn ? (
+                          <span className="text-[9px] uppercase tracking-widest font-bold text-primary flex items-center gap-1">
+                            <Check className="w-3 h-3" /> في المكالمة
+                          </span>
+                        ) : state === "ringing" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground animate-pulse">
+                            يرن...
+                          </span>
+                        ) : state === "joined" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-primary font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> انضم
+                          </span>
+                        ) : state === "declined" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-destructive">
+                            رفض
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => inviteToCall({
+                              userId: friend.id,
+                              username: friend.username,
+                              displayName: friend.displayName,
+                              avatarUrl: friend.avatarUrl,
+                            })}
+                            className="text-[9px] px-2.5 py-1.5 uppercase tracking-widest font-bold transition-all hover:opacity-90 active:scale-95 flex items-center gap-1"
+                            style={{
+                              background: "rgba(var(--primary-rgb,0,255,65),0.1)",
+                              border: "1px solid rgba(var(--primary-rgb,0,255,65),0.4)",
+                              color: "hsl(var(--primary))",
+                            }}
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            دعوة
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ── Theater view ───────────────────────────────────────────────────── */}
       {theater && (() => {

@@ -54,7 +54,7 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
     }
   } else if (room.startsWith("call:")) {
     const info = callRooms.get(room);
-    if (!info || (info.callerId !== userId && info.targetId !== userId)) {
+    if (!info || !info.participants.has(userId)) {
       res.status(403).json({ error: "Not authorized for this call" });
       return;
     }

@@ -128,6 +128,13 @@ interface VoiceContextValue {
   setPeerVolume: (userId: number, volume: number) => void;
   /** Set per-user screen-share audio volume (0–1). 0 = muted. */
   setScreenAudioVolume: (userId: number, volume: number) => void;
+  /**
+   * Invite another user into the current active direct call (Discord-style
+   * group call). Only meaningful when `activeRoom.kind === "call"`.
+   */
+  inviteToCall: (user: CallUser) => void;
+  /** Per-invitee state for pending group invites issued from the active call. */
+  groupInviteStates: Record<number, "ringing" | "joined" | "declined">;
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -220,6 +227,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [peerVolumes, setPeerVolumes] = useState<Record<number, number>>({});
   /** Per-peer screen-share audio volume 0–1 (default 1). 0 = muted. */
   const [screenAudioVolumes, setScreenAudioVolumes] = useState<Record<number, number>>({});
+  /** Tracks the state of outgoing group-call invites: userId → status. */
+  const [groupInviteStates, setGroupInviteStates] = useState<Record<number, "ringing" | "joined" | "declined">>({});
 
   // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -552,12 +561,22 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "call-accepted": {
+          // Already in an active call → this is a group invite acceptance.
+          // LiveKit handles the new participant automatically via ParticipantConnected.
+          if (activeRoomRef.current) {
+            const joinedId = typeof msg.by === "number" ? msg.by : null;
+            if (joinedId !== null) {
+              setGroupInviteStates((prev) => ({ ...prev, [joinedId]: "joined" }));
+              setTimeout(() => {
+                setGroupInviteStates((prev) => { const n = { ...prev }; delete n[joinedId]; return n; });
+              }, 3000);
+            }
+            break;
+          }
           setOutgoingCall((prev) => {
             // Do NOT check prev.callId === msg.callId strictly: call-ringing may
-            // arrive *after* call-accepted on fast networks, leaving prev.callId
-            // as the temporary "pending-X" placeholder.  As long as we have an
-            // outgoing call and are not yet in a room, accept and connect.
-            if (prev && !activeRoomRef.current) {
+            // arrive *after* call-accepted on fast networks.
+            if (prev) {
               void (async () => {
                 const room: ActiveRoom = {
                   kind: "call",
@@ -582,6 +601,17 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         }
 
         case "call-declined":
+          if (activeRoomRef.current) {
+            // Group invite declined by the target.
+            const declinedId = typeof msg.by === "number" ? msg.by : null;
+            if (declinedId !== null) {
+              setGroupInviteStates((prev) => ({ ...prev, [declinedId]: "declined" }));
+              setTimeout(() => {
+                setGroupInviteStates((prev) => { const n = { ...prev }; delete n[declinedId]; return n; });
+              }, 3000);
+            }
+            break;
+          }
           setOutgoingCall((prev) => (prev && prev.callId === msg.callId ? null : prev));
           setError("Call declined");
           break;
@@ -591,6 +621,17 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           break;
 
         case "call-failed":
+          if (activeRoomRef.current) {
+            // Group invite failed (target offline, blocked, timeout, etc.).
+            const failedId = typeof msg.to === "number" ? msg.to : null;
+            if (failedId !== null) {
+              setGroupInviteStates((prev) => ({ ...prev, [failedId]: "declined" }));
+              setTimeout(() => {
+                setGroupInviteStates((prev) => { const n = { ...prev }; delete n[failedId]; return n; });
+              }, 3000);
+            }
+            break;
+          }
           setOutgoingCall(null);
           setError(msg.reason === "offline" ? "User is offline" : "Call could not be completed");
           break;
@@ -823,6 +864,25 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       }
       setOutgoingCall({ callId: `pending-${user.userId}`, room: "", to: user });
       wsSend({ type: "call-invite", to: user.userId });
+    },
+    [wsSend],
+  );
+
+  /**
+   * Invite a user into the current active direct call.
+   * Sends a `call-group-invite` WS event; the server rings the target with the
+   * same `incoming-call` flow used for regular calls.  The LiveKit room accepts
+   * N participants so no reconnection is needed on either side.
+   */
+  const inviteToCall = useCallback(
+    (user: CallUser) => {
+      const room = activeRoomRef.current;
+      if (!room) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      // Optimistically mark as ringing so the UI updates immediately.
+      setGroupInviteStates((prev) => ({ ...prev, [user.userId]: "ringing" }));
+      wsSend({ type: "call-group-invite", room: room.room, to: user.userId });
     },
     [wsSend],
   );
@@ -1269,6 +1329,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     isInPartyVoice,
     setPeerVolume,
     setScreenAudioVolume,
+    inviteToCall,
+    groupInviteStates,
   };
 
   return (

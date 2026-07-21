@@ -38,6 +38,8 @@ interface PendingCall {
   room: string;
   callerId: number;
   targetId: number;
+  /** True for invites sent to a 3rd+ person from inside an active call. */
+  isGroupInvite?: boolean;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -49,12 +51,12 @@ const clientBySocket = new Map<WebSocket, Client>();
 /** callId → pending call metadata */
 const pendingCalls = new Map<string, PendingCall>();
 /**
- * roomId → the two participants authorised for a `call:<id>` LiveKit room.
- * Populated when a caller sends `call-invite`; cleared when the call is
- * resolved or the caller/callee disconnects.  Exported for use by the
- * `/api/livekit/token` route so it can verify membership before issuing tokens.
+ * roomId → set of participants authorised for a `call:<id>` LiveKit room.
+ * Starts with {callerId, targetId}; grows when extra participants are invited
+ * via `call-group-invite`.  Exported for use by the `/api/livekit/token` route
+ * so it can verify membership before issuing tokens.
  */
-export const callRooms = new Map<string, { callerId: number; targetId: number }>();
+export const callRooms = new Map<string, { participants: Set<number> }>();
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -130,8 +132,8 @@ async function handleCallInvite(caller: Client, targetId: number): Promise<void>
 
   const callId = `${caller.userId}-${targetId}-${Date.now()}`;
   const room = `call:${callId}`;
-  pendingCalls.set(callId, { callId, room, callerId: caller.userId, targetId });
-  callRooms.set(room, { callerId: caller.userId, targetId });
+  pendingCalls.set(callId, { callId, room, callerId: caller.userId, targetId, isGroupInvite: false });
+  callRooms.set(room, { participants: new Set([caller.userId, targetId]) });
 
   // Auto-expire the invite if unanswered within 45 s.
   setTimeout(() => {
@@ -176,17 +178,24 @@ function handleCallAccept(callee: Client, callId: string): void {
     send(callee.ws, { type: "call-failed", to: call.callerId, reason: "offline" });
     return;
   }
+
+  // Add the new participant to the room's authorised set.
+  // For regular calls this is a no-op (both were added in handleCallInvite).
+  // For group invites the callee is a new entrant and must be added now so
+  // the LiveKit token endpoint accepts their token request.
+  const roomEntry = callRooms.get(call.room);
+  if (roomEntry) roomEntry.participants.add(callee.userId);
+
   for (const c of callers) send(c.ws, { type: "call-accepted", callId, room: call.room, by: callee.userId });
   send(callee.ws, { type: "call-accepted", callId, room: call.room, by: callee.userId });
-  // callRooms entry is kept alive until the call room empties — LiveKit triggers
-  // the client to disconnect, which clears the entry via cleanupCallsFor.
 }
 
 function handleCallDecline(callee: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.targetId !== callee.userId) return;
   pendingCalls.delete(callId);
-  callRooms.delete(call.room);
+  // For group invites, keep the room alive — other participants are still in it.
+  if (!call.isGroupInvite) callRooms.delete(call.room);
   clearOtherCalleeSessions(callee, callId);
   const callers = clientsByUser.get(call.callerId);
   if (callers) for (const c of callers) send(c.ws, { type: "call-declined", callId, by: callee.userId });
@@ -196,22 +205,28 @@ function handleCallCancel(caller: Client, callId: string): void {
   const call = pendingCalls.get(callId);
   if (!call || call.callerId !== caller.userId) return;
   pendingCalls.delete(callId);
-  callRooms.delete(call.room);
+  // For group invites, keep the room alive — other participants are still in it.
+  if (!call.isGroupInvite) callRooms.delete(call.room);
   const targets = clientsByUser.get(call.targetId);
   if (targets) for (const t of targets) send(t.ws, { type: "call-cancelled", callId });
 }
 
 /**
  * Clean up an active call room when a participant explicitly leaves.
- * Both the caller and the callee may send this; first one wins (idempotent).
+ * Any current participant may send this.  The room is removed only when the
+ * last participant departs (supports N-person group calls).
  */
 function handleCallEnd(client: Client, room: string): void {
   if (!room.startsWith("call:")) return;
   const entry = callRooms.get(room);
-  if (!entry) return;
-  if (entry.callerId !== client.userId && entry.targetId !== client.userId) return;
-  callRooms.delete(room);
-  logger.info({ room, by: client.userId }, "voice: call room cleaned up");
+  if (!entry || !entry.participants.has(client.userId)) return;
+  entry.participants.delete(client.userId);
+  if (entry.participants.size === 0) {
+    callRooms.delete(room);
+    logger.info({ room, by: client.userId }, "voice: call room cleaned up (last participant left)");
+  } else {
+    logger.info({ room, by: client.userId }, "voice: participant left call room");
+  }
 }
 
 function cleanupCallsFor(client: Client): void {
@@ -234,16 +249,93 @@ function cleanupCallsFor(client: Client): void {
     }
   }
 
-  // Clean up active call rooms where this user was a participant.
-  // These entries are no longer in pendingCalls (they were removed on accept)
-  // but linger in callRooms until explicitly removed. Release them now so the
-  // map doesn't grow unboundedly across many calls.
+  // Remove this user from any active call rooms they were part of.
+  // Release the room only when the last participant departs.
   for (const [room, entry] of callRooms) {
-    if (entry.callerId === client.userId || entry.targetId === client.userId) {
-      callRooms.delete(room);
+    if (entry.participants.has(client.userId)) {
+      entry.participants.delete(client.userId);
+      if (entry.participants.size === 0) {
+        callRooms.delete(room);
+      }
       logger.info({ room, userId: client.userId }, "voice: call room released on WS disconnect");
     }
   }
+}
+
+// ─── Group call invite ────────────────────────────────────────────────────────
+
+/**
+ * Any participant already in an active call can invite a 3rd+ person.
+ * Reuses the same pendingCalls + incoming-call flow as a regular call-invite,
+ * but the room already exists so we must NOT create or delete it — only add
+ * the new participant to callRooms when they accept.
+ */
+async function handleGroupCallInvite(inviter: Client, room: string, targetId: number): Promise<void> {
+  if (targetId === inviter.userId) return;
+
+  // Inviter must be an authorised participant of the named call room.
+  const roomEntry = callRooms.get(room);
+  if (!roomEntry || !roomEntry.participants.has(inviter.userId)) {
+    send(inviter.ws, { type: "call-failed", to: targetId, reason: "not-in-room" });
+    return;
+  }
+
+  // Target already in the room — silently ignore (race condition protection).
+  if (roomEntry.participants.has(targetId)) return;
+
+  // Block check — neither party can invite/be-invited across a block.
+  try {
+    const [blockedByMe] = await db
+      .select({ id: blocksTable.id })
+      .from(blocksTable)
+      .where(and(eq(blocksTable.blockerId, inviter.userId), eq(blocksTable.blockedId, targetId)))
+      .limit(1);
+    const [blockedByThem] = await db
+      .select({ id: blocksTable.id })
+      .from(blocksTable)
+      .where(and(eq(blocksTable.blockerId, targetId), eq(blocksTable.blockedId, inviter.userId)))
+      .limit(1);
+    if (blockedByMe || blockedByThem) {
+      send(inviter.ws, { type: "call-failed", to: targetId, reason: "blocked" });
+      return;
+    }
+  } catch (err) {
+    logger.error({ err, inviter: inviter.userId, target: targetId }, "ws: block check failed for group invite");
+    send(inviter.ws, { type: "call-failed", to: targetId, reason: "error" });
+    return;
+  }
+
+  const targets = clientsByUser.get(targetId);
+  if (!targets || targets.size === 0) {
+    send(inviter.ws, { type: "call-failed", to: targetId, reason: "offline" });
+    return;
+  }
+
+  const callId = `${inviter.userId}-${targetId}-${Date.now()}`;
+  pendingCalls.set(callId, { callId, room, callerId: inviter.userId, targetId, isGroupInvite: true });
+
+  // Auto-expire without touching callRooms (other participants are still active).
+  setTimeout(() => {
+    if (pendingCalls.has(callId)) {
+      pendingCalls.delete(callId);
+      send(inviter.ws, { type: "call-failed", to: targetId, reason: "timeout" });
+      const ts = clientsByUser.get(targetId);
+      if (ts) for (const t of ts) send(t.ws, { type: "call-cancelled", callId });
+    }
+  }, 45_000);
+
+  // Notify the inviter that the invite is ringing (so UI can show pending state).
+  send(inviter.ws, { type: "call-ringing", callId, room, to: targetId });
+
+  // Ring the target with the same incoming-call event used for regular calls.
+  const from = {
+    userId: inviter.userId,
+    username: inviter.username,
+    displayName: inviter.displayName,
+    avatarUrl: inviter.avatarUrl,
+  };
+  for (const t of targets) send(t.ws, { type: "incoming-call", callId, room, from });
+  logger.info({ room, inviter: inviter.userId, target: targetId }, "voice: group invite sent");
 }
 
 // ─── Admin force-mute ─────────────────────────────────────────────────────────
@@ -344,6 +436,11 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
   switch (msg?.type) {
     case "call-invite":
       if (typeof msg.to === "number") await handleCallInvite(client, msg.to);
+      break;
+    case "call-group-invite":
+      if (typeof msg.room === "string" && typeof msg.to === "number") {
+        await handleGroupCallInvite(client, msg.room, msg.to);
+      }
       break;
     case "call-accept":
       if (typeof msg.callId === "string") handleCallAccept(client, msg.callId);

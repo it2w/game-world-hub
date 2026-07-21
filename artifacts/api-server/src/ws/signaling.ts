@@ -1,8 +1,8 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
-import { eq } from "drizzle-orm";
-import { db, usersTable, partiesTable, conversationParticipantsTable, friendshipsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, usersTable, partiesTable, conversationParticipantsTable, friendshipsTable, blocksTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
@@ -96,7 +96,32 @@ export function pushToUser(userId: number, payload: unknown): void {
 
 // ─── Direct-call handshake ───────────────────────────────────────────────────
 
-function handleCallInvite(caller: Client, targetId: number): void {
+async function handleCallInvite(caller: Client, targetId: number): Promise<void> {
+  // Prevent self-calls
+  if (targetId === caller.userId) return;
+
+  // Enforce block relationships — neither party can call the other if a block exists
+  try {
+    const [blockedByMe] = await db
+      .select({ id: blocksTable.id })
+      .from(blocksTable)
+      .where(and(eq(blocksTable.blockerId, caller.userId), eq(blocksTable.blockedId, targetId)))
+      .limit(1);
+    const [blockedByThem] = await db
+      .select({ id: blocksTable.id })
+      .from(blocksTable)
+      .where(and(eq(blocksTable.blockerId, targetId), eq(blocksTable.blockedId, caller.userId)))
+      .limit(1);
+    if (blockedByMe || blockedByThem) {
+      send(caller.ws, { type: "call-failed", to: targetId, reason: "blocked" });
+      return;
+    }
+  } catch (err) {
+    logger.error({ err, caller: caller.userId, target: targetId }, "ws: block check failed for call-invite");
+    send(caller.ws, { type: "call-failed", to: targetId, reason: "error" });
+    return;
+  }
+
   const targets = clientsByUser.get(targetId);
   if (!targets || targets.size === 0) {
     send(caller.ws, { type: "call-failed", to: targetId, reason: "offline" });
@@ -318,7 +343,7 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
 
   switch (msg?.type) {
     case "call-invite":
-      if (typeof msg.to === "number") handleCallInvite(client, msg.to);
+      if (typeof msg.to === "number") await handleCallInvite(client, msg.to);
       break;
     case "call-accept":
       if (typeof msg.callId === "string") handleCallAccept(client, msg.callId);

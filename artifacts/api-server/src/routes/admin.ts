@@ -146,7 +146,7 @@ router.post("/admin/activation-codes", requireAdminPermission("can_manage_codes"
   });
 });
 
-router.get("/admin/activation-codes", async (req, res): Promise<void> => {
+router.get("/admin/activation-codes", requireAdminPermission("can_manage_codes"), async (req, res): Promise<void> => {
   const codes = await db.select().from(activationCodesTable).orderBy(desc(activationCodesTable.createdAt));
   res.json({
     items: codes.map((c) => ({
@@ -386,7 +386,7 @@ router.get("/admin/chat-deletions", requireAdminPermission("can_view_reports"), 
 
 // ─── Vouches: list and remove ─────────────────────────────────────────────────
 
-router.get("/admin/users/:userId/vouches", async (req, res): Promise<void> => {
+router.get("/admin/users/:userId/vouches", requireAdminPermission("can_delete_content"), async (req, res): Promise<void> => {
   const userId = Number(req.params.userId);
   if (isNaN(userId)) { res.status(400).json({ error: "Invalid user id" }); return; }
 
@@ -450,7 +450,7 @@ router.delete("/admin/users/:userId/vouches/:vouchId", requireAdminPermission("c
   res.status(200).json({ ok: true });
 });
 
-router.get("/admin/pro-subscriptions", async (req, res): Promise<void> => {
+router.get("/admin/pro-subscriptions", requireAdminPermission("can_manage_pro"), async (req, res): Promise<void> => {
   const subs = await db
     .select({
       id: proSubscriptionsTable.id,

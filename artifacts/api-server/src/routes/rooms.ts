@@ -9,6 +9,17 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
+/**
+ * Tracks (userId, roomId) pairs where the user has successfully verified the
+ * room password during this server session.  The livekit token route consumes
+ * (and deletes) the entry so the verification is single-use.
+ */
+export const verifiedRoomAccess = new Set<string>();
+
+function verifiedKey(userId: number, roomId: number): string {
+  return `${userId}:${roomId}`;
+}
+
 function safeRoom(r: typeof permanentRoomsTable.$inferSelect, owner: typeof usersTable.$inferSelect) {
   return {
     id: r.id,
@@ -143,6 +154,8 @@ router.post("/rooms/:id/verify-password", requireAuth, async (req, res): Promise
     if (!password) { res.status(401).json({ error: "Password required" }); return; }
     const ok = await bcrypt.compare(password, room.passwordHash);
     if (!ok) { res.status(401).json({ error: "Wrong password" }); return; }
+    // Record that this user passed the password check so the token endpoint can verify.
+    verifiedRoomAccess.add(verifiedKey(req.auth!.userId, room.id));
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "rooms: verify-password failed");

@@ -260,6 +260,23 @@ router.get("/conversations/direct/:userId", requireAuth, async (req, res): Promi
     }
   }
 
+  // Verify target user exists
+  const [targetUser] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId))
+    .limit(1);
+  if (!targetUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // Enforce block relationship — blocked users cannot open a conversation
+  if (await isBlockedBetween(myId, targetId)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   const [conv] = await db.insert(conversationsTable).values({ type: "direct" }).returning();
   await db.insert(conversationParticipantsTable).values([
     { conversationId: conv.id, userId: myId },
@@ -432,7 +449,7 @@ router.patch("/conversations/:conversationId/messages/:messageId/pin", requireAu
   const [updated] = await db
     .update(messagesTable)
     .set({ isPinned: Boolean(isPinned) })
-    .where(eq(messagesTable.id, messageId))
+    .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, conversationId)))
     .returning();
 
   const [sender] = await db.select().from(usersTable).where(eq(usersTable.id, updated.senderId));

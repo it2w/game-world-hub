@@ -4,6 +4,7 @@ import { requireAuth } from "../middlewares/auth";
 import { and, eq } from "drizzle-orm";
 import { db, partyMembersTable, usersTable, permanentRoomsTable } from "@workspace/db";
 import { callRooms } from "../ws/signaling";
+import { verifiedRoomAccess } from "./rooms";
 import { logger } from "../lib/logger";
 import { toPublicImageUrl } from "../lib/objectStorage";
 
@@ -65,14 +66,24 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
     }
     try {
       const [existingRoom] = await db
-        .select({ id: permanentRoomsTable.id })
+        .select({ id: permanentRoomsTable.id, passwordHash: permanentRoomsTable.passwordHash })
         .from(permanentRoomsTable)
         .where(eq(permanentRoomsTable.id, roomId));
       if (!existingRoom) {
         res.status(404).json({ error: "Room not found" });
         return;
       }
-      // No password check here — client must call /api/rooms/:id/verify-password first
+      // If the room has a password, the user must have verified it via
+      // POST /api/rooms/:id/verify-password before requesting the token.
+      if (existingRoom.passwordHash) {
+        const key = `${userId}:${roomId}`;
+        if (!verifiedRoomAccess.has(key)) {
+          res.status(403).json({ error: "Password verification required" });
+          return;
+        }
+        // Consume the verification — single-use to prevent token replay
+        verifiedRoomAccess.delete(key);
+      }
     } catch (err) {
       logger.error({ err }, "livekit: proroom check failed");
       res.status(500).json({ error: "Internal error" });

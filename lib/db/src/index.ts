@@ -30,7 +30,9 @@ function init(): {
 
 export const pool = new Proxy({} as InstanceType<typeof Pool>, {
   get(_target, prop) {
-    return (init().pool as any)[prop as string];
+    const target = init().pool;
+    const value = (target as any)[prop as string];
+    return typeof value === "function" ? (value as Function).bind(target) : value;
   },
 });
 
@@ -38,7 +40,9 @@ export const db = new Proxy(
   {} as ReturnType<typeof drizzle<typeof schema>>,
   {
     get(_target, prop) {
-      return (init().db as any)[prop as string];
+      const target = init().db;
+      const value = (target as any)[prop as string];
+      return typeof value === "function" ? (value as Function).bind(target) : value;
     },
   },
 );

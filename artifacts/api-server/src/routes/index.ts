@@ -45,7 +45,7 @@ const router: IRouter = Router();
 let maintenanceCache: { active: boolean; message: string; ts: number } | null = null;
 
 router.use(async (req, res, next) => {
-  if (req.path.startsWith("/owner") || req.path === "/health") { next(); return; }
+  if (req.path.startsWith("/owner") || req.path === "/health" || req.path === "/healthz") { next(); return; }
   const now = Date.now();
   if (maintenanceCache && now - maintenanceCache.ts < 30_000) {
     if (maintenanceCache.active) {

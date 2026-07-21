@@ -8,7 +8,7 @@
  *  - DELETE /owner/content/lfg/:id           — 404 on missing, deleted + activity logged
  *  - DELETE /owner/content/party/:id         — 404 on missing, deleted + activity logged
  *  - POST /owner/users/bulk                  — each action, invalid ids skipped, counts returned
- *  - GET  /owner/export/users                — CSV header, ?token= auth, 401 unauthorized
+ *  - GET  /owner/export/users                — CSV header, Bearer auth, 401 unauthorized
  *  - GET  /owner/export/log                  — CSV header, Bearer auth, 401 unauthorized
  */
 
@@ -496,11 +496,10 @@ describe("GET /owner/export/users", () => {
     );
   });
 
-  test("200 with ?token= query param — CSV header row present", async () => {
+  test("401 with ?token= query param — token in URL is rejected", async () => {
+    // Tokens in query parameters leak into logs/history; endpoint must reject them.
     const r = await get("/owner/export/users", undefined, ownerToken);
-    assert.strictEqual(r.status, 200);
-    const firstLine = r.text.split("\n")[0];
-    assert.ok(firstLine.includes("username"), "CSV must contain username column");
+    assert.strictEqual(r.status, 401);
   });
 
   test("401 when a regular user Bearer token is used", async () => {
@@ -508,7 +507,7 @@ describe("GET /owner/export/users", () => {
     assert.strictEqual(r.status, 401);
   });
 
-  test("401 when a regular user token is used as ?token= query param", async () => {
+  test("401 when any token is used as ?token= query param — query-param auth removed", async () => {
     const r = await get("/owner/export/users", undefined, userToken);
     assert.strictEqual(r.status, 401);
   });
@@ -605,10 +604,10 @@ describe("GET /owner/export/log", () => {
     );
   });
 
-  test("200 with ?token= query param — CSV header present", async () => {
+  test("401 with ?token= query param — token in URL is rejected", async () => {
+    // Tokens in query parameters leak into logs/history; endpoint must reject them.
     const r = await get("/owner/export/log", undefined, ownerToken);
-    assert.strictEqual(r.status, 200);
-    assert.ok(r.text.split("\n")[0].includes("action"), "CSV must contain action column");
+    assert.strictEqual(r.status, 401);
   });
 
   test("401 when a regular user Bearer token is used", async () => {
@@ -616,7 +615,7 @@ describe("GET /owner/export/log", () => {
     assert.strictEqual(r.status, 401);
   });
 
-  test("401 when a regular user token is used as ?token= query param", async () => {
+  test("401 when any token is used as ?token= query param — query-param auth removed", async () => {
     const r = await get("/owner/export/log", undefined, userToken);
     assert.strictEqual(r.status, 401);
   });

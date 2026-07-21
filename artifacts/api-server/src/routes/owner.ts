@@ -1332,12 +1332,13 @@ function checkExportRate(key: string): { allowed: boolean; retryAfterSecs: numbe
   return { allowed: true, retryAfterSecs: 0 };
 }
 
-/* ─── Export (CSV, token also accepted via ?token= for window.open) ──────── */
+/* ─── Export (CSV) ───────────────────────────────────────────────────────── */
 
 router.get("/owner/export/users", async (req, res): Promise<void> => {
-  const rawToken = typeof req.query.token === "string"
-    ? req.query.token
-    : (req.headers.authorization ?? "").replace("Bearer ", "");
+  // Token must be supplied via Authorization: Bearer header only.
+  // Accepting tokens in ?token= query parameters exposes long-lived JWTs to
+  // server/proxy access logs, browser history, and Referer headers.
+  const rawToken = (req.headers.authorization ?? "").replace("Bearer ", "");
   let ownerPayload: { ownerId: number };
   try { ownerPayload = verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -1364,9 +1365,8 @@ router.get("/owner/export/users", async (req, res): Promise<void> => {
 });
 
 router.get("/owner/export/log", async (req, res): Promise<void> => {
-  const rawToken = typeof req.query.token === "string"
-    ? req.query.token
-    : (req.headers.authorization ?? "").replace("Bearer ", "");
+  // Token must be supplied via Authorization: Bearer header only — no ?token=.
+  const rawToken = (req.headers.authorization ?? "").replace("Bearer ", "");
   let ownerPayload: { ownerId: number };
   try { ownerPayload = verifyOwnerToken(rawToken); } catch { res.status(401).json({ error: "Unauthorized" }); return; }
 

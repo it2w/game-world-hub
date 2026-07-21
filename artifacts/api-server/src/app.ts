@@ -37,8 +37,35 @@ app.use(
   }),
 );
 
+// Build an explicit CORS allowlist from CORS_ORIGINS (comma-separated full
+// origins, e.g. "https://gmes.app,https://www.gmes.app") and from
+// REPLIT_DOMAINS (Replit-managed domains, automatically set in the Replit
+// environment).  Reflecting every incoming Origin with credentials:true is
+// explicitly prohibited by the CORS spec — any site could make authenticated
+// requests on behalf of a logged-in user.
+const _corsOrigins: Set<string> = (() => {
+  const set = new Set<string>();
+  for (const o of (process.env.CORS_ORIGINS ?? "").split(",")) {
+    const t = o.trim();
+    if (t) set.add(t);
+  }
+  for (const d of (process.env.REPLIT_DOMAINS ?? "").split(",")) {
+    const t = d.trim();
+    if (t) set.add(`https://${t}`);
+  }
+  return set;
+})();
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow same-origin / non-browser requests (no Origin header) and
+    // explicitly listed origins only.
+    if (!origin || _corsOrigins.has(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
 }));
 

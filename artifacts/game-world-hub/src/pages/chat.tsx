@@ -28,7 +28,7 @@ import { AnimatedLogo } from "@/components/animated-logo";
 import {
   Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
-  Phone, PhoneOff,
+  Phone, PhoneOff, UserPlus,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
@@ -778,6 +778,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
               <div className="flex items-center gap-1 shrink-0">
                 {activeConversation?.type === "direct" && activeOther && (
                   callBelongsHere ? (
+                    /* Already in a call with this person → leave button */
                     <button
                       onClick={voice.leaveVoice}
                       title={t("conversation.callActive")}
@@ -787,7 +788,45 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                     >
                       <PhoneOff className="w-4 h-4" />
                     </button>
+                  ) : activeRoom?.kind === "call" ? (
+                    /* In a call with someone else → offer to invite this person */
+                    (() => {
+                      const invState = voice.groupInviteStates[activeOther.id];
+                      const invLabel =
+                        invState === "ringing" ? "يرن..." :
+                        invState === "joined"  ? "انضم ✓" :
+                        invState === "declined" ? "رفض" :
+                        "دعوة إلى المكالمة";
+                      return (
+                        <button
+                          onClick={() =>
+                            !invState && voice.inviteToCall({
+                              userId: activeOther.id,
+                              username: (activeOther as any).username ?? activeOther.displayName,
+                              displayName: activeOther.displayName,
+                              avatarUrl: activeOther.avatarUrl ?? null,
+                            })
+                          }
+                          disabled={invState === "ringing" || invState === "joined"}
+                          title={invLabel}
+                          aria-label={invLabel}
+                          className="p-1.5 rounded transition-colors disabled:opacity-50"
+                          style={
+                            invState === "joined"
+                              ? { color: "hsl(var(--primary))" }
+                              : invState === "declined"
+                              ? { color: "hsl(var(--destructive))" }
+                              : invState === "ringing"
+                              ? { color: "hsl(var(--primary))", opacity: 0.6 }
+                              : { color: "var(--muted-foreground)" }
+                          }
+                        >
+                          <UserPlus className="w-4 h-4" />
+                        </button>
+                      );
+                    })()
                   ) : (
+                    /* No active call → start call button */
                     <button
                       onClick={() =>
                         voice.callUser({

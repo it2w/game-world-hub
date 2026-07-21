@@ -328,6 +328,23 @@ export function VoicePanel() {
   /* active screen quality label */
   const screenPreset = SCREEN_PRESETS[screenQuality];
 
+  /* ── Invite helpers (used in both inline invite view and chat-page button) */
+  const inCallIds = new Set([
+    ...(me ? [me.id] : []),
+    ...effectivePeers.map((p) => p.userId),
+  ]);
+  const inviteFiltered = inviteFriends
+    .filter((f) =>
+      !inviteSearch ||
+      f.displayName.toLowerCase().includes(inviteSearch.toLowerCase()) ||
+      f.username.toLowerCase().includes(inviteSearch.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const ao = a.status === "online" || a.status === "away" || a.status === "busy" ? 1 : 0;
+      const bo = b.status === "online" || b.status === "away" || b.status === "busy" ? 1 : 0;
+      return bo - ao;
+    });
+
   return (
     <>
       <style>{STYLE}</style>
@@ -362,63 +379,83 @@ export function VoicePanel() {
           onPointerUp={onHeaderPointerUp}
           onPointerCancel={onHeaderPointerUp}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="relative flex shrink-0 w-2 h-2">
-              <span className="gwh-dot-blink absolute inset-0 rounded-full bg-primary" />
-              <span className="rounded-full w-2 h-2 bg-primary/30" />
-            </span>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground leading-none mb-[3px]">
-                {effectiveRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
+          {inviteOpen ? (
+            /* ── Invite mode header ───────────────────────────────────────── */
+            <>
+              <div className="flex items-center gap-2 min-w-0">
+                <UserPlus className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] truncate">دعوة إلى المكالمة</span>
               </div>
-              <div className="text-[11px] font-bold uppercase tracking-widest truncate text-foreground leading-none">
-                {effectiveRoom.title}
+              <button
+                onClick={() => { setInviteOpen(false); setInviteSearch(""); }}
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                aria-label="Close invite"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </>
+          ) : (
+            /* ── Normal header ────────────────────────────────────────────── */
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="relative flex shrink-0 w-2 h-2">
+                  <span className="gwh-dot-blink absolute inset-0 rounded-full bg-primary" />
+                  <span className="rounded-full w-2 h-2 bg-primary/30" />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground leading-none mb-[3px]">
+                    {effectiveRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest truncate text-foreground leading-none">
+                    {effectiveRoom.title}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span
-              className="text-[9px] px-1.5 py-0.5 font-bold tabular-nums"
-              style={{
-                background: "rgba(var(--primary-rgb,0,255,65),0.1)",
-                color: "hsl(var(--primary))",
-                border: "1px solid rgba(var(--primary-rgb,0,255,65),0.25)",
-              }}
-            >
-              {effectivePeers.length + 1}
-            </span>
-            {effectiveRoom.kind === "call" && (
-              <>
-                <button
-                  onClick={() => { setInviteOpen(true); setInviteSearch(""); }}
-                  title="Invite to call"
-                  aria-label="Invite to call"
-                  className="text-muted-foreground hover:text-primary transition-colors"
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className="text-[9px] px-1.5 py-0.5 font-bold tabular-nums"
+                  style={{
+                    background: "rgba(var(--primary-rgb,0,255,65),0.1)",
+                    color: "hsl(var(--primary))",
+                    border: "1px solid rgba(var(--primary-rgb,0,255,65),0.25)",
+                  }}
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
-                </button>
+                  {effectivePeers.length + 1}
+                </span>
+                {effectiveRoom.kind === "call" && (
+                  <>
+                    <button
+                      onClick={() => { setInviteOpen(true); setInviteSearch(""); }}
+                      title="Invite to call"
+                      aria-label="Invite to call"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openCallChat(effectiveRoom.peer.userId)}
+                      title="Open chat"
+                      aria-label="Open chat"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
                 <button
-                  onClick={() => openCallChat(effectiveRoom.peer.userId)}
-                  title="Open chat"
-                  aria-label="Open chat"
-                  className="text-muted-foreground hover:text-primary transition-colors"
+                  onClick={() => setExpanded((e) => !e)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={expanded ? t("voice.collapse") : t("voice.expand")}
                 >
-                  <MessageSquare className="w-3.5 h-3.5" />
+                  {expanded ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  )}
                 </button>
-              </>
-            )}
-            <button
-              onClick={() => setExpanded((e) => !e)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              aria-label={expanded ? t("voice.collapse") : t("voice.expand")}
-            >
-              {expanded ? (
-                <ChevronDown className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronUp className="w-3.5 h-3.5" />
-              )}
-            </button>
-          </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── Error banner ─────────────────────────────────────────────────── */}
@@ -443,8 +480,98 @@ export function VoicePanel() {
         )}
 
         {expanded && (
-          <>
-            {/* ── Self / HALO section ─────────────────────────────────────── */}
+          inviteOpen ? (
+            /* ── Inline invite view ───────────────────────────────────────── */
+            <div className="flex flex-col">
+              <div className="px-3 py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <input
+                  type="text"
+                  placeholder="ابحث عن صديق..."
+                  value={inviteSearch}
+                  onChange={(e) => setInviteSearch(e.target.value)}
+                  className="w-full bg-transparent text-[11px] outline-none placeholder:text-muted-foreground text-foreground"
+                  style={{ caretColor: "hsl(var(--primary))" }}
+                  autoFocus
+                />
+              </div>
+              <div style={{ maxHeight: "340px", overflowY: "auto" }}>
+                {inviteLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  </div>
+                ) : inviteFiltered.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+                    لا يوجد أصدقاء للدعوة
+                  </div>
+                ) : (
+                  inviteFiltered.map((friend) => {
+                    const state = groupInviteStates[friend.id];
+                    const alreadyIn = inCallIds.has(friend.id);
+                    const isOnline = friend.status === "online" || friend.status === "away" || friend.status === "busy";
+                    return (
+                      <div
+                        key={friend.id}
+                        className="flex items-center gap-3 px-3 py-2.5"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                      >
+                        <div className="relative shrink-0">
+                          <div
+                            className="w-8 h-8 flex items-center justify-center text-[11px] font-bold text-white overflow-hidden"
+                            style={{ background: friend.avatarUrl ? "transparent" : nameColor(friend.displayName) }}
+                          >
+                            {friend.avatarUrl
+                              ? <img src={friend.avatarUrl} alt="" className="w-8 h-8 object-cover" />
+                              : nameInitials(friend.displayName)
+                            }
+                          </div>
+                          <span
+                            className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full"
+                            style={{ background: isOnline ? "#22c55e" : "#6b7280", border: "1.5px solid #080812" }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-semibold truncate">{friend.displayName}</div>
+                          <div className="text-[9px] text-muted-foreground truncate">@{friend.username}</div>
+                        </div>
+                        {alreadyIn ? (
+                          <span className="text-[9px] uppercase tracking-widest font-bold text-primary flex items-center gap-1 shrink-0">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        ) : state === "ringing" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground animate-pulse shrink-0">يرن…</span>
+                        ) : state === "joined" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-primary font-bold flex items-center gap-1 shrink-0">
+                            <Check className="w-3 h-3" /> انضم
+                          </span>
+                        ) : state === "declined" ? (
+                          <span className="text-[9px] uppercase tracking-widest text-destructive shrink-0">رفض</span>
+                        ) : (
+                          <button
+                            onClick={() => inviteToCall({
+                              userId: friend.id,
+                              username: friend.username,
+                              displayName: friend.displayName,
+                              avatarUrl: friend.avatarUrl,
+                            })}
+                            className="text-[9px] px-2 py-1.5 uppercase tracking-widest font-bold transition-all hover:opacity-90 active:scale-95 shrink-0"
+                            style={{
+                              background: "rgba(var(--primary-rgb,0,255,65),0.1)",
+                              border: "1px solid rgba(var(--primary-rgb,0,255,65),0.4)",
+                              color: "hsl(var(--primary))",
+                            }}
+                          >
+                            دعوة
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ── Self / HALO section ─────────────────────────────────────── */}
             <div
               className="flex flex-col items-center pt-7 pb-5 relative overflow-hidden"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
@@ -660,6 +787,7 @@ export function VoicePanel() {
               </div>
             )}
           </>
+          )
         )}
 
         {/* ── Controls bar ─────────────────────────────────────────────────── */}
@@ -813,153 +941,6 @@ export function VoicePanel() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* ── Invite to call dialog ──────────────────────────────────────────── */}
-      {(() => {
-        const inCallIds = new Set([
-          ...(me ? [me.id] : []),
-          ...effectivePeers.map((p) => p.userId),
-        ]);
-
-        const filtered = inviteFriends
-          .filter((f) =>
-            !inviteSearch ||
-            f.displayName.toLowerCase().includes(inviteSearch.toLowerCase()) ||
-            f.username.toLowerCase().includes(inviteSearch.toLowerCase()),
-          )
-          .sort((a, b) => {
-            const ao = a.status === "online" || a.status === "away" || a.status === "busy" ? 1 : 0;
-            const bo = b.status === "online" || b.status === "away" || b.status === "busy" ? 1 : 0;
-            return bo - ao;
-          });
-
-        return (
-          <Dialog open={inviteOpen} onOpenChange={(o) => { setInviteOpen(o); if (!o) setInviteSearch(""); }}>
-            <DialogContent
-              className="p-0 overflow-hidden rounded-none border-0 font-mono"
-              style={{
-                background: "linear-gradient(180deg,#0e0e1c 0%,#080812 100%)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                boxShadow: "0 32px 64px rgba(0,0,0,0.9)",
-                maxWidth: "340px",
-              }}
-            >
-              {/* top gradient bar */}
-              <div className="h-[2px] w-full shrink-0" style={{ background: "linear-gradient(90deg,hsl(var(--primary)) 0%,#00bfff 55%,transparent 100%)" }} />
-
-              <DialogHeader className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <DialogTitle className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-bold">
-                  <UserPlus className="w-3.5 h-3.5 text-primary shrink-0" />
-                  دعوة إلى المكالمة
-                </DialogTitle>
-              </DialogHeader>
-
-              {/* search */}
-              <div className="px-3 py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <input
-                  type="text"
-                  placeholder="ابحث عن أصدقائك..."
-                  value={inviteSearch}
-                  onChange={(e) => setInviteSearch(e.target.value)}
-                  className="w-full bg-transparent text-[11px] outline-none placeholder:text-muted-foreground text-foreground"
-                  style={{ caretColor: "hsl(var(--primary))" }}
-                  autoFocus
-                />
-              </div>
-
-              {/* friend list */}
-              <div className="max-h-[320px] overflow-y-auto">
-                {inviteLoading ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
-                    لا يوجد أصدقاء للدعوة
-                  </div>
-                ) : (
-                  filtered.map((friend) => {
-                    const state = groupInviteStates[friend.id];
-                    const alreadyIn = inCallIds.has(friend.id);
-                    const isOnline = friend.status === "online" || friend.status === "away" || friend.status === "busy";
-
-                    return (
-                      <div
-                        key={friend.id}
-                        className="flex items-center gap-3 px-3 py-2.5"
-                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                      >
-                        {/* avatar */}
-                        <div className="relative shrink-0">
-                          <div
-                            className="w-8 h-8 flex items-center justify-center text-[11px] font-bold text-white"
-                            style={{ background: friend.avatarUrl ? "transparent" : nameColor(friend.displayName) }}
-                          >
-                            {friend.avatarUrl
-                              ? <img src={friend.avatarUrl} alt="" className="w-8 h-8 object-cover" />
-                              : nameInitials(friend.displayName)
-                            }
-                          </div>
-                          <span
-                            className="absolute -bottom-0.5 -end-0.5 w-2.5 h-2.5 rounded-full"
-                            style={{
-                              background: isOnline ? "#22c55e" : "#6b7280",
-                              border: "1.5px solid #080812",
-                            }}
-                          />
-                        </div>
-
-                        {/* name */}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-semibold truncate text-foreground">{friend.displayName}</div>
-                          <div className="text-[9px] text-muted-foreground truncate">@{friend.username}</div>
-                        </div>
-
-                        {/* action */}
-                        {alreadyIn ? (
-                          <span className="text-[9px] uppercase tracking-widest font-bold text-primary flex items-center gap-1">
-                            <Check className="w-3 h-3" /> في المكالمة
-                          </span>
-                        ) : state === "ringing" ? (
-                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground animate-pulse">
-                            يرن...
-                          </span>
-                        ) : state === "joined" ? (
-                          <span className="text-[9px] uppercase tracking-widest text-primary font-bold flex items-center gap-1">
-                            <Check className="w-3 h-3" /> انضم
-                          </span>
-                        ) : state === "declined" ? (
-                          <span className="text-[9px] uppercase tracking-widest text-destructive">
-                            رفض
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => inviteToCall({
-                              userId: friend.id,
-                              username: friend.username,
-                              displayName: friend.displayName,
-                              avatarUrl: friend.avatarUrl,
-                            })}
-                            className="text-[9px] px-2.5 py-1.5 uppercase tracking-widest font-bold transition-all hover:opacity-90 active:scale-95 flex items-center gap-1"
-                            style={{
-                              background: "rgba(var(--primary-rgb,0,255,65),0.1)",
-                              border: "1px solid rgba(var(--primary-rgb,0,255,65),0.4)",
-                              color: "hsl(var(--primary))",
-                            }}
-                          >
-                            <UserPlus className="w-3 h-3" />
-                            دعوة
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
 
       {/* ── Theater view ───────────────────────────────────────────────────── */}
       {theater && (() => {

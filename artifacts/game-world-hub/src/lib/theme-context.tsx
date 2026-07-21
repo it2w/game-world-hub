@@ -72,20 +72,7 @@ export const DESIGN_THEMES: DesignThemeOption[] = [
  * dashboard.css reads these via var(--dash-*).
  */
 function applyDesign(id: DesignThemeId) {
-  const root = document.documentElement;
-  root.setAttribute("data-design", id);
-
-  if (id === "classic") {
-    root.style.setProperty("--dash-stat-size",    "17px");
-    root.style.setProperty("--dash-stat-pad",     "9px 13px");
-    root.style.setProperty("--dash-stat-minw",    "82px");
-    root.style.setProperty("--dash-section-clr",  "#666");
-  } else {
-    root.style.setProperty("--dash-stat-size",    "30px");
-    root.style.setProperty("--dash-stat-pad",     "14px 16px");
-    root.style.setProperty("--dash-stat-minw",    "90px");
-    root.style.setProperty("--dash-section-clr",  "hsl(var(--primary))");
-  }
+  document.documentElement.setAttribute("data-design", id);
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────

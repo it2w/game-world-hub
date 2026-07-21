@@ -1069,6 +1069,7 @@ function DesignCard() {
           return (
             <button
               key={d.id}
+              type="button"
               onClick={() => setDesign(d.id as DesignThemeId)}
               className="group flex flex-col gap-0 border transition-all duration-150 focus:outline-none overflow-hidden rounded-none"
               style={{

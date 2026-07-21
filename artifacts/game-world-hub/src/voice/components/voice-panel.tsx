@@ -422,25 +422,23 @@ export function VoicePanel() {
                 >
                   {effectivePeers.length + 1}
                 </span>
+                <button
+                  onClick={() => { setInviteOpen(true); setInviteSearch(""); }}
+                  title="Invite to call"
+                  aria-label="Invite to call"
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                </button>
                 {effectiveRoom.kind === "call" && (
-                  <>
-                    <button
-                      onClick={() => { setInviteOpen(true); setInviteSearch(""); }}
-                      title="Invite to call"
-                      aria-label="Invite to call"
-                      className="text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => openCallChat(effectiveRoom.peer.userId)}
-                      title="Open chat"
-                      aria-label="Open chat"
-                      className="text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                    </button>
-                  </>
+                  <button
+                    onClick={() => openCallChat(effectiveRoom.peer.userId)}
+                    title="Open chat"
+                    aria-label="Open chat"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  </button>
                 )}
                 <button
                   onClick={() => setExpanded((e) => !e)}

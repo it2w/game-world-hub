@@ -68,11 +68,13 @@ export const DESIGN_THEMES: DesignThemeOption[] = [
 ];
 
 /**
- * CSS variables applied per design theme.
- * dashboard.css reads these via var(--dash-*).
+ * Immediately stamps data-design on <html> and persists to localStorage.
+ * Called on mount (via useEffect) AND directly from the settings click handler
+ * so the change is synchronous — no waiting on React state batching.
  */
-function applyDesign(id: DesignThemeId) {
+export function applyDesign(id: DesignThemeId) {
   document.documentElement.setAttribute("data-design", id);
+  try { localStorage.setItem("gwh_design", id); } catch {}
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -120,10 +122,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(ACCENT_KEY, accentId); } catch {}
   }, [accentId]);
 
-  // Apply design on mount + change
+  // Apply design on mount + change (applyDesign also writes localStorage)
   useEffect(() => {
     applyDesign(designId);
-    try { localStorage.setItem(DESIGN_KEY, designId); } catch {}
   }, [designId]);
 
   const setAccent = (id: string) => {

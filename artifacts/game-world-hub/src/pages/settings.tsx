@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Settings2, User, Gamepad2, Link as LinkIcon, Trash2, Monitor, Radio, Mail, ShieldCheck, KeyRound, Upload, MessageSquare, Globe, Trophy, AlertTriangle, Palette, Check } from "lucide-react";
-import { useAccentColor, useDesignTheme, type DesignThemeId } from "@/lib/theme-context";
+import { useAccentColor, useDesignTheme, applyDesign, type DesignThemeId } from "@/lib/theme-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1048,7 +1048,21 @@ function EmeraldPreview() {
 }
 
 function DesignCard() {
-  const { designId, setDesign, designThemes } = useDesignTheme();
+  // Local state drives the UI immediately — no context round-trip needed
+  const [activeId, setActiveId] = useState<DesignThemeId>(() => {
+    try {
+      const s = localStorage.getItem("gwh_design");
+      return s === "emerald" ? "emerald" : "classic";
+    } catch { return "classic"; }
+  });
+
+  const { setDesign } = useDesignTheme();
+
+  function handleSelect(id: DesignThemeId) {
+    setActiveId(id);      // instant UI update
+    applyDesign(id);      // instant DOM attribute + localStorage
+    setDesign(id);        // sync global context
+  }
 
   const previews: Record<DesignThemeId, React.ReactNode> = {
     classic: <ClassicPreview />,
@@ -1064,18 +1078,21 @@ function DesignCard() {
         اختر شكل لوحة التحكم
       </p>
       <div className="grid grid-cols-2 gap-4">
-        {designThemes.map((d) => {
-          const isActive = designId === d.id;
+        {(["classic", "emerald"] as DesignThemeId[]).map((id) => {
+          const isActive = activeId === id;
+          const labels: Record<DesignThemeId, { ar: string; en: string; desc: string }> = {
+            classic: { ar: "كلاسيك",  en: "Classic", desc: "التصميم الأصلي — كثيف ونيون" },
+            emerald: { ar: "إيمرالد", en: "Emerald", desc: "تصميم فاخر — أرقام كبيرة وهواء" },
+          };
+          const lbl = labels[id];
           return (
             <button
-              key={d.id}
+              key={id}
               type="button"
-              onClick={() => setDesign(d.id as DesignThemeId)}
-              className="group flex flex-col gap-0 transition-all duration-150 focus:outline-none overflow-hidden rounded-none text-start"
+              onClick={() => handleSelect(id)}
+              className="flex flex-col overflow-hidden transition-all duration-150 focus:outline-none text-start"
               style={{
-                border: isActive
-                  ? "2px solid hsl(var(--primary))"
-                  : "2px solid #3a3a3a",
+                border: isActive ? "2px solid hsl(var(--primary))" : "2px solid #3a3a3a",
                 background: isActive ? "hsl(var(--primary) / 0.06)" : "#161616",
               }}
             >
@@ -1084,12 +1101,10 @@ function DesignCard() {
                 className="relative w-full overflow-hidden"
                 style={{
                   height: 120,
-                  borderBottom: isActive
-                    ? "1px solid hsl(var(--primary) / 0.4)"
-                    : "1px solid #2a2a2a",
+                  borderBottom: isActive ? "1px solid hsl(var(--primary) / 0.4)" : "1px solid #2a2a2a",
                 }}
               >
-                {previews[d.id as DesignThemeId]}
+                {previews[id]}
                 {isActive && (
                   <div
                     className="absolute top-2 end-2 w-5 h-5 rounded-full flex items-center justify-center"
@@ -1099,18 +1114,15 @@ function DesignCard() {
                   </div>
                 )}
               </div>
-              {/* Label row */}
+              {/* Label */}
               <div className="px-3 pt-2 pb-1 flex items-center justify-between">
-                <span
-                  className="font-mono text-xs font-black"
-                  style={{ color: isActive ? "hsl(var(--primary))" : "#ccc" }}
-                >
-                  {d.label}
+                <span className="font-mono text-xs font-black" style={{ color: isActive ? "hsl(var(--primary))" : "#ccc" }}>
+                  {lbl.ar}
                 </span>
-                <span className="font-mono text-[9px] text-[#666] uppercase tracking-widest">{d.labelEn}</span>
+                <span className="font-mono text-[9px] text-[#555] uppercase tracking-widest">{lbl.en}</span>
               </div>
               <div className="px-3 pb-3">
-                <span className="font-mono text-[9px] text-[#666]">{d.description}</span>
+                <span className="font-mono text-[9px] text-[#555]">{lbl.desc}</span>
               </div>
             </button>
           );

@@ -480,18 +480,31 @@ router.post("/clips/:id/reactions", requireAuth, async (req: Request, res: Respo
   );
   if (!clip) { res.status(404).json({ error: "Clip not found" }); return; }
 
-  // Toggle: if exists → delete; else → insert
-  const { rowCount } = await pool.query(
-    `DELETE FROM clip_reactions WHERE clip_id=$1 AND user_id=$2 AND emoji=$3`,
+  // Atomic toggle via a single CTE statement — eliminates the DELETE+INSERT race.
+  // The CTE executes within one snapshot: the DELETE and the conditional INSERT
+  // are both visible to each other, so two concurrent requests for the same
+  // (clip, user, emoji) cannot both see 0 deleted rows and both insert.
+  const { rows: [toggleResult] } = await pool.query<{
+    was_deleted: boolean; was_inserted: boolean;
+  }>(
+    `WITH deleted AS (
+       DELETE FROM clip_reactions
+       WHERE clip_id=$1 AND user_id=$2 AND emoji=$3
+       RETURNING 1
+     ),
+     inserted AS (
+       INSERT INTO clip_reactions (clip_id, user_id, emoji)
+       SELECT $1, $2, $3
+       WHERE NOT EXISTS (SELECT 1 FROM deleted)
+       ON CONFLICT DO NOTHING
+       RETURNING 1
+     )
+     SELECT
+       (SELECT COUNT(*) FROM deleted) > 0 AS was_deleted,
+       (SELECT COUNT(*) FROM inserted) > 0 AS was_inserted`,
     [id, myId, emoji],
   );
-  const toggled = rowCount === 0;
-  if (toggled) {
-    await pool.query(
-      `INSERT INTO clip_reactions (clip_id, user_id, emoji) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
-      [id, myId, emoji],
-    );
-  }
+  const toggled = toggleResult.was_inserted;
 
   const { rows: counts } = await pool.query<{ emoji: string; count: string }>(
     `SELECT emoji, COUNT(*) AS count FROM clip_reactions WHERE clip_id=$1 GROUP BY emoji`,

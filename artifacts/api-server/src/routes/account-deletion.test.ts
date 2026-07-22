@@ -16,8 +16,10 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest, type Server, type IncomingMessage } from "node:http";
 import { AddressInfo } from "node:net";
 import { eq } from "drizzle-orm";
-import { db, usersTable, revokedTokensTable } from "@workspace/db";
+import { db, usersTable, revokedTokensTable, pool } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
+import { objectStorageClient } from "../lib/objectStorage";
+import { ensureClipsTables } from "./clips";
 import app from "../app";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -225,5 +227,108 @@ describe("DELETE /users/me — session invalidation after account deletion", () 
       req.on("error", reject);
       req.end();
     });
+  });
+
+  test("DELETE /users/me triggers GCS cleanup for all clip media objects", async () => {
+    // Ensure clips tables exist before seeding test data.
+    await ensureClipsTables();
+
+    // 1. Create a test user.
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        username: `gcs_cleanup_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "GCS Cleanup Test",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+
+    const token = signToken({ userId: user.id, username: user.username });
+
+    // 2. Seed two clips with distinct media URLs for this user.
+    const { rows: [clip1] } = await pool.query<{ id: number }>(
+      `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, $3) RETURNING id`,
+      [user.id, "Clip One", "video/mp4"],
+    );
+    const { rows: [clip2] } = await pool.query<{ id: number }>(
+      `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, $3) RETURNING id`,
+      [user.id, "Clip Two", "image/png"],
+    );
+    const fileUrl1 = "/objects/uploads/gcs-test-file-uuid-1";
+    const thumbUrl1 = "/objects/uploads/gcs-test-thumb-uuid-1";
+    const fileUrl2 = "/objects/uploads/gcs-test-file-uuid-2";
+    await pool.query(
+      `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1, $2, $3)`,
+      [clip1.id, fileUrl1, thumbUrl1],
+    );
+    await pool.query(
+      `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1, $2, $3)`,
+      [clip2.id, fileUrl2, null],
+    );
+
+    // 3. Spy on objectStorageClient so we can capture delete calls without
+    //    hitting real GCS. We intercept bucket().file().delete() by replacing
+    //    the `bucket` method on the singleton.
+    const deletedObjects: string[] = [];
+    const origBucket = objectStorageClient.bucket.bind(objectStorageClient);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (objectStorageClient as any).bucket = (bucketName: string) => ({
+      file: (objectName: string) => ({
+        delete: (_opts?: unknown) => {
+          deletedObjects.push(`${bucketName}/${objectName}`);
+          return Promise.resolve([{}]);
+        },
+        getMetadata: () => Promise.resolve([{}]),
+        createReadStream: () => { throw new Error("not used"); },
+      }),
+    });
+
+    // 4. Also set PRIVATE_OBJECT_DIR so deleteObjectSafe doesn't early-exit.
+    //    Use a gs:// path so the bucket/object parsing is exercised.
+    const origPrivateDir = process.env.PRIVATE_OBJECT_DIR;
+    process.env.PRIVATE_OBJECT_DIR = "gs://test-bucket";
+
+    try {
+      // 5. Delete the account.
+      const deleteRes = await makeRequest("DELETE", "/users/me", token);
+      assert.equal(deleteRes.status, 204, "DELETE /users/me should return 204");
+
+      // 6. Allow the async GCS cleanup to run (it's fire-and-forget after 204).
+      await new Promise<void>(resolve => setTimeout(resolve, 100));
+
+      // 7. Confirm the three GCS object paths were passed to delete.
+      //    Order is non-deterministic, so we sort before asserting.
+      const expected = [
+        `test-bucket/uploads/gcs-test-file-uuid-1`,
+        `test-bucket/uploads/gcs-test-thumb-uuid-1`,
+        `test-bucket/uploads/gcs-test-file-uuid-2`,
+      ].sort();
+      assert.deepEqual(
+        deletedObjects.sort(),
+        expected,
+        "deleteObjectSafe should have been called for every clip media object",
+      );
+
+      // 8. Confirm the DB rows are gone via cascade (belt-and-suspenders).
+      const { rows: mediaRows } = await pool.query(
+        `SELECT clip_id FROM clips_media WHERE clip_id = ANY($1::int[])`,
+        [[clip1.id, clip2.id]],
+      );
+      assert.equal(mediaRows.length, 0, "clips_media rows should be gone after account deletion");
+    } finally {
+      // Restore spy and env var regardless of test outcome.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (objectStorageClient as any).bucket = origBucket;
+      if (origPrivateDir === undefined) {
+        delete process.env.PRIVATE_OBJECT_DIR;
+      } else {
+        process.env.PRIVATE_OBJECT_DIR = origPrivateDir;
+      }
+      // Clean up any leftover rows if the deletion somehow failed.
+      await pool.query(`DELETE FROM clips WHERE owner_id = $1`, [user.id]).catch(() => {});
+      await db.delete(usersTable).where(eq(usersTable.id, user.id)).catch(() => {});
+      await db.delete(revokedTokensTable).where(eq(revokedTokensTable.userId, user.id)).catch(() => {});
+    }
   });
 });

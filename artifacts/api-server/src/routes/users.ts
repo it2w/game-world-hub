@@ -29,6 +29,7 @@ import { isBlockedBetween } from "./blocks";
 import { ObjectStorageService, toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { recordProfileView } from "./prestige";
+import { deleteObjectSafe } from "./clips";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -684,6 +685,26 @@ router.delete("/users/me/banner", requireAuth, async (req, res): Promise<void> =
 // DELETE /users/me — permanently deletes the authenticated user's account
 router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
   const userId = req.auth!.userId;
+
+  // Collect all GCS object paths for this user's clips BEFORE the cascade
+  // delete removes the clips_media rows. Without this step, ON DELETE CASCADE
+  // on clips → clips_media silently drops the DB rows while the GCS objects
+  // remain, leaking storage indefinitely.
+  let clipMediaUrls: Array<{ file_url: string; thumbnail_url: string | null }> = [];
+  try {
+    const { rows } = await pool.query<{ file_url: string; thumbnail_url: string | null }>(
+      `SELECT cm.file_url, cm.thumbnail_url
+       FROM clips_media cm
+       JOIN clips c ON c.id = cm.clip_id
+       WHERE c.owner_id = $1`,
+      [userId],
+    );
+    clipMediaUrls = rows;
+  } catch (err) {
+    // Non-fatal — proceed with account deletion; GCS cleanup is best-effort.
+    logger.warn({ err, userId }, "users: failed to fetch clip media URLs before account deletion");
+  }
+
   // Defense-in-depth: add the user_id to the token denylist BEFORE deleting
   // the user row. This ensures that any still-valid JWT for this user is
   // rejected by the denylist check in requireAuth even if the primary DB
@@ -694,6 +715,18 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
     .values({ userId })
     .onConflictDoNothing();
   await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+  // Best-effort GCS cleanup after the DB delete succeeds. Runs asynchronously
+  // so it never delays the 204 response.
+  if (clipMediaUrls.length > 0) {
+    void Promise.all(
+      clipMediaUrls.flatMap(({ file_url, thumbnail_url }) => [
+        deleteObjectSafe(file_url),
+        deleteObjectSafe(thumbnail_url),
+      ]),
+    ).catch(err => logger.warn({ err, userId }, "users: GCS cleanup error after account deletion"));
+  }
+
   res.status(204).end();
 });
 

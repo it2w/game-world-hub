@@ -165,8 +165,9 @@ async function serializeClip(
 /**
  * Delete a clip object (file or thumbnail) from GCS.
  * Errors are swallowed — we never want a failed GCS delete to block DB cleanup.
+ * Exported so account-deletion can call it before cascading the user row.
  */
-async function deleteObjectSafe(objectPath: string | null): Promise<void> {
+export async function deleteObjectSafe(objectPath: string | null): Promise<void> {
   if (!objectPath) return;
   try {
     const privateObjectDir = process.env.PRIVATE_OBJECT_DIR ?? "";

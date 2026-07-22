@@ -32,6 +32,7 @@ import {
   pool,
 } from "@workspace/db";
 import { signToken } from "../middlewares/auth";
+import { ensurePrestigeTables } from "./prestige";
 import app from "../app";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -68,6 +69,10 @@ function mkUser(label: string) {
 }
 
 before(async () => {
+  // Ensure prestige-related tables (profile_views, prestige_tiers, etc.) exist
+  // on a clean database so tests don't fail with "relation does not exist".
+  await ensurePrestigeTables();
+
   // Insert users: one active Pro, one non-Pro, two viewers
   const inserted = await db
     .insert(usersTable)

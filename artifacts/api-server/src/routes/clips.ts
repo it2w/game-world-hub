@@ -286,16 +286,25 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       }
     }
 
-    // Insert metadata + media URLs in one transaction
-    const { rows: [clip] } = await pool.query<{ id: number }>(
-      `INSERT INTO clips (owner_id, title, game, description, mime_type, duration_seconds)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [ownerId, result.title, result.game, result.description, result.mimeType, result.durationSeconds],
-    );
-    await pool.query(
-      `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1,$2,$3)`,
-      [clip.id, fileUrl, thumbnailUrl],
-    );
+    // Insert metadata + media URLs — if the DB step fails, delete the orphaned GCS objects
+    let clip: { id: number };
+    try {
+      const { rows: [inserted] } = await pool.query<{ id: number }>(
+        `INSERT INTO clips (owner_id, title, game, description, mime_type, duration_seconds)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [ownerId, result.title, result.game, result.description, result.mimeType, result.durationSeconds],
+      );
+      clip = inserted;
+      await pool.query(
+        `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1,$2,$3)`,
+        [clip.id, fileUrl, thumbnailUrl],
+      );
+    } catch (dbErr) {
+      // GCS uploads succeeded but DB failed — delete orphaned objects before surfacing the error
+      logger.error({ dbErr }, "clips: DB insert failed after GCS upload; deleting orphaned objects");
+      await Promise.all([deleteObjectSafe(fileUrl), deleteObjectSafe(thumbnailUrl)]);
+      throw dbErr;
+    }
 
     // Notify all connected dashboards so friends' strips update immediately
     broadcastAll({ type: "clip-uploaded", clipId: clip.id, ownerId });

@@ -30,7 +30,7 @@ import { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { pool, db, usersTable } from "@workspace/db";
 import { signToken } from "../../middlewares/auth";
-import { ObjectStorageService } from "../../lib/objectStorage";
+import { ObjectStorageService, objectStorageClient } from "../../lib/objectStorage";
 import { ensureClipsTables } from "../clips";
 import app from "../../app";
 
@@ -575,5 +575,78 @@ describe("Clips lifecycle — upload, serve, delete", () => {
     // Cleanup
     await pool.query("DELETE FROM clips WHERE id = ANY($1)", [insertedIds]);
     await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [proUser.id]);
+  });
+
+  // ── Orphan cleanup ───────────────────────────────────────────────────────
+
+  it("POST /clips — deletes orphaned GCS objects when the DB insert fails", async () => {
+    // The user stays in the DB so requireAuth (which uses drizzle `db`) passes.
+    // We mock pool.query — used only by the clips route — to throw on INSERT INTO clips,
+    // simulating a transient DB failure after GCS already received the file.
+    const ghostUser = await makeUser("ghost_orphan");
+    createdUserIds.push(ghostUser.id);
+
+    // Track GCS delete calls made by deleteObjectSafe
+    const deletedObjects: string[] = [];
+    const savedPrivateDir = process.env.PRIVATE_OBJECT_DIR;
+    // Ensure deleteObjectSafe doesn't early-return due to missing env var
+    process.env.PRIVATE_OBJECT_DIR = "gs://test-bucket/test-private-dir";
+
+    // Mock objectStorageClient.bucket so we capture delete calls without hitting GCS
+    const bucketMock = mock.method(
+      objectStorageClient,
+      "bucket",
+      (_bucketName: string) => ({
+        file: (objectName: string) => ({
+          delete: async (_opts?: unknown) => {
+            deletedObjects.push(objectName);
+          },
+        }),
+      }),
+    );
+
+    // Save original pool.query before mocking, so we can delegate non-INSERT calls
+    const origQuery = pool.query.bind(pool) as typeof pool.query;
+    const queryMock = mock.method(
+      pool,
+      "query",
+      async (...args: Parameters<typeof pool.query>) => {
+        const text = args[0];
+        if (typeof text === "string" && text.trimStart().toUpperCase().startsWith("INSERT INTO CLIPS ")) {
+          throw new Error("Simulated DB failure for orphan cleanup test");
+        }
+        // Pass everything else (SELECT, INSERT INTO clips_media row after first insert, etc.) through
+        return origQuery(...args);
+      },
+    );
+
+    uploadCalls = [];
+    try {
+      const { body, contentType } = multipartBody(
+        { title: "Orphan Clip", game: "TestGame" },
+        { fieldname: "file", filename: "orphan.jpg", mime: "image/jpeg", data: Buffer.from("ORPHAN_JPEG") },
+      );
+      const r = await req("POST", "/api/clips", ghostUser.token, body, contentType);
+
+      // The DB insert must fail → route returns 500
+      assert.equal(r.status, 500, `expected 500 when DB insert fails, got ${r.status}: ${JSON.stringify(r.body)}`);
+
+      // GCS upload was invoked (the upload itself succeeded before the DB failure)
+      assert.ok(uploadCalls.length >= 1, "uploadObjectEntityBuffer should have been called");
+
+      // GCS delete must have been attempted for each uploaded object (orphan cleanup)
+      assert.ok(
+        deletedObjects.length >= uploadCalls.length,
+        `expected at least ${uploadCalls.length} GCS delete call(s) to clean up orphans, got ${deletedObjects.length}`,
+      );
+    } finally {
+      queryMock.mock.restore();
+      bucketMock.mock.restore();
+      if (savedPrivateDir === undefined) {
+        delete process.env.PRIVATE_OBJECT_DIR;
+      } else {
+        process.env.PRIVATE_OBJECT_DIR = savedPrivateDir;
+      }
+    }
   });
 });

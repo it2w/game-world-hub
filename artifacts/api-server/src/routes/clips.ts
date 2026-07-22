@@ -3,7 +3,7 @@
  * - POST   /clips                        — upload a clip (multipart: file + optional thumbnail + metadata)
  * - GET    /clips/friends                — friends' recent clips for dashboard highlights
  * - GET    /clips/:id                    — clip metadata
- * - GET    /clips/:id/media              — serve raw file
+ * - GET    /clips/:id/media              — serve raw file (proxied from object storage)
  * - GET    /clips/:id/thumbnail          — serve thumbnail (falls back to media for images)
  * - DELETE /clips/:id                    — owner only
  * - GET    /users/:id/clips              — paginated user clips
@@ -20,9 +20,10 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
-import { toPublicImageUrl } from "../lib/objectStorage";
+import { toPublicImageUrl, ObjectStorageService, objectStorageClient } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10 MB
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;  // 50 MB
@@ -47,13 +48,27 @@ export async function ensureClipsTables(): Promise<void> {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS clips_owner_idx ON clips(owner_id, created_at DESC)`);
 
-  // Raw file + thumbnail storage (BYTEA — same pattern as stored_images)
+  // Media storage — object-storage URLs (file_url / thumbnail_url).
+  // Previous schema used BYTEA (file_data / thumbnail_data); drop those if they exist.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clips_media (
       clip_id        INTEGER PRIMARY KEY REFERENCES clips(id) ON DELETE CASCADE,
-      file_data      BYTEA NOT NULL,
-      thumbnail_data BYTEA
+      file_url       TEXT    NOT NULL,
+      thumbnail_url  TEXT
     )
+  `);
+  // Additive migration: add URL columns when upgrading from the old BYTEA layout
+  await pool.query(`ALTER TABLE clips_media ADD COLUMN IF NOT EXISTS file_url      TEXT`);
+  await pool.query(`ALTER TABLE clips_media ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
+  // Remove legacy BYTEA columns (data was never in production; safe to drop)
+  await pool.query(`ALTER TABLE clips_media DROP COLUMN IF EXISTS file_data`);
+  await pool.query(`ALTER TABLE clips_media DROP COLUMN IF EXISTS thumbnail_data`);
+  // Enforce NOT NULL on file_url (no-op if already correct)
+  await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE clips_media ALTER COLUMN file_url SET NOT NULL;
+    EXCEPTION WHEN others THEN null;
+    END $$
   `);
 
   // Reactions — one row per (clip, user, emoji); toggle by insert/delete
@@ -134,6 +149,30 @@ async function serializeClip(
   };
 }
 
+/**
+ * Delete a clip object (file or thumbnail) from GCS.
+ * Errors are swallowed — we never want a failed GCS delete to block DB cleanup.
+ */
+async function deleteObjectSafe(objectPath: string | null): Promise<void> {
+  if (!objectPath) return;
+  try {
+    const privateObjectDir = process.env.PRIVATE_OBJECT_DIR ?? "";
+    if (!privateObjectDir) return;
+    // objectPath is "/objects/uploads/<uuid>"; full GCS path is PRIVATE_OBJECT_DIR/uploads/<uuid>
+    const entityId = objectPath.replace(/^\/objects\//, "");
+    const fullPath = `${privateObjectDir.replace(/\/$/, "")}/${entityId}`;
+    // Parse bucket / object from gs://bucket/object or /bucket/object
+    const stripped = fullPath.startsWith("gs://") ? fullPath.slice(5) : fullPath.startsWith("/") ? fullPath.slice(1) : fullPath;
+    const slashIdx = stripped.indexOf("/");
+    if (slashIdx === -1) return;
+    const bucketName = stripped.slice(0, slashIdx);
+    const objectName = stripped.slice(slashIdx + 1);
+    await objectStorageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
+  } catch (err) {
+    logger.warn({ err, objectPath }, "clips: failed to delete object from GCS (non-fatal)");
+  }
+}
+
 // ── POST /clips — upload ──────────────────────────────────────────────────────
 router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const ownerId = req.auth!.userId;
@@ -207,15 +246,28 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       req.pipe(bb);
     });
 
-    // Insert metadata + media in one transaction
+    // Upload file buffer to object storage
+    const fileUrl = await objectStorageService.uploadObjectEntityBuffer(result.fileBuffer, result.mimeType);
+
+    // Upload thumbnail if provided
+    let thumbnailUrl: string | null = null;
+    if (result.thumbBuffer) {
+      try {
+        thumbnailUrl = await objectStorageService.uploadObjectEntityBuffer(result.thumbBuffer, "image/jpeg");
+      } catch (thumbErr) {
+        logger.warn({ thumbErr }, "clips: thumbnail upload failed, continuing without thumbnail");
+      }
+    }
+
+    // Insert metadata + media URLs in one transaction
     const { rows: [clip] } = await pool.query<{ id: number }>(
       `INSERT INTO clips (owner_id, title, game, description, mime_type, duration_seconds)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
       [ownerId, result.title, result.game, result.description, result.mimeType, result.durationSeconds],
     );
     await pool.query(
-      `INSERT INTO clips_media (clip_id, file_data, thumbnail_data) VALUES ($1,$2,$3)`,
-      [clip.id, result.fileBuffer, result.thumbBuffer],
+      `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1,$2,$3)`,
+      [clip.id, fileUrl, thumbnailUrl],
     );
 
     res.status(201).json({ id: clip.id, mediaUrl: `/api/clips/${clip.id}/media`, thumbnailUrl: `/api/clips/${clip.id}/thumbnail` });
@@ -295,42 +347,55 @@ router.get("/clips/:id", requireAuth, async (req: Request, res: Response): Promi
   res.json(await serializeClip(row, myId));
 });
 
-// ── GET /clips/:id/media ──────────────────────────────────────────────────────
+// ── GET /clips/:id/media — proxy from object storage ─────────────────────────
 router.get("/clips/:id/media", async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const { rows: [row] } = await pool.query<{ file_data: Buffer; mime_type: string }>(
-      `SELECT m.file_data, c.mime_type FROM clips_media m JOIN clips c ON c.id=m.clip_id WHERE m.clip_id=$1`,
+    const { rows: [row] } = await pool.query<{ file_url: string; mime_type: string }>(
+      `SELECT m.file_url, c.mime_type FROM clips_media m JOIN clips c ON c.id=m.clip_id WHERE m.clip_id=$1`,
       [id],
     );
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+    const objectFile = await objectStorageService.getObjectEntityFile(row.file_url);
+    const [metadata] = await objectFile.getMetadata();
+
     res.setHeader("Content-Type", row.mime_type);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("Content-Length", String(row.file_data.length));
-    res.end(row.file_data);
+    if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
+
+    objectFile.createReadStream().pipe(res);
   } catch (err) {
     logger.error({ err }, "clips: media serve error");
     res.status(500).json({ error: "Failed to serve media" });
   }
 });
 
-// ── GET /clips/:id/thumbnail ──────────────────────────────────────────────────
+// ── GET /clips/:id/thumbnail — proxy thumbnail from object storage ─────────────
 router.get("/clips/:id/thumbnail", async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const { rows: [row] } = await pool.query<{ thumbnail_data: Buffer | null; file_data: Buffer; mime_type: string }>(
-      `SELECT m.thumbnail_data, m.file_data, c.mime_type FROM clips_media m JOIN clips c ON c.id=m.clip_id WHERE m.clip_id=$1`,
+    const { rows: [row] } = await pool.query<{ file_url: string; thumbnail_url: string | null; mime_type: string }>(
+      `SELECT m.file_url, m.thumbnail_url, c.mime_type FROM clips_media m JOIN clips c ON c.id=m.clip_id WHERE m.clip_id=$1`,
       [id],
     );
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
-    const data = row.thumbnail_data ?? (row.mime_type.startsWith("image/") ? row.file_data : null);
-    if (!data) { res.status(204).end(); return; }
-    res.setHeader("Content-Type", row.thumbnail_data ? "image/jpeg" : row.mime_type);
+
+    // For videos without a thumbnail, return 204 (no thumbnail available)
+    const objectPath = row.thumbnail_url ?? (row.mime_type.startsWith("image/") ? row.file_url : null);
+    if (!objectPath) { res.status(204).end(); return; }
+
+    const servedMimeType = row.thumbnail_url ? "image/jpeg" : row.mime_type;
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const [metadata] = await objectFile.getMetadata();
+
+    res.setHeader("Content-Type", servedMimeType);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("Content-Length", String(data.length));
-    res.end(data);
+    if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
+
+    objectFile.createReadStream().pipe(res);
   } catch (err) {
     logger.error({ err }, "clips: thumbnail serve error");
     res.status(500).json({ error: "Failed to serve thumbnail" });
@@ -347,7 +412,22 @@ router.delete("/clips/:id", requireAuth, async (req: Request, res: Response): Pr
   );
   if (!clip) { res.status(404).json({ error: "Clip not found" }); return; }
   if (clip.owner_id !== myId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  // Fetch media URLs before cascade-deleting the row
+  const { rows: [media] } = await pool.query<{ file_url: string; thumbnail_url: string | null }>(
+    `SELECT file_url, thumbnail_url FROM clips_media WHERE clip_id=$1`, [id],
+  );
+
   await pool.query(`DELETE FROM clips WHERE id=$1`, [id]);
+
+  // Clean up objects from storage (best-effort, after DB delete succeeds)
+  if (media) {
+    void Promise.all([
+      deleteObjectSafe(media.file_url),
+      deleteObjectSafe(media.thumbnail_url),
+    ]);
+  }
+
   res.json({ ok: true });
 });
 

@@ -1,40 +1,43 @@
 /**
- * Unit tests for the clipsData-refetch useEffect that keeps the lightbox
- * commentCount accurate when other users comment during a live session.
+ * Unit tests for commentCount sync in the clip lightbox. Two distinct paths
+ * are exercised:
  *
- * The effect lives in profile.tsx (lines 131-141):
+ * PATH A — clipsData-refetch effect (lines 131-141 in profile.tsx)
+ *   Keeps the lightbox commentCount accurate when *other* users comment or
+ *   delete comments during a live session. The effect fires whenever the
+ *   15-second poll returns fresh data.
  *
- *   useEffect(() => {
- *     if (!clipLightbox || !clipsData) return;
- *     const fresh = clipsData.clips.find(c => c.id === clipLightbox.id);
- *     if (fresh) {
- *       setClipLightbox(prev =>
- *         prev && prev.id === fresh.id
- *           ? { ...prev, reactionCount: fresh.reactionCount,
- *                        viewerReactions: fresh.viewerReactions,
- *                        commentCount: fresh.commentCount }
- *           : prev
- *       );
- *     }
- *   }, [clipsData]);
+ * PATH B — optimistic update on self-delete
+ *   When the viewer deletes their own clip comment the UI must decrement
+ *   commentCount immediately (before the mutation resolves), mirroring the
+ *   same pattern used for reaction toggling. If the mutation fails the
+ *   previous count is restored.
  *
- * This test file mirrors the hook-wrapper pattern used in
- * profile.clips-reaction.test.tsx — we extract the same logic into a minimal
- * hook so the full Profile render tree (and all its API queries) is avoided,
- * while the exact production effect is still exercised.
+ * Both hooks use the same minimal wrapper pattern from
+ * profile.clips-reaction.test.tsx so the full Profile render tree (and all
+ * its TanStack Query context) is avoided.
  *
  * Scenarios covered:
+ *  PATH A
  *  1. Refetch returns updated commentCount for the open clip → lightbox updates.
  *  2. Refetch returns data for a different clip → lightbox commentCount unchanged.
  *  3. Refetch arrives while lightbox is closed (null) → no crash, state stays null.
  *  4. Refetch carries no matching clip at all → lightbox commentCount unchanged.
  *  5. Multiple rapid refetches → final commentCount reflects the last response.
  *  6. commentCount decreases (e.g. comment deleted) → lightbox reflects the drop.
+ *
+ *  PATH B
+ *  7.  Viewer deletes their own comment → commentCount decrements immediately.
+ *  8.  Deleting the last comment (count was 1) → count reaches 0, never below.
+ *  9.  Delete called for a different clip → open lightbox commentCount unchanged.
+ *  10. Delete called while lightbox is closed → no crash, state stays null.
+ *  11. Rollback on mutation error → previous commentCount is restored.
+ *  12. Two sequential deletes → count decrements twice.
  */
 
 import { describe, test, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ─── Minimal types ────────────────────────────────────────────────────────────
 
@@ -236,5 +239,192 @@ describe("lightbox commentCount sync via clipsData refetch", () => {
     });
 
     expect(result.current.lightbox?.commentCount).toBe(7);
+  });
+});
+
+// ─── PATH B: Optimistic self-delete hook ──────────────────────────────────────
+//
+// Extracts the optimistic update logic that the production code applies when
+// the viewer deletes their own clip comment.  The pattern mirrors the reaction-
+// toggle handler in profile.tsx: decrement immediately, then reconcile with
+// the server response (or roll back on error).
+//
+// Production equivalent (profile.tsx handleDeleteClipComment):
+//
+//   // 1. Capture previous count for rollback
+//   const previous = clipLightbox.commentCount;
+//   // 2. Optimistic decrement
+//   setClipLightbox(prev =>
+//     prev && prev.id === clipId
+//       ? { ...prev, commentCount: Math.max(0, prev.commentCount - 1) }
+//       : prev
+//   );
+//   try {
+//     await customFetch(`/api/clips/${clipId}/comments/${commentId}`, { method: "DELETE" });
+//   } catch {
+//     // 3. Roll back on error
+//     setClipLightbox(prev =>
+//       prev && prev.id === clipId
+//         ? { ...prev, commentCount: previous }
+//         : prev
+//     );
+//   }
+
+function useClipCommentDeleteOptimistic() {
+  const [lightbox, setLightbox] = useState<ClipLightbox | null>(null);
+
+  // Keep a ref in sync so optimisticDelete can read the current count
+  // synchronously — the state updater runs asynchronously, so reading
+  // `prev.commentCount` inside setLightbox and returning it would always
+  // yield 0 before React flushes the update.
+  const lightboxRef = useRef(lightbox);
+  lightboxRef.current = lightbox;
+
+  /**
+   * Apply optimistic decrement for a comment deletion on `clipId`.
+   * Returns the count that was in place before the decrement so the caller
+   * can pass it to `rollback` if the mutation fails.
+   */
+  const optimisticDelete = (clipId: number): number => {
+    const current = lightboxRef.current;
+    const previous = current?.id === clipId ? current.commentCount : 0;
+    setLightbox((prev) => {
+      if (!prev || prev.id !== clipId) return prev;
+      return { ...prev, commentCount: Math.max(0, prev.commentCount - 1) };
+    });
+    return previous;
+  };
+
+  /**
+   * Restore the count that was captured before the optimistic decrement.
+   * Called when the deletion mutation rejects.
+   */
+  const rollback = (clipId: number, previousCount: number) => {
+    setLightbox((prev) => {
+      if (!prev || prev.id !== clipId) return prev;
+      return { ...prev, commentCount: previousCount };
+    });
+  };
+
+  return { lightbox, setLightbox, optimisticDelete, rollback };
+}
+
+// ─── Path B tests ─────────────────────────────────────────────────────────────
+
+describe("lightbox commentCount optimistic update on self-delete", () => {
+  test("viewer deletes their own comment — commentCount decrements immediately", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    // Open lightbox with 5 comments
+    act(() => {
+      result.current.setLightbox(BASE_LIGHTBOX); // commentCount: 5
+    });
+    expect(result.current.lightbox?.commentCount).toBe(5);
+
+    // Viewer deletes one comment — optimistic update fires before the API call
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(4);
+    // Lightbox must still be open — same object, not re-created
+    expect(result.current.lightbox?.id).toBe(CLIP_ID);
+  });
+
+  test("deleting the last comment (count was 1) brings commentCount to 0, not below", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    act(() => {
+      result.current.setLightbox({ ...BASE_LIGHTBOX, commentCount: 1 });
+    });
+
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(0);
+  });
+
+  test("count was already 0 — optimistic delete does not go negative", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    act(() => {
+      result.current.setLightbox({ ...BASE_LIGHTBOX, commentCount: 0 });
+    });
+
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(0);
+  });
+
+  test("delete called for a different clip — open lightbox commentCount unchanged", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    act(() => {
+      result.current.setLightbox(BASE_LIGHTBOX); // commentCount: 5, id: CLIP_ID
+    });
+
+    act(() => {
+      result.current.optimisticDelete(OTHER_CLIP_ID); // different clip
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(5); // unchanged
+    expect(result.current.lightbox?.id).toBe(CLIP_ID);
+  });
+
+  test("delete called while lightbox is closed (null) — no crash, state stays null", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    // Lightbox is not open
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+
+    expect(result.current.lightbox).toBeNull();
+  });
+
+  test("rollback on mutation error — previous commentCount is restored", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    act(() => {
+      result.current.setLightbox({ ...BASE_LIGHTBOX, commentCount: 4 });
+    });
+
+    let savedPrevious = 0;
+
+    // Apply optimistic decrement and capture the previous count
+    act(() => {
+      savedPrevious = result.current.optimisticDelete(CLIP_ID);
+    });
+
+    // Count should have dropped to 3 optimistically
+    expect(result.current.lightbox?.commentCount).toBe(3);
+    expect(savedPrevious).toBe(4);
+
+    // Simulate mutation failure — roll back
+    act(() => {
+      result.current.rollback(CLIP_ID, savedPrevious);
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(4);
+  });
+
+  test("two sequential self-deletes — commentCount decrements twice", () => {
+    const { result } = renderHook(() => useClipCommentDeleteOptimistic());
+
+    act(() => {
+      result.current.setLightbox({ ...BASE_LIGHTBOX, commentCount: 5 });
+    });
+
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+    act(() => {
+      result.current.optimisticDelete(CLIP_ID);
+    });
+
+    expect(result.current.lightbox?.commentCount).toBe(3);
   });
 });

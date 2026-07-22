@@ -171,6 +171,9 @@ export default function Profile() {
           ),
         };
       });
+
+      // Also update the lazy per-emoji cache so the thumbnail overlay stays accurate
+      setClipReactionCounts(prev => ({ ...prev, [clipId]: reactions }));
     };
     window.addEventListener("gwh:clip-reaction", handler);
     return () => window.removeEventListener("gwh:clip-reaction", handler);
@@ -268,6 +271,18 @@ export default function Profile() {
   const [pendingClipThumb, setPendingClipThumb] = useState<string | null>(null); // data URL
   const [presencePrivacy, setPresencePrivacy] = useState<string | null>(null);
   const CLIP_EMOJIS = ["🔥", "GG", "💀", "👑", "😂"];
+
+  // Per-clip emoji counts fetched lazily on thumbnail hover
+  const [clipReactionCounts, setClipReactionCounts] = useState<Record<number, Record<string, number>>>({});
+
+  const handleClipHover = (clipId: number) => {
+    if (clipReactionCounts[clipId] !== undefined) return; // already fetched or fetching
+    customFetch(`/api/clips/${clipId}/reactions`)
+      .then((data: { reactions: Record<string, number>; mine: string[] }) => {
+        setClipReactionCounts(prev => ({ ...prev, [clipId]: data.reactions }));
+      })
+      .catch(() => { /* non-fatal — thumbnail keeps showing aggregate count */ });
+  };
 
   // Fetch per-emoji reaction counts when the lightbox opens
   useEffect(() => {
@@ -1375,6 +1390,7 @@ export default function Profile() {
                     key={clip.id}
                     type="button"
                     onClick={() => setClipLightbox({ ...clip, reactions: {} })}
+                    onMouseEnter={() => handleClipHover(clip.id)}
                     className="aspect-video bg-background border border-border relative group overflow-hidden text-start"
                     data-testid={`clip-${clip.id}`}
                   >
@@ -1390,9 +1406,16 @@ export default function Profile() {
                     )}
                     <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <p className="font-mono text-[10px] text-foreground truncate">{clip.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><EyeIcon className="w-2.5 h-2.5" /> {clip.viewCount}</span>
-                        <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {clip.reactionCount}</span>
+                        {clipReactionCounts[clip.id]
+                          ? CLIP_EMOJIS.filter(e => (clipReactionCounts[clip.id][e] ?? 0) > 0).map(e => (
+                              <span key={e} className="font-mono text-[9px] text-muted-foreground">{e} {clipReactionCounts[clip.id][e]}</span>
+                            ))
+                          : clip.reactionCount > 0 && (
+                              <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {clip.reactionCount}</span>
+                            )
+                        }
                         <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" /> {clip.commentCount}</span>
                       </div>
                     </div>

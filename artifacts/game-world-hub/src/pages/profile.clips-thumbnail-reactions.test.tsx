@@ -36,20 +36,32 @@ function useClipThumbnailHover(fetchReactions: FetchReactionsFn) {
   const [clipReactionCounts, setClipReactionCounts] = useState<
     Record<number, Record<string, number>>
   >({});
+  // Mirrors profile.tsx: tracks which clip IDs have a fetch in-flight
+  const [clipReactionLoading, setClipReactionLoading] = useState<
+    Record<number, boolean>
+  >({});
 
   const handleClipHover = (clipId: number) => {
-    // Mirrors profile.tsx: bail early if already fetched
-    if (clipReactionCounts[clipId] !== undefined) return;
+    // Mirrors profile.tsx: bail early if already loaded or fetch in-flight
+    if (clipReactionCounts[clipId] !== undefined || clipReactionLoading[clipId]) return;
+    setClipReactionLoading((prev) => ({ ...prev, [clipId]: true }));
     fetchReactions(clipId)
       .then((data) => {
         setClipReactionCounts((prev) => ({ ...prev, [clipId]: data.reactions }));
       })
       .catch(() => {
         /* non-fatal */
+      })
+      .finally(() => {
+        setClipReactionLoading((prev) => {
+          const next = { ...prev };
+          delete next[clipId];
+          return next;
+        });
       });
   };
 
-  return { clipReactionCounts, handleClipHover };
+  return { clipReactionCounts, clipReactionLoading, handleClipHover };
 }
 
 // ─── Hook: gwh:clip-reaction → clipReactionCounts patch ──────────────────────
@@ -252,6 +264,141 @@ describe("handleClipHover — hover-fetch populates per-emoji reaction counts", 
       ["🔥", 4],
       ["💀", 2],
     ]);
+  });
+});
+
+// ─── Suite 1b: loading skeleton state while fetch is in-flight ───────────────
+
+describe("handleClipHover — loading skeleton while fetch is in-flight", () => {
+  let fetchReactions: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchReactions = vi.fn();
+  });
+
+  test("clipReactionLoading is true immediately after hover, before fetch resolves", async () => {
+    let resolvePromise!: (v: { reactions: Record<string, number>; mine: string[] }) => void;
+    fetchReactions.mockReturnValue(
+      new Promise<{ reactions: Record<string, number>; mine: string[] }>((res) => {
+        resolvePromise = res;
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    // Trigger hover — do NOT await so the fetch stays in-flight
+    act(() => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    // Loading flag must be set synchronously after hover
+    expect(result.current.clipReactionLoading[CLIP_ID]).toBe(true);
+    expect(result.current.clipReactionCounts[CLIP_ID]).toBeUndefined();
+
+    // Resolve the fetch so React state settles
+    await act(async () => {
+      resolvePromise({ reactions: { "🔥": 1 }, mine: [] });
+    });
+  });
+
+  test("clipReactionLoading is cleared after fetch resolves", async () => {
+    fetchReactions.mockResolvedValue({ reactions: { "🔥": 2 }, mine: [] });
+
+    const { result } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    await act(async () => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    expect(result.current.clipReactionLoading[CLIP_ID]).toBeFalsy();
+    expect(result.current.clipReactionCounts[CLIP_ID]).toEqual({ "🔥": 2 });
+  });
+
+  test("clipReactionLoading is cleared after fetch rejects", async () => {
+    fetchReactions.mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    await act(async () => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    expect(result.current.clipReactionLoading[CLIP_ID]).toBeFalsy();
+    // Counts remain undefined on error — overlay falls back to aggregate heart
+    expect(result.current.clipReactionCounts[CLIP_ID]).toBeUndefined();
+  });
+
+  test("hovering again while fetch is in-flight does NOT issue a second request", async () => {
+    let resolvePromise!: (v: { reactions: Record<string, number>; mine: string[] }) => void;
+    fetchReactions.mockReturnValue(
+      new Promise<{ reactions: Record<string, number>; mine: string[] }>((res) => {
+        resolvePromise = res;
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    // First hover — starts the fetch
+    act(() => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    // Second hover while in-flight — must be a no-op
+    act(() => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    expect(fetchReactions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePromise({ reactions: {}, mine: [] });
+    });
+  });
+
+  test("loading and loaded states are independent per clip", async () => {
+    let resolveFirst!: (v: { reactions: Record<string, number>; mine: string[] }) => void;
+    fetchReactions
+      .mockReturnValueOnce(
+        new Promise<{ reactions: Record<string, number>; mine: string[] }>((res) => {
+          resolveFirst = res;
+        }),
+      )
+      .mockResolvedValueOnce({ reactions: { GG: 3 }, mine: [] });
+
+    const { result } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    // Hover clip 7 — stays in-flight
+    act(() => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    // Hover clip 13 — resolves immediately
+    await act(async () => {
+      result.current.handleClipHover(CLIP_ID_2);
+    });
+
+    // Clip 7 still loading; clip 13 already has data
+    expect(result.current.clipReactionLoading[CLIP_ID]).toBe(true);
+    expect(result.current.clipReactionLoading[CLIP_ID_2]).toBeFalsy();
+    expect(result.current.clipReactionCounts[CLIP_ID_2]).toEqual({ GG: 3 });
+
+    // Settle clip 7
+    await act(async () => {
+      resolveFirst({ reactions: { "🔥": 5 }, mine: [] });
+    });
+
+    expect(result.current.clipReactionLoading[CLIP_ID]).toBeFalsy();
+    expect(result.current.clipReactionCounts[CLIP_ID]).toEqual({ "🔥": 5 });
   });
 });
 

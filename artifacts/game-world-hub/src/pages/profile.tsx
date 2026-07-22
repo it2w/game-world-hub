@@ -275,14 +275,21 @@ export default function Profile() {
 
   // Per-clip emoji counts fetched lazily on thumbnail hover
   const [clipReactionCounts, setClipReactionCounts] = useState<Record<number, Record<string, number>>>({});
+  // Tracks which clip IDs have a fetch currently in-flight (for skeleton display)
+  const [clipReactionLoading, setClipReactionLoading] = useState<Record<number, boolean>>({});
 
   const handleClipHover = (clipId: number) => {
-    if (clipReactionCounts[clipId] !== undefined) return; // already fetched or fetching
+    // Bail early if already loaded or a fetch is in-flight
+    if (clipReactionCounts[clipId] !== undefined || clipReactionLoading[clipId]) return;
+    setClipReactionLoading(prev => ({ ...prev, [clipId]: true }));
     customFetch(`/api/clips/${clipId}/reactions`)
       .then((data: { reactions: Record<string, number>; mine: string[] }) => {
         setClipReactionCounts(prev => ({ ...prev, [clipId]: data.reactions }));
       })
-      .catch(() => { /* non-fatal — thumbnail keeps showing aggregate count */ });
+      .catch(() => { /* non-fatal — thumbnail keeps showing aggregate count */ })
+      .finally(() => {
+        setClipReactionLoading(prev => { const next = { ...prev }; delete next[clipId]; return next; });
+      });
   };
 
   // Fetch per-emoji reaction counts when the lightbox opens
@@ -1409,13 +1416,20 @@ export default function Profile() {
                       <p className="font-mono text-[10px] text-foreground truncate">{clip.title}</p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><EyeIcon className="w-2.5 h-2.5" /> {clip.viewCount}</span>
-                        {clipReactionCounts[clip.id]
-                          ? CLIP_EMOJIS.filter(e => (clipReactionCounts[clip.id][e] ?? 0) > 0).map(e => (
-                              <span key={e} className="font-mono text-[9px] text-muted-foreground">{e} {clipReactionCounts[clip.id][e]}</span>
-                            ))
-                          : clip.reactionCount > 0 && (
-                              <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {clip.reactionCount}</span>
+                        {clipReactionLoading[clip.id]
+                          ? (
+                              <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-1 animate-pulse" aria-label="loading reactions">
+                                <span className="inline-block w-6 h-2 rounded bg-muted-foreground/30" />
+                                <span className="inline-block w-4 h-2 rounded bg-muted-foreground/20" />
+                              </span>
                             )
+                          : clipReactionCounts[clip.id]
+                            ? CLIP_EMOJIS.filter(e => (clipReactionCounts[clip.id][e] ?? 0) > 0).map(e => (
+                                <span key={e} className="font-mono text-[9px] text-muted-foreground">{e} {clipReactionCounts[clip.id][e]}</span>
+                              ))
+                            : clip.reactionCount > 0 && (
+                                <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {clip.reactionCount}</span>
+                              )
                         }
                         <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" /> {clip.commentCount}</span>
                       </div>

@@ -342,7 +342,7 @@ router.get("/clips/friends", requireAuth, async (req: Request, res: Response): P
      JOIN users u ON u.id = c.owner_id
      WHERE c.owner_id IN (
        SELECT CASE WHEN user_id=$1 THEN friend_id ELSE user_id END
-       FROM friendships WHERE (user_id=$1 OR friend_id=$1) AND status='accepted'
+       FROM friendships WHERE (user_id=$1 OR friend_id=$1)
      )
      AND c.created_at > NOW() - INTERVAL '7 days'
      ORDER BY reaction_count DESC, c.created_at DESC
@@ -670,17 +670,23 @@ router.get("/users/:id/presence", requireAuth, async (req: Request, res: Respons
     [userId, user.current_game ?? ""],
   );
 
-  // Get active party
-  const { rows: [partyRow] } = await pool.query<{ party_id: number; party_name: string; member_count: number }>(
-    `SELECT pm.party_id,
-            p.name AS party_name,
-            (SELECT COUNT(*) FROM party_members pm2 WHERE pm2.party_id=pm.party_id AND pm2.left_at IS NULL) AS member_count
-     FROM party_members pm
-     JOIN parties p ON p.id=pm.party_id
-     WHERE pm.user_id=$1 AND pm.left_at IS NULL
-     LIMIT 1`,
-    [userId],
-  );
+  // Get active party (left_at column is optional — guard against schema drift)
+  let partyRow: { party_id: number; party_name: string; member_count: number } | undefined;
+  try {
+    const { rows: [r] } = await pool.query<{ party_id: number; party_name: string; member_count: number }>(
+      `SELECT pm.party_id,
+              p.name AS party_name,
+              (SELECT COUNT(*) FROM party_members pm2 WHERE pm2.party_id=pm.party_id AND pm2.left_at IS NULL) AS member_count
+       FROM party_members pm
+       JOIN parties p ON p.id=pm.party_id
+       WHERE pm.user_id=$1 AND pm.left_at IS NULL
+       LIMIT 1`,
+      [userId],
+    );
+    partyRow = r;
+  } catch {
+    partyRow = undefined;
+  }
 
   const sessionStartedAt = session?.started_at ?? null;
   const sessionDurationMs = sessionStartedAt ? Date.now() - new Date(sessionStartedAt).getTime() : null;

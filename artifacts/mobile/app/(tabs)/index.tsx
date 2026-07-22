@@ -4,6 +4,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -22,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/Avatar';
+import { useWsFrame } from '@/contexts/WsContext';
 import { customFetch } from '@workspace/api-client-react';
 import {
   useGetOnlineFriendsSummary,
@@ -35,6 +37,19 @@ import {
 } from '@workspace/api-client-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface FriendsClip {
+  id: number;
+  ownerId: number;
+  owner?: { displayName: string; username: string; avatarUrl?: string | null };
+  title: string;
+  game: string | null;
+  mimeType: string;
+  isVideo: boolean;
+  reactionCount: number;
+  commentCount: number;
+  createdAt: string;
+}
 
 interface RankingEntry {
   userId: number;
@@ -75,6 +90,32 @@ interface GWHEvent {
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
+const FRIENDS_CLIPS_KEY = ['/api/clips/friends'] as const;
+
+function useFriendsClips() {
+  const queryClient = useQueryClient();
+
+  const query = useQuery<FriendsClip[]>({
+    queryKey: FRIENDS_CLIPS_KEY,
+    queryFn: () => customFetch<FriendsClip[]>('/api/clips/friends'),
+    staleTime: 60_000,
+  });
+
+  // A friend uploaded a clip — refetch to get full clip data including owner info
+  useWsFrame<{ clipId: number; ownerId: number }>('clip-uploaded', () => {
+    void queryClient.invalidateQueries({ queryKey: FRIENDS_CLIPS_KEY });
+  });
+
+  // A friend deleted a clip — remove it from the local cache immediately
+  useWsFrame<{ clipId: number; ownerId: number }>('clip-deleted', ({ clipId }) => {
+    queryClient.setQueryData<FriendsClip[]>(FRIENDS_CLIPS_KEY, (prev) =>
+      prev ? prev.filter((c) => c.id !== clipId) : prev,
+    );
+  });
+
+  return query;
+}
+
 function useTopRankings() {
   return useQuery<RankingsResponse>({
     queryKey: ['/api/seasons/current/rankings/top3'],
@@ -98,6 +139,66 @@ function useActiveEvents() {
     staleTime: 120_000,
   });
 }
+
+// ── Friends clip card ─────────────────────────────────────────────────────────
+
+function FriendsClipCard({ clip }: { clip: FriendsClip }) {
+  const colors = useColors();
+  const domain = process.env.EXPO_PUBLIC_DOMAIN ?? '';
+  const thumbUri = domain ? `https://${domain}/api/clips/${clip.id}/thumbnail` : null;
+
+  return (
+    <View style={[clipCardStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* Thumbnail */}
+      <View style={[clipCardStyles.thumb, { backgroundColor: colors.secondary }]}>
+        {thumbUri ? (
+          <Image
+            source={{ uri: thumbUri }}
+            style={clipCardStyles.thumbImg}
+            resizeMode="cover"
+          />
+        ) : (
+          <Feather name={clip.isVideo ? 'video' : 'image'} size={20} color={colors.mutedForeground} />
+        )}
+        {clip.isVideo && (
+          <View style={[clipCardStyles.playBadge, { backgroundColor: `${colors.background}cc` }]}>
+            <Feather name="play" size={10} color={colors.foreground} />
+          </View>
+        )}
+      </View>
+
+      {/* Info */}
+      <View style={clipCardStyles.info}>
+        <Text style={[clipCardStyles.title, { color: colors.foreground }]} numberOfLines={1}>
+          {clip.title}
+        </Text>
+        {clip.owner && (
+          <Text style={[clipCardStyles.owner, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {clip.owner.displayName || clip.owner.username}
+          </Text>
+        )}
+        <View style={clipCardStyles.meta}>
+          <Feather name="zap" size={10} color={colors.mutedForeground} />
+          <Text style={[clipCardStyles.metaText, { color: colors.mutedForeground }]}>{clip.reactionCount}</Text>
+          <Feather name="message-square" size={10} color={colors.mutedForeground} style={clipCardStyles.metaGap} />
+          <Text style={[clipCardStyles.metaText, { color: colors.mutedForeground }]}>{clip.commentCount}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+const clipCardStyles = StyleSheet.create({
+  card: { width: 140, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', flexShrink: 0 },
+  thumb: { width: 140, height: 90, alignItems: 'center', justifyContent: 'center' },
+  thumbImg: { ...StyleSheet.absoluteFillObject },
+  playBadge: { position: 'absolute', bottom: 4, right: 4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  info: { padding: 8, gap: 3 },
+  title: { fontSize: 12, fontWeight: '700' },
+  owner: { fontSize: 10 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  metaText: { fontSize: 10 },
+  metaGap: { marginLeft: 4 },
+});
 
 // ── Section label ─────────────────────────────────────────────────────────────
 
@@ -472,6 +573,7 @@ export default function HomeScreen() {
   const { data: rankings, isLoading: loadingRankings } = useTopRankings();
   const { data: hofData, isLoading: loadingHof } = useHallOfFame();
   const { data: events, isLoading: loadingEvents } = useActiveEvents();
+  const { data: friendsClips, isLoading: loadingClips } = useFriendsClips();
 
   const [actingId, setActingId] = React.useState<number | null>(null);
 
@@ -733,6 +835,26 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
       )}
+
+      {/* ── Friends' recent clips ─────────────────────────────────── */}
+      {(loadingClips || (friendsClips ?? []).length > 0) && (
+        <>
+          <SectionLabel label="كليبات الأصدقاء" />
+          {loadingClips ? (
+            <View style={styles.loadingRow}><ActivityIndicator color={colors.primary} size="small" /></View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.clipsRow}
+            >
+              {(friendsClips ?? []).map((clip) => (
+                <FriendsClipCard key={clip.id} clip={clip} />
+              ))}
+            </ScrollView>
+          )}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -780,4 +902,5 @@ const styles = StyleSheet.create({
   emptyCard: { marginHorizontal: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: StyleSheet.hairlineWidth },
   emptyText: { fontSize: 13, flex: 1 },
   chipsRow: { paddingHorizontal: 16, gap: 8, paddingTop: 4, paddingBottom: 8 },
+  clipsRow: { paddingHorizontal: 16, gap: 10, paddingTop: 4, paddingBottom: 8 },
 });

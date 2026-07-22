@@ -256,3 +256,130 @@ describe("friends-clips-dashboard refetchOnWindowFocus", () => {
     resolveRefetch([previousClip]);
   });
 });
+
+// ─── Page Visibility API tests ─────────────────────────────────────────────────
+//
+// TanStack Query's focusManager subscribes to `visibilitychange` events on
+// `window` and evaluates `document.visibilityState !== "hidden"` to decide
+// whether the window is considered focused.  These tests exercise that specific
+// code path rather than calling focusManager.setFocused() directly.
+
+describe("friends-clips-dashboard Page Visibility API path", () => {
+  // Helper: simulate the tab becoming visible by overriding visibilityState and
+  // dispatching the event on window (where TanStack Query's listener is bound).
+  function makeTabVisible() {
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    window.dispatchEvent(new Event("visibilitychange"));
+  }
+
+  beforeEach(() => {
+    mockCustomFetch.mockClear();
+    mockCustomFetch.mockResolvedValue([]);
+
+    // Make the tab appear hidden so that the initial mount does not trigger an
+    // extra visibility-based refetch on top of the normal mount fetch.
+    Object.defineProperty(document, "visibilityState", {
+      value: "hidden",
+      configurable: true,
+    });
+
+    // Reset the focus manager to its default event-driven behaviour so that the
+    // visibilitychange event (not a direct setFocused() call) drives the refetch.
+    focusManager.setFocused(undefined);
+  });
+
+  afterEach(() => {
+    // Restore visibilityState to the jsdom default ("visible") so later tests
+    // start from a clean slate.
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    // Re-apply the default focus manager state.
+    focusManager.setFocused(undefined);
+  });
+
+  test("refetches the friends-clips endpoint when the tab becomes visible and data is stale", async () => {
+    const qc = makeClient();
+    renderHighlights(qc);
+
+    // Wait for the initial mount fetch to complete.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Invalidate without an immediate refetch — mirrors a friend uploading while
+    // the user had the tab hidden.
+    await act(async () => {
+      await qc.invalidateQueries({
+        queryKey: ["friend-clips-dashboard"],
+        refetchType: "none",
+      });
+    });
+
+    mockCustomFetch.mockClear();
+
+    // Simulate the OS or browser making the tab visible again.
+    await act(async () => {
+      makeTabVisible();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The stale query must have been refetched via the visibilitychange event.
+    expect(mockCustomFetch).toHaveBeenCalledWith("/api/clips/friends?limit=4");
+  });
+
+  test("does not issue an extra fetch when the tab becomes visible but data is still fresh", async () => {
+    const qc = makeClient();
+    renderHighlights(qc);
+
+    // Wait for the initial fetch to settle (data is fresh within staleTime).
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    mockCustomFetch.mockClear();
+
+    // Tab becomes visible while data is still within staleTime — no refetch expected.
+    await act(async () => {
+      makeTabVisible();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockCustomFetch).not.toHaveBeenCalled();
+  });
+
+  test("does not refetch after the component unmounts even if the tab becomes visible", async () => {
+    const qc = makeClient();
+    const { unmount } = renderHighlights(qc);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Mark stale, then unmount before the tab becomes visible.
+    await act(async () => {
+      await qc.invalidateQueries({
+        queryKey: ["friend-clips-dashboard"],
+        refetchType: "none",
+      });
+    });
+
+    unmount();
+    mockCustomFetch.mockClear();
+
+    // visibilitychange fires after unmount — no active observer, so no refetch.
+    await act(async () => {
+      makeTabVisible();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockCustomFetch).not.toHaveBeenCalled();
+  });
+});

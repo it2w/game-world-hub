@@ -579,6 +579,127 @@ describe("Clips lifecycle — upload, serve, delete", () => {
 
   // ── Orphan cleanup ───────────────────────────────────────────────────────
 
+  it("POST /clips — no GCS orphans when the file upload itself fails (500 returned)", async () => {
+    // If uploadObjectEntityBuffer throws for the main file, nothing was stored in GCS
+    // so deleteObjectSafe must NOT be called (there is nothing to clean up).
+    const fileFailUser = await makeUser("file_fail");
+    createdUserIds.push(fileFailUser.id);
+
+    const deletedObjects: string[] = [];
+    const savedPrivateDir = process.env.PRIVATE_OBJECT_DIR;
+    process.env.PRIVATE_OBJECT_DIR = "gs://test-bucket/test-private-dir";
+
+    const bucketMock = mock.method(
+      objectStorageClient,
+      "bucket",
+      (_bucketName: string) => ({
+        file: (objectName: string) => ({
+          delete: async (_opts?: unknown) => {
+            deletedObjects.push(objectName);
+          },
+        }),
+      }),
+    );
+
+    // Override uploadObjectEntityBuffer to throw on the file upload attempt
+    const origUpload = ObjectStorageService.prototype.uploadObjectEntityBuffer;
+    const uploadMock = mock.method(
+      ObjectStorageService.prototype,
+      "uploadObjectEntityBuffer",
+      async function (_buf: Buffer, _contentType: string) {
+        throw new Error("Simulated file upload failure");
+      },
+    );
+
+    uploadCalls = [];
+    try {
+      const { body, contentType } = multipartBody(
+        { title: "File-Fail Clip" },
+        { fieldname: "file", filename: "fail.jpg", mime: "image/jpeg", data: Buffer.from("IMG_DATA") },
+      );
+      const r = await req("POST", "/api/clips", fileFailUser.token, body, contentType);
+
+      // Route must fail (file upload error is not a 400-class error)
+      assert.equal(r.status, 500, `expected 500 when file upload throws, got ${r.status}: ${JSON.stringify(r.body)}`);
+
+      // Nothing was uploaded, so deleteObjectSafe must not have attempted any GCS delete
+      assert.equal(
+        deletedObjects.length,
+        0,
+        `expected no GCS deletes when file upload failed, got: ${deletedObjects.join(", ")}`,
+      );
+    } finally {
+      uploadMock.mock.restore();
+      bucketMock.mock.restore();
+      if (savedPrivateDir === undefined) {
+        delete process.env.PRIVATE_OBJECT_DIR;
+      } else {
+        process.env.PRIVATE_OBJECT_DIR = savedPrivateDir;
+      }
+      void origUpload; // keep reference; restore handled above
+    }
+  });
+
+  it("POST /clips — thumbnail upload failure is non-fatal: returns 201 with only file_url in DB", async () => {
+    // uploadObjectEntityBuffer succeeds for the file but throws for the thumbnail.
+    // The route wraps the thumbnail upload in try/catch and continues without it.
+    // The response must be 201 and clips_media must have file_url set, thumbnail_url null.
+    const thumbFailUser = await makeUser("thumb_fail");
+    createdUserIds.push(thumbFailUser.id);
+
+    let callIndex = 0;
+    const uploadMock = mock.method(
+      ObjectStorageService.prototype,
+      "uploadObjectEntityBuffer",
+      async function (_buf: Buffer, contentType: string) {
+        callIndex += 1;
+        if (callIndex === 1) {
+          // First call: file upload — succeeds
+          uploadCalls.push({ contentType });
+          return FAKE_FILE_PATH;
+        }
+        // Second call: thumbnail upload — fails
+        throw new Error("Simulated thumbnail upload failure");
+      },
+    );
+
+    uploadCalls = [];
+    callIndex = 0;
+    let newClipId: number | null = null;
+    try {
+      const { body, contentType } = multipartBody(
+        { title: "Thumb-Fail Video", game: "FPS", durationSeconds: "30" },
+        { fieldname: "file", filename: "video.mp4", mime: "video/mp4", data: Buffer.from("FAKE_MP4") },
+        { data: Buffer.from("FAKE_THUMB"), mime: "image/jpeg" },
+      );
+      const r = await req("POST", "/api/clips", thumbFailUser.token, body, contentType);
+
+      // Thumbnail failure must not abort the upload — still 201
+      assert.equal(r.status, 201, `expected 201 even when thumbnail upload fails, got ${r.status}: ${JSON.stringify(r.body)}`);
+      const b = r.body as { id: number; mediaUrl: string; thumbnailUrl: string };
+      assert.ok(b.id > 0, "response should include a positive clip id");
+      newClipId = b.id;
+
+      // Only the file upload should have been attempted (thumbnail throw is caught internally,
+      // but the upload mock still increments callIndex for the thumbnail attempt)
+      assert.equal(callIndex, 2, "uploadObjectEntityBuffer should have been called twice (file + attempted thumbnail)");
+
+      // DB must have file_url set but thumbnail_url must be null
+      const { rows } = await pool.query<{ file_url: string; thumbnail_url: string | null }>(
+        "SELECT file_url, thumbnail_url FROM clips_media WHERE clip_id=$1",
+        [b.id],
+      );
+      assert.equal(rows.length, 1, "clips_media row should exist");
+      assert.equal(rows[0].file_url, FAKE_FILE_PATH, "file_url should be the uploaded object path");
+      assert.equal(rows[0].thumbnail_url, null, "thumbnail_url must be null when thumbnail upload fails");
+    } finally {
+      uploadMock.mock.restore();
+      if (newClipId !== null) {
+        await pool.query("DELETE FROM clips WHERE id=$1", [newClipId]);
+      }
+    }
+  });
+
   it("POST /clips — deletes orphaned GCS objects when the DB insert fails", async () => {
     // The user stays in the DB so requireAuth (which uses drizzle `db`) passes.
     // We mock pool.query — used only by the clips route — to throw on INSERT INTO clips,

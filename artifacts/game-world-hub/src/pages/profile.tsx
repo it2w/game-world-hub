@@ -254,6 +254,7 @@ export default function Profile() {
     thumbnailUrl: string; owner?: { displayName: string; username: string; avatarUrl: string | null };
     reactionCount: number; commentCount: number; viewerReactions: string[]; viewCount: number;
     createdAt: string; description: string | null;
+    reactions: Record<string, number>;
   }>(null);
   const [clipsUploadPending, setClipsUploadPending] = useState(false);
   const [clipsUploadProgress, setClipsUploadProgress] = useState(0);
@@ -267,6 +268,22 @@ export default function Profile() {
   const [pendingClipThumb, setPendingClipThumb] = useState<string | null>(null); // data URL
   const [presencePrivacy, setPresencePrivacy] = useState<string | null>(null);
   const CLIP_EMOJIS = ["🔥", "GG", "💀", "👑", "😂"];
+
+  // Fetch per-emoji reaction counts when the lightbox opens
+  useEffect(() => {
+    if (!clipLightbox) return;
+    const id = clipLightbox.id;
+    customFetch(`/api/clips/${id}/reactions`)
+      .then((data: { reactions: Record<string, number>; mine: string[] }) => {
+        setClipLightbox(prev =>
+          prev && prev.id === id
+            ? { ...prev, reactions: data.reactions, viewerReactions: data.mine }
+            : prev
+        );
+      })
+      .catch(() => { /* non-fatal */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipLightbox?.id]);
 
   // Vouch dialog
   const [vouchOpen, setVouchOpen] = useState(false);
@@ -1357,7 +1374,7 @@ export default function Profile() {
                   <button
                     key={clip.id}
                     type="button"
-                    onClick={() => setClipLightbox(clip)}
+                    onClick={() => setClipLightbox({ ...clip, reactions: {} })}
                     className="aspect-video bg-background border border-border relative group overflow-hidden text-start"
                     data-testid={`clip-${clip.id}`}
                   >
@@ -1642,22 +1659,38 @@ export default function Profile() {
                   key={emoji}
                   type="button"
                   onClick={async () => {
+                    const clipId = clipLightbox.id;
                     try {
                       const alreadyReacted = clipLightbox.viewerReactions?.includes(emoji);
-                      // Optimistic update — flip the reaction state immediately
+                      const delta = alreadyReacted ? -1 : 1;
+                      // Optimistic update — flip the reaction state and per-emoji count immediately
                       setClipLightbox(prev => {
-                        if (!prev || prev.id !== clipLightbox.id) return prev;
-                        const newReactions = alreadyReacted
+                        if (!prev || prev.id !== clipId) return prev;
+                        const newViewerReactions = alreadyReacted
                           ? prev.viewerReactions.filter(e => e !== emoji)
                           : [...prev.viewerReactions, emoji];
-                        const delta = alreadyReacted ? -1 : 1;
-                        return { ...prev, viewerReactions: newReactions, reactionCount: Math.max(0, prev.reactionCount + delta) };
+                        const prevEmojiCount = prev.reactions[emoji] ?? 0;
+                        const newReactions = {
+                          ...prev.reactions,
+                          [emoji]: Math.max(0, prevEmojiCount + delta),
+                        };
+                        return {
+                          ...prev,
+                          viewerReactions: newViewerReactions,
+                          reactionCount: Math.max(0, prev.reactionCount + delta),
+                          reactions: newReactions,
+                        };
                       });
-                      await customFetch(`/api/clips/${clipLightbox.id}/reactions`, {
+                      const result = await customFetch(`/api/clips/${clipId}/reactions`, {
                         method: "POST",
                         body: JSON.stringify({ emoji }),
-                      });
-                      // Refetch in background to reconcile with server truth
+                      }) as { toggled: boolean; reactions: Record<string, number> };
+                      // Reconcile with server truth
+                      setClipLightbox(prev =>
+                        prev && prev.id === clipId
+                          ? { ...prev, reactions: result.reactions, reactionCount: Object.values(result.reactions).reduce((s, c) => s + c, 0) }
+                          : prev
+                      );
                       void refetchClips();
                     } catch {
                       // Roll back optimistic update on error
@@ -1671,7 +1704,10 @@ export default function Profile() {
                       : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
                   ].join(" ")}
                 >
-                  {emoji}
+                  <span>{emoji}</span>
+                  {(clipLightbox.reactions[emoji] ?? 0) > 0 && (
+                    <span className="tabular-nums">{clipLightbox.reactions[emoji]}</span>
+                  )}
                 </button>
               ))}
               <span className="ms-auto font-mono text-[10px] text-muted-foreground flex items-center gap-1">

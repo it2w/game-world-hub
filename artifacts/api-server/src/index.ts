@@ -10,6 +10,7 @@ import { startLfgBotRunner } from "./routes/lfg-bot";
 import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events";
 import { ensurePrestigeTables } from "./routes/prestige";
 import { startDenylistCleanup } from "./lib/denylist-cleanup";
+import { ensureClipsTables } from "./routes/clips";
 
 async function ensureSpotlightOptOutColumn(): Promise<void> {
   await pool.query(
@@ -90,6 +91,12 @@ server.listen(port, async () => {
     }
   } catch (e) {
     logger.error({ err: e }, "Owner initialization failed");
+  }
+
+  try {
+    await ensureClipsTables();
+  } catch (e) {
+    logger.error({ err: e }, "Clips tables initialization failed");
   }
 
   startPresenceSweep();

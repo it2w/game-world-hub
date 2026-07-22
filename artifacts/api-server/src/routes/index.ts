@@ -42,6 +42,7 @@ import pollsRouter from "./polls";
 import soundboardRouter from "./soundboard";
 import stageRouter from "./stage";
 import communitiesRouter from "./communities";
+import clipsRouter from "./clips";
 
 const router: IRouter = Router();
 
@@ -114,5 +115,6 @@ router.use(pollsRouter);
 router.use(soundboardRouter);
 router.use(stageRouter);
 router.use(communitiesRouter);
+router.use(clipsRouter);
 
 export default router;

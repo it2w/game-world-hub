@@ -118,6 +118,28 @@
       "100": "أسطورة المئة يوم"
     }
   },
+  "clips": {
+    "title": "المقاطع",
+    "addClip": "إضافة مقطع",
+    "uploading": "جاري الرفع…",
+    "submitClip": "رفع المقطع",
+    "uploaded": "تم رفع المقطع!",
+    "uploadFailed": "فشل الرفع",
+    "empty": "لا توجد مقاطع بعد",
+    "confirmDelete": "هل تريد حذف هذا المقطع؟",
+    "dropZone": "اسحب وأفلت فيديو أو صورة هنا، أو انقر للتصفح",
+    "dropZoneSub": "MP4، WebM، PNG، JPG · الحد الأقصى 50 ميجابايت للفيديو، 10 ميجابايت للصور",
+    "formTitle": "عنوان المقطع",
+    "formGame": "اللعبة",
+    "formGamePlaceholder": "مثال: فالورانت",
+    "formDesc": "الوصف (اختياري)",
+    "formDescPlaceholder": "صف المقطع…",
+    "presencePrivacy": "خصوصية الحضور",
+    "presenceSaved": "تم حفظ إعداد الخصوصية",
+    "presenceFull": "كامل — إظهار اللعبة والجلسة",
+    "presenceGameOnly": "اللعبة فقط — إخفاء وقت الجلسة",
+    "presenceHidden": "مخفي — لا تُظهر النشاط"
+  },
   "reputation": {
     "title": "السمعة",
     "empty": "لا توجد وسوم بعد",

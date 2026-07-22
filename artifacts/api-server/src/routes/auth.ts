@@ -719,6 +719,25 @@ router.patch("/auth/me/status", requireAuth, async (req, res): Promise<void> => 
     .set(data)
     .where(eq(usersTable.id, req.auth!.userId))
     .returning();
+
+  // Track presence session start for rich presence (fire-and-forget)
+  const uid = req.auth!.userId;
+  if (data.currentGame) {
+    void pool.query(
+      `INSERT INTO presence_sessions (user_id, game, started_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id) DO UPDATE
+         SET game = EXCLUDED.game,
+             started_at = CASE WHEN presence_sessions.game = EXCLUDED.game
+                               THEN presence_sessions.started_at
+                               ELSE NOW() END`,
+      [uid, data.currentGame],
+    ).catch(() => {/* table may not exist yet on first boot */});
+  } else if ("currentGame" in data) {
+    void pool.query(`DELETE FROM presence_sessions WHERE user_id=$1`, [uid])
+      .catch(() => {});
+  }
+
   res.json(safeUser(user));
 });
 

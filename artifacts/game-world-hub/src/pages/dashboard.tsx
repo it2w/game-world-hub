@@ -493,39 +493,98 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
 // ── CommunityHighlights ────────────────────────────────────────────────────────
 function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
   const { t } = useTranslation("dashboard");
-  const highlights = activity.length
-    ? activity.slice(0,4).map((a, i)=>({
-        user: a.actor.displayName,
-        avatarUrl: a.actor.avatarUrl ?? null,
-        clip: `${a.actor.displayName} ${a.action==="created"?t("highlights.created"):a.action==="joined"?t("highlights.joined"):t("highlights.left")} ${a.party.name}`,
-        views: `${Math.floor(Math.random()*20+1)}K`,
-        ago: `${Math.floor((Date.now()-new Date(a.createdAt).getTime())/60000)}m`,
-        color: fColor(a.actor.id),
+
+  // Real friend clips from API
+  const { data: friendClips } = useQuery<Array<{
+    id: number; ownerId: number; title: string; game: string | null;
+    mimeType: string; isVideo: boolean; thumbnailUrl: string;
+    reactionCount: number; viewCount: number; createdAt: string;
+    owner?: { displayName: string; username: string; avatarUrl: string | null };
+  }>>({
+    queryKey: ["friend-clips-dashboard"],
+    queryFn: () => customFetch("/api/clips/friends?limit=4"),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  // Build display items: prefer real clips → fallback to party activity → fallback to static
+  const highlights = (friendClips && friendClips.length > 0)
+    ? friendClips.map((clip) => ({
+        id: clip.id,
+        user: clip.owner?.displayName ?? "—",
+        username: clip.owner?.username ?? "—",
+        avatarUrl: clip.owner?.avatarUrl ?? null,
+        clip: clip.title,
+        game: clip.game,
+        thumbnailUrl: clip.thumbnailUrl,
+        isVideo: clip.isVideo,
+        views: clip.viewCount >= 1000 ? `${(clip.viewCount/1000).toFixed(1)}K` : String(clip.viewCount),
+        ago: (() => {
+          const ms = Date.now() - new Date(clip.createdAt).getTime();
+          const m = Math.floor(ms / 60_000);
+          return m < 60 ? `${m}m` : `${Math.floor(m/60)}h`;
+        })(),
+        color: fColor(clip.ownerId),
+        reactions: clip.reactionCount,
+        mediaUrl: `/api${clip.thumbnailUrl}`,
       }))
-    : HIGHLIGHTS;
+    : activity.length
+      ? activity.slice(0,4).map((a, i)=>({
+          id: i,
+          user: a.actor.displayName,
+          username: a.actor.username ?? a.actor.displayName,
+          avatarUrl: a.actor.avatarUrl ?? null,
+          clip: `${a.actor.displayName} ${a.action==="created"?t("highlights.created"):a.action==="joined"?t("highlights.joined"):t("highlights.left")} ${a.party.name}`,
+          game: null as string | null,
+          thumbnailUrl: null as string | null,
+          isVideo: false,
+          views: `${Math.floor(Math.random()*20+1)}K`,
+          ago: `${Math.floor((Date.now()-new Date(a.createdAt).getTime())/60000)}m`,
+          color: fColor(a.actor.id),
+          reactions: 0,
+          mediaUrl: null as string | null,
+        }))
+      : HIGHLIGHTS.map((h, i) => ({ ...h, id: i, username: h.user, game: null as string | null, thumbnailUrl: null as string | null, isVideo: false, reactions: 0, mediaUrl: null as string | null }));
+
   const [active, setActive] = useState(0);
   useEffect(()=>{const id=setInterval(()=>setActive(a=>(a+1)%highlights.length),3500);return()=>clearInterval(id);},[highlights.length]);
+
   return (
     <div className="section-box">
       <div className="section-hd">
         <span className="section-title">{t("highlights.title")}</span>
-        <span style={{fontSize:9,color:"#EF4444"}}>TRENDING</span>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {friendClips && friendClips.length > 0 && (
+            <span style={{fontSize:9,color:"#22C55E",fontFamily:"monospace",letterSpacing:"0.1em"}}>LIVE</span>
+          )}
+          <span style={{fontSize:9,color:"#EF4444"}}>TRENDING</span>
+        </div>
       </div>
       <div style={{padding:"8px 10px",display:"flex",flexDirection:"column",gap:4}}>
         {highlights.map((h,i)=>(
-          <div key={i} className={`highlight-row${i===active?" highlight-row--active":""}`}
+          <div key={h.id} className={`highlight-row${i===active?" highlight-row--active":""}`}
             style={{borderColor:i===active?h.color:"transparent"}} onClick={()=>setActive(i)}>
-            <div className="hl-av" style={{background:`linear-gradient(135deg,${h.color}80,${h.color}20)`,borderColor:h.color}}>
-              {h.avatarUrl
-                ? <img src={h.avatarUrl} alt={h.user} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>
-                : h.user.charAt(0)}
+            <div className="hl-av" style={{background:`linear-gradient(135deg,${h.color}80,${h.color}20)`,borderColor:h.color,overflow:"hidden",position:"relative"}}>
+              {h.thumbnailUrl && !h.isVideo
+                ? <img src={h.thumbnailUrl} alt={h.user} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>
+                : h.avatarUrl
+                  ? <img src={h.avatarUrl} alt={h.user} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}}/>
+                  : h.user.charAt(0)}
+              {h.isVideo && (
+                <span style={{position:"absolute",bottom:0,right:0,background:"rgba(0,0,0,0.7)",fontSize:7,padding:"1px 2px",color:"#fff",borderRadius:"2px 0 0 0"}}>▶</span>
+              )}
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div className="hl-clip">{h.clip}</div>
-              <div className="hl-meta"><span style={{color:h.color}}>@{h.user}</span> • {h.ago}</div>
+              <div className="hl-meta">
+                <span style={{color:h.color}}>@{h.username}</span>
+                {h.game && <span style={{color:"#666"}}> · {h.game}</span>}
+                {" • "}{h.ago}
+              </div>
             </div>
             <div className="hl-right">
               <div className="hl-views">👁 {h.views}</div>
+              {h.reactions > 0 && <div style={{fontSize:9,color:"#888"}}>🔥 {h.reactions}</div>}
               {i===active&&<button className="hl-watch-btn" style={{color:h.color,borderColor:`${h.color}60`}}>{t("highlights.watch")}</button>}
             </div>
           </div>

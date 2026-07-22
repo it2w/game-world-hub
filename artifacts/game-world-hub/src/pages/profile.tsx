@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { contentMeta } from "@/lib/content-platforms";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X, Pencil, Loader2, Smile } from "lucide-react";
+import { Gamepad2, Calendar, Monitor, Link as LinkIcon, Radio, ExternalLink, UserPlus, UserCheck, UserX, Clock, Check, Ban, ShieldOff, ImagePlus, MessageSquareText, Send, Trash2, Upload, X, Pencil, Loader2, Smile, Film, Play as PlayIcon, Heart, MessageCircle, EyeIcon, Settings2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { SetStatusDialog } from "@/components/set-status-dialog";
 import { TierBadge, DivisionBadge, TierPip, getDivision, TIER_CONFIG, type TierName } from "@/components/tier-badge";
@@ -105,6 +105,40 @@ export default function Profile() {
     enabled: !!userId,
   });
 
+  // Clips tab must be declared before the query that uses it as a dependency
+  const [clipsTab, setClipsTab] = useState<"photos" | "clips">("photos");
+
+  // Clips gallery
+  const { data: clipsData, refetch: refetchClips } = useQuery<{
+    clips: Array<{
+      id: number; ownerId: number; title: string; game: string | null;
+      description: string | null; mimeType: string; isVideo: boolean;
+      durationSeconds: number | null; viewCount: number;
+      mediaUrl: string; thumbnailUrl: string;
+      reactionCount: number; commentCount: number; viewerReactions: string[];
+      createdAt: string;
+    }>;
+    total: number; page: number; limit: number;
+  }>({
+    queryKey: ["user-clips", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/clips`),
+    staleTime: 30_000,
+    enabled: !!userId && clipsTab === "clips",
+  });
+
+  // Presence data
+  const { data: presenceData } = useQuery<{
+    presenceSetting: string; currentGame: string | null;
+    sessionStartedAt: string | null; sessionDurationMs: number | null;
+    partyId: number | null; partySize: number | null;
+  }>({
+    queryKey: ["presence", userId],
+    queryFn: () => customFetch(`/api/users/${userId}/presence`),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    enabled: !!userId,
+  });
+
   // Profile Analytics — Pro-only, owner only. We only fetch when conditions are met.
   const { data: analyticsData } = useQuery<{
     views: { day: number; week: number; all: number };
@@ -163,6 +197,26 @@ export default function Profile() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [editStatusValue, setEditStatusValue] = useState<"online" | "away" | "busy" | "offline">("online");
   const [editStatusText, setEditStatusText] = useState("");
+
+  // Clips gallery state (clipsTab declared before query above)
+  const [clipLightbox, setClipLightbox] = useState<null | {
+    id: number; title: string; game: string | null; mimeType: string; isVideo: boolean; mediaUrl: string;
+    thumbnailUrl: string; owner?: { displayName: string; username: string; avatarUrl: string | null };
+    reactionCount: number; commentCount: number; viewerReactions: string[]; viewCount: number;
+    createdAt: string; description: string | null;
+  }>(null);
+  const [clipsUploadPending, setClipsUploadPending] = useState(false);
+  const [clipsUploadProgress, setClipsUploadProgress] = useState(0);
+  const [clipsDragOver, setClipsDragOver] = useState(false);
+  const clipFileRef = useRef<HTMLInputElement>(null);
+  const [clipTitle, setClipTitle] = useState("");
+  const [clipGame, setClipGame] = useState("");
+  const [clipDesc, setClipDesc] = useState("");
+  const [clipFormOpen, setClipFormOpen] = useState(false);
+  const [pendingClipFile, setPendingClipFile] = useState<File | null>(null);
+  const [pendingClipThumb, setPendingClipThumb] = useState<string | null>(null); // data URL
+  const [presencePrivacy, setPresencePrivacy] = useState<string | null>(null);
+  const CLIP_EMOJIS = ["🔥", "GG", "💀", "👑", "😂"];
 
   // Vouch dialog
   const [vouchOpen, setVouchOpen] = useState(false);
@@ -265,6 +319,44 @@ export default function Profile() {
         onError: () => toast({ title: t("toasts.statusSaveFailed"), variant: "destructive" }),
       }
     );
+  };
+
+  // Clip file picked (drag-drop or input)
+  const handleClipFilePicked = async (file: File) => {
+    setPendingClipFile(file);
+    setClipTitle(file.name.replace(/\.[^.]+$/, ""));
+    setClipFormOpen(true);
+    // Generate thumbnail client-side for video files
+    if (file.type.startsWith("video/")) {
+      try {
+        const url = URL.createObjectURL(file);
+        const video = document.createElement("video");
+        video.muted = true;
+        video.preload = "metadata";
+        video.src = url;
+        video.currentTime = 0.5;
+        await new Promise<void>((resolve) => {
+          video.onseeked = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 640;
+            canvas.height = Math.round((video.videoHeight / video.videoWidth) * 640) || 360;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+            setPendingClipThumb(canvas.toDataURL("image/jpeg", 0.8));
+            URL.revokeObjectURL(url);
+            resolve();
+          };
+          video.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        });
+      } catch {
+        // thumbnail generation failed — upload without it
+      }
+    } else if (file.type.startsWith("image/")) {
+      // For images use the image itself as thumb
+      const reader = new FileReader();
+      reader.onload = e2 => setPendingClipThumb(e2.target?.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const onPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1022,48 +1114,261 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Visual Log (photo gallery) */}
+      {/* Visual Log + Clips (tabbed) */}
       <div className="bg-card border border-border p-6">
+        {/* Tab header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
-            <ImagePlus className="w-4 h-4" /> {t("visualLog.title")} {photos ? `(${photos.length}/12)` : ""}
-          </h2>
-          {isOwner && (photos?.length ?? 0) < 12 && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setClipsTab("photos")}
+              className={[
+                "inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest px-3 py-1.5 border transition-colors",
+                clipsTab === "photos"
+                  ? "border-primary text-primary bg-primary/10"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              <ImagePlus className="w-3.5 h-3.5" /> {t("visualLog.title")} {photos ? `(${photos.length}/12)` : ""}
+            </button>
+            <button
+              type="button"
+              onClick={() => setClipsTab("clips")}
+              className={[
+                "inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-widest px-3 py-1.5 border transition-colors",
+                clipsTab === "clips"
+                  ? "border-primary text-primary bg-primary/10"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+              data-testid="tab-clips"
+            >
+              <Film className="w-3.5 h-3.5" /> {t("clips.title")} {clipsData ? `(${clipsData.total})` : ""}
+            </button>
+          </div>
+
+          {/* Per-tab action button */}
+          {clipsTab === "photos" && isOwner && (photos?.length ?? 0) < 12 && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="font-mono rounded-none text-xs gap-2"
+              <Button variant="outline" size="sm" className="font-mono rounded-none text-xs gap-2"
                 onClick={() => photoFileRef.current?.click()}
-                disabled={isUploading || addPhoto.isPending}
-                data-testid="button-add-photo"
-              >
+                disabled={isUploading || addPhoto.isPending} data-testid="button-add-photo">
                 <Upload className="w-3.5 h-3.5" /> {isUploading ? t("visualLog.uploading") : t("visualLog.addImage")}
               </Button>
               <input ref={photoFileRef} type="file" accept="image/*" className="hidden" onChange={onPhotoFile} data-testid="input-photo-file" />
             </>
           )}
+          {clipsTab === "clips" && isOwner && (
+            <Button variant="outline" size="sm" className="font-mono rounded-none text-xs gap-2"
+              onClick={() => clipFileRef.current?.click()}
+              disabled={clipsUploadPending} data-testid="button-add-clip">
+              <Upload className="w-3.5 h-3.5" /> {clipsUploadPending ? t("clips.uploading") : t("clips.addClip")}
+            </Button>
+          )}
         </div>
-        {!photos || photos.length === 0 ? (
-          <div className="text-sm font-mono text-muted-foreground italic">{t("visualLog.empty")}</div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {photos.map((p) => (
-              <div key={p.id} className="aspect-square bg-background border border-border relative group overflow-hidden" data-testid={`photo-${p.id}`}>
-                <img src={p.objectPath} alt={p.caption ?? ""} title={p.caption ?? undefined} className="w-full h-full object-cover" loading="lazy" />
-                {isOwner && (
-                  <button
-                    type="button"
-                    onClick={() => deletePhoto.mutate({ photoId: p.id }, { onSuccess: refreshPhotos })}
-                    className="absolute top-1 end-1 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                    title={t("visualLog.deleteImage")}
-                    data-testid={`button-delete-photo-${p.id}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+
+        {/* Photos tab */}
+        {clipsTab === "photos" && (
+          !photos || photos.length === 0 ? (
+            <div className="text-sm font-mono text-muted-foreground italic">{t("visualLog.empty")}</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {photos.map((p) => (
+                <div key={p.id} className="aspect-square bg-background border border-border relative group overflow-hidden" data-testid={`photo-${p.id}`}>
+                  <img src={p.objectPath} alt={p.caption ?? ""} title={p.caption ?? undefined} className="w-full h-full object-cover" loading="lazy" />
+                  {isOwner && (
+                    <button type="button"
+                      onClick={() => deletePhoto.mutate({ photoId: p.id }, { onSuccess: refreshPhotos })}
+                      className="absolute top-1 end-1 p-1.5 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      title={t("visualLog.deleteImage")} data-testid={`button-delete-photo-${p.id}`}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Clips tab */}
+        {clipsTab === "clips" && (
+          <div>
+            {/* Upload form (appears after file is picked) */}
+            {pendingClipFile && clipFormOpen && (
+              <div className="mb-4 border border-border bg-background p-4 space-y-3" data-testid="clip-upload-form">
+                {pendingClipThumb && (
+                  <img src={pendingClipThumb} alt="thumbnail preview" className="w-full max-h-40 object-contain border border-border" />
                 )}
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">{t("clips.formTitle")}</label>
+                  <input value={clipTitle} onChange={e => setClipTitle(e.target.value)} maxLength={60}
+                    className="w-full bg-card border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary rounded-none"
+                    placeholder={pendingClipFile.name} data-testid="input-clip-title" />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">{t("clips.formGame")}</label>
+                  <input value={clipGame} onChange={e => setClipGame(e.target.value)} maxLength={60}
+                    className="w-full bg-card border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary rounded-none"
+                    placeholder={t("clips.formGamePlaceholder")} data-testid="input-clip-game" />
+                </div>
+                <div>
+                  <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">{t("clips.formDesc")}</label>
+                  <textarea value={clipDesc} onChange={e => setClipDesc(e.target.value)} maxLength={200} rows={2}
+                    className="w-full bg-card border border-border px-3 py-2 font-mono text-sm outline-none focus:border-primary rounded-none resize-none"
+                    placeholder={t("clips.formDescPlaceholder")} data-testid="input-clip-desc" />
+                </div>
+                {clipsUploadPending && (
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary transition-all duration-300" style={{ width: `${clipsUploadProgress}%` }} />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button size="sm" className="font-mono rounded-none text-xs flex-1 gap-1.5"
+                    disabled={clipsUploadPending || !clipTitle.trim()}
+                    onClick={async () => {
+                      if (!pendingClipFile) return;
+                      setClipsUploadPending(true);
+                      setClipsUploadProgress(10);
+                      try {
+                        const fd = new FormData();
+                        fd.append("file", pendingClipFile);
+                        fd.append("title", clipTitle || pendingClipFile.name);
+                        if (clipGame) fd.append("game", clipGame);
+                        if (clipDesc) fd.append("description", clipDesc);
+                        // Add thumbnail if we extracted one
+                        if (pendingClipThumb && pendingClipThumb.startsWith("data:")) {
+                          const blob = await (await fetch(pendingClipThumb)).blob();
+                          fd.append("thumbnail", blob, "thumb.jpg");
+                        }
+                        setClipsUploadProgress(30);
+                        await customFetch("/api/clips", { method: "POST", body: fd });
+                        setClipsUploadProgress(100);
+                        toast({ title: t("clips.uploaded") });
+                        setPendingClipFile(null); setPendingClipThumb(null);
+                        setClipFormOpen(false); setClipTitle(""); setClipGame(""); setClipDesc("");
+                        void refetchClips();
+                      } catch {
+                        toast({ title: t("clips.uploadFailed"), variant: "destructive" });
+                      } finally {
+                        setClipsUploadPending(false); setClipsUploadProgress(0);
+                      }
+                    }}
+                    data-testid="button-submit-clip">
+                    {clipsUploadPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t("clips.uploading")}</> : t("clips.submitClip")}
+                  </Button>
+                  <Button variant="outline" size="sm" className="font-mono rounded-none text-xs"
+                    onClick={() => { setPendingClipFile(null); setPendingClipThumb(null); setClipFormOpen(false); }}
+                    disabled={clipsUploadPending}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* Drag-drop zone (owner, no pending file) */}
+            {isOwner && !pendingClipFile && (
+              <div
+                onDragOver={e => { e.preventDefault(); setClipsDragOver(true); }}
+                onDragLeave={() => setClipsDragOver(false)}
+                onDrop={async e => {
+                  e.preventDefault(); setClipsDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (!file) return;
+                  await handleClipFilePicked(file);
+                }}
+                onClick={() => clipFileRef.current?.click()}
+                className={[
+                  "border-2 border-dashed rounded-none p-6 text-center cursor-pointer transition-colors mb-4",
+                  clipsDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
+                ].join(" ")}
+                data-testid="clip-drop-zone"
+              >
+                <Film className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="font-mono text-xs text-muted-foreground">{t("clips.dropZone")}</p>
+                <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">{t("clips.dropZoneSub")}</p>
+              </div>
+            )}
+
+            {/* Hidden clip file input */}
+            <input ref={clipFileRef} type="file" accept="image/*,video/mp4,video/webm" className="hidden"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                e.target.value = "";
+                await handleClipFilePicked(file);
+              }}
+              data-testid="input-clip-file" />
+
+            {/* Clips grid */}
+            {!clipsData || clipsData.clips.length === 0 ? (
+              <div className="text-sm font-mono text-muted-foreground italic">{t("clips.empty")}</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {clipsData.clips.map(clip => (
+                  <button
+                    key={clip.id}
+                    type="button"
+                    onClick={() => setClipLightbox(clip)}
+                    className="aspect-video bg-background border border-border relative group overflow-hidden text-start"
+                    data-testid={`clip-${clip.id}`}
+                  >
+                    <img src={clip.thumbnailUrl} alt={clip.title}
+                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" loading="lazy"
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    {clip.isVideo && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-background/80 border border-border flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <PlayIcon className="w-5 h-5 text-primary ms-0.5" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="font-mono text-[10px] text-foreground truncate">{clip.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><EyeIcon className="w-2.5 h-2.5" /> {clip.viewCount}</span>
+                        <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {clip.reactionCount}</span>
+                        <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" /> {clip.commentCount}</span>
+                      </div>
+                    </div>
+                    {isOwner && (
+                      <button type="button"
+                        onClick={async e => {
+                          e.stopPropagation();
+                          if (!confirm(t("clips.confirmDelete"))) return;
+                          await customFetch(`/api/clips/${clip.id}`, { method: "DELETE" });
+                          void refetchClips();
+                        }}
+                        className="absolute top-1 end-1 p-1 bg-background/80 border border-border opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                        data-testid={`button-delete-clip-${clip.id}`}>
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Presence privacy (owner only) */}
+            {isOwner && presenceData && (
+              <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
+                <Settings2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">{t("clips.presencePrivacy")}</span>
+                <select
+                  value={presencePrivacy ?? presenceData.presenceSetting}
+                  onChange={async e => {
+                    const val = e.target.value;
+                    setPresencePrivacy(val);
+                    await customFetch("/api/users/me/presence-settings", { method: "PUT", body: JSON.stringify({ setting: val }) });
+                    toast({ title: t("clips.presenceSaved") });
+                  }}
+                  className="ms-auto bg-background border border-border font-mono text-[10px] px-2 py-1 text-foreground outline-none focus:border-primary rounded-none"
+                  data-testid="select-presence-privacy"
+                >
+                  <option value="full">{t("clips.presenceFull")}</option>
+                  <option value="game_only">{t("clips.presenceGameOnly")}</option>
+                  <option value="hidden">{t("clips.presenceHidden")}</option>
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1233,6 +1538,92 @@ export default function Profile() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── CLIP LIGHTBOX ──────────────────────────────────────────────────── */}
+      {clipLightbox && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setClipLightbox(null)}>
+          <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
+          <div
+            className="relative z-10 bg-card border border-border w-full max-w-2xl mx-4 shadow-2xl flex flex-col max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="min-w-0">
+                <h3 className="font-mono text-sm font-bold truncate">{clipLightbox.title}</h3>
+                {clipLightbox.game && (
+                  <p className="font-mono text-[10px] text-primary flex items-center gap-1 mt-0.5">
+                    <Radio className="w-2.5 h-2.5" /> {clipLightbox.game}
+                  </p>
+                )}
+              </div>
+              <button type="button" onClick={() => setClipLightbox(null)} className="text-muted-foreground hover:text-foreground ms-3 shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Media */}
+            <div className="bg-black flex items-center justify-center overflow-hidden" style={{ maxHeight: "60vh" }}>
+              {clipLightbox.isVideo ? (
+                <video
+                  src={clipLightbox.mediaUrl}
+                  controls
+                  autoPlay
+                  muted
+                  className="max-w-full max-h-full"
+                  style={{ maxHeight: "60vh" }}
+                />
+              ) : (
+                <img
+                  src={clipLightbox.mediaUrl}
+                  alt={clipLightbox.title}
+                  className="max-w-full object-contain"
+                  style={{ maxHeight: "60vh" }}
+                />
+              )}
+            </div>
+
+            {/* Reactions bar */}
+            <div className="px-4 py-3 border-b border-border flex items-center gap-2 flex-wrap">
+              {CLIP_EMOJIS.map(emoji => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await customFetch(`/api/clips/${clipLightbox.id}/reactions`, {
+                        method: "POST",
+                        body: JSON.stringify({ emoji }),
+                      });
+                      void refetchClips();
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className={[
+                    "inline-flex items-center gap-1 px-2.5 py-1 border text-xs font-mono transition-colors",
+                    clipLightbox.viewerReactions?.includes(emoji)
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {emoji}
+                </button>
+              ))}
+              <span className="ms-auto font-mono text-[10px] text-muted-foreground flex items-center gap-1">
+                <EyeIcon className="w-3 h-3" /> {clipLightbox.viewCount}
+              </span>
+            </div>
+
+            {/* Footer: description */}
+            {clipLightbox.description && (
+              <div className="px-4 py-2 border-b border-border">
+                <p className="font-mono text-xs text-muted-foreground">{clipLightbox.description}</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

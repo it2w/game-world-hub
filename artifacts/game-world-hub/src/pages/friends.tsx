@@ -262,9 +262,12 @@ export default function Friends() {
                           </div>
                           <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
                           {f.currentGame ? (
-                            <div className="text-[10px] text-primary font-mono truncate flex items-center justify-center gap-1 mt-1">
-                              <Play className="w-2.5 h-2.5 fill-primary shrink-0" />
-                              {f.currentGame}
+                            <div className="text-[10px] text-primary font-mono flex items-center justify-center gap-1 mt-1 max-w-full">
+                              <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                              </span>
+                              <span className="truncate">{f.currentGame}</span>
                             </div>
                           ) : (
                             <div className="text-[10px] text-muted-foreground font-mono uppercase mt-1 tracking-wider">

@@ -118,6 +118,28 @@
       "100": "Century Legend"
     }
   },
+  "clips": {
+    "title": "Clips",
+    "addClip": "Add Clip",
+    "uploading": "Uploading…",
+    "submitClip": "Upload Clip",
+    "uploaded": "Clip uploaded!",
+    "uploadFailed": "Upload failed",
+    "empty": "No clips yet",
+    "confirmDelete": "Delete this clip?",
+    "dropZone": "Drag & drop a video or image here, or click to browse",
+    "dropZoneSub": "MP4, WebM, PNG, JPG · max 50 MB for video, 10 MB for images",
+    "formTitle": "Clip Title",
+    "formGame": "Game",
+    "formGamePlaceholder": "e.g. Valorant",
+    "formDesc": "Description (optional)",
+    "formDescPlaceholder": "Describe the clip…",
+    "presencePrivacy": "Presence Privacy",
+    "presenceSaved": "Presence setting saved",
+    "presenceFull": "Full — show game + session",
+    "presenceGameOnly": "Game only — hide session time",
+    "presenceHidden": "Hidden — don't show activity"
+  },
   "reputation": {
     "title": "Reputation",
     "empty": "No reputation vouches yet",

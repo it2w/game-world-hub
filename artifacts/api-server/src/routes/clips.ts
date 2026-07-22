@@ -21,6 +21,7 @@ import { pool } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 import { toPublicImageUrl, ObjectStorageService, objectStorageClient } from "../lib/objectStorage";
+import { broadcastAll } from "../ws/signaling";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -497,6 +498,10 @@ router.post("/clips/:id/reactions", requireAuth, async (req: Request, res: Respo
     [id],
   );
   const reactionMap = Object.fromEntries(counts.map(r => [r.emoji, parseInt(r.count, 10)]));
+
+  // Push real-time update to all connected clients so open lightboxes stay in sync
+  broadcastAll({ type: "clip-reaction", clipId: id, reactions: reactionMap, actingUserId: myId });
+
   res.json({ toggled, reactions: reactionMap });
 });
 

@@ -749,6 +749,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:global-chat-delete", { detail: msg }));
           break;
 
+        case "clip-reaction":
+          window.dispatchEvent(new CustomEvent("gwh:clip-reaction", { detail: msg }));
+          break;
+
         case "stage-participant-join": {
           if (
             typeof msg.roomName === "string" &&

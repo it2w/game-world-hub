@@ -140,6 +140,26 @@ export default function Profile() {
     }
   }, [clipsData]);
 
+  // Real-time lightbox sync: handle clip-reaction WS broadcasts from other users
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { clipId, reactions, actingUserId } = (e as CustomEvent<{
+        clipId: number;
+        reactions: Record<string, number>;
+        actingUserId: number;
+      }>).detail;
+      // Skip our own broadcast — optimistic update already applied it locally
+      if (actingUserId === me?.id) return;
+      setClipLightbox(prev => {
+        if (!prev || prev.id !== clipId) return prev;
+        const totalReactions = Object.values(reactions).reduce((sum, n) => sum + n, 0);
+        return { ...prev, reactionCount: totalReactions };
+      });
+    };
+    window.addEventListener("gwh:clip-reaction", handler);
+    return () => window.removeEventListener("gwh:clip-reaction", handler);
+  }, [me?.id]);
+
   // Presence data
   const { data: presenceData } = useQuery<{
     presenceSetting: string; currentGame: string | null;

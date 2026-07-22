@@ -702,8 +702,8 @@ describe("Clips lifecycle — upload, serve, delete", () => {
 
   it("POST /clips — deletes orphaned GCS objects when the DB insert fails", async () => {
     // The user stays in the DB so requireAuth (which uses drizzle `db`) passes.
-    // We mock pool.query — used only by the clips route — to throw on INSERT INTO clips,
-    // simulating a transient DB failure after GCS already received the file.
+    // The INSERT now happens inside a transaction via client.query (pool.connect()),
+    // so we mock pool.connect to wrap the returned client's query method.
     const ghostUser = await makeUser("ghost_orphan");
     createdUserIds.push(ghostUser.id);
 
@@ -726,18 +726,33 @@ describe("Clips lifecycle — upload, serve, delete", () => {
       }),
     );
 
-    // Save original pool.query before mocking, so we can delegate non-INSERT calls
-    const origQuery = pool.query.bind(pool) as typeof pool.query;
-    const queryMock = mock.method(
+    // Mock pool.connect to intercept client.query for the INSERT INTO clips statement.
+    // All other queries (BEGIN, advisory lock, SELECT, ROLLBACK) pass through normally.
+    //
+    // IMPORTANT: we collect each inner client.query mock so we can restore it in the
+    // finally block.  Pool clients are reused across tests; if we don't restore the
+    // inner mock, the next pool.connect() call in a subsequent test can get the same
+    // client object with the throwing query stub still attached.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const innerClientMocks: Array<ReturnType<typeof mock.method<any, any>>> = [];
+    const origConnect = pool.connect.bind(pool);
+    const connectMock = mock.method(
       pool,
-      "query",
-      async (...args: Parameters<typeof pool.query>) => {
-        const text = args[0];
-        if (typeof text === "string" && text.trimStart().toUpperCase().startsWith("INSERT INTO CLIPS ")) {
-          throw new Error("Simulated DB failure for orphan cleanup test");
-        }
-        // Pass everything else (SELECT, INSERT INTO clips_media row after first insert, etc.) through
-        return origQuery(...args);
+      "connect",
+      async () => {
+        const client = await origConnect();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const origClientQuery = client.query.bind(client) as (...args: any[]) => any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const innerMock = mock.method(client, "query", async (...args: any[]) => {
+          const text = typeof args[0] === "string" ? args[0] : (args[0]?.text ?? "");
+          if (text.trimStart().toUpperCase().startsWith("INSERT INTO CLIPS ")) {
+            throw new Error("Simulated DB failure for orphan cleanup test");
+          }
+          return origClientQuery(...args);
+        });
+        innerClientMocks.push(innerMock);
+        return client;
       },
     );
 
@@ -761,7 +776,10 @@ describe("Clips lifecycle — upload, serve, delete", () => {
         `expected at least ${uploadCalls.length} GCS delete call(s) to clean up orphans, got ${deletedObjects.length}`,
       );
     } finally {
-      queryMock.mock.restore();
+      // Restore inner client.query mocks BEFORE restoring pool.connect so that
+      // any pooled client is clean for subsequent tests.
+      for (const m of innerClientMocks) { m.mock.restore(); }
+      connectMock.mock.restore();
       bucketMock.mock.restore();
       if (savedPrivateDir === undefined) {
         delete process.env.PRIVATE_OBJECT_DIR;
@@ -769,5 +787,64 @@ describe("Clips lifecycle — upload, serve, delete", () => {
         process.env.PRIVATE_OBJECT_DIR = savedPrivateDir;
       }
     }
+  });
+
+  // ── Concurrent upload quota race ─────────────────────────────────────────
+
+  it("POST /clips — concurrent uploads at quota-1 yield exactly one 201 and one 409", async () => {
+    // Create a user with 19 clips (one slot left under the free limit of 20).
+    const raceUser = await makeUser("race");
+    createdUserIds.push(raceUser.id);
+
+    const preInsertedIds: number[] = [];
+    for (let i = 0; i < 19; i++) {
+      const { rows: [c] } = await pool.query<{ id: number }>(
+        `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, 'image/jpeg') RETURNING id`,
+        [raceUser.id, `Race prefill ${i + 1}`],
+      );
+      await pool.query(
+        `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
+        [c.id, FAKE_FILE_PATH],
+      );
+      preInsertedIds.push(c.id);
+    }
+
+    // Fire two uploads simultaneously — only one should claim the last quota slot.
+    uploadCalls = [];
+    const makeUpload = () => {
+      const { body, contentType } = multipartBody(
+        { title: "Race Upload" },
+        { fieldname: "file", filename: "race.jpg", mime: "image/jpeg", data: Buffer.from("RACE_JPEG") },
+      );
+      return req("POST", "/api/clips", raceUser.token, body, contentType);
+    };
+
+    const [r1, r2] = await Promise.all([makeUpload(), makeUpload()]);
+
+    const statuses = [r1.status, r2.status].sort();
+    assert.deepEqual(
+      statuses,
+      [201, 409],
+      `expected one 201 and one 409; got ${statuses.join(", ")}`,
+    );
+
+    // Verify only one clip row was actually created beyond the 19 pre-inserted ones
+    const { rows: [countRow] } = await pool.query<{ n: string }>(
+      `SELECT COUNT(*) AS n FROM clips WHERE owner_id=$1`,
+      [raceUser.id],
+    );
+    assert.equal(
+      parseInt(countRow.n, 10),
+      20,
+      `expected exactly 20 clips after concurrent race, got ${countRow.n}`,
+    );
+
+    // The 409 response should carry the expected quota fields
+    const failedBody = (r1.status === 409 ? r1 : r2).body as { error: string; limit: number; current: number };
+    assert.equal(failedBody.limit, 20);
+    assert.equal(failedBody.current, 20);
+
+    // Cleanup: delete all clips for this user (pre-inserted + the one that succeeded)
+    await pool.query(`DELETE FROM clips WHERE owner_id=$1`, [raceUser.id]);
   });
 });

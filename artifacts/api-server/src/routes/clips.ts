@@ -260,19 +260,21 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       req.pipe(bb);
     });
 
-    // Enforce per-user clip limit before wasting any storage bandwidth
-    const { rows: [limitRow] } = await pool.query<{ clip_count: string; is_pro: boolean }>(
+    // Fast pre-check — avoids a GCS upload when the user is obviously over-quota.
+    // This is a best-effort optimisation only; the authoritative check is inside the
+    // transaction below (protected by an advisory lock) to eliminate the TOCTOU race.
+    const { rows: [preCheckRow] } = await pool.query<{ clip_count: string; is_pro: boolean }>(
       `SELECT (SELECT COUNT(*) FROM clips WHERE owner_id=$1) AS clip_count,
               COALESCE(u.is_pro, false) AS is_pro
        FROM users u WHERE u.id=$1`,
       [ownerId],
     );
-    if (limitRow) {
-      const clipCount = parseInt(limitRow.clip_count, 10);
-      const limit = limitRow.is_pro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT;
+    if (preCheckRow) {
+      const clipCount = parseInt(preCheckRow.clip_count, 10);
+      const limit = preCheckRow.is_pro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT;
       if (clipCount >= limit) {
         res.status(409).json({
-          error: limitRow.is_pro
+          error: preCheckRow.is_pro
             ? `Pro users may store up to ${PRO_CLIP_LIMIT} clips. Delete some clips to upload more.`
             : `Free users may store up to ${FREE_CLIP_LIMIT} clips. Delete some clips or upgrade to Pro for a higher limit.`,
           limit,
@@ -295,24 +297,76 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       }
     }
 
-    // Insert metadata + media URLs — if the DB step fails, delete the orphaned GCS objects
-    let clip: { id: number };
+    // Authoritative quota check + INSERT in a single serialised transaction.
+    //
+    // pg_advisory_xact_lock(owner_id) ensures that only one concurrent upload per
+    // user can be inside this critical section at a time — eliminating the TOCTOU
+    // race between the count read and the INSERT.  The lock is released automatically
+    // when the transaction ends.
+    //
+    // If quota is found to be exceeded inside the lock (i.e. a concurrent upload
+    // just snuck in), we ROLLBACK, delete the GCS objects that were already uploaded,
+    // and return 409.
+    const client = await pool.connect();
+    let clip: { id: number } | undefined;
+    let quotaExceededResponse: { error: string; limit: number; current: number } | undefined;
+
     try {
-      const { rows: [inserted] } = await pool.query<{ id: number }>(
-        `INSERT INTO clips (owner_id, title, game, description, mime_type, duration_seconds)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-        [ownerId, result.title, result.game, result.description, result.mimeType, result.durationSeconds],
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock($1)", [ownerId]);
+
+      // Re-check inside the lock — this count is now stable for the duration of our txn
+      const { rows: [limitRow] } = await client.query<{ clip_count: string; is_pro: boolean }>(
+        `SELECT (SELECT COUNT(*) FROM clips WHERE owner_id=$1) AS clip_count,
+                COALESCE(u.is_pro, false) AS is_pro
+         FROM users u WHERE u.id=$1`,
+        [ownerId],
       );
-      clip = inserted;
-      await pool.query(
-        `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1,$2,$3)`,
-        [clip.id, fileUrl, thumbnailUrl],
-      );
+
+      if (limitRow) {
+        const clipCount = parseInt(limitRow.clip_count, 10);
+        const limit = limitRow.is_pro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT;
+        if (clipCount >= limit) {
+          quotaExceededResponse = {
+            error: limitRow.is_pro
+              ? `Pro users may store up to ${PRO_CLIP_LIMIT} clips. Delete some clips to upload more.`
+              : `Free users may store up to ${FREE_CLIP_LIMIT} clips. Delete some clips or upgrade to Pro for a higher limit.`,
+            limit,
+            current: clipCount,
+          };
+        }
+      }
+
+      if (!quotaExceededResponse) {
+        const { rows: [inserted] } = await client.query<{ id: number }>(
+          `INSERT INTO clips (owner_id, title, game, description, mime_type, duration_seconds)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [ownerId, result.title, result.game, result.description, result.mimeType, result.durationSeconds],
+        );
+        clip = inserted;
+        await client.query(
+          `INSERT INTO clips_media (clip_id, file_url, thumbnail_url) VALUES ($1,$2,$3)`,
+          [clip.id, fileUrl, thumbnailUrl],
+        );
+      }
+
+      await client.query(quotaExceededResponse ? "ROLLBACK" : "COMMIT");
     } catch (dbErr) {
-      // GCS uploads succeeded but DB failed — delete orphaned objects before surfacing the error
+      // Transaction-level failure — roll back and clean up orphaned GCS objects
+      try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+      client.release();
       logger.error({ dbErr }, "clips: DB insert failed after GCS upload; deleting orphaned objects");
       await Promise.all([deleteObjectSafe(fileUrl), deleteObjectSafe(thumbnailUrl)]);
       throw dbErr;
+    }
+    client.release();
+
+    if (quotaExceededResponse) {
+      // Quota was exceeded inside the lock (concurrent upload just claimed the last slot) —
+      // delete the GCS objects we uploaded before discovering this.
+      await Promise.all([deleteObjectSafe(fileUrl), deleteObjectSafe(thumbnailUrl)]);
+      res.status(409).json(quotaExceededResponse);
+      return;
     }
 
     // Notify all connected dashboards so friends' strips update immediately

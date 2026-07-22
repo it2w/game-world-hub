@@ -22,3 +22,4 @@ export * from "./proGifts";
 export * from "./permanent-rooms";
 export * from "./revoked-tokens";
 export * from "./quests";
+export * from "./polls-threads";

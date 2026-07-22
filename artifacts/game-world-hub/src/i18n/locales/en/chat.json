@@ -49,6 +49,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "reply": "Reply",
+    "thread": "Reply in thread",
     "pin": "Pin",
     "unpin": "Unpin",
     "edited": "edited",
@@ -65,5 +66,29 @@
   },
   "reactions": {
     "addReaction": "Add reaction"
+  },
+  "thread": {
+    "title": "Thread",
+    "noReplies": "No replies yet. Start the thread!",
+    "replyPlaceholder": "Reply in thread…"
+  },
+  "poll": {
+    "create": "Create Poll",
+    "question": "Question",
+    "questionPlaceholder": "What do you want to ask?",
+    "options": "Options",
+    "optionPlaceholder": "Option {{n}}",
+    "addOption": "Add option",
+    "closesAt": "Close at (optional)",
+    "createButton": "Create Poll",
+    "creating": "Creating…",
+    "votes": "{{count}} votes",
+    "vote": "{{count}} vote",
+    "closed": "closed",
+    "closePoll": "Close poll",
+    "closing": "Closing…"
+  },
+  "automod": {
+    "blocked": "Your message was blocked by AutoMod"
   }
 }

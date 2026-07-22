@@ -6,7 +6,8 @@
     "subscriptions": "الاشتراكات",
     "analytics": "الإحصاءات",
     "chatDeletions": "سجل الحذف",
-    "xpEvents": "فعاليات XP"
+    "xpEvents": "فعاليات XP",
+    "automod": "AutoMod"
   },
   "loading": "جارٍ التحميل...",
   "users": {
@@ -134,6 +135,25 @@
     "xpEventCreated": "تم إنشاء فعالية XP.",
     "xpEventCreateFailed": "تعذّر إنشاء فعالية XP.",
     "xpEventEnded": "تم إنهاء فعالية XP.",
-    "xpEventEndFailed": "تعذّر إنهاء فعالية XP."
+    "xpEventEndFailed": "تعذّر إنهاء فعالية XP.",
+    "automodSaved": "تم حفظ إعدادات AutoMod.",
+    "automodSaveFailed": "تعذّر حفظ إعدادات AutoMod."
+  },
+  "automod": {
+    "title": "إعدادات AutoMod",
+    "subtitle": "قواعد الرسائل العامة المطبقة على جميع المحادثات",
+    "enabled": "تفعيل AutoMod",
+    "enabledDesc": "عند التفعيل، تُرفض الرسائل المخالفة للقواعد أدناه.",
+    "slowmode": "السرعة البطيئة (بالثواني)",
+    "slowmodeDesc": "الحد الأدنى من الثواني بين الرسائل لكل مستخدم في كل محادثة. 0 = معطّل.",
+    "maxLength": "الحد الأقصى لطول الرسالة",
+    "maxLengthDesc": "الحد الأقصى لعدد الأحرف في الرسالة (1–4000).",
+    "denylist": "الكلمات / العبارات المحظورة",
+    "denylistDesc": "كلمة أو عبارة واحدة في كل سطر. غير حساس لحالة الأحرف، مطابقة جزئية. حد أقصى 200 إدخال.",
+    "denylistPlaceholder": "مثال: spam\nكلمة سيئة",
+    "save": "حفظ الإعدادات",
+    "saving": "جارٍ الحفظ…",
+    "loading": "جارٍ تحميل الإعدادات…",
+    "loadError": "تعذّر تحميل إعدادات AutoMod."
   }
 }

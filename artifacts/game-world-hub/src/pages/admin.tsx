@@ -41,6 +41,8 @@ import {
   ChevronUp,
   Star,
   Zap,
+  ShieldAlert,
+  Save,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -166,6 +168,11 @@ export default function Admin() {
               <Zap className="w-3.5 h-3.5 me-2" /> {t("tabs.xpEvents")}
             </TabsTrigger>
           )}
+          {canViewReports && (
+            <TabsTrigger value="automod" className="rounded-none font-mono text-xs uppercase data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <ShieldAlert className="w-3.5 h-3.5 me-2" /> {t("tabs.automod")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="users" className="mt-6">
@@ -190,6 +197,11 @@ export default function Admin() {
         {canManagePro && (
           <TabsContent value="xpEvents" className="mt-6">
             <XpEventsPanel />
+          </TabsContent>
+        )}
+        {canViewReports && (
+          <TabsContent value="automod" className="mt-6">
+            <AutoModPanel />
           </TabsContent>
         )}
       </Tabs>
@@ -1247,6 +1259,150 @@ export function AnalyticsPanel() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── AutoMod Panel ────────────────────────────────────────────────────────────
+
+interface AutomodRuleData {
+  slowmodeSeconds: number;
+  maxLength: number;
+  denylist: string[];
+  enabled: boolean;
+}
+
+function AutoModPanel() {
+  const { t } = useTranslation("admin");
+  const { toast } = useToast();
+  const [rule, setRule] = useState<AutomodRuleData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Local form state
+  const [enabled, setEnabled] = useState(false);
+  const [slowmode, setSlowmode] = useState(0);
+  const [maxLength, setMaxLength] = useState(2000);
+  const [denylistText, setDenylistText] = useState(""); // one word per line
+
+  useEffect(() => {
+    customFetch<AutomodRuleData>("/api/admin/automod")
+      .then((data) => {
+        setRule(data);
+        setEnabled(data.enabled);
+        setSlowmode(data.slowmodeSeconds);
+        setMaxLength(data.maxLength);
+        setDenylistText(data.denylist.join("\n"));
+      })
+      .catch(() => {
+        toast({ title: t("automod.loadError"), variant: "destructive" });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const words = denylistText
+        .split(/\n+/)
+        .map((w) => w.trim().toLowerCase())
+        .filter(Boolean);
+      await customFetch("/api/admin/automod", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled, slowmodeSeconds: slowmode, maxLength, denylist: words }),
+      });
+      toast({ title: t("toasts.automodSaved") });
+    } catch {
+      toast({ title: t("toasts.automodSaveFailed"), variant: "destructive" });
+    }
+    setSaving(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground py-8">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="text-sm font-mono">{t("automod.loading")}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h2 className="font-mono text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-primary" /> {t("automod.title")}
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1 font-mono">{t("automod.subtitle")}</p>
+      </div>
+
+      {/* Enabled toggle */}
+      <div className="border border-border rounded-lg p-4 space-y-1">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold font-mono">{t("automod.enabled")}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t("automod.enabledDesc")}</div>
+          </div>
+          <button
+            onClick={() => setEnabled((e) => !e)}
+            className={`relative w-10 h-5 rounded-full transition-colors border ${enabled ? "bg-primary border-primary" : "bg-muted border-border"}`}
+          >
+            <span
+              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${enabled ? "start-5" : "start-0.5"}`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Slowmode */}
+      <div className="border border-border rounded-lg p-4 space-y-2">
+        <label className="text-sm font-semibold font-mono">{t("automod.slowmode")}</label>
+        <p className="text-xs text-muted-foreground">{t("automod.slowmodeDesc")}</p>
+        <Input
+          type="number"
+          min={0}
+          max={600}
+          value={slowmode}
+          onChange={(e) => setSlowmode(Math.max(0, Math.min(600, parseInt(e.target.value) || 0)))}
+          className="font-mono w-32"
+        />
+      </div>
+
+      {/* Max length */}
+      <div className="border border-border rounded-lg p-4 space-y-2">
+        <label className="text-sm font-semibold font-mono">{t("automod.maxLength")}</label>
+        <p className="text-xs text-muted-foreground">{t("automod.maxLengthDesc")}</p>
+        <Input
+          type="number"
+          min={1}
+          max={4000}
+          value={maxLength}
+          onChange={(e) => setMaxLength(Math.max(1, Math.min(4000, parseInt(e.target.value) || 2000)))}
+          className="font-mono w-32"
+        />
+      </div>
+
+      {/* Denylist */}
+      <div className="border border-border rounded-lg p-4 space-y-2">
+        <label className="text-sm font-semibold font-mono">{t("automod.denylist")}</label>
+        <p className="text-xs text-muted-foreground">{t("automod.denylistDesc")}</p>
+        <textarea
+          value={denylistText}
+          onChange={(e) => setDenylistText(e.target.value)}
+          placeholder={t("automod.denylistPlaceholder")}
+          rows={8}
+          className="w-full bg-muted/40 border border-border rounded-lg px-3 py-2 text-sm font-mono outline-none focus:border-primary/50 transition-colors resize-y placeholder:text-muted-foreground"
+        />
+        <div className="text-[10px] text-muted-foreground font-mono">
+          {denylistText.split(/\n+/).filter(w => w.trim()).length} / 200 entries
+        </div>
+      </div>
+
+      <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2 font-mono">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        {saving ? t("automod.saving") : t("automod.save")}
+      </Button>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { requireAuth } from "../middlewares/auth";
 import { checkFlashCompletion } from "./events";
 import { isBlockedBetween } from "./blocks";
 import { toPublicImageUrl } from "../lib/objectStorage";
+import { checkAutomod } from "../lib/automod";
 
 const router: IRouter = Router();
 
@@ -655,6 +656,13 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
 
   const parsed = SendMessageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // AutoMod check (global rules: slowmode, max length, denylist)
+  const automodResult = await checkAutomod(myId, conversationId, parsed.data.content);
+  if (automodResult.blocked) {
+    res.status(429).json({ error: automodResult.reason, automod: true });
+    return;
+  }
 
   // Block check
   const others = await db.select().from(conversationParticipantsTable).where(eq(conversationParticipantsTable.conversationId, conversationId));

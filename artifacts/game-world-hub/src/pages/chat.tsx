@@ -28,8 +28,11 @@ import { AnimatedLogo } from "@/components/animated-logo";
 import {
   Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
-  Phone, PhoneOff, UserPlus,
+  Phone, PhoneOff, UserPlus, BarChart2, MessageSquare,
 } from "lucide-react";
+import { PollCard, isPollMessage, parsePollId } from "./chat/PollCard";
+import { ThreadPanel } from "./chat/ThreadPanel";
+import { PollComposer } from "./chat/PollComposer";
 import { format, isToday, isYesterday } from "date-fns";
 import { useVoice } from "@/voice/voice-context";
 import { VoiceStage } from "@/voice/components/voice-stage";
@@ -309,12 +312,13 @@ function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onC
 
 function MessageBubble({
   msg, isMe, showHeader, myId, conversationId,
-  onReply, onStartEdit, onDelete, onPin, onReactionUpdate,
+  onReply, onStartEdit, onDelete, onPin, onReactionUpdate, onOpenThread,
 }: {
   msg: Message; isMe: boolean; showHeader: boolean; myId: number; conversationId: number;
   onReply: (msg: Message) => void; onStartEdit: (msg: Message) => void;
   onDelete: (msgId: number) => void; onPin: (msgId: number, isPinned: boolean) => void;
   onReactionUpdate: (msgId: number, reactions: MessageReaction[]) => void;
+  onOpenThread: (msg: Message) => void;
 }) {
   const { t } = useTranslation("chat");
   const [hovered, setHovered] = useState(false);
@@ -352,10 +356,18 @@ function MessageBubble({
             <span className="truncate max-w-[300px]">{msg.replyTo.content}</span>
           </div>
         )}
-        <p className="text-sm leading-relaxed break-words">
-          {renderMarkdown(msg.content)}
-          {msg.editedAt && <span className="text-[10px] text-muted-foreground ms-1.5 font-mono">({t("msg.edited")})</span>}
-        </p>
+        {isPollMessage(msg.content) ? (
+          <PollCard
+            conversationId={conversationId}
+            pollId={parsePollId(msg.content)!}
+            myId={myId}
+          />
+        ) : (
+          <p className="text-sm leading-relaxed break-words">
+            {renderMarkdown(msg.content)}
+            {msg.editedAt && <span className="text-[10px] text-muted-foreground ms-1.5 font-mono">({t("msg.edited")})</span>}
+          </p>
+        )}
         <ReactionBar reactions={msg.reactions} messageId={msg.id} conversationId={conversationId} myId={myId} onUpdate={(u) => onReactionUpdate(msg.id, u)} />
       </div>
       {hovered && (
@@ -368,6 +380,9 @@ function MessageBubble({
           </div>
           <button onClick={() => onReply(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.reply")}>
             <Reply className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onOpenThread(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.thread")}>
+            <MessageSquare className="w-3.5 h-3.5" />
           </button>
           {isMe && (
             <button onClick={() => onStartEdit(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.edit")}>
@@ -459,6 +474,9 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showPinned, setShowPinned] = useState(false);
+  const [activeThreadMsg, setActiveThreadMsg] = useState<Message | null>(null);
+  const [showPollComposer, setShowPollComposer] = useState(false);
+  const [automodError, setAutomodError] = useState<string | null>(null);
 
   // ── Custom confirm dialog (replaces window.confirm) ──
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -505,7 +523,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [localMessages]);
   useEffect(() => { if (editingMsg) editRef.current?.focus(); }, [editingMsg]);
-  useEffect(() => { setReplyTo(null); setEditingMsg(null); setSearchQuery(""); setShowSearch(false); setShowPinned(false); }, [conversationId]);
+  useEffect(() => { setReplyTo(null); setEditingMsg(null); setSearchQuery(""); setShowSearch(false); setShowPinned(false); setActiveThreadMsg(null); setShowPollComposer(false); }, [conversationId]);
 
   // When the user opens a conversation, refresh both the conversations list (to clear
   // the unread badge) and the notifications (to clear the bell indicator).
@@ -536,6 +554,15 @@ export default function Chat({ params }: { params: { conversationId?: string } }
           setReplyTo(null);
           queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
           invalidateConvs();
+        },
+        onError: (err: any) => {
+          const msg = err?.data?.error ?? err?.message ?? "";
+          if (err?.status === 429 || err?.data?.automod) {
+            if (inputRef.current) inputRef.current.value = content ?? "";
+            // Show AutoMod rejection in the typing area via a transient state
+            setAutomodError(msg || t("automod.blocked"));
+            setTimeout(() => setAutomodError(null), 4000);
+          }
         },
       }
     );
@@ -750,6 +777,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
       </div>
 
       {/* ── Main area ── */}
+      <div className="flex-1 flex min-w-0">
       <div className="flex-1 flex flex-col min-w-0">
         {conversationId && !showHidden ? (
           <>
@@ -941,6 +969,7 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                         onReply={setReplyTo}
                         onStartEdit={(m) => { setEditingMsg(m); setEditContent(m.content); }}
                         onDelete={handleDelete} onPin={handlePin} onReactionUpdate={handleReactionUpdate}
+                        onOpenThread={setActiveThreadMsg}
                       />
                     </div>
                   );
@@ -961,7 +990,18 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             </div>
 
             {/* Input area */}
-            <div className="px-4 pb-4 pt-0 shrink-0">
+            <div className="px-4 pb-4 pt-0 shrink-0 relative">
+              {showPollComposer && conversationId && (
+                <PollComposer
+                  conversationId={conversationId}
+                  onClose={() => setShowPollComposer(false)}
+                  onCreated={() => {
+                    setShowPollComposer(false);
+                    queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
+                    invalidateConvs();
+                  }}
+                />
+              )}
               {replyTo && (
                 <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-t-2xl px-3 py-1.5 text-xs mb-0 border-b-0">
                   <Reply className="w-3 h-3 text-primary shrink-0" />
@@ -987,10 +1027,23 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); } }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPollComposer((s) => !s)}
+                  title={t("poll.create")}
+                  className={`shrink-0 transition-colors ${showPollComposer ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                >
+                  <BarChart2 className="w-4 h-4" />
+                </button>
                 <button type="submit" disabled={sendMessage.isPending} className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
                   <Send className="w-4 h-4" />
                 </button>
               </form>
+              {automodError && (
+                <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-full px-3 py-1 mt-1 text-center font-mono">
+                  {automodError}
+                </div>
+              )}
               <div className="text-[10px] text-muted-foreground mt-1 px-1">
                 <strong>**bold**</strong> · <em>*italic*</em> · <code className="bg-muted px-0.5">&#96;code&#96;</code> · <span className="opacity-60">||spoiler||</span>
               </div>
@@ -1006,6 +1059,15 @@ export default function Chat({ params }: { params: { conversationId?: string } }
             </div>
           </div>
         )}
+      </div>
+      {activeThreadMsg && conversationId && (
+        <ThreadPanel
+          conversationId={conversationId}
+          rootMessage={activeThreadMsg}
+          myId={me?.id ?? 0}
+          onClose={() => setActiveThreadMsg(null)}
+        />
+      )}
       </div>
 
       {/* ── Custom confirm dialog ── */}

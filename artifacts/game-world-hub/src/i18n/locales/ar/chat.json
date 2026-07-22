@@ -49,6 +49,7 @@
     "delete": "حذف",
     "edit": "تعديل",
     "reply": "رد",
+    "thread": "الرد في خيط",
     "pin": "تثبيت",
     "unpin": "إلغاء التثبيت",
     "edited": "معدّل",
@@ -65,5 +66,29 @@
   },
   "reactions": {
     "addReaction": "إضافة تفاعل"
+  },
+  "thread": {
+    "title": "الخيط",
+    "noReplies": "لا ردود بعد. ابدأ الخيط!",
+    "replyPlaceholder": "الرد في الخيط…"
+  },
+  "poll": {
+    "create": "إنشاء استطلاع",
+    "question": "السؤال",
+    "questionPlaceholder": "ما الذي تريد السؤال عنه؟",
+    "options": "الخيارات",
+    "optionPlaceholder": "الخيار {{n}}",
+    "addOption": "إضافة خيار",
+    "closesAt": "إغلاق في (اختياري)",
+    "createButton": "إنشاء الاستطلاع",
+    "creating": "جارٍ الإنشاء…",
+    "votes": "{{count}} أصوات",
+    "vote": "{{count}} صوت",
+    "closed": "مغلق",
+    "closePoll": "إغلاق الاستطلاع",
+    "closing": "جارٍ الإغلاق…"
+  },
+  "automod": {
+    "blocked": "تم حظر رسالتك بواسطة AutoMod"
   }
 }

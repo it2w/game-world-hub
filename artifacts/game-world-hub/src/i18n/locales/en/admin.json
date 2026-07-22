@@ -6,7 +6,8 @@
     "subscriptions": "Subscriptions",
     "analytics": "Analytics",
     "chatDeletions": "Chat Deletions",
-    "xpEvents": "XP Events"
+    "xpEvents": "XP Events",
+    "automod": "AutoMod"
   },
   "loading": "Loading...",
   "users": {
@@ -134,6 +135,25 @@
     "xpEventCreated": "XP event created.",
     "xpEventCreateFailed": "Could not create XP event.",
     "xpEventEnded": "XP event ended.",
-    "xpEventEndFailed": "Could not end XP event."
+    "xpEventEndFailed": "Could not end XP event.",
+    "automodSaved": "AutoMod settings saved.",
+    "automodSaveFailed": "Could not save AutoMod settings."
+  },
+  "automod": {
+    "title": "AutoMod Settings",
+    "subtitle": "Global message rules applied to all conversations",
+    "enabled": "Enable AutoMod",
+    "enabledDesc": "When enabled, messages violating the rules below will be rejected.",
+    "slowmode": "Slowmode (seconds)",
+    "slowmodeDesc": "Minimum seconds between messages per user per conversation. 0 = disabled.",
+    "maxLength": "Max Message Length",
+    "maxLengthDesc": "Maximum characters per message (1–4000).",
+    "denylist": "Blocked Words / Phrases",
+    "denylistDesc": "One word or phrase per line. Case-insensitive, partial match. Max 200 entries.",
+    "denylistPlaceholder": "e.g. spam\nbadword",
+    "save": "Save Settings",
+    "saving": "Saving…",
+    "loading": "Loading settings…",
+    "loadError": "Could not load AutoMod settings."
   }
 }

@@ -37,6 +37,8 @@ import proHuntRouter from "./pro-hunt";
 import eventsRouter from "./events";
 import prestigeRouter from "./prestige";
 import globalChatRouter from "./global-chat";
+import threadsRouter from "./threads";
+import pollsRouter from "./polls";
 
 const router: IRouter = Router();
 
@@ -104,5 +106,7 @@ router.use(proHuntRouter);
 router.use(eventsRouter);
 router.use(prestigeRouter);
 router.use(globalChatRouter);
+router.use(threadsRouter);
+router.use(pollsRouter);
 
 export default router;

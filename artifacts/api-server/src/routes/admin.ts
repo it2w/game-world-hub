@@ -6,6 +6,7 @@ import { activateProForUser, deactivatePro, generateActivationCode } from "../li
 import { logger } from "../lib/logger";
 import { getUserProgress } from "../lib/xp";
 import { toPublicImageUrl } from "../lib/objectStorage";
+import { invalidateAutomodCache } from "../lib/automod";
 import {
   ListAdminUsersQueryParams,
   AdminActivateProBody,
@@ -166,6 +167,52 @@ router.delete("/admin/activation-codes/:codeId", requireAdminPermission("can_man
   const codeId = Number(req.params.codeId);
   await db.update(activationCodesTable).set({ status: "inactive" }).where(eq(activationCodesTable.id, codeId));
   res.status(200).json({ ok: true });
+});
+
+// ─── AutoMod ──────────────────────────────────────────────────────────────────
+
+router.get("/admin/automod", requireAdminPermission("can_delete_content"), async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; slowmode_seconds: number; max_length: number; denylist: string[]; enabled: boolean; updated_at: string;
+  }>(`SELECT id, slowmode_seconds, max_length, denylist, enabled, updated_at FROM automod_rules WHERE conversation_id IS NULL LIMIT 1`);
+
+  if (!rows[0]) {
+    res.json({ slowmodeSeconds: 0, maxLength: 2000, denylist: [], enabled: false });
+    return;
+  }
+  const r = rows[0];
+  res.json({
+    id: r.id,
+    slowmodeSeconds: r.slowmode_seconds,
+    maxLength: r.max_length,
+    denylist: r.denylist ?? [],
+    enabled: r.enabled,
+    updatedAt: r.updated_at,
+  });
+});
+
+router.put("/admin/automod", requireAdminPermission("can_delete_content"), async (req, res): Promise<void> => {
+  const { slowmodeSeconds, maxLength, denylist, enabled } = req.body as {
+    slowmodeSeconds?: unknown; maxLength?: unknown; denylist?: unknown; enabled?: unknown;
+  };
+
+  const slowmode = Math.max(0, Math.min(600, Number(slowmodeSeconds) || 0));
+  const maxLen   = Math.max(1, Math.min(4000, Number(maxLength) || 2000));
+  const list     = Array.isArray(denylist)
+    ? denylist.map(String).map(s => s.trim().toLowerCase()).filter(Boolean).slice(0, 200)
+    : [];
+  const isEnabled = Boolean(enabled);
+
+  await pool.query(`
+    INSERT INTO automod_rules (conversation_id, slowmode_seconds, max_length, denylist, enabled, updated_at)
+    VALUES (NULL, $1, $2, $3, $4, NOW())
+    ON CONFLICT ((conversation_id IS NULL)) WHERE conversation_id IS NULL
+    DO UPDATE SET slowmode_seconds = $1, max_length = $2, denylist = $3, enabled = $4, updated_at = NOW()
+  `, [slowmode, maxLen, list, isEnabled]);
+
+  invalidateAutomodCache();
+  logger.info({ slowmode, maxLen, denylistLen: list.length, enabled: isEnabled, by: req.adminUser?.id }, "admin: automod rules updated");
+  res.json({ ok: true });
 });
 
 router.get("/admin/me", async (req, res): Promise<void> => {

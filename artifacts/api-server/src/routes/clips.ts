@@ -23,6 +23,14 @@ import { logger } from "../lib/logger";
 import { toPublicImageUrl, ObjectStorageService, objectStorageClient } from "../lib/objectStorage";
 import { broadcastAll } from "../ws/signaling";
 
+/** Thrown for user-caused upload errors that should return HTTP 400. */
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
@@ -205,7 +213,7 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
         if (fieldname === "file") {
           if (!isVideo && !isImage) {
             stream.resume();
-            reject(new Error("Only image or video files are allowed"));
+            reject(new ValidationError("Only image or video files are allowed"));
             return;
           }
           mimeType = mt;
@@ -215,7 +223,7 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
             chunks.push(c);
             const total = chunks.reduce((s, b) => s + b.length, 0);
             if (total > maxBytes) {
-              reject(new Error(isVideo ? "Video is too large (max 50 MB)" : "Image is too large (max 10 MB)"));
+              reject(new ValidationError(isVideo ? "Video is too large (max 50 MB)" : "Image is too large (max 10 MB)"));
             }
           });
           stream.on("end", () => { fileBuffer = Buffer.concat(chunks); });
@@ -235,9 +243,9 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       bb.on("field", (name, val) => { fields[name] = val; });
 
       bb.on("finish", () => {
-        if (!fileBuffer || !mimeType) { reject(new Error("No file uploaded")); return; }
+        if (!fileBuffer || !mimeType) { reject(new ValidationError("No file uploaded")); return; }
         const title = (fields.title ?? "").trim();
-        if (!title) { reject(new Error("Title is required")); return; }
+        if (!title) { reject(new ValidationError("Title is required")); return; }
         resolve({
           fileBuffer, thumbBuffer, mimeType,
           title,
@@ -311,9 +319,8 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
 
     res.status(201).json({ id: clip.id, mediaUrl: `/api/clips/${clip.id}/media`, thumbnailUrl: `/api/clips/${clip.id}/thumbnail` });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Upload failed";
-    if (msg.includes("too large") || msg.includes("required") || msg.includes("Only") || msg.includes("No file uploaded")) {
-      res.status(400).json({ error: msg });
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
     } else {
       logger.error({ err }, "clips: upload error");
       res.status(500).json({ error: "Upload failed" });

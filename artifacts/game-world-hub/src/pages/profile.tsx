@@ -140,7 +140,7 @@ export default function Profile() {
     }
   }, [clipsData]);
 
-  // Real-time lightbox sync: handle clip-reaction WS broadcasts from other users
+  // Real-time lightbox + grid sync: handle clip-reaction WS broadcasts from other users
   useEffect(() => {
     const handler = (e: Event) => {
       const { clipId, reactions, actingUserId } = (e as CustomEvent<{
@@ -150,15 +150,31 @@ export default function Profile() {
       }>).detail;
       // Skip our own broadcast — optimistic update already applied it locally
       if (actingUserId === me?.id) return;
+      const totalReactions = Object.values(reactions).reduce((sum, n) => sum + n, 0);
+
+      // Patch the open lightbox if it shows this clip
       setClipLightbox(prev => {
         if (!prev || prev.id !== clipId) return prev;
-        const totalReactions = Object.values(reactions).reduce((sum, n) => sum + n, 0);
         return { ...prev, reactionCount: totalReactions };
+      });
+
+      // Patch the clips grid cache so thumbnail cards update without waiting for the next poll
+      queryClient.setQueryData<{
+        clips: Array<{ id: number; reactionCount: number; viewerReactions: string[]; [key: string]: unknown }>;
+        total: number; page: number; limit: number;
+      }>(["user-clips", userId], old => {
+        if (!old) return old;
+        return {
+          ...old,
+          clips: old.clips.map(c =>
+            c.id === clipId ? { ...c, reactionCount: totalReactions } : c
+          ),
+        };
       });
     };
     window.addEventListener("gwh:clip-reaction", handler);
     return () => window.removeEventListener("gwh:clip-reaction", handler);
-  }, [me?.id]);
+  }, [me?.id, queryClient, userId]);
 
   // Presence data
   const { data: presenceData } = useQuery<{

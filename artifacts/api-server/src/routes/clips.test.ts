@@ -31,6 +31,7 @@ let baseUrl: string;
 
 let ownerId = 0;
 let reactorId = 0;
+let viewerId = 0;
 let clipId = 0;
 
 const createdUserIds: number[] = [];
@@ -49,14 +50,15 @@ function authHeader(userId: number, username: string): Record<string, string> {
 }
 
 before(async () => {
-  // Create two users: clip owner and a reactor
-  const [owner, reactor] = await db
+  // Create three users: clip owner, a reactor, and a non-owner viewer
+  const [owner, reactor, viewer] = await db
     .insert(usersTable)
-    .values([makeUser("owner"), makeUser("reactor")])
+    .values([makeUser("owner"), makeUser("reactor"), makeUser("viewer")])
     .returning({ id: usersTable.id, username: usersTable.username });
   ownerId = owner.id;
   reactorId = reactor.id;
-  createdUserIds.push(ownerId, reactorId);
+  viewerId = viewer.id;
+  createdUserIds.push(ownerId, reactorId, viewerId);
 
   // Ensure clips tables exist (idempotent — uses the canonical URL-based schema).
   await ensureClipsTables();
@@ -352,6 +354,62 @@ describe("POST /clips/:id/reactions — broadcastAll payload", () => {
     assert.ok(
       !Object.prototype.hasOwnProperty.call(body.reactions, EMOJI_FIRE),
       "🔥 key must be absent from reactions map after toggle-off (no zero-count entries)",
+    );
+
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+  });
+
+  test("non-owner viewer receives correct per-emoji breakdown when reacting to a clip they do not own", async () => {
+    /**
+     * Scenario:
+     *   - ownerId    owns the clip
+     *   - reactorId  reacts with 🔥  (non-owner)
+     *   - viewerId   reacts with 🔥 and GG  (third user, non-owner)
+     *
+     * After viewerId's GG reaction the response map must aggregate all users:
+     *   🔥 → 2 (owner + reactor)   GG → 1 (viewer)
+     * The map is identical to the broadcastAll payload, so this also validates
+     * the broadcast shape from the perspective of a non-owning reactor.
+     */
+    const viewerUsername = `clipstest_viewer_${SUFFIX}`;
+
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+
+    // Owner reacts with 🔥
+    const r1 = await postReaction(ownerId, ownerUsername, clipId, EMOJI_FIRE);
+    assert.equal(r1.status, 200, "owner 🔥 POST should succeed");
+    assert.equal((r1.body as { reactions: Record<string, number> }).reactions[EMOJI_FIRE], 1);
+
+    // Non-owner reactor reacts with 🔥 — count should reach 2
+    const r2 = await postReaction(reactorId, reactorUsername, clipId, EMOJI_FIRE);
+    assert.equal(r2.status, 200, "non-owner reactor 🔥 POST should succeed");
+    const b2 = r2.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(b2.toggled, true, "non-owner reactor's 🔥 should be toggled on");
+    assert.equal(b2.reactions[EMOJI_FIRE], 2, "🔥 count should be 2 after owner + reactor");
+
+    // Third non-owner user (viewer) reacts with GG — the map returned to them
+    // must contain the full aggregated picture across all users.
+    const r3 = await postReaction(viewerId, viewerUsername, clipId, EMOJI_GG);
+    assert.equal(r3.status, 200, "non-owner viewer GG POST should succeed");
+    const b3 = r3.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(b3.toggled, true, "viewer's GG should be toggled on");
+    assert.equal(b3.reactions[EMOJI_FIRE], 2, "🔥 count must remain 2 in non-owner viewer response");
+    assert.equal(b3.reactions[EMOJI_GG], 1, "GG count must be 1 in non-owner viewer response");
+    assert.equal(
+      Object.keys(b3.reactions).length,
+      2,
+      "exactly two emoji keys expected in non-owner viewer response map",
+    );
+
+    // Non-owner viewer toggles GG off — GG key must disappear from the map
+    const r4 = await postReaction(viewerId, viewerUsername, clipId, EMOJI_GG);
+    assert.equal(r4.status, 200, "viewer GG toggle-off should succeed");
+    const b4 = r4.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(b4.toggled, false, "viewer's GG toggle-off should be reflected");
+    assert.equal(b4.reactions[EMOJI_FIRE], 2, "🔥 count must still be 2 after viewer removes GG");
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(b4.reactions, EMOJI_GG),
+      "GG key must be absent after non-owner viewer toggles it off",
     );
 
     await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);

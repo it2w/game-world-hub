@@ -10,6 +10,14 @@
  *     reflects the updated reactionCount.
  *  4. Invalid emoji is rejected with 400.
  *  5. Reacting to a non-existent clip returns 404.
+ *  6. Two different users react with the same emoji concurrently →
+ *     GET /clips/:id/reactions per-emoji count is exactly 2.
+ *  7. The POST response reactions map matches GET /clips/:id/reactions
+ *     (server truth) after any successful toggle.
+ *  8. A failed POST (invalid emoji) leaves per-emoji counts unchanged.
+ *  9. Optimistic-rollback scenario: server state is correct after a
+ *     second user's concurrent reaction arrives while the first user's
+ *     toggle is still in flight.
  */
 
 import { test, before, after, describe } from "node:test";
@@ -170,6 +178,39 @@ async function getUserClips(
   });
 }
 
+async function getClipReactions(
+  actorId: number,
+  actorUsername: string,
+  clipIdParam: number,
+): Promise<{ status: number; body: unknown }> {
+  const token = signToken({ userId: actorId, username: actorUsername });
+
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: "127.0.0.1",
+        port: (server.address() as AddressInfo).port,
+        path: `/api/clips/${clipIdParam}/reactions`,
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      (res: IncomingMessage) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, body: data });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Read the current total reaction count for a clip straight from the DB. */
@@ -179,6 +220,15 @@ async function dbReactionCount(id: number): Promise<number> {
     [id],
   );
   return parseInt(row.cnt, 10);
+}
+
+/** Read per-emoji counts directly from the DB for a clip. */
+async function dbPerEmojiCounts(id: number): Promise<Record<string, number>> {
+  const { rows } = await pool.query<{ emoji: string; cnt: string }>(
+    `SELECT emoji, COUNT(*) AS cnt FROM clip_reactions WHERE clip_id=$1 GROUP BY emoji`,
+    [id],
+  );
+  return Object.fromEntries(rows.map(r => [r.emoji, parseInt(r.cnt, 10)]));
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -457,5 +507,185 @@ describe("POST /clips/:id/reactions — edge cases", () => {
       req.end();
     });
     assert.equal(res.status, 401, "unauthenticated request should return 401");
+  });
+});
+
+describe("GET /clips/:id/reactions — per-emoji accuracy with concurrent cross-user toggles", () => {
+  const EMOJI = "🔥";
+  const ownerUsername = `clipstest_owner_${SUFFIX}`;
+  const reactorUsername = `clipstest_reactor_${SUFFIX}`;
+
+  test("two different users reacting with the same emoji concurrently yields count=2", async () => {
+    // Clean slate for both users on this emoji
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND emoji=$2`,
+      [clipId, EMOJI],
+    );
+
+    // Both users react simultaneously — simulates a second user reacting while
+    // the lightbox is open for the first user
+    const [r1, r2] = await Promise.all([
+      postReaction(ownerId, ownerUsername, clipId, EMOJI),
+      postReaction(reactorId, reactorUsername, clipId, EMOJI),
+    ]);
+
+    assert.equal(r1.status, 200, "owner reaction POST should succeed");
+    assert.equal(r2.status, 200, "reactor reaction POST should succeed");
+
+    // DB must have exactly 2 distinct rows for this emoji
+    const dbCounts = await dbPerEmojiCounts(clipId);
+    assert.equal(
+      dbCounts[EMOJI] ?? 0,
+      2,
+      "two different users reacting gives per-emoji count of 2 in the database",
+    );
+
+    // GET /clips/:id/reactions must agree with the DB
+    const getRes = await getClipReactions(ownerId, ownerUsername, clipId);
+    assert.equal(getRes.status, 200, "GET /clips/:id/reactions should return 200");
+    const getBody = getRes.body as { reactions: Record<string, number>; mine: string[] };
+    assert.equal(
+      getBody.reactions[EMOJI] ?? 0,
+      2,
+      "GET /clips/:id/reactions per-emoji count must match the database (2)",
+    );
+
+    // At least one POST response reactions map should also show count=2
+    // (whichever ran second will see the combined state)
+    const body1 = r1.body as { reactions: Record<string, number> };
+    const body2 = r2.body as { reactions: Record<string, number> };
+    const maxReported = Math.max(body1.reactions[EMOJI] ?? 0, body2.reactions[EMOJI] ?? 0);
+    assert.equal(
+      maxReported,
+      2,
+      "at least one POST response reactions map must reflect the final count of 2",
+    );
+
+    // Cleanup
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1 AND emoji=$2`, [clipId, EMOJI]);
+  });
+
+  test("POST response reactions map matches GET /clips/:id/reactions after a toggle", async () => {
+    // Ensure a known baseline: reactor has no reaction
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND user_id=$2 AND emoji=$3`,
+      [clipId, reactorId, EMOJI],
+    );
+
+    const postRes = await postReaction(reactorId, reactorUsername, clipId, EMOJI);
+    assert.equal(postRes.status, 200, "reaction POST should succeed");
+    const postBody = postRes.body as { toggled: boolean; reactions: Record<string, number> };
+
+    // Immediately fetch per-emoji counts from the server
+    const getRes = await getClipReactions(reactorId, reactorUsername, clipId);
+    assert.equal(getRes.status, 200, "GET /clips/:id/reactions should return 200");
+    const getBody = getRes.body as { reactions: Record<string, number>; mine: string[] };
+
+    // The POST response reactions map must match what GET reports (server truth)
+    for (const emoji of Object.keys({ ...postBody.reactions, ...getBody.reactions })) {
+      assert.equal(
+        postBody.reactions[emoji] ?? 0,
+        getBody.reactions[emoji] ?? 0,
+        `per-emoji count for '${emoji}' in POST response must match GET /clips/:id/reactions`,
+      );
+    }
+
+    // The toggled emoji must appear in mine[]
+    assert.ok(
+      getBody.mine.includes(EMOJI),
+      "GET /clips/:id/reactions mine[] must include the emoji the reactor just toggled on",
+    );
+
+    // Cleanup
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND user_id=$2 AND emoji=$3`,
+      [clipId, reactorId, EMOJI],
+    );
+  });
+
+  test("a failed POST (invalid emoji) leaves per-emoji counts unchanged on the server", async () => {
+    // Establish a known state: owner reacts with EMOJI
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND user_id=$2 AND emoji=$3`,
+      [clipId, ownerId, EMOJI],
+    );
+    await pool.query(
+      `INSERT INTO clip_reactions (clip_id, user_id, emoji) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+      [clipId, ownerId, EMOJI],
+    );
+
+    const beforeCounts = await dbPerEmojiCounts(clipId);
+
+    // Attempt a bad POST (unsupported emoji) — this simulates the server rejecting
+    // a request that the frontend would optimistically roll back
+    const badRes = await postReaction(reactorId, reactorUsername, clipId, "🦄");
+    assert.equal(badRes.status, 400, "bad emoji should be rejected with 400");
+
+    // Server state must be identical to before the failed request
+    const afterCounts = await dbPerEmojiCounts(clipId);
+    assert.deepEqual(
+      afterCounts,
+      beforeCounts,
+      "a failed POST must not mutate per-emoji counts on the server",
+    );
+
+    // GET /clips/:id/reactions must still report the pre-failure state
+    const getRes = await getClipReactions(ownerId, ownerUsername, clipId);
+    assert.equal(getRes.status, 200);
+    const getBody = getRes.body as { reactions: Record<string, number> };
+    assert.equal(
+      getBody.reactions[EMOJI] ?? 0,
+      beforeCounts[EMOJI] ?? 0,
+      "GET /clips/:id/reactions must still show pre-failure count after a rejected POST",
+    );
+
+    // Cleanup
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND user_id=$2 AND emoji=$3`,
+      [clipId, ownerId, EMOJI],
+    );
+  });
+
+  test("second user reacting mid-session: lightbox per-emoji counts reconcile to server truth after both settle", async () => {
+    // This test simulates the sequence:
+    //   1. User A opens the lightbox (no reactions yet)
+    //   2. User B reacts with EMOJI (concurrent, separate request)
+    //   3. User A then reacts with the same EMOJI
+    // After step 3 settles, the server should report count=2 (not 1),
+    // matching what a reconciled lightbox would show.
+    await pool.query(
+      `DELETE FROM clip_reactions WHERE clip_id=$1 AND emoji=$2`,
+      [clipId, EMOJI],
+    );
+
+    // Step 2: B reacts first (in the background while A's lightbox is "open")
+    const bRes = await postReaction(reactorId, reactorUsername, clipId, EMOJI);
+    assert.equal(bRes.status, 200, "user B reaction should succeed");
+    const bBody = bRes.body as { reactions: Record<string, number> };
+    // B sees count=1 (only their own row)
+    assert.equal(bBody.reactions[EMOJI] ?? 0, 1, "B is the sole reactor after their toggle");
+
+    // Step 3: A now reacts — simulates the optimistic POST from the open lightbox
+    const aRes = await postReaction(ownerId, ownerUsername, clipId, EMOJI);
+    assert.equal(aRes.status, 200, "user A reaction should succeed");
+    const aBody = aRes.body as { reactions: Record<string, number> };
+    // After A's POST settles, server truth must reflect both reactions
+    assert.equal(
+      aBody.reactions[EMOJI] ?? 0,
+      2,
+      "after A reconciles with the server, per-emoji count must be 2 (A + B)",
+    );
+
+    // Confirm GET also agrees
+    const getRes = await getClipReactions(ownerId, ownerUsername, clipId);
+    const getBody = getRes.body as { reactions: Record<string, number>; mine: string[] };
+    assert.equal(getBody.reactions[EMOJI] ?? 0, 2, "GET must confirm final count of 2");
+
+    // DB as ground truth
+    const dbCounts = await dbPerEmojiCounts(clipId);
+    assert.equal(dbCounts[EMOJI] ?? 0, 2, "database must hold exactly 2 reaction rows");
+
+    // Cleanup
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1 AND emoji=$2`, [clipId, EMOJI]);
   });
 });

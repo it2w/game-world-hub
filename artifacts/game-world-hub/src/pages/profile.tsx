@@ -152,10 +152,11 @@ export default function Profile() {
       if (actingUserId === me?.id) return;
       const totalReactions = Object.values(reactions).reduce((sum, n) => sum + n, 0);
 
-      // Patch the open lightbox if it shows this clip
+      // Patch the open lightbox if it shows this clip — update both the
+      // aggregate total AND the per-emoji breakdown so badge counts stay accurate
       setClipLightbox(prev => {
         if (!prev || prev.id !== clipId) return prev;
-        return { ...prev, reactionCount: totalReactions };
+        return { ...prev, reactionCount: totalReactions, reactions };
       });
 
       // Patch the clips grid cache so thumbnail cards update without waiting for the next poll

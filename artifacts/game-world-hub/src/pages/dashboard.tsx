@@ -505,6 +505,7 @@ export function CommunityHighlights({ activity }: { activity: PartyActivity[] })
     queryKey: ["friend-clips-dashboard"],
     queryFn: () => customFetch("/api/clips/friends?limit=4"),
     staleTime: 60_000,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 

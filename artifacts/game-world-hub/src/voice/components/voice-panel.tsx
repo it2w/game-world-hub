@@ -332,8 +332,8 @@ export function VoicePanel() {
   useEffect(() => {
     if (!inviteOpen) return;
     setInviteLoading(true);
-    customFetch<FriendItem[]>("/api/friends")
-      .then((data) => setInviteFriends(data))
+    customFetch<{ id: number; friend: FriendItem; since: string }[]>("/api/friends")
+      .then((data) => setInviteFriends(data.map((f) => f.friend)))
       .catch(() => setInviteFriends([]))
       .finally(() => setInviteLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps

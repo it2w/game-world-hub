@@ -21,6 +21,7 @@ import { inArray } from "drizzle-orm";
 import { signToken } from "../middlewares/auth";
 import { ensureClipsTables } from "./clips";
 import app from "../app";
+import { ensureClipsTables } from "./clips";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

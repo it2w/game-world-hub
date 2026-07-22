@@ -271,6 +271,9 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       [clip.id, fileUrl, thumbnailUrl],
     );
 
+    // Notify all connected dashboards so friends' strips update immediately
+    broadcastAll({ type: "clip-uploaded", clipId: clip.id, ownerId });
+
     res.status(201).json({ id: clip.id, mediaUrl: `/api/clips/${clip.id}/media`, thumbnailUrl: `/api/clips/${clip.id}/thumbnail` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Upload failed";
@@ -420,6 +423,9 @@ router.delete("/clips/:id", requireAuth, async (req: Request, res: Response): Pr
   );
 
   await pool.query(`DELETE FROM clips WHERE id=$1`, [id]);
+
+  // Notify all connected dashboards so friends' strips drop this clip immediately
+  broadcastAll({ type: "clip-deleted", clipId: id, ownerId: myId });
 
   // Clean up objects from storage (best-effort, after DB delete succeeds)
   if (media) {

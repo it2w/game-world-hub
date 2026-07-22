@@ -753,6 +753,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:clip-reaction", { detail: msg }));
           break;
 
+        case "clip-uploaded":
+          window.dispatchEvent(new CustomEvent("gwh:clip-uploaded", { detail: msg }));
+          break;
+
+        case "clip-deleted":
+          window.dispatchEvent(new CustomEvent("gwh:clip-deleted", { detail: msg }));
+          break;
+
         case "stage-participant-join": {
           if (
             typeof msg.roomName === "string" &&

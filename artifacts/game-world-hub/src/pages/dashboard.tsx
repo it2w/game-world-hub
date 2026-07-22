@@ -529,6 +529,28 @@ function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
     return () => window.removeEventListener("gwh:clip-reaction", handler);
   }, [queryClient]);
 
+  // Real-time upload sync: a friend uploaded a new clip → refresh the strip
+  useEffect(() => {
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ["friend-clips-dashboard"] });
+    };
+    window.addEventListener("gwh:clip-uploaded", handler);
+    return () => window.removeEventListener("gwh:clip-uploaded", handler);
+  }, [queryClient]);
+
+  // Real-time delete sync: a friend deleted a clip → remove it from the strip immediately
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { clipId } = (e as CustomEvent<{ clipId: number; ownerId: number }>).detail;
+      queryClient.setQueryData<Array<{ id: number; [key: string]: unknown }>>(
+        ["friend-clips-dashboard"],
+        old => old ? old.filter(c => c.id !== clipId) : old
+      );
+    };
+    window.addEventListener("gwh:clip-deleted", handler);
+    return () => window.removeEventListener("gwh:clip-deleted", handler);
+  }, [queryClient]);
+
   // Build display items: prefer real clips → fallback to party activity → fallback to static
   const highlights = (friendClips && friendClips.length > 0)
     ? friendClips.map((clip) => ({

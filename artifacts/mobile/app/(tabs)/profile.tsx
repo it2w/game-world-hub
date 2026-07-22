@@ -72,6 +72,20 @@ function useMyClips(userId: number | undefined) {
   });
 }
 
+interface ClipsQuota {
+  current: number;
+  limit: number;
+  isPro: boolean;
+}
+
+function useClipsQuota() {
+  return useQuery<ClipsQuota>({
+    queryKey: ['/api/users/me/clips/quota'],
+    queryFn: () => customFetch<ClipsQuota>('/api/users/me/clips/quota'),
+    staleTime: 30_000,
+  });
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, string> = {
@@ -204,6 +218,41 @@ const achStyles = StyleSheet.create({
   checkBox: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
 
+// ── Clip quota row ────────────────────────────────────────────────────────────
+
+function ClipQuotaRow({ current, limit }: { current: number; limit: number }) {
+  const colors = useColors();
+  const pct = limit > 0 ? Math.min(current / limit, 1) : 0;
+  const atLimit = current >= limit;
+  const nearLimit = !atLimit && pct >= 0.8;
+  const barColor = atLimit ? colors.destructive : nearLimit ? '#f59e0b' : colors.primary;
+  return (
+    <View style={cqStyles.row}>
+      <View style={[cqStyles.iconBox, { backgroundColor: atLimit ? `${colors.destructive}18` : colors.secondary }]}>
+        <Feather name="film" size={13} color={atLimit ? colors.destructive : colors.primary} />
+      </View>
+      <View style={cqStyles.info}>
+        <Text style={[cqStyles.label, { color: colors.mutedForeground }]}>المقاطع المحفوظة</Text>
+        <View style={[cqStyles.track, { backgroundColor: colors.muted }]}>
+          <View style={[cqStyles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: barColor }]} />
+        </View>
+      </View>
+      <Text style={[cqStyles.value, { color: atLimit ? colors.destructive : nearLimit ? '#f59e0b' : colors.foreground }]}>
+        {current}/{limit}
+      </Text>
+    </View>
+  );
+}
+const cqStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  iconBox: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  info: { flex: 1, gap: 4 },
+  label: { fontSize: 13 },
+  track: { height: 3, width: '100%', overflow: 'hidden' },
+  fill: { height: '100%' },
+  value: { fontSize: 14, fontWeight: '700', minWidth: 36, textAlign: 'right' },
+});
+
 // ── Action row ────────────────────────────────────────────────────────────────
 
 function ActionRow({
@@ -275,6 +324,7 @@ export default function ProfileScreen() {
   const { data: progress, isLoading: loadingProgress, refetch: refetchProgress } = useGetPlayerProgress();
   const { data: achievements, isLoading: loadingAch, refetch: refetchAch } = useAchievements();
   const { data: stats, isLoading: loadingStats, refetch: refetchStats } = usePlayerStats();
+  const { data: clipsQuota, refetch: refetchClipsQuota } = useClipsQuota();
 
   const displayUser = user ?? ctxUser;
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
@@ -305,6 +355,8 @@ export default function ProfileScreen() {
   const clipCardWidth = Math.floor((screenWidth - clipHPad * 2 - clipColGap) / 2);
 
   const isRefreshing = loadingMe || loadingProgress || loadingAch || loadingStats;
+  const clipUsed  = clipsQuota?.current ?? 0;
+  const clipLimit = clipsQuota?.limit ?? (((displayUser as { isPro?: boolean })?.isPro) ? 100 : 20);
 
   if (loadingMe && !displayUser) {
     return (
@@ -355,6 +407,7 @@ export default function ProfileScreen() {
             void refetchAch();
             void refetchStats();
             void refetchClips();
+            void refetchClipsQuota();
           }}
           tintColor={colors.primary}
         />
@@ -479,9 +532,8 @@ export default function ProfileScreen() {
             <MiniStatRow icon="message-circle" label="الرسائل المرسلة" value={stats.messagesSent} />
             <MiniStatRow icon="search" label="طلبات LFG"       value={stats.lfgPosts} />
             <MiniStatRow icon="send" label="ردود LFG"          value={stats.lfgResponses} />
-            <View style={[styles.divRow, { borderBottomWidth: 0 }]}>
-              <MiniStatRow icon="monitor" label="الألعاب المسجّلة" value={stats.games} />
-            </View>
+            <MiniStatRow icon="monitor" label="الألعاب المسجّلة" value={stats.games} />
+            <ClipQuotaRow current={clipUsed} limit={clipLimit} />
           </>
         ) : (
           <View style={{ paddingVertical: 16, paddingHorizontal: 16 }}>

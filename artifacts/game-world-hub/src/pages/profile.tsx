@@ -263,6 +263,13 @@ export default function Profile() {
   const [clipsUploadPending, setClipsUploadPending] = useState(false);
   const [clipsUploadProgress, setClipsUploadProgress] = useState(0);
   const [clipsDragOver, setClipsDragOver] = useState(false);
+
+  // Clip quota — derive from existing data; no extra API call needed for owner
+  const FREE_CLIP_LIMIT = 20;
+  const PRO_CLIP_LIMIT  = 100;
+  const clipLimit = (me?.isPro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT);
+  const clipUsed  = clipsData?.total ?? 0;
+  const atClipLimit = isOwner && clipsData != null && clipUsed >= clipLimit;
   const clipFileRef = useRef<HTMLInputElement>(null);
   const [clipTitle, setClipTitle] = useState("");
   const [clipGame, setClipGame] = useState("");
@@ -1232,7 +1239,7 @@ export default function Profile() {
               ].join(" ")}
               data-testid="tab-clips"
             >
-              <Film className="w-3.5 h-3.5" /> {t("clips.title")} {clipsData ? `(${clipsData.total})` : ""}
+              <Film className="w-3.5 h-3.5" /> {t("clips.title")} {clipsData ? (isOwner ? `(${clipUsed}/${clipLimit})` : `(${clipsData.total})`) : ""}
             </button>
           </div>
 
@@ -1248,11 +1255,34 @@ export default function Profile() {
             </>
           )}
           {clipsTab === "clips" && isOwner && (
-            <Button variant="outline" size="sm" className="font-mono rounded-none text-xs gap-2"
-              onClick={() => clipFileRef.current?.click()}
-              disabled={clipsUploadPending} data-testid="button-add-clip">
-              <Upload className="w-3.5 h-3.5" /> {clipsUploadPending ? t("clips.uploading") : t("clips.addClip")}
-            </Button>
+            <div className="flex items-center gap-2">
+              {clipsData && (
+                <span
+                  className={[
+                    "font-mono text-[10px] tabular-nums px-2 py-1 border",
+                    atClipLimit
+                      ? "border-destructive/60 text-destructive bg-destructive/10"
+                      : clipUsed / clipLimit >= 0.8
+                      ? "border-amber-500/60 text-amber-500 bg-amber-500/10"
+                      : "border-border text-muted-foreground",
+                  ].join(" ")}
+                  data-testid="clips-quota-badge"
+                >
+                  {t("clips.quotaUsed", { current: clipUsed, limit: clipLimit })}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono rounded-none text-xs gap-2"
+                onClick={() => clipFileRef.current?.click()}
+                disabled={clipsUploadPending || atClipLimit}
+                title={atClipLimit ? (me?.isPro ? t("clips.quotaFullPro", { limit: clipLimit }) : t("clips.quotaFull")) : undefined}
+                data-testid="button-add-clip"
+              >
+                <Upload className="w-3.5 h-3.5" /> {clipsUploadPending ? t("clips.uploading") : t("clips.addClip")}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1356,26 +1386,38 @@ export default function Profile() {
 
             {/* Drag-drop zone (owner, no pending file) */}
             {isOwner && !pendingClipFile && (
-              <div
-                onDragOver={e => { e.preventDefault(); setClipsDragOver(true); }}
-                onDragLeave={() => setClipsDragOver(false)}
-                onDrop={async e => {
-                  e.preventDefault(); setClipsDragOver(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (!file) return;
-                  await handleClipFilePicked(file);
-                }}
-                onClick={() => clipFileRef.current?.click()}
-                className={[
-                  "border-2 border-dashed rounded-none p-6 text-center cursor-pointer transition-colors mb-4",
-                  clipsDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
-                ].join(" ")}
-                data-testid="clip-drop-zone"
-              >
-                <Film className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="font-mono text-xs text-muted-foreground">{t("clips.dropZone")}</p>
-                <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">{t("clips.dropZoneSub")}</p>
-              </div>
+              atClipLimit ? (
+                <div
+                  className="border-2 border-dashed border-destructive/40 rounded-none p-6 text-center mb-4 bg-destructive/5"
+                  data-testid="clip-drop-zone-limit"
+                >
+                  <Film className="w-8 h-8 mx-auto mb-2 text-destructive/60" />
+                  <p className="font-mono text-xs text-destructive/80 font-semibold">
+                    {me?.isPro ? t("clips.quotaFullPro", { limit: clipLimit }) : t("clips.quotaFull")}
+                  </p>
+                </div>
+              ) : (
+                <div
+                  onDragOver={e => { e.preventDefault(); setClipsDragOver(true); }}
+                  onDragLeave={() => setClipsDragOver(false)}
+                  onDrop={async e => {
+                    e.preventDefault(); setClipsDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (!file) return;
+                    await handleClipFilePicked(file);
+                  }}
+                  onClick={() => clipFileRef.current?.click()}
+                  className={[
+                    "border-2 border-dashed rounded-none p-6 text-center cursor-pointer transition-colors mb-4",
+                    clipsDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
+                  ].join(" ")}
+                  data-testid="clip-drop-zone"
+                >
+                  <Film className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="font-mono text-xs text-muted-foreground">{t("clips.dropZone")}</p>
+                  <p className="font-mono text-[10px] text-muted-foreground/60 mt-1">{t("clips.dropZoneSub")}</p>
+                </div>
+              )
             )}
 
             {/* Hidden clip file input */}

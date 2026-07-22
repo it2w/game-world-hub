@@ -138,7 +138,10 @@
     "presenceSaved": "تم حفظ إعداد الخصوصية",
     "presenceFull": "كامل — إظهار اللعبة والجلسة",
     "presenceGameOnly": "اللعبة فقط — إخفاء وقت الجلسة",
-    "presenceHidden": "مخفي — لا تُظهر النشاط"
+    "presenceHidden": "مخفي — لا تُظهر النشاط",
+    "quotaUsed": "{{current}} / {{limit}} مقاطع مستخدمة",
+    "quotaFull": "وصلت إلى الحد الأقصى — احذف بعض المقاطع أو انتقل إلى Pro للحصول على 100 مقطع.",
+    "quotaFullPro": "وصلت إلى حد Pro ({{limit}} مقطع). احذف بعض المقاطع لرفع المزيد."
   },
   "reputation": {
     "title": "السمعة",

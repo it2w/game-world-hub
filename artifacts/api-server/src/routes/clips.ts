@@ -480,6 +480,21 @@ router.delete("/clips/:id", requireAuth, async (req: Request, res: Response): Pr
   res.json({ ok: true });
 });
 
+// ── GET /users/me/clips/quota ─────────────────────────────────────────────────
+router.get("/users/me/clips/quota", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const myId = req.auth!.userId;
+  const { rows: [row] } = await pool.query<{ clip_count: string; is_pro: boolean }>(
+    `SELECT (SELECT COUNT(*) FROM clips WHERE owner_id=$1) AS clip_count,
+            COALESCE(u.is_pro, false) AS is_pro
+     FROM users u WHERE u.id=$1`,
+    [myId],
+  );
+  if (!row) { res.status(404).json({ error: "User not found" }); return; }
+  const current = parseInt(row.clip_count, 10);
+  const limit = row.is_pro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT;
+  res.json({ current, limit, isPro: row.is_pro });
+});
+
 // ── GET /users/:id/clips ──────────────────────────────────────────────────────
 router.get("/users/:id/clips", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

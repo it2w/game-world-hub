@@ -138,7 +138,10 @@
     "presenceSaved": "Presence setting saved",
     "presenceFull": "Full — show game + session",
     "presenceGameOnly": "Game only — hide session time",
-    "presenceHidden": "Hidden — don't show activity"
+    "presenceHidden": "Hidden — don't show activity",
+    "quotaUsed": "{{current}} / {{limit}} clips used",
+    "quotaFull": "Clip limit reached — delete clips to free space, or upgrade to Pro for 100 clips.",
+    "quotaFullPro": "Pro clip limit reached ({{limit}}). Delete some clips to upload more."
   },
   "reputation": {
     "title": "Reputation",

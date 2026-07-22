@@ -9,6 +9,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/Avatar';
+import { ClipCard, type Clip } from '@/components/ClipCard';
 import { customFetch } from '@workspace/api-client-react';
 import { useGetMe, useGetPlayerProgress, type Achievement } from '@workspace/api-client-react';
 
@@ -51,6 +53,22 @@ function usePlayerStats() {
     queryKey: ['/api/stats/me'],
     queryFn: () => customFetch<PlayerStats>('/api/stats/me'),
     staleTime: 120_000,
+  });
+}
+
+interface ClipsPage {
+  clips: Clip[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+function useMyClips(userId: number | undefined) {
+  return useQuery<ClipsPage>({
+    queryKey: ['/api/users', userId, 'clips'],
+    queryFn: () => customFetch<ClipsPage>(`/api/users/${userId}/clips?page=1`),
+    enabled: userId != null,
+    staleTime: 60_000,
   });
 }
 
@@ -260,6 +278,9 @@ export default function ProfileScreen() {
 
   const displayUser = user ?? ctxUser;
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
+  const { width: screenWidth } = useWindowDimensions();
+
+  const { data: clipsData, isLoading: loadingClips, refetch: refetchClips } = useMyClips(displayUser?.id);
 
   const handleLogout = async () => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -277,6 +298,11 @@ export default function ProfileScreen() {
       });
     } catch { /* cancelled */ }
   };
+
+  // 2-column clip grid metrics (16px margin each side, 8px gap)
+  const clipColGap = 8;
+  const clipHPad = 16;
+  const clipCardWidth = Math.floor((screenWidth - clipHPad * 2 - clipColGap) / 2);
 
   const isRefreshing = loadingMe || loadingProgress || loadingAch || loadingStats;
 
@@ -328,6 +354,7 @@ export default function ProfileScreen() {
             void refetchProgress();
             void refetchAch();
             void refetchStats();
+            void refetchClips();
           }}
           tintColor={colors.primary}
         />
@@ -462,6 +489,31 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+
+      {/* ── My Clips ────────────────────────────────────────────────── */}
+      <SectionHeader label={`مقاطعي${clipsData ? ` (${clipsData.total})` : ''}`} />
+      {loadingClips ? (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.primary} size="small" />
+        </View>
+      ) : (clipsData?.clips ?? []).length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={styles.emptyIcon}>🎬</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            لم ترفع أي مقاطع بعد
+          </Text>
+        </View>
+      ) : (
+        <View style={clipGridStyles.grid}>
+          {(clipsData?.clips ?? []).map((clip) => (
+            <ClipCard
+              key={clip.id}
+              clip={clip}
+              width={clipCardWidth}
+            />
+          ))}
+        </View>
+      )}
 
       {/* ── Achievements ────────────────────────────────────────────── */}
       <SectionHeader label={`الإنجازات (${unlockedAch.length}/${totalAch})`} />
@@ -643,4 +695,13 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 13, flex: 1 },
 
   version: { fontSize: 11, textAlign: 'center', paddingVertical: 20 },
+});
+
+const clipGridStyles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: 16,
+    gap: 8,
+  },
 });

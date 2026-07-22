@@ -312,7 +312,7 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
     res.status(201).json({ id: clip.id, mediaUrl: `/api/clips/${clip.id}/media`, thumbnailUrl: `/api/clips/${clip.id}/thumbnail` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Upload failed";
-    if (msg.includes("too large") || msg.includes("required") || msg.includes("Only")) {
+    if (msg.includes("too large") || msg.includes("required") || msg.includes("Only") || msg.includes("No file uploaded")) {
       res.status(400).json({ error: msg });
     } else {
       logger.error({ err }, "clips: upload error");

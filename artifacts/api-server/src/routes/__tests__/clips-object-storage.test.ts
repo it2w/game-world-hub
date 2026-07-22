@@ -369,12 +369,15 @@ describe("POST /clips — object-storage upload", () => {
     );
   });
 
-  it("rejects an upload with no file (non-2xx)", async () => {
-    // The route returns 500 for "No file uploaded" (not matched by the 400 patterns).
-    // What matters here is that the upload never silently succeeds.
+  it("rejects an upload with no file (400)", async () => {
     const { body: mp, contentType } = makeClipBody({ title: "No File" });
     const r = await req("POST", "/api/clips", owner.token, mp, contentType);
-    assert.ok(r.status >= 400, `missing file must not return 2xx (got ${r.status})`);
+    assert.equal(r.status, 400, `missing file must return 400 (got ${r.status})`);
+    assert.equal(
+      (r.body as { error: string }).error,
+      "No file uploaded",
+      "error message must be 'No file uploaded'",
+    );
   });
 
   it("rejects an upload with no title (400)", async () => {

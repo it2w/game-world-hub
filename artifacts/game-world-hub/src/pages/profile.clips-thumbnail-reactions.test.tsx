@@ -405,3 +405,85 @@ describe("zero-reaction clips — overlay shows nothing", () => {
     expect(showFallbackHeart).toBe(false);
   });
 });
+
+// ─── Suite 4: page navigation (unmount → remount) clears per-clip cache ───────
+//
+// clipReactionCounts is component-local state — it must reset on unmount so
+// that when the user navigates away and back the overlay doesn't show stale
+// counts from a previous session, and the next hover always re-fetches.
+
+describe("page navigation — remount clears clipReactionCounts and re-enables fetch", () => {
+  let fetchReactions: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchReactions = vi.fn();
+  });
+
+  test("clipReactionCounts is empty immediately after remount (fresh state)", async () => {
+    fetchReactions.mockResolvedValue({
+      reactions: { "🔥": 5, GG: 2 },
+      mine: ["🔥"],
+    });
+
+    // First mount — hover populates the cache
+    const { result, unmount } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    await act(async () => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    // Cache has data for the clip
+    expect(result.current.clipReactionCounts[CLIP_ID]).toEqual({
+      "🔥": 5,
+      GG: 2,
+    });
+
+    // Simulate navigation away (unmount = Profile leaving the DOM)
+    unmount();
+
+    // Simulate navigation back (fresh mount of the hook)
+    const { result: result2 } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    // State must start empty — no carry-over from the previous session
+    expect(result2.current.clipReactionCounts[CLIP_ID]).toBeUndefined();
+    expect(Object.keys(result2.current.clipReactionCounts)).toHaveLength(0);
+  });
+
+  test("first hover after remount fires a new fetch (cache-miss, not a skip)", async () => {
+    fetchReactions
+      .mockResolvedValueOnce({ reactions: { "🔥": 3 }, mine: [] })
+      .mockResolvedValueOnce({ reactions: { "🔥": 7 }, mine: [] });
+
+    // First mount — hover populates the cache
+    const { result, unmount } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    await act(async () => {
+      result.current.handleClipHover(CLIP_ID);
+    });
+
+    expect(fetchReactions).toHaveBeenCalledTimes(1);
+
+    // Navigate away, then back
+    unmount();
+
+    const { result: result2 } = renderHook(() =>
+      useClipThumbnailHover(fetchReactions as FetchReactionsFn),
+    );
+
+    // Hover on the same clip — must trigger a new fetch because the cache is gone
+    await act(async () => {
+      result2.current.handleClipHover(CLIP_ID);
+    });
+
+    // fetchReactions must have been called a second time
+    expect(fetchReactions).toHaveBeenCalledTimes(2);
+    // And the fresh data is stored
+    expect(result2.current.clipReactionCounts[CLIP_ID]).toEqual({ "🔥": 7 });
+  });
+});

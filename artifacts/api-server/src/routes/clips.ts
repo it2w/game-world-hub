@@ -337,14 +337,15 @@ router.get("/clips/friends", requireAuth, async (req: Request, res: Response): P
     description: string | null; mime_type: string; duration_seconds: number | null;
     view_count: number; created_at: Date;
     owner_display_name: string; owner_username: string; owner_avatar_url: string | null;
-    reaction_count: string; comment_count: string;
+    reaction_count: string; comment_count: string; viewer_reactions: string;
   }>(
     `SELECT c.id, c.owner_id, c.title, c.game, c.description, c.mime_type,
             c.duration_seconds, c.view_count, c.created_at,
             u.display_name AS owner_display_name, u.username AS owner_username,
             u.avatar_url AS owner_avatar_url,
             (SELECT COUNT(*) FROM clip_reactions r WHERE r.clip_id = c.id) AS reaction_count,
-            (SELECT COUNT(*) FROM clip_comments cm WHERE cm.clip_id = c.id) AS comment_count
+            (SELECT COUNT(*) FROM clip_comments cm WHERE cm.clip_id = c.id) AS comment_count,
+            COALESCE((SELECT string_agg(emoji,',') FROM clip_reactions WHERE clip_id=c.id AND user_id=$1),'') AS viewer_reactions
      FROM clips c
      JOIN users u ON u.id = c.owner_id
      WHERE c.owner_id IN (
@@ -356,7 +357,7 @@ router.get("/clips/friends", requireAuth, async (req: Request, res: Response): P
      LIMIT $2`,
     [myId, limit],
   );
-  const clips = await Promise.all(rows.map(r => serializeClip(r)));
+  const clips = await Promise.all(rows.map(r => serializeClip(r, myId)));
   res.json(clips);
 });
 

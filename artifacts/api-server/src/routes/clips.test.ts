@@ -38,7 +38,6 @@ import { inArray, or, eq } from "drizzle-orm";
 import { signToken } from "../middlewares/auth";
 import { ensureClipsTables } from "./clips";
 import app from "../app";
-import { ensureClipsTables } from "./clips";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -282,6 +281,38 @@ async function getUserClips(
         hostname: "127.0.0.1",
         port: (server.address() as AddressInfo).port,
         path: `/api/users/${targetUserId}/clips`,
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      (res: IncomingMessage) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode ?? 0, body: data });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function getFriendsClips(
+  actorId: number,
+  actorUsername: string,
+): Promise<{ status: number; body: unknown }> {
+  const token = signToken({ userId: actorId, username: actorUsername });
+
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: "127.0.0.1",
+        port: (server.address() as AddressInfo).port,
+        path: `/api/clips/friends`,
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -956,5 +987,122 @@ describe("GET /clips/:id/reactions — per-emoji accuracy with concurrent cross-
 
     // Cleanup
     await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1 AND emoji=$2`, [seededClipId, EMOJI]);
+  });
+});
+
+// ─── Friends-clips strip reaction accuracy ────────────────────────────────────
+
+describe("GET /clips/friends — reactionCount accuracy with concurrent cross-user toggles", () => {
+  /**
+   * GET /clips/friends only returns clips from accepted friends.
+   * We make otherId friends with ownerId so the seeded clip appears in
+   * otherId's strip.  The friendship row is inserted/deleted around the suite.
+   *
+   * Fixture variables (all defined at module scope):
+   *   ownerId / ownerUsername   — owns seededClipId
+   *   reactorId / reactorUsername — second reactor
+   *   otherId / otherUsername   — acts as the strip viewer (friends with owner)
+   *   seededClipId              — the clip under test
+   */
+  const EMOJI_FIRE = "🔥";
+  const EMOJI_GG   = "GG";
+
+  // Insert a friendship between otherId and ownerId so the clip is visible
+  before(async () => {
+    await pool.query(
+      `INSERT INTO friendships (user_id, friend_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [otherId, ownerId],
+    );
+  });
+
+  after(async () => {
+    await pool.query(
+      `DELETE FROM friendships WHERE (user_id=$1 AND friend_id=$2) OR (user_id=$2 AND friend_id=$1)`,
+      [otherId, ownerId],
+    );
+  });
+
+  test("two different-user reactions posted concurrently → GET /clips/friends returns correct reactionCount", async () => {
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [seededClipId]);
+
+    // owner and reactor both react with 🔥 concurrently
+    const [r1, r2] = await Promise.all([
+      postReaction(ownerId, ownerUsername, seededClipId, EMOJI_FIRE),
+      postReaction(reactorId, reactorUsername, seededClipId, EMOJI_FIRE),
+    ]);
+    assert.equal(r1.status, 200, "owner 🔥 POST should succeed");
+    assert.equal(r2.status, 200, "reactor 🔥 POST should succeed");
+
+    // DB sanity: both rows must exist
+    const dbCounts = await dbPerEmojiCounts(seededClipId);
+    assert.equal(dbCounts[EMOJI_FIRE] ?? 0, 2, "DB must hold 2 🔥 rows after concurrent POSTs");
+
+    // otherId (who is friends with the owner) fetches the strip
+    const res = await getFriendsClips(otherId, otherUsername);
+    assert.equal(res.status, 200, "GET /clips/friends should return 200");
+
+    const body = res.body as Array<{ id: number; reactionCount: number; viewerReactions: string[] }>;
+    const clip = body.find(c => c.id === seededClipId);
+    assert.ok(clip !== undefined, "seeded clip must appear in the viewer's friends strip");
+    assert.equal(
+      clip!.reactionCount,
+      2,
+      "GET /clips/friends reactionCount must equal 2 after two concurrent reactions",
+    );
+
+    // otherId has not reacted yet — their viewerReactions must be empty
+    assert.deepEqual(
+      clip!.viewerReactions,
+      [],
+      "viewerReactions must be empty for a user who has not reacted",
+    );
+
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [seededClipId]);
+  });
+
+  test("when the strip viewer is one of the reactors, viewerReactions includes their emoji", async () => {
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [seededClipId]);
+
+    // reactor adds 🔥 first; then otherId (the strip requester) also adds 🔥 + GG
+    await postReaction(reactorId, reactorUsername, seededClipId, EMOJI_FIRE);
+    await postReaction(otherId, otherUsername, seededClipId, EMOJI_FIRE);
+    await postReaction(otherId, otherUsername, seededClipId, EMOJI_GG);
+
+    // Total: 🔥 → 2 (reactor + other), GG → 1 (other)
+    const dbCounts = await dbPerEmojiCounts(seededClipId);
+    assert.equal(dbCounts[EMOJI_FIRE] ?? 0, 2, "DB 🔥 count should be 2");
+    assert.equal(dbCounts[EMOJI_GG]   ?? 0, 1, "DB GG count should be 1");
+
+    const res = await getFriendsClips(otherId, otherUsername);
+    assert.equal(res.status, 200, "GET /clips/friends should return 200");
+
+    const body = res.body as Array<{ id: number; reactionCount: number; viewerReactions: string[] }>;
+    const clip = body.find(c => c.id === seededClipId);
+    assert.ok(clip !== undefined, "seeded clip must appear in the viewer's friends strip");
+
+    assert.equal(
+      clip!.reactionCount,
+      3,
+      "reactionCount must be 3 (reactor 🔥 + viewer 🔥 + viewer GG)",
+    );
+
+    // viewerReactions must list both emojis otherId posted
+    assert.ok(
+      clip!.viewerReactions.includes(EMOJI_FIRE),
+      "viewerReactions must include 🔥 (viewer reacted with it)",
+    );
+    assert.ok(
+      clip!.viewerReactions.includes(EMOJI_GG),
+      "viewerReactions must include GG (viewer reacted with it)",
+    );
+    assert.equal(
+      clip!.viewerReactions.length,
+      2,
+      "viewerReactions must contain exactly the two emojis the viewer posted",
+    );
+
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [seededClipId]);
   });
 });

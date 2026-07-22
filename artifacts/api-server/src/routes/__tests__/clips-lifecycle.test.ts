@@ -466,4 +466,114 @@ describe("Clips lifecycle — upload, serve, delete", () => {
     assert.ok(colMap["thumbnail_url"], "thumbnail_url column should exist");
     assert.equal(colMap["thumbnail_url"].data_type, "text", "thumbnail_url should be TEXT");
   });
+
+  // ── Upload limit ─────────────────────────────────────────────────────────
+
+  it("POST /clips — rejects with 409 when free user exceeds 20-clip limit", async () => {
+    // Create a dedicated user so we don't interfere with clips created by other tests
+    const limitUser = await makeUser("limit");
+    createdUserIds.push(limitUser.id);
+
+    // Insert 20 clips directly into the DB (bypass GCS — we only need the count)
+    const insertedIds: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const { rows: [c] } = await pool.query<{ id: number }>(
+        `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, 'image/jpeg') RETURNING id`,
+        [limitUser.id, `Limit test clip ${i + 1}`],
+      );
+      await pool.query(
+        `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
+        [c.id, FAKE_FILE_PATH],
+      );
+      insertedIds.push(c.id);
+    }
+
+    // 21st upload attempt via the API — should be rejected before any GCS call
+    uploadCalls = [];
+    const { body, contentType } = multipartBody(
+      { title: "One Too Many" },
+      { fieldname: "file", filename: "clip.jpg", mime: "image/jpeg", data: Buffer.from("IMGDATA") },
+    );
+    const r = await req("POST", "/api/clips", limitUser.token, body, contentType);
+    assert.equal(r.status, 409, `expected 409, got ${r.status}: ${JSON.stringify(r.body)}`);
+    const b = r.body as { error: string; limit: number; current: number };
+    assert.equal(b.limit, 20, "limit should be 20 for free users");
+    assert.equal(b.current, 20, "current should reflect the 20 existing clips");
+    assert.match(b.error, /20 clips/i, "error message should mention the limit");
+    // GCS upload must NOT have been called
+    assert.equal(uploadCalls.length, 0, "GCS upload should not be called when limit is exceeded");
+
+    // Cleanup
+    await pool.query("DELETE FROM clips WHERE id = ANY($1)", [insertedIds]);
+  });
+
+  it("POST /clips — Nth clip (exactly at limit minus 1) succeeds for free user", async () => {
+    // Create a dedicated user with 19 pre-existing clips; the 20th should succeed
+    const limitUser2 = await makeUser("limit2");
+    createdUserIds.push(limitUser2.id);
+
+    const insertedIds: number[] = [];
+    for (let i = 0; i < 19; i++) {
+      const { rows: [c] } = await pool.query<{ id: number }>(
+        `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, 'image/jpeg') RETURNING id`,
+        [limitUser2.id, `Prefill clip ${i + 1}`],
+      );
+      await pool.query(
+        `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
+        [c.id, FAKE_FILE_PATH],
+      );
+      insertedIds.push(c.id);
+    }
+
+    // 20th upload — exactly at limit, should succeed (201)
+    uploadCalls = [];
+    const { body, contentType } = multipartBody(
+      { title: "Twentieth Clip" },
+      { fieldname: "file", filename: "clip.jpg", mime: "image/jpeg", data: Buffer.from("IMGDATA") },
+    );
+    const r = await req("POST", "/api/clips", limitUser2.token, body, contentType);
+    assert.equal(r.status, 201, `expected 201 for the Nth clip, got ${r.status}: ${JSON.stringify(r.body)}`);
+    const b = r.body as { id: number };
+    insertedIds.push(b.id);
+    assert.equal(uploadCalls.length, 1, "GCS upload should be called for the last allowed clip");
+
+    // Cleanup
+    await pool.query("DELETE FROM clips WHERE id = ANY($1)", [insertedIds]);
+  });
+
+  it("POST /clips — Pro user limit is 100 (free limit does not apply)", async () => {
+    // Create a Pro user with 20 clips — they should still be allowed to upload
+    const proUser = await makeUser("pro");
+    createdUserIds.push(proUser.id);
+    await pool.query(`UPDATE users SET is_pro = true WHERE id = $1`, [proUser.id]);
+
+    const insertedIds: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const { rows: [c] } = await pool.query<{ id: number }>(
+        `INSERT INTO clips (owner_id, title, mime_type) VALUES ($1, $2, 'image/jpeg') RETURNING id`,
+        [proUser.id, `Pro prefill ${i + 1}`],
+      );
+      await pool.query(
+        `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
+        [c.id, FAKE_FILE_PATH],
+      );
+      insertedIds.push(c.id);
+    }
+
+    // Pro user's 21st clip — should succeed (they get 100)
+    uploadCalls = [];
+    const { body, contentType } = multipartBody(
+      { title: "Pro Extra Clip" },
+      { fieldname: "file", filename: "clip.jpg", mime: "image/jpeg", data: Buffer.from("IMGDATA") },
+    );
+    const r = await req("POST", "/api/clips", proUser.token, body, contentType);
+    assert.equal(r.status, 201, `Pro user should not be blocked at 20 clips, got ${r.status}: ${JSON.stringify(r.body)}`);
+    const rb = r.body as { id: number };
+    insertedIds.push(rb.id);
+    assert.equal(uploadCalls.length, 1, "GCS upload should be called for a Pro user within their limit");
+
+    // Cleanup
+    await pool.query("DELETE FROM clips WHERE id = ANY($1)", [insertedIds]);
+    await pool.query(`UPDATE users SET is_pro = false WHERE id = $1`, [proUser.id]);
+  });
 });

@@ -31,6 +31,10 @@ const MAX_VIDEO_BYTES = 50 * 1024 * 1024;  // 50 MB
 const MAX_THUMB_BYTES =  2 * 1024 * 1024;  //  2 MB
 const VALID_EMOJIS = ["🔥", "GG", "💀", "👑", "😂"];
 
+// Per-user clip limits — enforced before any GCS upload is attempted
+const FREE_CLIP_LIMIT = 20;
+const PRO_CLIP_LIMIT  = 100;
+
 // ── Schema bootstrap ─────────────────────────────────────────────────────────
 export async function ensureClipsTables(): Promise<void> {
   // Main clips metadata table
@@ -246,6 +250,28 @@ router.post("/clips", requireAuth, async (req: Request, res: Response): Promise<
       bb.on("error", reject);
       req.pipe(bb);
     });
+
+    // Enforce per-user clip limit before wasting any storage bandwidth
+    const { rows: [limitRow] } = await pool.query<{ clip_count: string; is_pro: boolean }>(
+      `SELECT (SELECT COUNT(*) FROM clips WHERE owner_id=$1) AS clip_count,
+              COALESCE(u.is_pro, false) AS is_pro
+       FROM users u WHERE u.id=$1`,
+      [ownerId],
+    );
+    if (limitRow) {
+      const clipCount = parseInt(limitRow.clip_count, 10);
+      const limit = limitRow.is_pro ? PRO_CLIP_LIMIT : FREE_CLIP_LIMIT;
+      if (clipCount >= limit) {
+        res.status(409).json({
+          error: limitRow.is_pro
+            ? `Pro users may store up to ${PRO_CLIP_LIMIT} clips. Delete some clips to upload more.`
+            : `Free users may store up to ${FREE_CLIP_LIMIT} clips. Delete some clips or upgrade to Pro for a higher limit.`,
+          limit,
+          current: clipCount,
+        });
+        return;
+      }
+    }
 
     // Upload file buffer to object storage
     const fileUrl = await objectStorageService.uploadObjectEntityBuffer(result.fileBuffer, result.mimeType);

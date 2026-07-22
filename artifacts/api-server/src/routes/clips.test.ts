@@ -70,7 +70,7 @@ before(async () => {
     [ownerId, "Test Clip", "TestGame", "image/png"],
   );
   clipId = clip.id;
-  // Add a stub media row so thumbnail / media endpoints don't 404
+  // Add a stub media row (object-storage schema: file_url TEXT)
   await pool.query(
     `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
     [clipId, "/objects/uploads/stub-test-uuid"],

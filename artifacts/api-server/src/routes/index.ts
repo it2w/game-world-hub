@@ -41,6 +41,7 @@ import threadsRouter from "./threads";
 import pollsRouter from "./polls";
 import soundboardRouter from "./soundboard";
 import stageRouter from "./stage";
+import communitiesRouter from "./communities";
 
 const router: IRouter = Router();
 
@@ -112,5 +113,6 @@ router.use(threadsRouter);
 router.use(pollsRouter);
 router.use(soundboardRouter);
 router.use(stageRouter);
+router.use(communitiesRouter);
 
 export default router;

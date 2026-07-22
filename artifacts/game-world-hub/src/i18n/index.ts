@@ -58,6 +58,8 @@ import enEvents from './locales/en/events.json';
 import arEvents from './locales/ar/events.json';
 import enPrestige from './locales/en/prestige.json';
 import arPrestige from './locales/ar/prestige.json';
+import enCommunities from './locales/en/communities.json';
+import arCommunities from './locales/ar/communities.json';
 
 export const LANGS = ['en', 'ar'] as const;
 export type AppLanguage = (typeof LANGS)[number];
@@ -92,6 +94,7 @@ const resources = {
     proHunt: enProHunt,
     events: enEvents,
     prestige: enPrestige,
+    communities: enCommunities,
   },
   ar: {
     common: arCommon,
@@ -122,6 +125,7 @@ const resources = {
     proHunt: arProHunt,
     events: arEvents,
     prestige: arPrestige,
+    communities: arCommunities,
   },
 };
 

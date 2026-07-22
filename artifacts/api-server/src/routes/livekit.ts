@@ -2,7 +2,7 @@ import { Router } from "express";
 import { AccessToken } from "livekit-server-sdk";
 import { requireAuth } from "../middlewares/auth";
 import { and, eq } from "drizzle-orm";
-import { db, partyMembersTable, usersTable, permanentRoomsTable } from "@workspace/db";
+import { db, partyMembersTable, usersTable, permanentRoomsTable, communityChannelsTable, communityMembersTable } from "@workspace/db";
 import { callRooms } from "../ws/signaling";
 import { verifiedRoomAccess } from "./rooms";
 import { logger } from "../lib/logger";
@@ -89,6 +89,40 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
       res.status(500).json({ error: "Internal error" });
       return;
     }
+  } else if (room.startsWith("community:")) {
+    // community:<channelId> — user must be a (non-banned) member of the community
+    const channelId = Number(room.slice("community:".length));
+    if (!Number.isInteger(channelId) || channelId <= 0) {
+      res.status(400).json({ error: "Invalid community channel id" });
+      return;
+    }
+    try {
+      const [channel] = await db
+        .select({ communityId: communityChannelsTable.communityId })
+        .from(communityChannelsTable)
+        .where(eq(communityChannelsTable.id, channelId));
+      if (!channel) {
+        res.status(404).json({ error: "Channel not found" });
+        return;
+      }
+      const [membership] = await db
+        .select({ isBanned: communityMembersTable.isBanned })
+        .from(communityMembersTable)
+        .where(
+          and(
+            eq(communityMembersTable.communityId, channel.communityId),
+            eq(communityMembersTable.userId, userId),
+          ),
+        );
+      if (!membership || membership.isBanned) {
+        res.status(403).json({ error: "Not a community member" });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "livekit: community channel check failed");
+      res.status(500).json({ error: "Internal error" });
+      return;
+    }
   } else if (room === "vip:lounge") {
     // Pro-only VIP Lounge
     const [user] = await db
@@ -102,7 +136,7 @@ router.get("/livekit/token", requireAuth, async (req, res): Promise<void> => {
       return;
     }
   } else {
-    res.status(400).json({ error: "Invalid room format (expected party:<id>, call:<id>, proroom:<id>, or vip:lounge)" });
+    res.status(400).json({ error: "Invalid room format (expected party:<id>, call:<id>, proroom:<id>, community:<channelId>, or vip:lounge)" });
     return;
   }
 

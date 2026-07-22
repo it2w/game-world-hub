@@ -61,9 +61,10 @@ export interface PeerUiState {
 }
 
 export type ActiveRoom =
-  | { kind: "party";   room: string; partyId: number; title: string }
-  | { kind: "call";    room: string; peer: CallUser;  title: string }
-  | { kind: "proroom"; room: string; roomId: number;  title: string };
+  | { kind: "party";     room: string; partyId: number;  title: string }
+  | { kind: "call";      room: string; peer: CallUser;   title: string }
+  | { kind: "proroom";   room: string; roomId: number;   title: string }
+  | { kind: "community"; room: string; communityId: number; channelId: number; title: string };
 
 export interface StageParticipant {
   userId: number;
@@ -120,6 +121,7 @@ interface VoiceContextValue {
   joinPartyVoice: (partyId: number, title: string) => Promise<void>;
   joinProRoom: (roomId: number, title: string) => Promise<void>;
   joinVipLounge: () => Promise<void>;
+  joinCommunityVoice: (communityId: number, channelId: number, title: string) => Promise<void>;
   leaveVoice: () => void;
   rejoin: () => Promise<void>;
   callUser: (user: CallUser) => void;
@@ -902,6 +904,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (room?.kind === "call") {
       wsSend({ type: "call-end", room: room.room });
     }
+    // Community voice-leave notification
+    if (room?.kind === "community") {
+      const token = localStorage.getItem("gwh_token");
+      void fetch(`${getApiBase()}/api/communities/${room.communityId}/voice-leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ channelId: room.channelId }),
+      }).catch(() => {});
+    }
     // Stage cleanup — fire-and-forget; server is lenient if not in a stage room
     if (room?.kind === "proroom") {
       const token = localStorage.getItem("gwh_token");
@@ -991,6 +1002,37 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         setError("Failed to join voice room");
+        setActiveRoom(null);
+        activeRoomRef.current = null;
+      }
+    },
+    [leaveVoice, connectLiveKit],
+  );
+
+  const joinCommunityVoice = useCallback(
+    async (communityId: number, channelId: number, title: string) => {
+      setError(null);
+      setCanRejoin(false);
+      const roomName = `community:${channelId}`;
+      if (activeRoomRef.current?.room === roomName) return;
+      if (activeRoomRef.current) leaveVoice();
+      const room: ActiveRoom = { kind: "community", room: roomName, communityId, channelId, title };
+      setActiveRoom(room);
+      activeRoomRef.current = room;
+      try {
+        await connectLiveKit(roomName);
+        // Notify community members of voice join (best-effort)
+        const token = localStorage.getItem("gwh_token");
+        fetch(`${getApiBase()}/api/communities/${communityId}/voice-join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ channelId }),
+        }).catch(() => {});
+      } catch {
+        setError("Failed to join community voice channel");
         setActiveRoom(null);
         activeRoomRef.current = null;
       }
@@ -1556,6 +1598,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     joinPartyVoice,
     joinProRoom,
     joinVipLounge,
+    joinCommunityVoice,
     leaveVoice,
     rejoin,
     callUser,

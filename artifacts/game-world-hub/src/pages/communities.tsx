@@ -1,0 +1,295 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
+import { customFetch } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Globe, Lock, Plus, Users, Zap, Search, Hash } from "lucide-react";
+
+interface Community {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  gameTag: string | null;
+  privacy: "public" | "invite_only";
+  boostLevel: number;
+  memberCount: number;
+  iconKey: string | null;
+  ownerId: number;
+}
+
+function CommunityCard({ community }: { community: Community }) {
+  const { t } = useTranslation("communities");
+  const [, navigate] = useLocation();
+
+  return (
+    <div
+      className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer group"
+      onClick={() => navigate(`/communities/${community.slug}`)}
+    >
+      <div className="flex items-start gap-3">
+        {/* Icon */}
+        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-lg flex-shrink-0 border border-primary/20 group-hover:border-primary/50 transition-colors">
+          {community.iconKey ? (
+            <img src={community.iconKey} alt={community.name} className="w-full h-full object-cover rounded-lg" />
+          ) : (
+            community.name.charAt(0).toUpperCase()
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-foreground truncate">{community.name}</span>
+            {community.boostLevel > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 px-1 rounded">
+                <Zap className="w-2.5 h-2.5" />
+                {t("level", { level: community.boostLevel })}
+              </span>
+            )}
+            {community.privacy === "invite_only" && (
+              <Lock className="w-3 h-3 text-muted-foreground" />
+            )}
+          </div>
+
+          {community.description && (
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{community.description}</p>
+          )}
+
+          <div className="flex items-center gap-3 mt-2">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Users className="w-3 h-3" />
+              {community.memberCount.toLocaleString()}
+            </span>
+            {community.gameTag && (
+              <span className="text-xs font-mono text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+                {community.gameTag}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [, navigate] = useLocation();
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [gameTag, setGameTag] = useState("");
+  const [privacy, setPrivacy] = useState<"public" | "invite_only">("public");
+
+  const create = useMutation({
+    mutationFn: () =>
+      customFetch<Community>("/api/communities", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, gameTag: gameTag.trim() || undefined, privacy }),
+      }),
+    onSuccess: (community) => {
+      toast({ title: t("created") });
+      qc.invalidateQueries({ queryKey: ["communities"] });
+      qc.invalidateQueries({ queryKey: ["communities-mine"] });
+      onClose();
+      navigate(`/communities/${community.slug}`);
+    },
+    onError: (e: any) => {
+      toast({ title: e?.message ?? t("error"), variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-mono uppercase tracking-widest">{t("createTitle")}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{t("createDesc")}</p>
+
+        <div className="space-y-4 mt-2">
+          <div className="space-y-1">
+            <Label>{t("communityName")}</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("communityNamePlaceholder")}
+              maxLength={100}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{t("description")}</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("descriptionPlaceholder")}
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{t("gameTag")}</Label>
+            <Input
+              value={gameTag}
+              onChange={(e) => setGameTag(e.target.value)}
+              placeholder={t("gameTagPlaceholder")}
+              maxLength={80}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{t("privacy")}</Label>
+            <Select value={privacy} onValueChange={(v: any) => setPrivacy(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">
+                  <span className="flex items-center gap-2">
+                    <Globe className="w-3 h-3" /> {t("public")}
+                  </span>
+                </SelectItem>
+                <SelectItem value="invite_only">
+                  <span className="flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> {t("inviteOnly")}
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>{t("leave", { ns: "communities" })}</Button>
+          <Button
+            onClick={() => create.mutate()}
+            disabled={!name.trim() || create.isPending}
+          >
+            {create.isPending ? "…" : t("create")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function CommunitiesPage() {
+  const { t } = useTranslation("communities");
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<"discover" | "mine">("discover");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const { data: all = [], isLoading: loadingAll } = useQuery<Community[]>({
+    queryKey: ["communities", search],
+    queryFn: () => customFetch(`/api/communities?search=${encodeURIComponent(search)}&limit=50`),
+    enabled: tab === "discover",
+  });
+
+  const { data: mine = [], isLoading: loadingMine } = useQuery<Community[]>({
+    queryKey: ["communities-mine"],
+    queryFn: () => customFetch("/api/communities/mine"),
+    enabled: tab === "mine",
+  });
+
+  const list = tab === "mine" ? mine : all;
+  const loading = tab === "mine" ? loadingMine : loadingAll;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="border-b border-border px-6 py-4 flex items-center gap-4 flex-wrap">
+        <div>
+          <h1 className="font-mono text-lg font-bold uppercase tracking-widest text-primary">{t("title")}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("subtitle")}</p>
+        </div>
+        <div className="ms-auto flex items-center gap-2">
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-4 h-4 me-1" />
+            {t("create")}
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs + search */}
+      <div className="border-b border-border px-6 py-2 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 bg-muted rounded-md">
+          <button
+            onClick={() => setTab("discover")}
+            className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded transition-colors ${tab === "discover" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {t("discoverLabel")}
+          </button>
+          <button
+            onClick={() => setTab("mine")}
+            className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded transition-colors ${tab === "mine" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {t("myCommunitiesLabel")}
+          </button>
+        </div>
+
+        {tab === "discover" && (
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className="ps-9 h-8 text-sm"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-card border border-border rounded-lg p-4 animate-pulse h-24" />
+            ))}
+          </div>
+        ) : list.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+            <Hash className="w-10 h-10 text-muted-foreground/40" />
+            <p className="font-mono text-sm text-muted-foreground uppercase tracking-widest">
+              {t("noCommunitiesTitle")}
+            </p>
+            <p className="text-xs text-muted-foreground max-w-xs">{t("noCommunitiesDesc")}</p>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-4 h-4 me-1" />
+              {t("create")}
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {list.map((c) => (
+              <CommunityCard key={c.id} community={c} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+    </div>
+  );
+}

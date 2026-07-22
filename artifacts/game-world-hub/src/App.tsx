@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next';
 import { isRtl } from '@/i18n';
 
 import Dashboard from '@/pages/dashboard';
+import Communities from '@/pages/communities';
+import CommunityHub from '@/pages/community-hub';
 import Login from '@/pages/login';
 import Register from '@/pages/register';
 import Friends from '@/pages/friends';
@@ -111,6 +113,8 @@ function Router() {
             <Route path="/stats" component={Stats} />
             <Route path="/challenges" component={Challenges} />
             <Route path="/rooms" component={Rooms} />
+            <Route path="/communities" component={Communities} />
+            <Route path="/communities/:slug" component={CommunityHub} />
              <Route path="/pro" component={Pro} />
             <Route path="/battle-pass" component={BattlePass} />
             <Route path="/tournaments" component={Tournaments} />

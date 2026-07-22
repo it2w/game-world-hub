@@ -24,3 +24,4 @@ export * from "./revoked-tokens";
 export * from "./quests";
 export * from "./polls-threads";
 export * from "./soundboard-stage";
+export * from "./communities";

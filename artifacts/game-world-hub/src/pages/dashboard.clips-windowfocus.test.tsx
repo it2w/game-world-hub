@@ -8,10 +8,12 @@
  *   1. Focusing the window after data is invalidated (stale) triggers a new fetch.
  *   2. Focusing the window while data is still fresh does NOT trigger a fetch.
  *   3. The focus listener is cleaned up on unmount — no refetch fires afterwards.
+ *   4. The strip keeps showing its previous clips while a background refetch is in flight
+ *      (placeholderData: keepPreviousData — no blank flash).
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { CommunityHighlights } from "./dashboard";
 
@@ -192,5 +194,65 @@ describe("friends-clips-dashboard refetchOnWindowFocus", () => {
     });
 
     expect(mockCustomFetch).not.toHaveBeenCalled();
+  });
+
+  test("strip keeps previous clips visible while a background refetch is in flight (no blank flash)", async () => {
+    // Pre-seed the cache with one clip so the strip renders it immediately.
+    const previousClip = {
+      id: 42,
+      ownerId: 7,
+      title: "Ace Round Valorant",
+      game: "Valorant",
+      mimeType: "image/jpeg",
+      isVideo: false,
+      thumbnailUrl: "/thumb.jpg",
+      reactionCount: 3,
+      viewCount: 1200,
+      createdAt: new Date(Date.now() - 120_000).toISOString(),
+      owner: { displayName: "Khalid", username: "khalid99", avatarUrl: null },
+    };
+
+    const qc = makeClient();
+    qc.setQueryData(["friend-clips-dashboard"], [previousClip]);
+
+    // Make the next fetch hang indefinitely so we can inspect the UI mid-flight.
+    let resolveRefetch!: (value: unknown) => void;
+    const hangingFetch = new Promise((res) => { resolveRefetch = res; });
+    mockCustomFetch.mockReturnValueOnce(hangingFetch);
+
+    renderHighlights(qc);
+
+    // Wait for initial render with seeded data.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The clip title should be visible right away.
+    expect(screen.getByText("Ace Round Valorant")).toBeTruthy();
+
+    // Invalidate (mark stale) without triggering an immediate refetch.
+    await act(async () => {
+      await qc.invalidateQueries({
+        queryKey: ["friend-clips-dashboard"],
+        refetchType: "none",
+      });
+    });
+
+    mockCustomFetch.mockClear();
+    mockCustomFetch.mockReturnValueOnce(hangingFetch);
+
+    // Simulate window focus to kick off the background refetch.
+    await act(async () => {
+      focusManager.setFocused(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The refetch is now in flight but not yet resolved.
+    // The strip must still show the previous clip (no blank flash).
+    expect(screen.getByText("Ace Round Valorant")).toBeTruthy();
+
+    // Clean up: let the hanging fetch resolve so React Query doesn't leak.
+    resolveRefetch([previousClip]);
   });
 });

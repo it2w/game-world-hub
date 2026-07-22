@@ -17,7 +17,7 @@ import {
   type PartyActivity,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { useVoice } from "@/voice/voice-context";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -506,6 +506,7 @@ export function CommunityHighlights({ activity }: { activity: PartyActivity[] })
     queryFn: () => customFetch("/api/clips/friends?limit=4"),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
     retry: false,
   });
 

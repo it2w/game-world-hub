@@ -122,9 +122,23 @@ export default function Profile() {
   }>({
     queryKey: ["user-clips", userId],
     queryFn: () => customFetch(`/api/users/${userId}/clips`),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: clipsTab === "clips" ? 15_000 : false,
     enabled: !!userId && clipsTab === "clips",
   });
+
+  // Keep the open lightbox in sync with fresh reaction data from the periodic refetch
+  useEffect(() => {
+    if (!clipLightbox || !clipsData) return;
+    const fresh = clipsData.clips.find(c => c.id === clipLightbox.id);
+    if (fresh) {
+      setClipLightbox(prev =>
+        prev && prev.id === fresh.id
+          ? { ...prev, reactionCount: fresh.reactionCount, viewerReactions: fresh.viewerReactions, commentCount: fresh.commentCount }
+          : prev
+      );
+    }
+  }, [clipsData]);
 
   // Presence data
   const { data: presenceData } = useQuery<{
@@ -1593,13 +1607,25 @@ export default function Profile() {
                   type="button"
                   onClick={async () => {
                     try {
+                      const alreadyReacted = clipLightbox.viewerReactions?.includes(emoji);
+                      // Optimistic update — flip the reaction state immediately
+                      setClipLightbox(prev => {
+                        if (!prev || prev.id !== clipLightbox.id) return prev;
+                        const newReactions = alreadyReacted
+                          ? prev.viewerReactions.filter(e => e !== emoji)
+                          : [...prev.viewerReactions, emoji];
+                        const delta = alreadyReacted ? -1 : 1;
+                        return { ...prev, viewerReactions: newReactions, reactionCount: Math.max(0, prev.reactionCount + delta) };
+                      });
                       await customFetch(`/api/clips/${clipLightbox.id}/reactions`, {
                         method: "POST",
                         body: JSON.stringify({ emoji }),
                       });
+                      // Refetch in background to reconcile with server truth
                       void refetchClips();
                     } catch {
-                      // ignore
+                      // Roll back optimistic update on error
+                      void refetchClips();
                     }
                   }}
                   className={[

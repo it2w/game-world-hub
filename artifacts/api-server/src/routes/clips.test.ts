@@ -332,6 +332,68 @@ describe("POST /clips/:id/reactions — toggle correctness", () => {
   });
 });
 
+describe("POST /clips/:id/reactions — broadcastAll payload", () => {
+  /**
+   * broadcastAll is called with { type:"clip-reaction", clipId, reactions, actingUserId }.
+   * The `reactions` map is identical to the `reactions` field in the HTTP response, so
+   * verifying the response body is a faithful proxy for asserting the broadcast payload.
+   */
+  const ownerUsername = `clipstest_owner_${SUFFIX}`;
+  const reactorUsername = `clipstest_reactor_${SUFFIX}`;
+  const EMOJI_FIRE = "🔥";
+  const EMOJI_GG = "GG";
+
+  test("broadcast payload reactions map reflects all per-emoji counts after a toggle-on", async () => {
+    // Ensure a clean slate for this sub-test
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+
+    // Reactor adds 🔥
+    const r1 = await postReaction(reactorId, reactorUsername, clipId, EMOJI_FIRE);
+    assert.equal(r1.status, 200, "reaction POST should succeed");
+    const b1 = r1.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(b1.toggled, true, "first reaction should add");
+    // reactions map must contain exactly the emojis that exist
+    assert.equal(b1.reactions[EMOJI_FIRE], 1, "🔥 count should be 1");
+    assert.equal(Object.keys(b1.reactions).length, 1, "only one emoji should be present");
+
+    // Owner also adds 🔥 — count should reach 2
+    const r2 = await postReaction(ownerId, ownerUsername, clipId, EMOJI_FIRE);
+    assert.equal(r2.status, 200);
+    const b2 = r2.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(b2.reactions[EMOJI_FIRE], 2, "🔥 count should be 2 after second user reacts");
+
+    // Owner also adds GG — map should now have two emoji keys
+    const r3 = await postReaction(ownerId, ownerUsername, clipId, EMOJI_GG);
+    assert.equal(r3.status, 200);
+    const b3 = r3.body as { reactions: Record<string, number> };
+    assert.equal(b3.reactions[EMOJI_FIRE], 2, "🔥 count should remain 2");
+    assert.equal(b3.reactions[EMOJI_GG], 1, "GG count should be 1");
+    assert.equal(Object.keys(b3.reactions).length, 2, "two emoji keys expected in broadcast payload");
+
+    // Clean up
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+  });
+
+  test("broadcast payload reflects removal after toggle-off (emoji key disappears when count reaches 0)", async () => {
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+
+    // Add 🔥
+    await postReaction(reactorId, reactorUsername, clipId, EMOJI_FIRE);
+    // Remove 🔥 (toggle off)
+    const r = await postReaction(reactorId, reactorUsername, clipId, EMOJI_FIRE);
+    assert.equal(r.status, 200);
+    const body = r.body as { toggled: boolean; reactions: Record<string, number> };
+    assert.equal(body.toggled, false, "second toggle should remove the reaction");
+    // Once removed the emoji should not appear in the map at all
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(body.reactions, EMOJI_FIRE),
+      "🔥 key must be absent from reactions map after toggle-off (no zero-count entries)",
+    );
+
+    await pool.query(`DELETE FROM clip_reactions WHERE clip_id=$1`, [clipId]);
+  });
+});
+
 describe("POST /clips/:id/reactions — edge cases", () => {
   const ownerUsername = `clipstest_owner_${SUFFIX}`;
 

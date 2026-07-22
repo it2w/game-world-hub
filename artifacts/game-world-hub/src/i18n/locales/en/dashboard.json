@@ -289,5 +289,16 @@
     "onlineHint": "of {{total}}",
     "streakLabel": "Streak",
     "streakHint": "Consecutive days"
+  },
+  "featured": {
+    "title": "Featured Events",
+    "viewAll": "View All →",
+    "going": "going",
+    "rsvp": "RSVP"
+  },
+  "myEvents": {
+    "title": "My Upcoming Events",
+    "viewAll": "View All →",
+    "startsIn": "Starts in"
   }
 }

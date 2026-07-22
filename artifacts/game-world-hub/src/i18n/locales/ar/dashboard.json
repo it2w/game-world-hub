@@ -289,5 +289,16 @@
     "onlineHint": "من {{total}}",
     "streakLabel": "Streak",
     "streakHint": "أيام متتالية"
+  },
+  "featured": {
+    "title": "الفعاليات المميزة",
+    "viewAll": "عرض الكل ←",
+    "going": "يحضرون",
+    "rsvp": "تأكيد الحضور"
+  },
+  "myEvents": {
+    "title": "فعالياتي القادمة",
+    "viewAll": "عرض الكل ←",
+    "startsIn": "يبدأ خلال"
   }
 }

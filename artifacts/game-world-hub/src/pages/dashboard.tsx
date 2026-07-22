@@ -905,6 +905,174 @@ export function SpotlightCarousel({ me }: { me?: User | null }) {
   );
 }
 
+// ── FeaturedEventsCarousel ────────────────────────────────────────────────────
+interface FeaturedEvent {
+  id: number; title: string; titleAr: string | null;
+  eventType: string | null; game: string | null; scheduledAt: string | null;
+  rsvpCounts: { going: number; maybe: number; notGoing: number };
+  viewerRsvp: string | null; partyId: number | null; recurringRule: object | null;
+}
+
+function FeaturedEventsCarousel() {
+  const { t } = useTranslation("dashboard");
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  const [rsvping, setRsvping] = useState<number | null>(null);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: featured } = useQuery<FeaturedEvent[]>({
+    queryKey: ["events-featured-dash"],
+    queryFn: () => customFetch("/api/events/featured"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  if (!featured || featured.length === 0) return null;
+
+  const TYPE_COLOR: Record<string, string> = {
+    casual: "#22C55E", tournament: "#EF4444", coaching: "#A855F7", community: "#06B6D4",
+  };
+
+  const rsvp = async (eventId: number, status: string) => {
+    if (rsvping) return;
+    setRsvping(eventId);
+    try {
+      await customFetch(`/api/events/${eventId}/rsvp`, { method: "POST", body: JSON.stringify({ status }) });
+      qc.invalidateQueries({ queryKey: ["events-featured-dash"] });
+      toast({ title: "RSVP saved! 🎉" });
+    } catch (e: any) {
+      toast({ title: e?.data?.error ?? "Failed", variant: "destructive" });
+    } finally {
+      setRsvping(null);
+    }
+  };
+
+  return (
+    <div className="section-box" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="section-hd" style={{ padding: "10px 14px" }}>
+        <span className="section-title">🗓️ {t("featured.title")}</span>
+        <Link href="/events"><span style={{ fontSize: 9, color: "#22C55E", cursor: "pointer" }}>{t("featured.viewAll")}</span></Link>
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "0 14px 14px", scrollbarWidth: "none" }}>
+        {featured.map((evt) => {
+          const color = evt.eventType ? (TYPE_COLOR[evt.eventType] ?? "#22C55E") : "#22C55E";
+          const title = isAr && evt.titleAr ? evt.titleAr : evt.title;
+          const dateLabel = evt.scheduledAt
+            ? new Date(evt.scheduledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+            : null;
+          const going = evt.rsvpCounts.going;
+          const isGoing = evt.viewerRsvp === "going";
+          return (
+            <div key={evt.id} style={{
+              minWidth: 180, border: `1px solid ${color}30`, background: `${color}08`,
+              padding: 12, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8,
+            }}>
+              {evt.eventType && (
+                <span style={{
+                  fontFamily: "monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: 2,
+                  color, border: `1px solid ${color}40`, padding: "1px 5px", alignSelf: "flex-start",
+                }}>
+                  {evt.eventType}
+                </span>
+              )}
+              <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{title}</div>
+              {evt.game && <div style={{ fontFamily: "monospace", fontSize: 9, color }}>{evt.game}</div>}
+              {dateLabel && <div style={{ fontFamily: "monospace", fontSize: 9, color: "#555" }}>📅 {dateLabel}</div>}
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#22C55E" }}>👥 {going} {t("featured.going")}</div>
+              <button
+                onClick={() => isGoing ? undefined : rsvp(evt.id, "going")}
+                disabled={rsvping === evt.id}
+                style={{
+                  fontFamily: "monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: 1,
+                  border: `1px solid ${isGoing ? "#22C55E" : color}`,
+                  color: isGoing ? "#22C55E" : color,
+                  background: isGoing ? "#22C55E15" : "transparent",
+                  padding: "4px 8px", cursor: isGoing ? "default" : "pointer",
+                }}
+              >
+                {isGoing ? "Going ✓" : t("featured.rsvp")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── MyUpcomingEventsWidget ─────────────────────────────────────────────────────
+function MyUpcomingEventsWidget() {
+  const { t } = useTranslation("dashboard");
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const { data: myEvents } = useQuery<FeaturedEvent[]>({
+    queryKey: ["events-mine-dash"],
+    queryFn: () => customFetch("/api/events/mine"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  if (!myEvents || myEvents.length === 0) return null;
+
+  const TYPE_COLOR: Record<string, string> = {
+    casual: "#22C55E", tournament: "#EF4444", coaching: "#A855F7", community: "#06B6D4",
+  };
+
+  const fmtCountdown = (target: string) => {
+    const ms = new Date(target).getTime() - now;
+    if (ms <= 0) return "Starting now!";
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  return (
+    <div className="section-box">
+      <div className="section-hd">
+        <span className="section-title">⏰ {t("myEvents.title")}</span>
+        <Link href="/events?mine=1"><span style={{ fontSize: 9, color: "#22C55E", cursor: "pointer" }}>{t("myEvents.viewAll")}</span></Link>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 2px 2px" }}>
+        {myEvents.slice(0, 2).map((evt) => {
+          const color = evt.eventType ? (TYPE_COLOR[evt.eventType] ?? "#22C55E") : "#22C55E";
+          const title = isAr && evt.titleAr ? evt.titleAr : evt.title;
+          const countdown = evt.scheduledAt ? fmtCountdown(evt.scheduledAt) : null;
+          return (
+            <Link key={evt.id} href={`/events`}>
+              <div style={{
+                border: `1px solid ${color}30`, background: `${color}08`,
+                padding: "10px 12px", display: "flex", justifyContent: "space-between",
+                alignItems: "center", cursor: "pointer",
+              }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+                  {evt.game && <div style={{ fontFamily: "monospace", fontSize: 9, color, marginTop: 2 }}>{evt.game}</div>}
+                </div>
+                {countdown && (
+                  <div style={{ textAlign: "end", marginInlineStart: 8, flexShrink: 0 }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 9, color: "#555" }}>{t("myEvents.startsIn")}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 10, color, fontWeight: 700, letterSpacing: 1 }}>
+                      {countdown}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── VipLoungeCard ─────────────────────────────────────────────────────────────
 function VipLoungeCard({ me }: { me: User | null | undefined }) {
   const { t } = useTranslation("dashboard");
@@ -1231,6 +1399,7 @@ export default function Dashboard() {
             onBlock={f=>blockUser.mutate({userId:f.id},{onSuccess:()=>queryClient.invalidateQueries({queryKey:getGetOnlineFriendsSummaryQueryKey()})})}
           />
           <CommunityHighlights activity={partyActivity??[]}/>
+          <FeaturedEventsCarousel />
           <GlobalChat me={me} />
           <SpotlightCarousel me={me}/>
         </div>
@@ -1238,6 +1407,7 @@ export default function Dashboard() {
         <div className="dash-side">
           <BattlePassWidget/>
           <DailyQuestsWidget me={me}/>
+          <MyUpcomingEventsWidget />
           <SmartMatch friends={friends} openParties={parties??[]}/>
           <ChallengeVs me={me} friends={friends}/>
           <TournamentCard/>

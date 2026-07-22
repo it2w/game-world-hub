@@ -491,7 +491,7 @@ function FriendsGrid({ friends, onCall, onDm, onBlock }: {
 }
 
 // ── CommunityHighlights ────────────────────────────────────────────────────────
-function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
+export function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
   const { t } = useTranslation("dashboard");
 
   // Real friend clips from API

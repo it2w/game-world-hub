@@ -19,5 +19,7 @@ The Replit object storage sidecar `/credential` and `/token` endpoints both retu
 - The `stored_images` table schema is in `lib/db/src/schema/stored-images.ts`.
 - For future large binary uploads (video, files), consider a different approach since BYTEA in PG scales poorly beyond ~5MB.
 
-## Clips migration (done)
+## Clips migration (done) + lifecycle tests (done)
 `clips_media` has been migrated from BYTEA (`file_data`/`thumbnail_data`) to URL-based storage (`file_url`/`thumbnail_url` TEXT columns). Clip files are uploaded via `objectStorageService.uploadObjectEntityBuffer()` and served by streaming from GCS through the `/api/clips/:id/media` and `/api/clips/:id/thumbnail` endpoints. If the sidecar credentials are still broken, uploads will fail with a clear 500 error — no silent BYTEA fallback. When the sidecar is fixed (credential endpoint returns a real JWT), clips will work end-to-end without further code changes.
+
+Full lifecycle test suite lives at `artifacts/api-server/src/routes/__tests__/clips-lifecycle.test.ts`. It mocks `ObjectStorageService.prototype` (upload + getFile) so no real GCS credentials are needed. Key gotcha: `ensureClipsTables()` is called from `index.ts`, NOT `app.ts` — tests must call it explicitly in `before()` or the `clips` table won't exist.

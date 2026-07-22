@@ -19,6 +19,7 @@ import { AddressInfo } from "node:net";
 import { db, usersTable, pool } from "@workspace/db";
 import { inArray } from "drizzle-orm";
 import { signToken } from "../middlewares/auth";
+import { ensureClipsTables } from "./clips";
 import app from "../app";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -57,45 +58,8 @@ before(async () => {
   reactorId = reactor.id;
   createdUserIds.push(ownerId, reactorId);
 
-  // Ensure clips tables exist (idempotent)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS clips (
-      id               SERIAL PRIMARY KEY,
-      owner_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title            TEXT    NOT NULL,
-      game             TEXT,
-      description      TEXT,
-      mime_type        TEXT    NOT NULL,
-      duration_seconds INTEGER,
-      view_count       INTEGER NOT NULL DEFAULT 0,
-      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS clips_media (
-      clip_id        INTEGER PRIMARY KEY REFERENCES clips(id) ON DELETE CASCADE,
-      file_data      BYTEA NOT NULL,
-      thumbnail_data BYTEA
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS clip_reactions (
-      clip_id    INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
-      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      emoji      TEXT    NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (clip_id, user_id, emoji)
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS clip_comments (
-      id         SERIAL PRIMARY KEY,
-      clip_id    INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
-      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      content    TEXT    NOT NULL CHECK (length(content) BETWEEN 1 AND 500),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+  // Ensure clips tables exist (idempotent — uses the canonical URL-based schema).
+  await ensureClipsTables();
 
   // Seed a single clip for the owner (raw SQL — clips use pool directly)
   const { rows: [clip] } = await pool.query<{ id: number }>(
@@ -105,8 +69,8 @@ before(async () => {
   clipId = clip.id;
   // Add a stub media row so thumbnail / media endpoints don't 404
   await pool.query(
-    `INSERT INTO clips_media (clip_id, file_data) VALUES ($1, $2)`,
-    [clipId, Buffer.from("stub")],
+    `INSERT INTO clips_media (clip_id, file_url) VALUES ($1, $2)`,
+    [clipId, "/objects/uploads/stub-test-uuid"],
   );
 
   // Spin up the HTTP server
@@ -117,7 +81,7 @@ before(async () => {
 });
 
 after(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
 
   // Clean up reactions, clip, users (cascade handles clip_reactions / clips_media)
   if (clipId) {

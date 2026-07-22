@@ -35,9 +35,11 @@
  * POST   /api/communities/:id/boost              boost community
  */
 import { Router } from "express";
+import { randomBytes } from "node:crypto";
 import { and, eq, ilike, desc, asc, sql, ne, lt } from "drizzle-orm";
 import {
   db,
+  pool,
   usersTable,
   communitiesTable,
   communityChannelsTable,
@@ -47,11 +49,50 @@ import {
   communityMemberRolesTable,
   communityBoostsTable,
   communityModLogTable,
+  storedImagesTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { pushToUser, broadcastAll } from "../ws/signaling";
 import { logger } from "../lib/logger";
+
+// ─── Premium DDL ──────────────────────────────────────────────────────────────
+
+export async function ensureCommunityPremiumTables(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS community_polls (
+      id SERIAL PRIMARY KEY,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      channel_id INTEGER REFERENCES community_channels(id) ON DELETE SET NULL,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      question TEXT NOT NULL CHECK (char_length(question) BETWEEN 1 AND 500),
+      options JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ends_at TIMESTAMPTZ,
+      is_closed BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS community_poll_votes (
+      id SERIAL PRIMARY KEY,
+      poll_id INTEGER NOT NULL REFERENCES community_polls(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      option_index INTEGER NOT NULL CHECK (option_index >= 0),
+      voted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(poll_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS community_invites (
+      id SERIAL PRIMARY KEY,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      code TEXT NOT NULL UNIQUE,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      max_uses INTEGER,
+      uses INTEGER NOT NULL DEFAULT 0,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE community_members ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NULL DEFAULT 0;
+  `);
+  logger.info("communities: premium tables ensured");
+}
 
 const router = Router();
 
@@ -214,6 +255,79 @@ router.post("/communities", requireAuth, async (req, res): Promise<void> => {
       return;
     }
     logger.error({ err }, "communities: create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Invite lookup (must be before /:slug to avoid swallowing) ───────────────
+
+router.get("/communities/invite/:code", requireAuth, async (req, res): Promise<void> => {
+  const { code } = req.params;
+  try {
+    const { rows } = await pool.query<{
+      id: number; community_id: number; code: string; max_uses: number | null;
+      uses: number; expires_at: string | null; created_at: string;
+      community_name: string; community_slug: string; member_count: number; game_tag: string | null;
+    }>(
+      `SELECT ci.*, c.name AS community_name, c.slug AS community_slug,
+              c.member_count, c.game_tag
+       FROM community_invites ci
+       JOIN communities c ON c.id = ci.community_id
+       WHERE ci.code = $1`, [code]
+    );
+    if (!rows[0]) { res.status(404).json({ error: "Invite not found" }); return; }
+    const inv = rows[0];
+    if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
+      res.status(410).json({ error: "Invite expired" }); return;
+    }
+    if (inv.max_uses !== null && inv.uses >= inv.max_uses) {
+      res.status(410).json({ error: "Invite full" }); return;
+    }
+    res.json({
+      code: inv.code,
+      communityId: inv.community_id,
+      communityName: inv.community_name,
+      communitySlug: inv.community_slug,
+      memberCount: inv.member_count,
+      gameTag: inv.game_tag,
+      uses: inv.uses,
+      maxUses: inv.max_uses,
+      expiresAt: inv.expires_at,
+    });
+  } catch (err) {
+    logger.error({ err }, "communities: invite lookup failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/communities/invite/:code/join", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const { code } = req.params;
+  try {
+    const { rows } = await pool.query<{ id: number; community_id: number; max_uses: number | null; uses: number; expires_at: string | null }>(
+      `SELECT * FROM community_invites WHERE code = $1`, [code]
+    );
+    if (!rows[0]) { res.status(404).json({ error: "Invite not found" }); return; }
+    const inv = rows[0];
+    if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
+      res.status(410).json({ error: "Invite expired" }); return;
+    }
+    if (inv.max_uses !== null && inv.uses >= inv.max_uses) {
+      res.status(410).json({ error: "Invite full" }); return;
+    }
+    const cid = inv.community_id;
+    const existing = await getMembership(cid, userId);
+    if (existing) {
+      if (existing.isBanned) { res.status(403).json({ error: "You are banned from this community" }); return; }
+      res.status(409).json({ error: "Already a member" }); return;
+    }
+    await db.insert(communityMembersTable).values({ communityId: cid, userId });
+    await db.update(communitiesTable).set({ memberCount: sql`${communitiesTable.memberCount} + 1` }).where(eq(communitiesTable.id, cid));
+    await pool.query(`UPDATE community_invites SET uses = uses + 1 WHERE code = $1`, [code]);
+    await logMod(cid, userId, userId, "join_invite", String(code));
+    res.status(201).json({ ok: true, communityId: cid });
+  } catch (err) {
+    logger.error({ err }, "communities: invite join failed");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -640,6 +754,9 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
       .values({ channelId: cid, userId, content: content.trim() })
       .returning();
 
+    // Increment member message count (best-effort)
+    pool.query(`UPDATE community_members SET message_count = message_count + 1 WHERE community_id = $1 AND user_id = $2`, [id, userId]).catch(() => {});
+
     // Broadcast to community members (best-effort)
     try {
       const members = await db
@@ -943,6 +1060,354 @@ router.post("/communities/:id/voice-leave", requireAuth, async (req, res): Promi
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: voice-leave failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Polls ────────────────────────────────────────────────────────────────────
+
+router.post("/communities/:id/polls", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const mod = await isOwnerOrMod(id, userId);
+    if (!mod) { res.status(403).json({ error: "Only owner/mod can create polls" }); return; }
+    const { question, options, endsAt, channelId } = req.body ?? {};
+    if (!question || typeof question !== "string" || question.trim().length < 1 || question.trim().length > 500) {
+      res.status(400).json({ error: "question must be 1–500 chars" }); return;
+    }
+    if (!Array.isArray(options) || options.length < 2 || options.length > 10) {
+      res.status(400).json({ error: "2–10 options required" }); return;
+    }
+    const sanitized = (options as unknown[]).map((o) => ({
+      text: typeof o === "string" ? o.trim().slice(0, 100) : String(o).slice(0, 100),
+    })).filter(o => o.text.length > 0);
+    if (sanitized.length < 2) { res.status(400).json({ error: "Need at least 2 non-empty options" }); return; }
+    const { rows } = await pool.query<{ id: number; question: string; options: unknown; ends_at: string | null; is_closed: boolean; created_at: string }>(
+      `INSERT INTO community_polls (community_id, channel_id, created_by, question, options, ends_at)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [id, channelId ?? null, userId, question.trim(), JSON.stringify(sanitized), endsAt ?? null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    logger.error({ err }, "communities: poll create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.get("/communities/:id/polls", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (!membership && community.ownerId !== userId) { res.status(403).json({ error: "Not a member" }); return; }
+
+    const { rows: polls } = await pool.query<{
+      id: number; question: string; options: Array<{ text: string }>;
+      ends_at: string | null; is_closed: boolean; created_at: string; created_by: number;
+    }>(
+      `SELECT id, question, options, ends_at, is_closed, created_at, created_by
+       FROM community_polls WHERE community_id = $1
+       ORDER BY created_at DESC LIMIT 20`, [id]
+    );
+    const pollIds = polls.map(p => p.id);
+    const voteMap: Record<number, number[]> = {};
+    const myVoteMap: Record<number, number> = {};
+    if (pollIds.length > 0) {
+      const { rows: votes } = await pool.query<{ poll_id: number; option_index: number; user_id: number }>(
+        `SELECT poll_id, option_index, user_id FROM community_poll_votes WHERE poll_id = ANY($1)`,
+        [pollIds]
+      );
+      for (const v of votes) {
+        if (!voteMap[v.poll_id]) voteMap[v.poll_id] = [];
+        // tally per option
+        if (v.user_id === userId) myVoteMap[v.poll_id] = v.option_index;
+      }
+      // Build counts per poll+option
+      for (const v of votes) {
+        const counts = voteMap[v.poll_id] as number[];
+        counts[v.option_index] = (counts[v.option_index] ?? 0) + 1;
+      }
+    }
+    const result = polls.map(p => ({
+      ...p,
+      voteCounts: (p.options as Array<{ text: string }>).map((_, i) => (voteMap[p.id] as number[])?.[i] ?? 0),
+      myVote: myVoteMap[p.id] ?? null,
+      totalVotes: Object.values(voteMap[p.id] ?? {}).reduce((a: number, b) => a + (b as number), 0),
+    }));
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "communities: polls list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/communities/:id/polls/:pid/vote", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const pid = Number(String(req.params.pid));
+  if (isNaN(id) || isNaN(pid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    const { optionIndex } = req.body ?? {};
+    if (typeof optionIndex !== "number" || optionIndex < 0) { res.status(400).json({ error: "optionIndex required" }); return; }
+    const { rows } = await pool.query<{ id: number; is_closed: boolean; options: unknown }>(
+      `SELECT id, is_closed, options FROM community_polls WHERE id = $1 AND community_id = $2`, [pid, id]
+    );
+    if (!rows[0]) { res.status(404).json({ error: "Poll not found" }); return; }
+    if (rows[0].is_closed) { res.status(409).json({ error: "Poll is closed" }); return; }
+    const opts = rows[0].options as Array<{ text: string }>;
+    if (optionIndex >= opts.length) { res.status(400).json({ error: "Invalid option" }); return; }
+    // Upsert vote
+    await pool.query(
+      `INSERT INTO community_poll_votes (poll_id, user_id, option_index) VALUES ($1, $2, $3)
+       ON CONFLICT (poll_id, user_id) DO UPDATE SET option_index = EXCLUDED.option_index, voted_at = now()`,
+      [pid, userId, optionIndex]
+    );
+    // Broadcast updated counts to community members
+    const { rows: voteRows } = await pool.query<{ option_index: number }>(
+      `SELECT option_index FROM community_poll_votes WHERE poll_id = $1`, [pid]
+    );
+    const counts = opts.map((_, i) => voteRows.filter(v => v.option_index === i).length);
+    const members = await db.select({ userId: communityMembersTable.userId }).from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+    for (const m of members) pushToUser(m.userId, { type: "community-poll-update", communityId: id, pollId: pid, voteCounts: counts, totalVotes: voteRows.length });
+    res.json({ ok: true, voteCounts: counts, totalVotes: voteRows.length });
+  } catch (err) {
+    logger.error({ err }, "communities: poll vote failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.delete("/communities/:id/polls/:pid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const pid = Number(String(req.params.pid));
+  if (isNaN(id) || isNaN(pid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const mod = await isOwnerOrMod(id, userId);
+    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    await pool.query(`UPDATE community_polls SET is_closed = true WHERE id = $1 AND community_id = $2`, [pid, id]);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: poll close failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Invite Management ────────────────────────────────────────────────────────
+
+router.post("/communities/:id/invites", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) {
+      const mod = await isOwnerOrMod(id, userId);
+      if (!mod) { res.status(403).json({ error: "Only owner/mod can create invite links" }); return; }
+    }
+    const { maxUses, expiresIn } = req.body ?? {};
+    const code = randomBytes(5).toString("base64url").slice(0, 8);
+    const expiresAt = expiresIn ? new Date(Date.now() + Number(expiresIn) * 1000) : null;
+    const { rows } = await pool.query<{ id: number; code: string; max_uses: number | null; uses: number; expires_at: string | null; created_at: string }>(
+      `INSERT INTO community_invites (community_id, code, created_by, max_uses, expires_at)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, code, userId, maxUses ?? null, expiresAt]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    logger.error({ err }, "communities: invite create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.get("/communities/:id/invites", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const mod = await isOwnerOrMod(id, userId);
+    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { rows } = await pool.query(
+      `SELECT ci.code, ci.max_uses, ci.uses, ci.expires_at, ci.created_at,
+              u.username AS creator_username
+       FROM community_invites ci
+       JOIN users u ON u.id = ci.created_by
+       WHERE ci.community_id = $1
+       ORDER BY ci.created_at DESC LIMIT 20`, [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: invites list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.delete("/communities/:id/invites/:code", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const { code } = req.params;
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const mod = await isOwnerOrMod(id, userId);
+    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    await pool.query(`DELETE FROM community_invites WHERE community_id = $1 AND code = $2`, [id, code]);
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "communities: invite revoke failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+router.get("/communities/:id/leaderboard", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (!membership && community.ownerId !== userId) { res.status(403).json({ error: "Not a member" }); return; }
+    const { rows } = await pool.query<{
+      user_id: number; username: string; display_name: string; avatar_url: string | null; message_count: number; joined_at: string;
+    }>(
+      `SELECT cm.user_id, u.username, u.display_name, u.avatar_url, cm.message_count, cm.joined_at
+       FROM community_members cm
+       JOIN users u ON u.id = cm.user_id
+       WHERE cm.community_id = $1 AND cm.is_banned = false
+       ORDER BY cm.message_count DESC, cm.joined_at ASC
+       LIMIT 50`, [id]
+    );
+    res.json(rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.user_id,
+      username: r.username,
+      displayName: r.display_name,
+      avatarUrl: toPublicImageUrl(r.avatar_url),
+      messageCount: r.message_count,
+      joinedAt: r.joined_at,
+    })));
+  } catch (err) {
+    logger.error({ err }, "communities: leaderboard failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Banner Image ─────────────────────────────────────────────────────────────
+
+router.post("/communities/:id/banner", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Only owner can set banner" }); return; }
+
+    const { data, mimeType } = req.body ?? {};
+    if (!data || typeof data !== "string") { res.status(400).json({ error: "data (base64) required" }); return; }
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const mime = allowedMimes.includes(mimeType) ? mimeType : "image/jpeg";
+    const buf = Buffer.from(data, "base64");
+    if (buf.length > 4 * 1024 * 1024) { res.status(413).json({ error: "Banner must be < 4 MB" }); return; }
+
+    const [stored] = await db.insert(storedImagesTable).values({ data: buf, contentType: mime }).returning({ id: storedImagesTable.id });
+    const imageKey = `/api/images/${stored.id}`;
+    await db.update(communitiesTable).set({ bannerKey: imageKey }).where(eq(communitiesTable.id, id));
+    res.json({ bannerUrl: imageKey });
+  } catch (err) {
+    logger.error({ err }, "communities: banner upload failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.delete("/communities/:id/banner", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Only owner can remove banner" }); return; }
+    await db.update(communitiesTable).set({ bannerKey: null }).where(eq(communitiesTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: banner remove failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Pin / Unpin Message ──────────────────────────────────────────────────────
+
+router.patch("/communities/:id/channels/:cid/messages/:mid/pin", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  const mid = Number(String(req.params.mid));
+  if (isNaN(id) || isNaN(cid) || isNaN(mid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const mod = await isOwnerOrMod(id, userId);
+    if (!mod) { res.status(403).json({ error: "Only owner/mod can pin messages" }); return; }
+    const [ch] = await db.select({ id: communityChannelsTable.id }).from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
+    if (!ch) { res.status(404).json({ error: "Channel not found" }); return; }
+    const [msg] = await db.select().from(communityMessagesTable)
+      .where(and(eq(communityMessagesTable.id, mid), eq(communityMessagesTable.channelId, cid)));
+    if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+    const newPinned = !msg.isPinned;
+    await db.update(communityMessagesTable).set({ isPinned: newPinned }).where(eq(communityMessagesTable.id, mid));
+    // Broadcast pin update
+    const members = await db.select({ userId: communityMembersTable.userId }).from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+    for (const m of members) pushToUser(m.userId, { type: "community-pin-update", communityId: id, channelId: cid, messageId: mid, isPinned: newPinned });
+    res.json({ ok: true, isPinned: newPinned });
+  } catch (err) {
+    logger.error({ err }, "communities: pin message failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Pinned Messages List ─────────────────────────────────────────────────────
+
+router.get("/communities/:id/channels/:cid/pins", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    const rows = await db
+      .select({
+        id: communityMessagesTable.id,
+        content: communityMessagesTable.content,
+        createdAt: communityMessagesTable.createdAt,
+        userId: usersTable.id,
+        username: usersTable.username,
+        displayName: usersTable.displayName,
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(communityMessagesTable)
+      .innerJoin(usersTable, eq(communityMessagesTable.userId, usersTable.id))
+      .where(and(
+        eq(communityMessagesTable.channelId, cid),
+        eq(communityMessagesTable.isPinned, true),
+        eq(communityMessagesTable.isDeleted, false)
+      ))
+      .orderBy(desc(communityMessagesTable.id))
+      .limit(20);
+    res.json(rows.map(r => ({ ...r, avatarUrl: toPublicImageUrl(r.avatarUrl) })));
+  } catch (err) {
+    logger.error({ err }, "communities: pins list failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

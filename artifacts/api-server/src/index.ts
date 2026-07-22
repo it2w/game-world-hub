@@ -11,6 +11,7 @@ import { startFlashEventScheduler, startGameNightSweeper } from "./routes/events
 import { ensurePrestigeTables } from "./routes/prestige";
 import { startDenylistCleanup } from "./lib/denylist-cleanup";
 import { ensureClipsTables } from "./routes/clips";
+import { ensureCommunityPremiumTables } from "./routes/communities";
 
 async function ensureSpotlightOptOutColumn(): Promise<void> {
   await pool.query(
@@ -97,6 +98,12 @@ server.listen(port, async () => {
     await ensureClipsTables();
   } catch (e) {
     logger.error({ err: e }, "Clips tables initialization failed");
+  }
+
+  try {
+    await ensureCommunityPremiumTables();
+  } catch (e) {
+    logger.error({ err: e }, "Community premium tables initialization failed");
   }
 
   startPresenceSweep();

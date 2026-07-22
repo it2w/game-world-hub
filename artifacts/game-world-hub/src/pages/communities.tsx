@@ -34,6 +34,7 @@ interface Community {
   boostLevel: number;
   memberCount: number;
   iconKey: string | null;
+  bannerKey: string | null;
   ownerId: number;
 }
 
@@ -43,47 +44,58 @@ function CommunityCard({ community }: { community: Community }) {
 
   return (
     <div
-      className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer group"
+      className="bg-card border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-all cursor-pointer group"
       onClick={() => navigate(`/communities/${community.slug}`)}
     >
-      <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-lg flex-shrink-0 border border-primary/20 group-hover:border-primary/50 transition-colors">
-          {community.iconKey ? (
-            <img src={community.iconKey} alt={community.name} className="w-full h-full object-cover rounded-lg" />
-          ) : (
-            community.name.charAt(0).toUpperCase()
-          )}
+      {/* Banner image */}
+      {community.bannerKey ? (
+        <div className="h-20 overflow-hidden">
+          <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         </div>
+      ) : (
+        <div className="h-1.5 bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 group-hover:from-primary/60 group-hover:via-primary group-hover:to-primary/60 transition-all duration-300" />
+      )}
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-foreground truncate">{community.name}</span>
-            {community.boostLevel > 0 && (
-              <span className="flex items-center gap-0.5 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 px-1 rounded">
-                <Zap className="w-2.5 h-2.5" />
-                {t("level", { level: community.boostLevel })}
-              </span>
-            )}
-            {community.privacy === "invite_only" && (
-              <Lock className="w-3 h-3 text-muted-foreground" />
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Icon */}
+          <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0 border border-primary/20 group-hover:border-primary/50 transition-colors">
+            {community.iconKey ? (
+              <img src={community.iconKey} alt={community.name} className="w-full h-full object-cover rounded-lg" />
+            ) : (
+              community.name.charAt(0).toUpperCase()
             )}
           </div>
 
-          {community.description && (
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{community.description}</p>
-          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-foreground truncate">{community.name}</span>
+              {community.boostLevel > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] font-mono text-yellow-400 border border-yellow-400/30 px-1 rounded">
+                  <Zap className="w-2.5 h-2.5" />
+                  {t("level", { level: community.boostLevel })}
+                </span>
+              )}
+              {community.privacy === "invite_only" && (
+                <Lock className="w-3 h-3 text-muted-foreground" />
+              )}
+            </div>
 
-          <div className="flex items-center gap-3 mt-2">
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Users className="w-3 h-3" />
-              {community.memberCount.toLocaleString()}
-            </span>
-            {community.gameTag && (
-              <span className="text-xs font-mono text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
-                {community.gameTag}
-              </span>
+            {community.description && (
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{community.description}</p>
             )}
+
+            <div className="flex items-center gap-3 mt-2">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="w-3 h-3" />
+                {community.memberCount.toLocaleString()}
+              </span>
+              {community.gameTag && (
+                <span className="text-xs font-mono text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+                  {community.gameTag}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

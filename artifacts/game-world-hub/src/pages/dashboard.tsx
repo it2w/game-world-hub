@@ -495,6 +495,7 @@ function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
   const { t } = useTranslation("dashboard");
 
   // Real friend clips from API
+  const queryClient = useQueryClient();
   const { data: friendClips } = useQuery<Array<{
     id: number; ownerId: number; title: string; game: string | null;
     mimeType: string; isVideo: boolean; thumbnailUrl: string;
@@ -506,6 +507,27 @@ function CommunityHighlights({ activity }: { activity: PartyActivity[] }) {
     staleTime: 60_000,
     retry: false,
   });
+
+  // Real-time reaction sync: patch the friends-clips cache when another user reacts
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { clipId, reactions } = (e as CustomEvent<{
+        clipId: number;
+        reactions: Record<string, number>;
+        actingUserId: number;
+      }>).detail;
+      const totalReactions = Object.values(reactions).reduce((sum, n) => sum + n, 0);
+      queryClient.setQueryData<Array<{ id: number; reactionCount: number; [key: string]: unknown }>>(
+        ["friend-clips-dashboard"],
+        old => {
+          if (!old) return old;
+          return old.map(c => c.id === clipId ? { ...c, reactionCount: totalReactions } : c);
+        }
+      );
+    };
+    window.addEventListener("gwh:clip-reaction", handler);
+    return () => window.removeEventListener("gwh:clip-reaction", handler);
+  }, [queryClient]);
 
   // Build display items: prefer real clips → fallback to party activity → fallback to static
   const highlights = (friendClips && friendClips.length > 0)

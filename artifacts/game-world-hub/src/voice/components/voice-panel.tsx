@@ -64,6 +64,11 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import { SoundboardPanel } from "./soundboard-panel";
+import { StageLayout } from "./stage-layout";
+import { playSoundKey, playPersonalSound } from "../sounds";
+import { getApiBase } from "../webrtc";
+import { Music } from "lucide-react";
 
 /* ── Avatar helpers ──────────────────────────────────────────────────────── */
 const AVATAR_COLORS = ["#3b82f6","#8b5cf6","#ec4899","#f59e0b","#10b981","#06b6d4","#f97316","#84cc16","#e11d48","#7c3aed"];
@@ -188,14 +193,35 @@ export function VoicePanel() {
     setScreenAudioVolume,
     inviteToCall,
     groupInviteStates,
+    stageInfo,
+    sendSoundboardTrigger,
   } = useVoice();
 
   const [, navigate] = useLocation();
   const [expanded, setExpanded] = useState(true);
+  const [showSoundboard, setShowSoundboard] = useState(false);
   const [theater, setTheater] = useState<{ stream: MediaStream; label: string; avatarUrl?: string | null; self?: boolean } | null>(null);
   const [theaterHoveredId, setTheaterHoveredId] = useState<number | null>(null);
   const [qualityPickerOpen, setQualityPickerOpen] = useState(false);
   const [pendingQuality, setPendingQuality] = useState<ScreenQuality>(screenQuality);
+
+  // ── Soundboard remote-sound listener ──────────────────────────────────────
+  // gwh:soundboard fires when a LiveKit data-channel message arrives from another
+  // participant. Play the sound using the local Web Audio API or a fetch for
+  // personal clips.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent<Record<string, unknown>>).detail;
+      if (!msg || msg.type !== "soundboard-trigger") return;
+      if (typeof msg.soundKey === "string") {
+        playSoundKey(msg.soundKey);
+      } else if (typeof msg.soundId === "number") {
+        void playPersonalSound(msg.soundId, getApiBase());
+      }
+    };
+    window.addEventListener("gwh:soundboard", handler);
+    return () => window.removeEventListener("gwh:soundboard", handler);
+  }, []);
 
   // ── Invite dialog state ────────────────────────────────────────────────────
   type FriendItem = { id: number; username: string; displayName: string; avatarUrl: string | null; status: string };
@@ -403,8 +429,14 @@ export function VoicePanel() {
                   <span className="rounded-full w-2 h-2 bg-primary/30" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground leading-none mb-[3px]">
-                    {effectiveRoom.kind === "party" ? t("voice.voice") : t("voice.call")}
+                  <div className="text-[9px] uppercase tracking-[0.18em] leading-none mb-[3px]"
+                    style={{ color: stageInfo?.isStageRoom ? "#f59e0b" : undefined }}
+                  >
+                    {effectiveRoom.kind === "party"
+                      ? t("voice.voice")
+                      : stageInfo?.isStageRoom
+                      ? "STAGE"
+                      : t("voice.call")}
                   </div>
                   <div className="text-[11px] font-bold uppercase tracking-widest truncate text-foreground leading-none">
                     {effectiveRoom.title}
@@ -708,41 +740,45 @@ export function VoicePanel() {
               </div>
             )}
 
-            {/* ── Peer list ────────────────────────────────────────────────── */}
-            <div className="flex flex-col">
-              {effectivePeers.length === 0 ? (
-                <div
-                  className="flex items-center gap-2 px-4 py-3 text-muted-foreground"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                >
-                  <span className="text-[10px] uppercase tracking-[0.12em] animate-pulse">
-                    {t("voice.waitingForOthers")}
-                  </span>
-                </div>
-              ) : (
-                effectivePeers.map((p) => (
-                  <ParticipantRow
-                    key={p.userId}
-                    name={p.displayName}
-                    avatarUrl={p.avatarUrl}
-                    speaking={p.speaking && !p.muted}
-                    muted={p.muted}
-                    sharing={p.sharing}
-                    hasScreenAudio={p.hasScreenAudio}
-                    cameraEnabled={p.cameraEnabled}
-                    connectionState={p.connectionState}
-                    isLeader={isLeader && !!partyId}
-                    onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
-                    onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
-                    onMutePeer={() => remoteMute(p.userId)}
-                    volume={peerVolumes[p.userId] ?? 1}
-                    onVolumeChange={(v) => setPeerVolume(p.userId, v)}
-                    screenAudioVolume={screenAudioVolumes[p.userId] ?? 1}
-                    onScreenAudioVolumeChange={(v) => setScreenAudioVolume(p.userId, v)}
-                  />
-                ))
-              )}
-            </div>
+            {/* ── Peer list / Stage layout ──────────────────────────────── */}
+            {stageInfo?.isStageRoom ? (
+              <StageLayout />
+            ) : (
+              <div className="flex flex-col">
+                {effectivePeers.length === 0 ? (
+                  <div
+                    className="flex items-center gap-2 px-4 py-3 text-muted-foreground"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                  >
+                    <span className="text-[10px] uppercase tracking-[0.12em] animate-pulse">
+                      {t("voice.waitingForOthers")}
+                    </span>
+                  </div>
+                ) : (
+                  effectivePeers.map((p) => (
+                    <ParticipantRow
+                      key={p.userId}
+                      name={p.displayName}
+                      avatarUrl={p.avatarUrl}
+                      speaking={p.speaking && !p.muted}
+                      muted={p.muted}
+                      sharing={p.sharing}
+                      hasScreenAudio={p.hasScreenAudio}
+                      cameraEnabled={p.cameraEnabled}
+                      connectionState={p.connectionState}
+                      isLeader={isLeader && !!partyId}
+                      onKick={() => kickMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                      onTransfer={() => transferMutation.mutate({ partyId: partyId!, userId: p.userId })}
+                      onMutePeer={() => remoteMute(p.userId)}
+                      volume={peerVolumes[p.userId] ?? 1}
+                      onVolumeChange={(v) => setPeerVolume(p.userId, v)}
+                      screenAudioVolume={screenAudioVolumes[p.userId] ?? 1}
+                      onScreenAudioVolumeChange={(v) => setScreenAudioVolume(p.userId, v)}
+                    />
+                  ))
+                )}
+              </div>
+            )}
 
             {/* ── Quality footer (while sharing) ──────────────────────────── */}
             {sharing && (
@@ -788,6 +824,13 @@ export function VoicePanel() {
           )
         )}
 
+        {/* ── Soundboard panel ─────────────────────────────────────────────── */}
+        {showSoundboard && (
+          <div style={{ position: "relative" }}>
+            <SoundboardPanel onClose={() => setShowSoundboard(false)} />
+          </div>
+        )}
+
         {/* ── Controls bar ─────────────────────────────────────────────────── */}
         <div
           className="flex items-center gap-1.5 px-3 py-3"
@@ -831,6 +874,16 @@ export function VoicePanel() {
             title={sharing ? t("voice.stopSharing") : t("voice.shareScreen")}
           >
             {sharing ? <MonitorOff className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
+          </ControlBtn>
+
+          {/* Soundboard */}
+          <ControlBtn
+            active={showSoundboard}
+            activeColor="primary"
+            onClick={() => setShowSoundboard((s) => !s)}
+            title="Soundboard"
+          >
+            <Music className="w-4 h-4" />
           </ControlBtn>
 
           {/* Leave */}

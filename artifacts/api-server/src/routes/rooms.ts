@@ -16,7 +16,16 @@ const router = Router();
  */
 export const verifiedRoomAccess = new Set<string>();
 
-function verifiedKey(userId: number, roomId: number): string {
+/**
+ * Persistent room-access cache for stage and future features.
+ * Set alongside verifiedRoomAccess when the user verifies a password, but
+ * NOT consumed by the livekit token route — it remains valid for the entire
+ * server session so that stage endpoints can gate on room membership even after
+ * the livekit token has been issued.  Cleared only on server restart.
+ */
+export const roomAccessCache = new Set<string>();
+
+export function verifiedKey(userId: number, roomId: number): string {
   return `${userId}:${roomId}`;
 }
 
@@ -27,6 +36,7 @@ function safeRoom(r: typeof permanentRoomsTable.$inferSelect, owner: typeof user
     description: r.description ?? null,
     imageUrl: r.imageUrl ?? null,
     hasPassword: !!r.passwordHash,
+    isStageMode: r.isStageMode,
     createdAt: r.createdAt,
     owner: {
       id: owner.id,
@@ -75,7 +85,7 @@ router.post("/rooms", requireAuth, async (req, res): Promise<void> => {
   const pro = await computeProStatus(userId);
   if (!pro.isPro) { res.status(403).json({ error: "Pro required" }); return; }
 
-  const { name, description, password } = req.body as { name?: string; description?: string; password?: string };
+  const { name, description, password, isStageMode } = req.body as { name?: string; description?: string; password?: string; isStageMode?: boolean };
   if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
 
   try {
@@ -89,6 +99,7 @@ router.post("/rooms", requireAuth, async (req, res): Promise<void> => {
       name: name.trim(),
       description: description?.trim() || null,
       passwordHash,
+      isStageMode: !!isStageMode,
     }).returning();
 
     const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
@@ -105,8 +116,8 @@ router.patch("/rooms/mine", requireAuth, async (req, res): Promise<void> => {
   const pro = await computeProStatus(userId);
   if (!pro.isPro) { res.status(403).json({ error: "Pro required" }); return; }
 
-  const { name, description, password, clearPassword } = req.body as {
-    name?: string; description?: string; password?: string; clearPassword?: boolean;
+  const { name, description, password, clearPassword, isStageMode } = req.body as {
+    name?: string; description?: string; password?: string; clearPassword?: boolean; isStageMode?: boolean;
   };
 
   try {
@@ -115,6 +126,7 @@ router.patch("/rooms/mine", requireAuth, async (req, res): Promise<void> => {
     if (description !== undefined) update.description = description?.trim() || null;
     if (clearPassword) update.passwordHash = null;
     else if (password) update.passwordHash = await bcrypt.hash(password, 10);
+    if (typeof isStageMode === "boolean") update.isStageMode = isStageMode;
 
     const [room] = await db.update(permanentRoomsTable)
       .set(update)
@@ -156,6 +168,9 @@ router.post("/rooms/:id/verify-password", requireAuth, async (req, res): Promise
     if (!ok) { res.status(401).json({ error: "Wrong password" }); return; }
     // Record that this user passed the password check so the token endpoint can verify.
     verifiedRoomAccess.add(verifiedKey(req.auth!.userId, room.id));
+    // Also populate the persistent access cache (used by stage endpoints; not
+    // consumed after token issuance).
+    roomAccessCache.add(verifiedKey(req.auth!.userId, room.id));
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "rooms: verify-password failed");

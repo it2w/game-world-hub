@@ -6,6 +6,7 @@ import { db, usersTable, partiesTable, conversationParticipantsTable, friendship
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
+import { removeStagePresence, stageRoomMembers } from "../lib/stage-presence";
 
 /**
  * WebSocket server for call signaling, admin actions, and presence events.
@@ -472,8 +473,41 @@ async function handleMessage(client: Client, raw: RawData): Promise<void> {
 
 function handleClose(client: Client): void {
   cleanupCallsFor(client);
+
+  // Unregister this specific socket session first so clientsByUser reflects
+  // the remaining active sessions for this user.
   unregisterClient(client);
   logger.info({ userId: client.userId }, "voice: client disconnected");
+
+  // Multi-session guard: if the user still has other active WS connections
+  // (e.g. another browser tab or device), keep them in stage presence —
+  // only the last session closing should trigger a "left" broadcast.
+  const remainingSessions = clientsByUser.get(client.userId);
+  if (remainingSessions && remainingSessions.size > 0) return;
+
+  // Last session for this user — collect stage rooms BEFORE removing presence
+  // so we know where to send the "left" notification.
+  // We do NOT delete the stage_participants DB row — the role is intentionally
+  // preserved so a promoted speaker who reconnects rejoins as "speaker".
+  // Explicit leave (DELETE /stage/leave) is the only path that clears the row.
+  const userStageRooms: string[] = [];
+  for (const [roomName, members] of stageRoomMembers.entries()) {
+    if (members.has(client.userId)) userStageRooms.push(roomName);
+  }
+
+  removeStagePresence(client.userId);
+
+  // Notify remaining stage-room participants that this user left
+  for (const roomName of userStageRooms) {
+    for (const uid of (stageRoomMembers.get(roomName) ?? [])) {
+      pushToUser(uid, {
+        type:     "stage-role-change",
+        roomName,
+        userId:   client.userId,
+        role:     "left",
+      });
+    }
+  }
 }
 
 // ─── Friend-online notification ───────────────────────────────────────────────
@@ -543,7 +577,12 @@ export function disconnectUser(userId: number): void {
 
 // ─── Server attachment ────────────────────────────────────────────────────────
 
-export function attachSignaling(server: Server): void {
+/**
+ * Attach the WebSocket signaling server to an existing HTTP server.
+ * Returns a cleanup function that closes the WebSocket server — useful in tests
+ * where the HTTP server is closed at the end of the suite.
+ */
+export function attachSignaling(server: Server): () => Promise<void> {
   // Limit incoming frame size to 64 KB to prevent memory exhaustion from large payloads.
   // All legitimate signaling messages (typing, call-invite, admin-mute, ping) are tiny.
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
@@ -653,4 +692,11 @@ export function attachSignaling(server: Server): void {
   wss.on("close", () => clearInterval(interval));
 
   logger.info("voice: signaling server attached at /api/ws");
+
+  // Return a cleanup function that closes the WebSocket server.
+  return () => new Promise<void>((resolve) => {
+    // Terminate all open connections so the process can exit promptly.
+    for (const [ws] of clientBySocket) ws.terminate();
+    wss.close(() => resolve());
+  });
 }

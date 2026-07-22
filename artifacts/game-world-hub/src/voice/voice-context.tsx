@@ -65,6 +65,23 @@ export type ActiveRoom =
   | { kind: "call";    room: string; peer: CallUser;  title: string }
   | { kind: "proroom"; room: string; roomId: number;  title: string };
 
+export interface StageParticipant {
+  userId: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: "speaker" | "audience";
+  handRaised: boolean;
+}
+
+export interface StageInfo {
+  isStageRoom: boolean;
+  myRole: "speaker" | "audience";
+  /** Authoritative owner userId for the room — use this to drive moderation UI. */
+  ownerId: number | null;
+  participants: StageParticipant[];
+}
+
 interface IncomingCall {
   callId: string;
   room: string;
@@ -135,6 +152,14 @@ interface VoiceContextValue {
   inviteToCall: (user: CallUser) => void;
   /** Per-invitee state for pending group invites issued from the active call. */
   groupInviteStates: Record<number, "ringing" | "joined" | "declined">;
+  /** Stage channel info — null when not in a stage-mode room. */
+  stageInfo: StageInfo | null;
+  /** Broadcast a soundboard trigger to all room participants via LiveKit data channel. */
+  sendSoundboardTrigger: (key: string) => void;
+  raiseHand: (raised: boolean) => Promise<void>;
+  grantSpeaker: (targetUserId: number) => Promise<void>;
+  revokeSpeaker: (targetUserId: number) => Promise<void>;
+  refreshStage: () => Promise<void>;
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -229,6 +254,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [screenAudioVolumes, setScreenAudioVolumes] = useState<Record<number, number>>({});
   /** Tracks the state of outgoing group-call invites: userId → status. */
   const [groupInviteStates, setGroupInviteStates] = useState<Record<number, "ringing" | "joined" | "declined">>({});
+  /** Stage info for the current pro-room — null when not in a stage-mode room. */
+  const [stageInfo, setStageInfo] = useState<StageInfo | null>(null);
 
   // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -256,12 +283,26 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const peerVolumesRef = useRef<Record<number, number>>({});
   /** Mirrors screenAudioVolumes — stale-closure-safe access in callbacks. */
   const screenAudioVolumesRef = useRef<Record<number, number>>({});
+  /** My userId — decoded from JWT once on auth so stage role-change can identify "me". */
+  const myUserIdRef = useRef<number | null>(null);
 
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
   useEffect(() => { screenQualityRef.current = screenQuality; }, [screenQuality]);
   useEffect(() => { peerVolumesRef.current = peerVolumes; }, [peerVolumes]);
   useEffect(() => { screenAudioVolumesRef.current = screenAudioVolumes; }, [screenAudioVolumes]);
+
+  // Decode userId from JWT for stage role-change detection
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const token = localStorage.getItem("gwh_token");
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1])) as Record<string, unknown>;
+      const id = payload.userId ?? payload.id ?? payload.sub;
+      myUserIdRef.current = typeof id === "number" ? id : (typeof id === "string" ? parseInt(id, 10) : null);
+    } catch { /* ignore */ }
+  }, [isAuthenticated]);
 
   // ── Peer state helpers ─────────────────────────────────────────────────────
 
@@ -527,6 +568,16 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
+      // ── Soundboard: relay data-channel messages to VoicePanel ────────────
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+        try {
+          const msg = JSON.parse(new TextDecoder().decode(payload)) as Record<string, unknown>;
+          if (msg.type === "soundboard-trigger") {
+            window.dispatchEvent(new CustomEvent("gwh:soundboard", { detail: msg }));
+          }
+        } catch { /* ignore malformed data-channel messages */ }
+      });
+
       // ── Connect & enable mic ──────────────────────────────────────────────
       await room.connect(url, token);
       await room.localParticipant.setMicrophoneEnabled(!mutedRef.current);
@@ -696,6 +747,94 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:global-chat-delete", { detail: msg }));
           break;
 
+        case "stage-participant-join": {
+          if (
+            typeof msg.roomName === "string" &&
+            msg.participant &&
+            activeRoomRef.current?.room === msg.roomName
+          ) {
+            const p = msg.participant as StageParticipant;
+            setStageInfo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    // Upsert: update if already present (e.g. rejoining), add if new.
+                    participants: [
+                      ...prev.participants.filter((x) => x.userId !== p.userId),
+                      p,
+                    ],
+                  }
+                : prev,
+            );
+          }
+          break;
+        }
+
+        case "stage-hand-raise":
+          if (
+            typeof msg.roomName === "string" &&
+            typeof msg.userId === "number" &&
+            typeof msg.raised === "boolean" &&
+            activeRoomRef.current?.room === msg.roomName
+          ) {
+            setStageInfo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    participants: prev.participants.map((p) =>
+                      p.userId === (msg.userId as number)
+                        ? { ...p, handRaised: msg.raised as boolean }
+                        : p,
+                    ),
+                  }
+                : prev,
+            );
+          }
+          break;
+
+        case "stage-role-change": {
+          if (
+            typeof msg.roomName === "string" &&
+            typeof msg.userId === "number" &&
+            typeof msg.role === "string" &&
+            activeRoomRef.current?.room === msg.roomName
+          ) {
+            const changedUid = msg.userId as number;
+            const newRole = msg.role as "speaker" | "audience" | "left";
+            setStageInfo((prev) => {
+              if (!prev) return prev;
+              if (newRole === "left") {
+                return { ...prev, participants: prev.participants.filter((p) => p.userId !== changedUid) };
+              }
+              return {
+                ...prev,
+                participants: prev.participants.map((p) =>
+                  p.userId === changedUid
+                    ? { ...p, role: newRole as "speaker" | "audience", handRaised: false }
+                    : p,
+                ),
+                myRole:
+                  changedUid === myUserIdRef.current
+                    ? (newRole as "speaker" | "audience")
+                    : prev.myRole,
+              };
+            });
+            // If I was promoted to speaker — unmute mic
+            if (changedUid === myUserIdRef.current && newRole === "speaker") {
+              mutedRef.current = false;
+              setMuted(false);
+              void livekitRef.current?.localParticipant.setMicrophoneEnabled(true);
+            }
+            // If I was revoked back to audience — mute mic
+            if (changedUid === myUserIdRef.current && newRole === "audience") {
+              mutedRef.current = true;
+              setMuted(true);
+              void livekitRef.current?.localParticipant.setMicrophoneEnabled(false);
+            }
+          }
+          break;
+        }
+
         default:
           break;
       }
@@ -763,6 +902,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (room?.kind === "call") {
       wsSend({ type: "call-end", room: room.room });
     }
+    // Stage cleanup — fire-and-forget; server is lenient if not in a stage room
+    if (room?.kind === "proroom") {
+      const token = localStorage.getItem("gwh_token");
+      void fetch(`${getApiBase()}/api/stage/leave`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ roomName: room.room }),
+      }).catch(() => {});
+    }
     teardownLiveKit();
     setActiveRoom(null);
     activeRoomRef.current = null;
@@ -770,6 +918,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setMuted(false);
     setCanRejoin(false);
     setError(null);
+    setStageInfo(null);
   }, [teardownLiveKit, wsSend]);
 
   const rejoin = useCallback(async () => {
@@ -817,8 +966,29 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       const room: ActiveRoom = { kind: "proroom", room: roomName, roomId, title };
       setActiveRoom(room);
       activeRoomRef.current = room;
+      setStageInfo(null);
       try {
         await connectLiveKit(roomName);
+        // Register with stage system — response tells us if this is a stage room
+        const token = localStorage.getItem("gwh_token");
+        const res = await fetch(`${getApiBase()}/api/stage/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ roomName }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as StageInfo;
+          setStageInfo(data);
+          // Audience members start muted — unmuted by stage-role-change when granted
+          if (data.isStageRoom && data.myRole === "audience") {
+            mutedRef.current = true;
+            setMuted(true);
+            void livekitRef.current?.localParticipant.setMicrophoneEnabled(false);
+          }
+        }
       } catch {
         setError("Failed to join voice room");
         setActiveRoom(null);
@@ -848,6 +1018,83 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     },
     [leaveVoice, connectLiveKit],
   );
+
+  // ── Soundboard & Stage actions ─────────────────────────────────────────────
+
+  const sendSoundboardTrigger = useCallback((key: string) => {
+    const room = livekitRef.current;
+    if (!room || !activeRoomRef.current) return;
+    const isPersonal = key.startsWith("personal:");
+    const msg = isPersonal
+      ? { type: "soundboard-trigger", soundId: Number(key.split(":")[1]) }
+      : { type: "soundboard-trigger", soundKey: key };
+    const encoded = new TextEncoder().encode(JSON.stringify(msg));
+    void room.localParticipant.publishData(encoded, { reliable: true });
+  }, []);
+
+  const refreshStage = useCallback(async () => {
+    const room = activeRoomRef.current;
+    if (!room?.room) return;
+    try {
+      const token = localStorage.getItem("gwh_token");
+      const res = await fetch(`${getApiBase()}/api/stage/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ roomName: room.room }),
+      });
+      if (res.ok) setStageInfo((await res.json()) as StageInfo);
+    } catch { /* ignore */ }
+  }, []);
+
+  const raiseHand = useCallback(async (raised: boolean) => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    // Optimistic local update
+    setStageInfo((prev) =>
+      prev
+        ? {
+            ...prev,
+            participants: prev.participants.map((p) =>
+              p.userId === myUserIdRef.current ? { ...p, handRaised: raised } : p,
+            ),
+          }
+        : prev,
+    );
+    try {
+      const token = localStorage.getItem("gwh_token");
+      await fetch(`${getApiBase()}/api/stage/hand`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ roomName: room.room, raised }),
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  const grantSpeaker = useCallback(async (targetUserId: number) => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    try {
+      const token = localStorage.getItem("gwh_token");
+      await fetch(`${getApiBase()}/api/stage/grant/${targetUserId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ roomName: room.room }),
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  const revokeSpeaker = useCallback(async (targetUserId: number) => {
+    const room = activeRoomRef.current;
+    if (!room) return;
+    try {
+      const token = localStorage.getItem("gwh_token");
+      await fetch(`${getApiBase()}/api/stage/revoke/${targetUserId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ roomName: room.room }),
+      });
+    } catch { /* ignore */ }
+  }, []);
 
   const callUser = useCallback(
     (user: CallUser) => {
@@ -1331,6 +1578,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setScreenAudioVolume,
     inviteToCall,
     groupInviteStates,
+    stageInfo,
+    sendSoundboardTrigger,
+    raiseHand,
+    grantSpeaker,
+    revokeSpeaker,
+    refreshStage,
   };
 
   return (

@@ -43,6 +43,8 @@ app.use(
 // environment).  Reflecting every incoming Origin with credentials:true is
 // explicitly prohibited by the CORS spec — any site could make authenticated
 // requests on behalf of a logged-in user.
+const _isProduction = process.env.NODE_ENV === "production";
+
 const _corsOrigins: Set<string> = (() => {
   const set = new Set<string>();
   for (const o of (process.env.CORS_ORIGINS ?? "").split(",")) {
@@ -52,6 +54,16 @@ const _corsOrigins: Set<string> = (() => {
   for (const d of (process.env.REPLIT_DOMAINS ?? "").split(",")) {
     const t = d.trim();
     if (t) set.add(`https://${t}`);
+  }
+  // In development / test environments also allow localhost at any port so that
+  // Playwright, browser-based E2E tests, and local tooling can reach the API
+  // without hitting CORS rejections.  This is intentionally NOT allowed in
+  // production, where only the explicit CORS_ORIGINS allowlist is trusted.
+  if (!_isProduction) {
+    set.add("http://localhost");
+    set.add("http://localhost:80");
+    set.add("http://localhost:3000");
+    set.add("http://localhost:5173");
   }
   return set;
 })();

@@ -39,6 +39,8 @@ import prestigeRouter from "./prestige";
 import globalChatRouter from "./global-chat";
 import threadsRouter from "./threads";
 import pollsRouter from "./polls";
+import soundboardRouter from "./soundboard";
+import stageRouter from "./stage";
 
 const router: IRouter = Router();
 
@@ -108,5 +110,7 @@ router.use(prestigeRouter);
 router.use(globalChatRouter);
 router.use(threadsRouter);
 router.use(pollsRouter);
+router.use(soundboardRouter);
+router.use(stageRouter);
 
 export default router;

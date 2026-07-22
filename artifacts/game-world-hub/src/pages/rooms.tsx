@@ -16,6 +16,7 @@ interface Room {
   description: string | null;
   imageUrl: string | null;
   hasPassword: boolean;
+  isStageMode?: boolean;
   createdAt: string;
   owner: RoomOwner;
 }
@@ -60,6 +61,14 @@ function RoomCard({ room, myId, onJoin }: { room: Room; myId: number; onJoin: (r
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="flex items-center gap-2 mb-1">
               <span className="font-mono font-bold text-sm truncate">{room.name}</span>
+              {room.isStageMode && (
+                <span
+                  className="font-mono text-[8px] px-1 py-0.5 font-bold tracking-widest shrink-0"
+                  style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.4)", color: "#f59e0b" }}
+                >
+                  STAGE
+                </span>
+              )}
               {room.hasPassword
                 ? <Lock style={{ width: 12, height: 12, color: "hsl(var(--muted-foreground))", flexShrink: 0 }} />
                 : <Unlock style={{ width: 12, height: 12, color: "hsl(var(--primary))", flexShrink: 0 }} />

@@ -55,6 +55,11 @@ import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { pushToUser, broadcastAll } from "../ws/signaling";
 import { logger } from "../lib/logger";
+import {
+  addCommunityVoicePresence,
+  removeCommunityVoicePresenceForChannel,
+  getCommunityVoicePresenceSnapshot,
+} from "../lib/community-voice-presence";
 
 // ─── Premium DDL ──────────────────────────────────────────────────────────────
 
@@ -1022,6 +1027,18 @@ router.post("/communities/:id/voice-join", requireAuth, async (req, res): Promis
       .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
 
     const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName, avatarUrl: usersTable.avatarUrl }).from(usersTable).where(eq(usersTable.id, userId));
+    const avatarUrl = toPublicImageUrl(user?.avatarUrl ?? null);
+
+    // Track in-memory presence
+    if (typeof channelId === "number") {
+      addCommunityVoicePresence(id, channelId, {
+        userId,
+        username: user?.username ?? "",
+        displayName: user?.displayName ?? "",
+        avatarUrl,
+      });
+    }
+
     const payload = {
       type: "community-voice-update",
       communityId: id,
@@ -1029,7 +1046,7 @@ router.post("/communities/:id/voice-join", requireAuth, async (req, res): Promis
       userId,
       username: user?.username,
       displayName: user?.displayName,
-      avatarUrl: toPublicImageUrl(user?.avatarUrl ?? null),
+      avatarUrl,
       action: "join",
     };
     for (const m of members) pushToUser(m.userId, payload);
@@ -1055,11 +1072,40 @@ router.post("/communities/:id/voice-leave", requireAuth, async (req, res): Promi
       .select({ userId: communityMembersTable.userId })
       .from(communityMembersTable)
       .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+
+    // Remove from in-memory presence
+    if (typeof channelId === "number") {
+      removeCommunityVoicePresenceForChannel(channelId, userId);
+    }
+
     const payload = { type: "community-voice-update", communityId: id, channelId, userId, action: "leave" };
     for (const m of members) pushToUser(m.userId, payload);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: voice-leave failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /communities/:id/voice-presence — current voice participants per channel
+router.get("/communities/:id/voice-presence", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    // Fetch all voice channel IDs for this community
+    const voiceChannels = await db
+      .select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(
+        eq(communityChannelsTable.communityId, id),
+        eq(communityChannelsTable.type, "voice"),
+        eq(communityChannelsTable.isArchived, false),
+      ));
+    const channelIds = voiceChannels.map((c) => c.id);
+    const snapshot = getCommunityVoicePresenceSnapshot(channelIds);
+    res.json(snapshot);
+  } catch (err) {
+    logger.error({ err }, "communities: voice-presence failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

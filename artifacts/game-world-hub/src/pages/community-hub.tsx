@@ -48,6 +48,13 @@ interface Member {
   avatarUrl: string | null; joinedAt: string;
 }
 
+interface VoicePresenceUser {
+  userId: number; username: string; displayName: string; avatarUrl: string | null;
+}
+
+/** channelId (as string key) → VoicePresenceUser[] */
+type VoicePresenceMap = Record<string, VoicePresenceUser[]>;
+
 interface LeaderboardEntry {
   rank: number; userId: number; username: string; displayName: string;
   avatarUrl: string | null; messageCount: number; joinedAt: string;
@@ -548,8 +555,9 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
 
 // ── Voice channel row ──────────────────────────────────────────────────────────
 
-function VoiceChannelRow({ channel, communityId, communityName, isMember }: {
+function VoiceChannelRow({ channel, communityId, communityName, isMember, participants }: {
   channel: Channel; communityId: number; communityName: string; isMember: boolean;
+  participants: VoicePresenceUser[];
 }) {
   const { t } = useTranslation("communities");
   const { activeRoom, joinCommunityVoice, leaveVoice } = useVoice();
@@ -564,14 +572,45 @@ function VoiceChannelRow({ channel, communityId, communityName, isMember }: {
   }, [isMember, isActive, joinCommunityVoice, leaveVoice, communityId, channel, communityName, t, toast]);
 
   return (
-    <button
-      onClick={handleClick}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-start hover:bg-muted/50 transition-colors group ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"}`}
-    >
-      <Volume2 className="w-3.5 h-3.5 flex-shrink-0" />
-      <span className="flex-1 truncate">{channel.name}</span>
-      {isActive ? <span className="text-[10px] font-mono text-primary">{t("inVoice")}</span> : <Mic className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
-    </button>
+    <div className="mb-0.5">
+      {/* Channel row */}
+      <button
+        onClick={handleClick}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-start hover:bg-muted/50 transition-colors group ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <Volume2 className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="flex-1 truncate">{channel.name}</span>
+        {participants.length > 0 && (
+          <span className="text-[10px] font-mono text-muted-foreground">{participants.length}</span>
+        )}
+        {isActive
+          ? <span className="text-[10px] font-mono text-primary">{t("inVoice")}</span>
+          : <Mic className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        }
+      </button>
+
+      {/* Discord-style participant list */}
+      {participants.length > 0 && (
+        <div className="ms-4 mt-0.5 space-y-px">
+          {participants.map((p) => (
+            <div key={p.userId} className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-muted-foreground">
+              {/* Mini avatar */}
+              <div
+                className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[8px] font-bold overflow-hidden"
+                style={{ background: p.avatarUrl ? "transparent" : `hsl(${Math.abs(p.displayName.charCodeAt(0) * 17) % 360},60%,35%)` }}
+              >
+                {p.avatarUrl
+                  ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+                  : p.displayName.charAt(0).toUpperCase()
+                }
+              </div>
+              <Mic className="w-2.5 h-2.5 text-green-400 flex-shrink-0" />
+              <span className="truncate">{p.displayName}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -630,11 +669,11 @@ function PollsSection({ communityId, isOwnerOrMod }: { communityId: number; isOw
 
 // ── Channel list (left sidebar) ────────────────────────────────────────────────
 
-function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, boostPending }: {
+function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, boostPending, voicePresence }: {
   community: Community; activeChannelId: number | null;
   onSelectChannel: (id: number) => void; onAddChannel: () => void;
   onLeave: () => void; onBoost: () => void; onBannerEdit: () => void; onInvite: () => void;
-  boostPending: boolean;
+  boostPending: boolean; voicePresence: VoicePresenceMap;
 }) {
   const { t } = useTranslation("communities");
   const textChannels = community.channels.filter((c) => c.type === "text");
@@ -709,7 +748,14 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
               <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{t("voiceChannel")}</span>
             </div>
             {voiceChannels.map((ch) => (
-              <VoiceChannelRow key={ch.id} channel={ch} communityId={community.id} communityName={community.name} isMember={community.isMember} />
+              <VoiceChannelRow
+                key={ch.id}
+                channel={ch}
+                communityId={community.id}
+                communityName={community.name}
+                isMember={community.isMember}
+                participants={voicePresence[String(ch.id)] ?? []}
+              />
             ))}
           </div>
         )}
@@ -909,6 +955,7 @@ export default function CommunityHub() {
   const [showMembers, setShowMembers] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
+  const [voicePresence, setVoicePresence] = useState<VoicePresenceMap>({});
 
   const { data: community, isLoading, error } = useQuery<Community>({
     queryKey: ["community-slug", slug],
@@ -924,6 +971,49 @@ export default function CommunityHub() {
       if (first) setActiveChannelId(first.id);
     }
   }, [community, activeChannelId]);
+
+  // Fetch initial voice presence snapshot when community loads
+  useEffect(() => {
+    if (!community?.id) return;
+    customFetch<VoicePresenceMap>(`/api/communities/${community.id}/voice-presence`)
+      .then((data) => setVoicePresence(data))
+      .catch(() => {});
+  }, [community?.id]);
+
+  // Listen to real-time voice join/leave events
+  useEffect(() => {
+    if (!community?.id) return;
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail;
+      if (msg.communityId !== community.id) return;
+      const key = String(msg.channelId);
+      if (msg.action === "join") {
+        const newUser: VoicePresenceUser = {
+          userId: msg.userId,
+          username: msg.username ?? "",
+          displayName: msg.displayName ?? "",
+          avatarUrl: msg.avatarUrl ?? null,
+        };
+        setVoicePresence((prev) => ({
+          ...prev,
+          [key]: [
+            ...(prev[key] ?? []).filter((p) => p.userId !== msg.userId),
+            newUser,
+          ],
+        }));
+      } else if (msg.action === "leave") {
+        setVoicePresence((prev) => {
+          const updated = (prev[key] ?? []).filter((p) => p.userId !== msg.userId);
+          const next = { ...prev };
+          if (updated.length > 0) next[key] = updated;
+          else delete next[key];
+          return next;
+        });
+      }
+    };
+    window.addEventListener("gwh:community-voice-update", handler);
+    return () => window.removeEventListener("gwh:community-voice-update", handler);
+  }, [community?.id]);
 
   const joinMutation = useMutation({
     mutationFn: () => customFetch(`/api/communities/${community!.id}/join`, { method: "POST" }),
@@ -1017,6 +1107,7 @@ export default function CommunityHub() {
         onBannerEdit={() => setBannerOpen(true)}
         onInvite={() => setInviteOpen(true)}
         boostPending={boostMutation.isPending}
+        voicePresence={voicePresence}
       />
 
       {/* Main content */}

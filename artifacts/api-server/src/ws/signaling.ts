@@ -2,11 +2,12 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import type { Server } from "node:http";
 import { URL } from "node:url";
 import { eq, and } from "drizzle-orm";
-import { db, usersTable, partiesTable, conversationParticipantsTable, friendshipsTable, blocksTable } from "@workspace/db";
+import { db, usersTable, partiesTable, conversationParticipantsTable, friendshipsTable, blocksTable, communityMembersTable } from "@workspace/db";
 import { verifyToken } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { removeStagePresence, stageRoomMembers } from "../lib/stage-presence";
+import { removeCommunityVoicePresenceForUser } from "../lib/community-voice-presence";
 
 /**
  * WebSocket server for call signaling, admin actions, and presence events.
@@ -507,6 +508,31 @@ function handleClose(client: Client): void {
         role:     "left",
       });
     }
+  }
+
+  // Clean up community voice presence on disconnect — broadcast leave to all
+  // community members so their sidebar updates in real time.
+  const communityVoiceLeft = removeCommunityVoicePresenceForUser(client.userId);
+  for (const { communityId, channelId } of communityVoiceLeft) {
+    void db
+      .select({ userId: communityMembersTable.userId })
+      .from(communityMembersTable)
+      .where(and(
+        eq(communityMembersTable.communityId, communityId),
+        eq(communityMembersTable.isBanned, false),
+      ))
+      .then((members) => {
+        for (const m of members) {
+          pushToUser(m.userId, {
+            type: "community-voice-update",
+            communityId,
+            channelId,
+            userId: client.userId,
+            action: "leave",
+          });
+        }
+      })
+      .catch(() => {});
   }
 }
 

@@ -623,52 +623,7 @@ function VoiceChannelRow({ channel, communityId, communityName, isMember, partic
 
 // ── Voice stage participant tile ────────────────────────────────────────────────
 
-function ParticipantTile({ p }: { p: VoicePresenceUser }) {
-  const hue = Math.abs((p.displayName.charCodeAt(0) * 17 + p.displayName.charCodeAt(1) * 31) % 360);
-  return (
-    <div className="relative flex flex-col items-center gap-3 bg-card/80 border border-border/60 rounded-2xl p-5 hover:border-border transition-all group">
-      {/* Avatar with speaking ring */}
-      <div className="relative">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl overflow-hidden ring-2 ring-border/40"
-          style={{ background: p.avatarUrl ? "transparent" : `hsl(${hue},55%,30%)`, color: `hsl(${hue},70%,80%)` }}
-        >
-          {p.avatarUrl
-            ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
-            : p.displayName.slice(0, 2).toUpperCase()}
-        </div>
-        {/* Mic indicator */}
-        <div className="absolute -bottom-1.5 -end-1.5 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background shadow-lg">
-          <Mic className="w-3 h-3 text-white" />
-        </div>
-      </div>
-
-      {/* Name */}
-      <div className="text-center w-full">
-        <p className="text-sm font-semibold text-foreground truncate">{p.displayName}</p>
-        <p className="text-[11px] text-muted-foreground truncate">@{p.username}</p>
-      </div>
-
-      {/* Status badges */}
-      {(p.cameraEnabled || p.screenShareEnabled) && (
-        <div className="flex items-center gap-1.5">
-          {p.cameraEnabled && (
-            <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
-              <Video className="w-2.5 h-2.5" /> Camera
-            </span>
-          )}
-          {p.screenShareEnabled && (
-            <span className="flex items-center gap-1 text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-full px-2 py-0.5">
-              <Monitor className="w-2.5 h-2.5" /> Share
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Community Voice Stage (main content when voice channel active) ──────────────
+// ── Community Voice Stage (Discord-style: dark stage, participants in sidebar) ──
 
 function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember }: {
   channel: Channel; communityId: number; communityName: string;
@@ -685,87 +640,76 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
   }, [isMember, joinCommunityVoice, communityId, channel, communityName, toast]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Stage header */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-border/50 bg-card/30 flex-shrink-0">
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isInChannel ? "bg-green-500/20" : "bg-muted/60"}`}>
-            <Volume2 className={`w-5 h-5 ${isInChannel ? "text-green-400" : "text-muted-foreground"}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-foreground text-[15px] truncate">{channel.name}</span>
-              {isInChannel && (
-                <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2 py-0.5 font-medium">
-                  <Radio className="w-2.5 h-2.5" /> LIVE
-                </span>
-              )}
-            </div>
-            <p className="text-[12px] text-muted-foreground">
-              {participants.length === 0 ? "No one here yet" : `${participants.length} participant${participants.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-        </div>
+    <div className="flex-1 flex flex-col overflow-hidden bg-background">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-border/40 flex-shrink-0">
+        <Volume2 className={`w-4 h-4 flex-shrink-0 ${isInChannel ? "text-green-400" : "text-muted-foreground/60"}`} />
+        <span className="font-semibold text-foreground text-[14px] truncate flex-1">{channel.name}</span>
+        {isInChannel && (
+          <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2 py-0.5 font-medium flex-shrink-0">
+            <Radio className="w-2 h-2" /> LIVE
+          </span>
+        )}
+        <span className="text-[12px] text-muted-foreground/50 flex-shrink-0">
+          {participants.length > 0 && `${participants.length} connected`}
+        </span>
+      </div>
 
-        {/* Join / Leave control */}
-        {isMember && (
-          isInChannel ? (
+      {/* Discord-style dark stage area */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 select-none">
+        {isInChannel ? (
+          <>
+            {/* Connected state */}
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+                <Volume2 className="w-8 h-8 text-green-400/60" />
+              </div>
+              <div>
+                <p className="text-foreground font-semibold">Voice Connected</p>
+                <p className="text-muted-foreground/60 text-sm mt-0.5">
+                  {participants.length === 0 ? "You're the only one here" : `${participants.length} participant${participants.length !== 1 ? "s" : ""} in channel`}
+                </p>
+                <p className="text-muted-foreground/40 text-xs mt-1">Participants are shown in the sidebar →</p>
+              </div>
+            </div>
             <Button
               variant="destructive"
               size="sm"
-              className="gap-1.5 h-8 rounded-lg font-medium"
+              className="gap-2 rounded-lg"
               onClick={() => leaveVoice()}
             >
               <PhoneOff className="w-3.5 h-3.5" />
               Disconnect
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="gap-1.5 h-8 rounded-lg font-medium bg-green-600 hover:bg-green-500 text-white"
-              onClick={handleJoin}
-            >
-              <Mic className="w-3.5 h-3.5" />
-              Join Voice
-            </Button>
-          )
-        )}
-      </div>
-
-      {/* Participant grid */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {participants.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center gap-5 text-center">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-muted/20 flex items-center justify-center">
-                <Volume2 className="w-12 h-12 text-muted-foreground/20" />
+          </>
+        ) : (
+          <>
+            {/* Not connected state */}
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-16 h-16 rounded-full bg-muted/20 border border-border/40 flex items-center justify-center">
+                <Volume2 className="w-8 h-8 text-muted-foreground/20" />
               </div>
-              <div className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-                <Plus className="w-4 h-4 text-green-400/60" />
+              <div>
+                <p className="text-foreground font-semibold">
+                  {participants.length === 0 ? "No one's here yet" : `${participants.length} in voice`}
+                </p>
+                <p className="text-muted-foreground/60 text-sm mt-0.5">
+                  {participants.length === 0
+                    ? "Be the first to join"
+                    : "Join to talk with them"}
+                </p>
               </div>
             </div>
-            <div>
-              <p className="text-foreground font-semibold text-base">No one's here yet</p>
-              <p className="text-muted-foreground text-sm mt-1">Be the first to join and start the conversation</p>
-            </div>
-            {isMember && !isInChannel && (
+            {isMember && (
               <Button
                 onClick={handleJoin}
-                className="gap-2 bg-green-600 hover:bg-green-500 text-white"
+                className="gap-2 bg-green-600 hover:bg-green-500 text-white rounded-lg"
               >
                 <Mic className="w-4 h-4" />
-                Join Voice Channel
+                Join Voice
               </Button>
             )}
-          </div>
-        ) : (
-          <div className="grid gap-3"
-            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(160px, 1fr))` }}
-          >
-            {participants.map((p) => (
-              <ParticipantTile key={p.userId} p={p} />
-            ))}
-          </div>
+          </>
         )}
       </div>
     </div>

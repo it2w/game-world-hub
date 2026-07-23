@@ -765,6 +765,18 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:community-voice-update", { detail: msg }));
           break;
 
+        case "stage-raise-hand":
+          window.dispatchEvent(new CustomEvent("gwh:stage-raise-hand", { detail: msg }));
+          break;
+
+        case "stage-speaker-approved":
+          window.dispatchEvent(new CustomEvent("gwh:stage-speaker-approved", { detail: msg }));
+          break;
+
+        case "stage-speaker-removed":
+          window.dispatchEvent(new CustomEvent("gwh:stage-speaker-removed", { detail: msg }));
+          break;
+
         case "stage-participant-join": {
           if (
             typeof msg.roomName === "string" &&

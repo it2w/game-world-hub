@@ -110,11 +110,28 @@ export async function ensureCommunityPremiumTables(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     ALTER TABLE community_members ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NULL DEFAULT 0;
+    -- Advanced channel types
+    ALTER TABLE community_channels ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT false;
+    -- Channel-level role permission overrides
+    CREATE TABLE IF NOT EXISTS channel_role_permissions (
+      id SERIAL PRIMARY KEY,
+      channel_id INTEGER NOT NULL REFERENCES community_channels(id) ON DELETE CASCADE,
+      role_id   INTEGER NOT NULL REFERENCES community_roles(id)    ON DELETE CASCADE,
+      allow JSONB NOT NULL DEFAULT '{}',
+      deny  JSONB NOT NULL DEFAULT '{}',
+      UNIQUE(channel_id, role_id)
+    );
   `);
   logger.info("communities: premium tables ensured");
 }
 
 const router = Router();
+
+// ─── In-memory stage tracking ─────────────────────────────────────────────────
+/** channelId → Set of userIds who have raised their hand */
+const stageHandsMap = new Map<number, Set<number>>();
+/** channelId → Set of approved speaker userIds */
+const stageSpeakersMap = new Map<number, Set<number>>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -397,16 +414,41 @@ router.get("/communities/:slug", requireAuth, async (req, res): Promise<void> =>
     const community = await resolveCommunity(String(req.params.slug));
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
 
+    const userId = req.auth!.userId;
+    const membership = await getMembership(community.id, userId);
+    const isOwner = community.ownerId === userId;
+    const isMod = isOwner || await isOwnerOrMod(community.id, userId);
+
     const channels = await db
       .select()
       .from(communityChannelsTable)
       .where(and(eq(communityChannelsTable.communityId, community.id), eq(communityChannelsTable.isArchived, false)))
       .orderBy(asc(communityChannelsTable.position));
 
-    const userId = req.auth!.userId;
-    const membership = await getMembership(community.id, userId);
+    // Filter private channels: owner/mods see all; others see only channels they have explicit can_view access to
+    let visibleChannels: typeof channels;
+    if (isMod) {
+      visibleChannels = channels;
+    } else {
+      const { rows: allowed } = await pool.query<{ channel_id: number }>(
+        `SELECT DISTINCT crp.channel_id
+         FROM channel_role_permissions crp
+         JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+         JOIN community_members cm ON cm.id = cmr.member_id
+         WHERE cm.user_id = $1 AND cm.community_id = $2 AND cm.is_banned = false
+           AND (crp.allow->>'can_view')::boolean IS TRUE`, [userId, community.id]
+      );
+      const allowedIds = new Set(allowed.map((r) => r.channel_id));
+      visibleChannels = channels.filter((ch: any) => !ch.isPrivate || allowedIds.has(ch.id));
+    }
 
-    res.json({ ...community, channels, isMember: !!membership && !membership.isBanned, isOwner: community.ownerId === userId });
+    res.json({
+      ...community,
+      channels: visibleChannels,
+      isMember: !!membership && !membership.isBanned,
+      isOwner,
+      isMod,
+    });
   } catch (err) {
     logger.error({ err }, "communities: get failed");
     res.status(500).json({ error: "Internal error" });
@@ -654,6 +696,7 @@ router.get("/communities/:id/members", requireAuth, async (req, res): Promise<vo
 // ─── Channels ─────────────────────────────────────────────────────────────────
 
 router.get("/communities/:id/channels", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
@@ -662,7 +705,27 @@ router.get("/communities/:id/channels", requireAuth, async (req, res): Promise<v
       .from(communityChannelsTable)
       .where(and(eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.isArchived, false)))
       .orderBy(asc(communityChannelsTable.position));
-    res.json(channels);
+
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (community?.ownerId === userId) { res.json(channels); return; }
+
+    // Check if user has is_admin
+    const isAdmin = await hasPermission(id, userId, "is_admin");
+    if (isAdmin) { res.json(channels); return; }
+
+    // Filter private channels: only show if user has an allowed role in channel_role_permissions
+    const { rows: allowed } = await pool.query<{ channel_id: number }>(
+      `SELECT DISTINCT crp.channel_id
+       FROM channel_role_permissions crp
+       JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+       JOIN community_members cm ON cm.id = cmr.member_id
+       WHERE cm.user_id = $1 AND cm.community_id = $2 AND cm.is_banned = false
+         AND (crp.allow->>'can_view')::boolean IS TRUE`, [userId, id]
+    );
+    const allowedChannelIds = new Set(allowed.map(r => r.channel_id));
+
+    const visible = channels.filter((ch: any) => !ch.isPrivate || allowedChannelIds.has(ch.id));
+    res.json(visible);
   } catch (err) {
     logger.error({ err }, "communities: channels list failed");
     res.status(500).json({ error: "Internal error" });
@@ -676,12 +739,13 @@ router.post("/communities/:id/channels", requireAuth, async (req, res): Promise<
   try {
     if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { name, type } = req.body ?? {};
+    const { name, type, isPrivate } = req.body ?? {};
     if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 100) {
       res.status(400).json({ error: "name must be 1–100 characters" });
       return;
     }
-    const channelType = type === "voice" ? "voice" : "text";
+    const validTypes = ["text", "voice", "announcement", "stage"] as const;
+    const channelType = validTypes.includes(type as any) ? type as string : "text";
     const [maxPos] = await db
       .select({ pos: sql<number>`COALESCE(MAX(${communityChannelsTable.position}), -1)` })
       .from(communityChannelsTable)
@@ -689,7 +753,7 @@ router.post("/communities/:id/channels", requireAuth, async (req, res): Promise<
 
     const [channel] = await db
       .insert(communityChannelsTable)
-      .values({ communityId: id, name: name.trim().toLowerCase().replace(/\s+/g, "-"), type: channelType, position: (maxPos?.pos ?? -1) + 1 })
+      .values({ communityId: id, name: name.trim().toLowerCase().replace(/\s+/g, "-"), type: channelType, position: (maxPos?.pos ?? -1) + 1, isPrivate: !!isPrivate } as any)
       .returning();
     res.status(201).json(channel);
   } catch (err) {
@@ -705,11 +769,14 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
   if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
-    const { name, position, slowmodeSeconds } = req.body ?? {};
+    const { name, position, slowmodeSeconds, isPrivate, type } = req.body ?? {};
     const updates: Partial<typeof communityChannelsTable.$inferInsert> = {};
     if (name && typeof name === "string") updates.name = name.trim().toLowerCase().replace(/\s+/g, "-");
     if (typeof position === "number") updates.position = position;
     if (typeof slowmodeSeconds === "number") updates.slowmodeSeconds = Math.max(0, Math.min(slowmodeSeconds, 21600));
+    if (typeof isPrivate === "boolean") (updates as any).isPrivate = isPrivate;
+    const validTypes = ["text", "voice", "announcement", "stage"];
+    if (typeof type === "string" && validTypes.includes(type)) (updates as any).type = type;
 
     const [updated] = await db.update(communityChannelsTable).set(updates).where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id))).returning();
     if (!updated) { res.status(404).json({ error: "Channel not found" }); return; }
@@ -751,6 +818,23 @@ router.get("/communities/:id/channels/:cid/messages", requireAuth, async (req, r
       .from(communityChannelsTable)
       .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
     if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+    // Private-channel message read protection — use raw query since is_private is added via DDL
+    const { rows: [channelMeta] } = await pool.query<{ is_private: boolean }>(
+      `SELECT COALESCE(is_private, false) AS is_private FROM community_channels WHERE id = $1`, [cid]
+    );
+    if (channelMeta?.is_private && !await isOwnerOrMod(id, userId)) {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM channel_role_permissions crp
+         JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+         JOIN community_members cm ON cm.id = cmr.member_id
+         WHERE cm.user_id = $1 AND cm.community_id = $2 AND crp.channel_id = $3
+           AND cm.is_banned = false AND (crp.allow->>'can_view')::boolean IS TRUE
+         LIMIT 1`,
+        [userId, id, cid]
+      );
+      if (rows.length === 0) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
 
     const before = req.query.before ? Number(req.query.before) : null;
     const limit = Math.min(Number(req.query.limit) || 50, 100);
@@ -797,10 +881,50 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
     if (!await hasPermission(id, userId, "can_post")) { res.status(403).json({ error: "You don't have permission to post messages" }); return; }
 
     // Verify channel belongs to this community (prevents cross-community IDOR)
-    const [channel] = await db.select({ id: communityChannelsTable.id })
+    const [channel] = await db.select()
       .from(communityChannelsTable)
       .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
     if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+    // Private-channel write protection — must have can_view role permission (or be owner/mod)
+    if (channel.isPrivate && !await isOwnerOrMod(id, userId)) {
+      const { rows: accessRows } = await pool.query(
+        `SELECT 1 FROM channel_role_permissions crp
+         JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+         JOIN community_members cm ON cm.id = cmr.member_id
+         WHERE cm.user_id = $1 AND cm.community_id = $2 AND crp.channel_id = $3
+           AND cm.is_banned = false AND (crp.allow->>'can_view')::boolean IS TRUE
+         LIMIT 1`,
+        [userId, id, cid]
+      );
+      if (accessRows.length === 0) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
+
+    // Announcement channels: only owner / mods may post
+    if ((channel as any).type === "announcement") {
+      const canPost = await isOwnerOrMod(id, userId);
+      if (!canPost) { res.status(403).json({ error: "Only moderators can post in announcement channels" }); return; }
+    }
+
+    // Slow-mode: check time since user's last message in this channel
+    if ((channel.slowmodeSeconds ?? 0) > 0) {
+      const isPrivileged = await isOwnerOrMod(id, userId);
+      if (!isPrivileged) {
+        const { rows: lastRows } = await pool.query<{ created_at: string }>(
+          `SELECT created_at FROM community_messages
+           WHERE channel_id = $1 AND user_id = $2 AND is_deleted = false
+           ORDER BY created_at DESC LIMIT 1`, [cid, userId]
+        );
+        if (lastRows[0]) {
+          const elapsed = (Date.now() - new Date(lastRows[0].created_at).getTime()) / 1000;
+          const remaining = Math.ceil(channel.slowmodeSeconds - elapsed);
+          if (remaining > 0) {
+            res.status(429).json({ error: "Slow mode is active", retryAfter: remaining });
+            return;
+          }
+        }
+      }
+    }
 
     const { content } = req.body ?? {};
     if (!content || typeof content !== "string" || content.trim().length === 0 || content.trim().length > 4000) {
@@ -1647,6 +1771,218 @@ router.patch("/communities/:id/channels/:cid/messages/:mid/pin", requireAuth, as
     res.json({ ok: true, isPinned: newPinned });
   } catch (err) {
     logger.error({ err }, "communities: pin message failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Channel Role Permissions ─────────────────────────────────────────────────
+
+/** GET /communities/:id/channels/:cid/permissions — allow/deny per role */
+router.get("/communities/:id/channels/:cid/permissions", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Verify channel belongs to this community (IDOR guard)
+    const [ch] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
+    if (!ch) { res.status(404).json({ error: "Channel not found" }); return; }
+    const { rows } = await pool.query<{ id: number; channel_id: number; role_id: number; allow: object; deny: object }>(
+      `SELECT * FROM channel_role_permissions WHERE channel_id = $1`, [cid]
+    );
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: channel permissions get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** PUT /communities/:id/channels/:cid/permissions — upsert allow/deny per role */
+router.put("/communities/:id/channels/:cid/permissions", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Verify channel belongs to this community (IDOR guard)
+    const [chk] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
+    if (!chk) { res.status(404).json({ error: "Channel not found" }); return; }
+    const { roleId, allow, deny } = req.body ?? {};
+    if (!roleId || typeof roleId !== "number") { res.status(400).json({ error: "roleId required" }); return; }
+    // Verify role belongs to this community
+    const [role] = await db.select({ id: communityRolesTable.id }).from(communityRolesTable)
+      .where(and(eq(communityRolesTable.id, roleId), eq(communityRolesTable.communityId, id)));
+    if (!role) { res.status(404).json({ error: "Role not found in this community" }); return; }
+
+    await pool.query(
+      `INSERT INTO channel_role_permissions (channel_id, role_id, allow, deny)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (channel_id, role_id) DO UPDATE SET allow = EXCLUDED.allow, deny = EXCLUDED.deny`,
+      [cid, roleId, JSON.stringify(allow ?? {}), JSON.stringify(deny ?? {})]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: channel permissions save failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** DELETE /communities/:id/channels/:cid/permissions/:roleId — remove override */
+router.delete("/communities/:id/channels/:cid/permissions/:roleId", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  const rid = Number(String(req.params.roleId));
+  if (isNaN(id) || isNaN(cid) || isNaN(rid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Verify channel belongs to this community (IDOR guard)
+    const [chd] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
+    if (!chd) { res.status(404).json({ error: "Channel not found" }); return; }
+    await pool.query(`DELETE FROM channel_role_permissions WHERE channel_id = $1 AND role_id = $2`, [cid, rid]);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: channel permission delete failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Stage Channel ─────────────────────────────────────────────────────────────
+
+/** POST /communities/:id/channels/:cid/stage/raise-hand — audience requests to speak */
+router.post("/communities/:id/channels/:cid/stage/raise-hand", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    // Verify channel belongs to this community and is a stage channel (IDOR guard + type enforcement)
+    const [stCh] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.type, "stage")));
+    if (!stCh) { res.status(404).json({ error: "Stage channel not found" }); return; }
+    const hands = stageHandsMap.get(cid) ?? new Set<number>();
+    hands.add(userId);
+    stageHandsMap.set(cid, hands);
+
+    // Notify community (so owner/mods can see hand raise)
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, userId));
+    pushToUser(community.ownerId, { type: "stage-raise-hand", communityId: id, channelId: cid, userId, username: user?.username, displayName: user?.displayName });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: stage raise-hand failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/channels/:cid/stage/lower-hand — cancel hand raise */
+router.post("/communities/:id/channels/:cid/stage/lower-hand", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    const [stCh] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.type, "stage")));
+    if (!stCh) { res.status(404).json({ error: "Stage channel not found" }); return; }
+    stageHandsMap.get(cid)?.delete(userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/channels/:cid/stage/hands — list raised hands (owner/mod only) */
+router.get("/communities/:id/channels/:cid/stage/hands", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [stCh] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.type, "stage")));
+    if (!stCh) { res.status(404).json({ error: "Stage channel not found" }); return; }
+    const handIds = Array.from(stageHandsMap.get(cid) ?? []);
+    const speakers = Array.from(stageSpeakersMap.get(cid) ?? []);
+    if (handIds.length === 0) { res.json({ hands: [], speakers }); return; }
+    const { rows } = await pool.query<{ id: number; username: string; display_name: string; avatar_url: string | null }>(
+      `SELECT id, username, display_name, avatar_url FROM users WHERE id = ANY($1)`, [handIds]
+    );
+    res.json({
+      hands: rows.map(r => ({ userId: r.id, username: r.username, displayName: r.display_name, avatarUrl: toPublicImageUrl(r.avatar_url) })),
+      speakers,
+    });
+  } catch (err) {
+    logger.error({ err }, "communities: stage hands get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/channels/:cid/stage/approve/:uid — approve speaker */
+router.post("/communities/:id/channels/:cid/stage/approve/:uid", requireAuth, async (req, res): Promise<void> => {
+  const actorId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  const targetUid = Number(String(req.params.uid));
+  if (isNaN(id) || isNaN(cid) || isNaN(targetUid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [stCh] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.type, "stage")));
+    if (!stCh) { res.status(404).json({ error: "Stage channel not found" }); return; }
+    stageHandsMap.get(cid)?.delete(targetUid);
+    const speakers = stageSpeakersMap.get(cid) ?? new Set<number>();
+    speakers.add(targetUid);
+    stageSpeakersMap.set(cid, speakers);
+
+    // Broadcast speaker approval to community
+    const members = await db.select({ userId: communityMembersTable.userId }).from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+    for (const m of members) pushToUser(m.userId, { type: "stage-speaker-approved", communityId: id, channelId: cid, userId: targetUid });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: stage approve failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** DELETE /communities/:id/channels/:cid/stage/speakers/:uid — move speaker back to audience */
+router.delete("/communities/:id/channels/:cid/stage/speakers/:uid", requireAuth, async (req, res): Promise<void> => {
+  const actorId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  const targetUid = Number(String(req.params.uid));
+  if (isNaN(id) || isNaN(cid) || isNaN(targetUid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [stCh] = await db.select({ id: communityChannelsTable.id })
+      .from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id), eq(communityChannelsTable.type, "stage")));
+    if (!stCh) { res.status(404).json({ error: "Stage channel not found" }); return; }
+    stageSpeakersMap.get(cid)?.delete(targetUid);
+    const members = await db.select({ userId: communityMembersTable.userId }).from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+    for (const m of members) pushToUser(m.userId, { type: "stage-speaker-removed", communityId: id, channelId: cid, userId: targetUid });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: stage remove speaker failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

@@ -38,10 +38,11 @@ export const communityChannelsTable = pgTable("community_channels", {
   id:              serial("id").primaryKey(),
   communityId:     integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
   name:            varchar("name",  { length: 100 }).notNull(),
-  type:            varchar("type",  { length: 20  }).notNull().default("text"), // "text" | "voice"
+  type:            varchar("type",  { length: 20  }).notNull().default("text"), // "text" | "voice" | "announcement" | "stage"
   position:        integer("position").notNull().default(0),
   slowmodeSeconds: integer("slowmode_seconds").notNull().default(0),
   isArchived:      boolean("is_archived").notNull().default(false),
+  isPrivate:       boolean("is_private").notNull().default(false),
   createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

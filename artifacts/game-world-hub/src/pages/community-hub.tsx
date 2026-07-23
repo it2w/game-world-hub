@@ -23,7 +23,9 @@ import {
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
   Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor, PhoneOff,
   MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
+  Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,12 +33,22 @@ interface Community {
   id: number; slug: string; name: string; description: string | null;
   gameTag: string | null; privacy: "public" | "invite_only";
   boostLevel: number; memberCount: number; iconKey: string | null;
-  bannerKey: string | null; ownerId: number; isMember: boolean; isOwner: boolean;
+  bannerKey: string | null; ownerId: number; isMember: boolean; isOwner: boolean; isMod: boolean;
   channels: Channel[];
 }
 
 interface Channel {
-  id: number; name: string; type: "text" | "voice"; position: number; slowmodeSeconds: number;
+  id: number; name: string; type: "text" | "voice" | "announcement" | "stage"; position: number;
+  slowmodeSeconds: number; isPrivate?: boolean;
+}
+
+/** Icon for a channel type, with optional lock overlay for private channels */
+function ChannelIcon({ channel, size = 4, className = "" }: { channel: Channel; size?: number; className?: string }) {
+  const base = `w-${size} h-${size} flex-shrink-0 ${className}`;
+  if (channel.type === "announcement") return <Megaphone className={base} />;
+  if (channel.type === "stage") return <Mic2 className={base} />;
+  if (channel.type === "voice") return <Volume2 className={base} />;
+  return <Hash className={base} />;
 }
 
 interface Message {
@@ -470,8 +482,16 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
   const [text, setText] = useState("");
   const [showPins, setShowPins] = useState(false);
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
+  const [slowmodeLeft, setSlowmodeLeft] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Slowmode countdown tick
+  useEffect(() => {
+    if (slowmodeLeft <= 0) return;
+    const t = setTimeout(() => setSlowmodeLeft(v => Math.max(0, v - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [slowmodeLeft]);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["community-messages", communityId, channel.id],
@@ -533,11 +553,20 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
 
   const handleSend = useCallback(() => {
     const content = text.trim();
-    if (!content) return;
+    if (!content || slowmodeLeft > 0) return;
     setText("");
     setMentionSearch(null);
-    sendMutation.mutate(content);
-  }, [text, sendMutation]);
+    sendMutation.mutate(content, {
+      onSuccess: () => {
+        if (channel.slowmodeSeconds > 0 && !canMod && !isOwner) {
+          setSlowmodeLeft(channel.slowmodeSeconds);
+        }
+      },
+      onError: (err: any) => {
+        if (err?.retryAfter) setSlowmodeLeft(err.retryAfter);
+      },
+    });
+  }, [text, sendMutation, slowmodeLeft, channel.slowmodeSeconds, canMod, isOwner]);
 
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -624,46 +653,60 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-border px-4 py-3 relative">
-        {/* @mention autocomplete dropdown */}
-        {mentionSearch !== null && filteredMentions.length > 0 && (
-          <div className="absolute bottom-full start-4 end-4 mb-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-            <div className="px-3 py-1.5 border-b border-border">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Roles</span>
+      {/* Input — announcement restriction or normal input */}
+      {(channel.type !== "announcement" || isOwner || canMod) ? (
+        <div className="border-t border-border px-4 py-3 relative">
+          {/* @mention autocomplete dropdown */}
+          {mentionSearch !== null && filteredMentions.length > 0 && (
+            <div className="absolute bottom-full start-4 end-4 mb-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+              <div className="px-3 py-1.5 border-b border-border">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Roles</span>
+              </div>
+              {filteredMentions.map(role => (
+                <button
+                  key={role.id}
+                  type="button"
+                  onClick={() => insertRoleMention(role)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent transition-colors text-start"
+                >
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                  <span className="text-sm font-medium" style={{ color: role.color }}>@{role.name}</span>
+                  <span className="text-xs text-muted-foreground ms-auto">mentionable</span>
+                </button>
+              ))}
             </div>
-            {filteredMentions.map(role => (
-              <button
-                key={role.id}
-                type="button"
-                onClick={() => insertRoleMention(role)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent transition-colors text-start"
-              >
-                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
-                <span className="text-sm font-medium" style={{ color: role.color }}>@{role.name}</span>
-                <span className="text-xs text-muted-foreground ms-auto">mentionable</span>
-              </button>
-            ))}
+          )}
+          {slowmodeLeft > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-500/80 mb-2">
+              <Clock className="w-3 h-3" />
+              <span>Slow mode — wait {slowmodeLeft}s before sending</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
+            <input
+              ref={inputRef}
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              placeholder={slowmodeLeft > 0 ? `Slow mode — ${slowmodeLeft}s remaining` : t("typeMessage", { channel: channel.name })}
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setMentionSearch(null); return; }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+              }}
+              maxLength={4000}
+              disabled={slowmodeLeft > 0}
+            />
+            <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending || slowmodeLeft > 0} className="text-primary disabled:text-muted-foreground">
+              <Send className="w-4 h-4" />
+            </button>
           </div>
-        )}
-        <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
-          <input
-            ref={inputRef}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            placeholder={t("typeMessage", { channel: channel.name })}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") { setMentionSearch(null); return; }
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-            }}
-            maxLength={4000}
-          />
-          <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending} className="text-primary disabled:text-muted-foreground">
-            <Send className="w-4 h-4" />
-          </button>
         </div>
-      </div>
+      ) : (
+        <div className="border-t border-border px-4 py-3 flex items-center gap-2.5 text-muted-foreground bg-muted/20 flex-shrink-0">
+          <Megaphone className="w-4 h-4 text-amber-500/70 flex-shrink-0" />
+          <span className="text-sm">This is an announcement channel — only moderators can post here.</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1050,6 +1093,209 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
   );
 }
 
+// ── Stage Channel Panel ───────────────────────────────────────────────────────
+
+function StageChannelPanel({ communityId, channel, participants, isOwner, myUserId }: {
+  communityId: number; channel: Channel; participants: VoicePresenceUser[];
+  isOwner: boolean; myUserId: number;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [speakers, setSpeakers] = useState<number[]>([]);
+  const [hands, setHands] = useState<{ userId: number; displayName: string }[]>([]);
+  const [myHandRaised, setMyHandRaised] = useState(false);
+
+  const { data: stageData, refetch: refetchHands } = useQuery<{
+    hands: { userId: number; displayName: string }[]; speakers: number[];
+  }>({
+    queryKey: ["stage-hands", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/stage/hands`),
+    enabled: isOwner,
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    if (stageData) {
+      setHands(stageData.hands ?? []);
+      setSpeakers(stageData.speakers ?? []);
+    }
+  }, [stageData]);
+
+  // Real-time WS stage events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent).detail;
+      if (msg.channelId !== channel.id) return;
+      if (msg.type === "stage-speaker-approved") {
+        setSpeakers(prev => prev.includes(msg.userId) ? prev : [...prev, msg.userId]);
+        setHands(prev => prev.filter(h => h.userId !== msg.userId));
+        if (msg.userId === myUserId) setMyHandRaised(false);
+      } else if (msg.type === "stage-speaker-removed") {
+        setSpeakers(prev => prev.filter(uid => uid !== msg.userId));
+      } else if (msg.type === "stage-raise-hand" && isOwner) {
+        setHands(prev => prev.some(h => h.userId === msg.userId) ? prev : [...prev, { userId: msg.userId, displayName: msg.displayName }]);
+      }
+    };
+    ["gwh:stage-speaker-approved", "gwh:stage-speaker-removed", "gwh:stage-raise-hand"].forEach(ev =>
+      window.addEventListener(ev, handler)
+    );
+    return () => {
+      ["gwh:stage-speaker-approved", "gwh:stage-speaker-removed", "gwh:stage-raise-hand"].forEach(ev =>
+        window.removeEventListener(ev, handler)
+      );
+    };
+  }, [channel.id, myUserId, isOwner]);
+
+  const speakerParticipants = participants.filter(p => speakers.includes(p.userId) || (isOwner && p.userId === myUserId));
+  const audienceParticipants = participants.filter(p => !speakerParticipants.some(s => s.userId === p.userId));
+  const iAmSpeaker = speakers.includes(myUserId) || isOwner;
+
+  const raiseHand = async () => {
+    try {
+      await customFetch(`/api/communities/${communityId}/channels/${channel.id}/stage/raise-hand`, { method: "POST" });
+      setMyHandRaised(true);
+      toast({ title: "Hand raised — waiting for host approval" });
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+  };
+
+  const lowerHand = async () => {
+    try {
+      await customFetch(`/api/communities/${communityId}/channels/${channel.id}/stage/lower-hand`, { method: "POST" });
+      setMyHandRaised(false);
+    } catch { /* no-op */ }
+  };
+
+  const approveHand = async (uid: number) => {
+    try {
+      await customFetch(`/api/communities/${communityId}/channels/${channel.id}/stage/approve/${uid}`, { method: "POST" });
+      if (isOwner) refetchHands();
+    } catch { toast({ title: "Failed to approve", variant: "destructive" }); }
+  };
+
+  const removeSpeaker = async (uid: number) => {
+    try {
+      await customFetch(`/api/communities/${communityId}/channels/${channel.id}/stage/speakers/${uid}`, { method: "DELETE" });
+    } catch { toast({ title: "Failed", variant: "destructive" }); }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#111214" }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-black/20 flex-shrink-0">
+        <Mic2 className="w-4 h-4 text-primary" />
+        <span className="text-sm font-semibold text-white/80">#{channel.name}</span>
+        <span className="ms-auto text-[10px] font-mono uppercase tracking-widest text-white/30 border border-white/10 rounded px-1.5 py-0.5">STAGE</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {/* Speakers */}
+        <div className="px-6 pt-6 pb-4">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-white/40 mb-4">
+            Speakers — {speakerParticipants.length}
+          </p>
+          {speakerParticipants.length === 0 ? (
+            <p className="text-white/25 text-sm">No speakers yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-6">
+              {speakerParticipants.map(p => (
+                <div key={p.userId} className="flex flex-col items-center gap-2 relative">
+                  <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-primary/50 flex-shrink-0">
+                    {p.avatarUrl
+                      ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center bg-primary/20 text-primary font-bold text-lg">{p.displayName.slice(0, 2).toUpperCase()}</div>}
+                  </div>
+                  <span className="text-xs text-white/70 max-w-[80px] truncate text-center">{p.displayName}</span>
+                  {isOwner && p.userId !== myUserId && (
+                    <button
+                      onClick={() => removeSpeaker(p.userId)}
+                      className="absolute -top-1 -end-1 w-4 h-4 rounded-full bg-destructive flex items-center justify-center hover:scale-110 transition-transform"
+                      title="Move to audience"
+                    >
+                      <X className="w-2.5 h-2.5 text-white" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-white/5 mx-4" />
+
+        {/* Audience */}
+        <div className="px-6 pt-4 pb-6">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-white/40 mb-3">
+            Audience — {audienceParticipants.length}
+          </p>
+          {audienceParticipants.length === 0 && !isOwner && (
+            <p className="text-white/25 text-sm">No audience members yet</p>
+          )}
+          <div className="flex flex-wrap gap-4">
+            {audienceParticipants.map(p => (
+              <div key={p.userId} className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-full overflow-hidden ring-1 ring-white/10">
+                  {p.avatarUrl
+                    ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center bg-white/10 text-white/60 text-xs font-bold">{p.displayName.slice(0, 2).toUpperCase()}</div>}
+                </div>
+                <span className="text-[10px] text-white/40 max-w-[60px] truncate text-center">{p.displayName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hand queue — owner only */}
+        {isOwner && hands.length > 0 && (
+          <div className="mx-4 mb-4 rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-3">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-yellow-400/70 mb-2 flex items-center gap-1">
+              <Hand className="w-3 h-3" /> Raised Hands — {hands.length}
+            </p>
+            <div className="space-y-1.5">
+              {hands.map(h => (
+                <div key={h.userId} className="flex items-center gap-2">
+                  <span className="text-xs text-white/70 flex-1">{h.displayName}</span>
+                  <button onClick={() => approveHand(h.userId)} className="text-xs bg-green-600 hover:bg-green-500 text-white px-2 py-0.5 rounded transition-colors">
+                    Allow
+                  </button>
+                  <button onClick={() => setHands(prev => prev.filter(x => x.userId !== h.userId))} className="text-xs text-white/40 hover:text-white/60 px-1">
+                    Dismiss
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom controls */}
+      <div className="flex-shrink-0 px-4 py-3 border-t border-white/10 bg-[#1e1f22] flex items-center justify-center gap-3">
+        {!iAmSpeaker && (
+          myHandRaised ? (
+            <button
+              onClick={lowerHand}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600/15 border border-yellow-500/30 text-yellow-400 text-sm hover:bg-yellow-600/25 transition-colors"
+            >
+              <Hand className="w-4 h-4" /> Lower Hand
+            </button>
+          ) : (
+            <button
+              onClick={raiseHand}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/30 text-primary text-sm hover:bg-primary/20 transition-colors"
+            >
+              <Hand className="w-4 h-4" /> ✋ Request to Speak
+            </button>
+          )
+        )}
+        {iAmSpeaker && (
+          <p className="text-xs text-green-400/80 flex items-center gap-1.5 font-medium">
+            <Mic2 className="w-3.5 h-3.5" /> You are speaking
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Polls sidebar section ──────────────────────────────────────────────────────
 
 function PollsSection({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
@@ -1105,16 +1351,17 @@ function PollsSection({ communityId, isOwnerOrMod }: { communityId: number; isOw
 
 // ── Channel list (left sidebar) ────────────────────────────────────────────────
 
-function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, onSettings, boostPending, voicePresence }: {
+function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, onSettings, onChannelSettings, boostPending, voicePresence }: {
   community: Community; activeChannelId: number | null;
   onSelectChannel: (id: number) => void; onAddChannel: () => void;
   onLeave: () => void; onBoost: () => void; onBannerEdit: () => void; onInvite: () => void;
-  onSettings: () => void; boostPending: boolean; voicePresence: VoicePresenceMap;
+  onSettings: () => void; onChannelSettings: (ch: Channel) => void;
+  boostPending: boolean; voicePresence: VoicePresenceMap;
 }) {
   const { t } = useTranslation("communities");
-  const textChannels = community.channels.filter((c) => c.type === "text");
-  const voiceChannels = community.channels.filter((c) => c.type === "voice");
-  const isOwnerOrMod = community.isOwner;
+  const textChannels = community.channels.filter((c) => c.type === "text" || c.type === "announcement");
+  const voiceChannels = community.channels.filter((c) => c.type === "voice" || c.type === "stage");
+  const isOwnerOrMod = community.isMod ?? community.isOwner;
 
   return (
     <div className="w-60 flex flex-col flex-shrink-0 bg-card border-e border-border/60 overflow-hidden">
@@ -1182,43 +1429,88 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
             </div>
             <div className="space-y-0.5">
               {textChannels.map((ch) => (
-                <button
+                <div
                   key={ch.id}
-                  onClick={() => onSelectChannel(ch.id)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-[7px] rounded-md text-[13px] font-medium text-start transition-all duration-100 group/ch ${
-                    activeChannelId === ch.id
-                      ? "bg-accent/80 text-foreground"
-                      : "text-muted-foreground/70 hover:bg-accent/40 hover:text-foreground"
+                  className={`flex items-center rounded-md group/ch transition-all duration-100 ${
+                    activeChannelId === ch.id ? "bg-accent/80" : "hover:bg-accent/40"
                   }`}
                 >
-                  <Hash className="w-4 h-4 flex-shrink-0 opacity-80" />
-                  <span className="truncate">{ch.name}</span>
-                </button>
+                  <button
+                    onClick={() => onSelectChannel(ch.id)}
+                    className={`flex-1 flex items-center gap-2 px-2.5 py-[7px] text-[13px] font-medium text-start ${
+                      activeChannelId === ch.id ? "text-foreground" : "text-muted-foreground/70 hover:text-foreground"
+                    }`}
+                  >
+                    <ChannelIcon channel={ch} size={4} className="opacity-80 flex-shrink-0" />
+                    <span className="truncate flex-1">{ch.name}</span>
+                    {ch.isPrivate && <Lock className="w-2.5 h-2.5 text-muted-foreground/50 flex-shrink-0" />}
+                  </button>
+                  {isOwnerOrMod && (
+                    <button
+                      onClick={() => onChannelSettings(ch)}
+                      className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 me-1 text-muted-foreground hover:text-foreground"
+                      title="Channel Settings"
+                    >
+                      <Settings className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* VOICE CHANNELS */}
+        {/* VOICE / STAGE CHANNELS */}
         {voiceChannels.length > 0 && (
           <div>
-            <div className="flex items-center px-2 mb-1">
+            <div className="flex items-center justify-between px-2 mb-1 group/section">
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 select-none flex-1">
                 Voice Channels
               </span>
+              {isOwnerOrMod && (
+                <button onClick={onAddChannel} className="opacity-0 group-hover/section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground">
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             <div className="space-y-0.5">
               {voiceChannels.map((ch) => (
-                <VoiceChannelRow
-                  key={ch.id}
-                  channel={ch}
-                  communityId={community.id}
-                  communityName={community.name}
-                  isMember={community.isMember}
-                  participants={voicePresence[String(ch.id)] ?? []}
-                  isSelected={activeChannelId === ch.id}
-                  onSelect={() => onSelectChannel(ch.id)}
-                />
+                ch.type === "stage" ? (
+                  /* Stage channel row */
+                  <div key={ch.id} className={`flex items-center rounded-md group/ch transition-all ${activeChannelId === ch.id ? "bg-accent/80" : "hover:bg-accent/40"}`}>
+                    <button
+                      onClick={() => onSelectChannel(ch.id)}
+                      className={`flex-1 flex items-center gap-2 px-2.5 py-[7px] text-[13px] font-medium text-start ${activeChannelId === ch.id ? "text-foreground" : "text-muted-foreground/70 hover:text-foreground"}`}
+                    >
+                      <Mic2 className="w-4 h-4 flex-shrink-0 opacity-80" />
+                      <span className="flex-1 truncate">{ch.name}</span>
+                      {ch.isPrivate && <Lock className="w-2.5 h-2.5 text-muted-foreground/50 flex-shrink-0" />}
+                    </button>
+                    {isOwnerOrMod && (
+                      <button onClick={() => onChannelSettings(ch)} className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 me-1 text-muted-foreground hover:text-foreground">
+                        <Settings className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Voice channel row */
+                  <div key={ch.id} className={`relative group/ch ${isOwnerOrMod ? "pe-7" : ""}`}>
+                    <VoiceChannelRow
+                      channel={ch}
+                      communityId={community.id}
+                      communityName={community.name}
+                      isMember={community.isMember}
+                      participants={voicePresence[String(ch.id)] ?? []}
+                      isSelected={activeChannelId === ch.id}
+                      onSelect={() => onSelectChannel(ch.id)}
+                    />
+                    {isOwnerOrMod && (
+                      <button onClick={() => onChannelSettings(ch)} className="absolute top-1.5 end-1 opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground">
+                        <Settings className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )
               ))}
             </div>
           </div>
@@ -1800,25 +2092,195 @@ function ServerSettingsDialog({ community, open, onClose }: {
 
 // ── Add channel dialog ─────────────────────────────────────────────────────────
 
+// ── Channel Settings Dialog ────────────────────────────────────────────────────
+
+function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
+  communityId: number; channel: Channel; open: boolean; onClose: () => void;
+}) {
+  const { data: roles = [] } = useQuery<Role[]>({
+    queryKey: ["community-roles", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/roles`),
+    enabled: open,
+  });
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [name, setName] = useState(channel.name);
+  const [slowmode, setSlowmode] = useState(channel.slowmodeSeconds);
+  const [isPrivate, setIsPrivate] = useState(!!channel.isPrivate);
+  const SLOWMODE_OPTIONS = [0, 5, 30, 60, 300, 3600];
+
+  useEffect(() => {
+    setName(channel.name);
+    setSlowmode(channel.slowmodeSeconds);
+    setIsPrivate(!!channel.isPrivate);
+  }, [channel.id, channel.name, channel.slowmodeSeconds, channel.isPrivate]);
+
+  const { data: channelPerms = [] } = useQuery<{ role_id: number; allow: Record<string, boolean>; deny: Record<string, boolean> }[]>({
+    queryKey: ["channel-perms", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/permissions`),
+    enabled: open,
+  });
+
+  const save = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name, slowmodeSeconds: slowmode, isPrivate }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Channel updated" });
+      qc.invalidateQueries({ queryKey: ["community-slug"] });
+      onClose();
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const savePermission = useMutation({
+    mutationFn: ({ roleId, allow, deny }: { roleId: number; allow: Record<string, boolean>; deny: Record<string, boolean> }) =>
+      customFetch(`/api/communities/${communityId}/channels/${channel.id}/permissions`, {
+        method: "PUT", body: JSON.stringify({ roleId, allow, deny }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["channel-perms", communityId, channel.id] }),
+  });
+
+  const slowmodeLabel = (s: number) => s === 0 ? "Off" : s < 60 ? `${s}s` : s < 3600 ? `${s / 60}m` : `${s / 3600}h`;
+  const getPermForRole = (roleId: number) => channelPerms.find((p: any) => p.role_id === roleId) ?? { allow: {}, deny: {} };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-mono uppercase tracking-widest flex items-center gap-2">
+            <Settings className="w-4 h-4 text-primary" />
+            # {channel.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Channel Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={100} />
+          </div>
+          {/* Slow mode */}
+          {(channel.type === "text" || channel.type === "announcement") && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="w-3 h-3" /> Slow Mode
+                </Label>
+                <span className="text-xs font-mono text-primary">{slowmodeLabel(slowmode)}</span>
+              </div>
+              <Slider
+                value={[Math.max(0, SLOWMODE_OPTIONS.indexOf(slowmode))]}
+                onValueChange={([i]) => setSlowmode(SLOWMODE_OPTIONS[i] ?? 0)}
+                min={0} max={SLOWMODE_OPTIONS.length - 1} step={1}
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                {SLOWMODE_OPTIONS.map(s => <span key={s}>{slowmodeLabel(s)}</span>)}
+              </div>
+            </div>
+          )}
+          {/* Private toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> Private Channel</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Only members with allowed roles can view this channel</p>
+            </div>
+            <button
+              onClick={() => setIsPrivate(v => !v)}
+              className={`w-9 h-5 rounded-full relative transition-colors ${isPrivate ? "bg-primary" : "bg-muted-foreground/30"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${isPrivate ? "start-[18px]" : "start-0.5"}`} />
+            </button>
+          </div>
+          {/* Role Permissions */}
+          {roles.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Role Permissions</Label>
+              <div className="rounded-lg border border-border overflow-hidden text-sm">
+                <div className="grid grid-cols-[1fr_64px_64px_72px] text-[10px] font-mono uppercase tracking-widest text-muted-foreground bg-muted/30 px-3 py-1.5 gap-1">
+                  <span>Role</span>
+                  <span className="text-center">View</span>
+                  <span className="text-center">Post</span>
+                  <span className="text-center">Media</span>
+                </div>
+                {roles.map(role => {
+                  const perm = getPermForRole(role.id);
+                  const getState = (key: string): "allow" | "deny" | "inherit" => {
+                    if ((perm.allow as any)?.[key]) return "allow";
+                    if ((perm.deny as any)?.[key]) return "deny";
+                    return "inherit";
+                  };
+                  const togglePerm = (key: string) => {
+                    const next = getState(key) === "inherit" ? "allow" : getState(key) === "allow" ? "deny" : "inherit";
+                    const newAllow = { ...(perm.allow ?? {}) };
+                    const newDeny = { ...(perm.deny ?? {}) };
+                    delete newAllow[key]; delete newDeny[key];
+                    if (next === "allow") newAllow[key] = true;
+                    if (next === "deny") newDeny[key] = true;
+                    savePermission.mutate({ roleId: role.id, allow: newAllow, deny: newDeny });
+                  };
+                  const colors = { allow: "text-green-500 font-bold", deny: "text-red-500 font-bold", inherit: "text-muted-foreground/40" };
+                  const labels = { allow: "✓", deny: "✗", inherit: "—" };
+                  return (
+                    <div key={role.id} className="grid grid-cols-[1fr_64px_64px_72px] items-center px-3 py-2 gap-1 border-t border-border/40">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                        <span className="text-xs truncate">{role.name}</span>
+                      </div>
+                      {(["can_view", "can_post", "can_send_media"] as const).map(key => (
+                        <button key={key} onClick={() => togglePerm(key)} className={`text-center transition-colors ${colors[getState(key)]}`} title={`${getState(key)} — click to cycle`}>
+                          {labels[getState(key)]}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground">✓ Allow · ✗ Deny · — Inherit. Click to cycle.</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Add channel dialog ─────────────────────────────────────────────────────────
+
 function AddChannelDialog({ communityId, open, onClose }: { communityId: number; open: boolean; onClose: () => void }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [type, setType] = useState<"text" | "voice">("text");
+  const [type, setType] = useState<"text" | "voice" | "announcement" | "stage">("text");
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const create = useMutation({
     mutationFn: () =>
       customFetch(`/api/communities/${communityId}/channels`, {
-        method: "POST", body: JSON.stringify({ name: name.trim(), type }),
+        method: "POST", body: JSON.stringify({ name: name.trim(), type, isPrivate }),
       }),
     onSuccess: () => {
       toast({ title: t("addChannel") + " ✓" });
       qc.invalidateQueries({ queryKey: ["community-slug"] });
-      setName(""); onClose();
+      setName(""); setIsPrivate(false); setType("text"); onClose();
     },
     onError: () => toast({ title: t("error"), variant: "destructive" }),
   });
+
+  const TYPE_OPTIONS = [
+    { value: "text",         icon: <Hash className="w-4 h-4" />,     label: "Text",         desc: "Send messages and media" },
+    { value: "announcement", icon: <Megaphone className="w-4 h-4" />,label: "Announcement", desc: "Only mods can post" },
+    { value: "voice",        icon: <Volume2 className="w-4 h-4" />,  label: "Voice",        desc: "Voice & video calls" },
+    { value: "stage",        icon: <Mic2 className="w-4 h-4" />,     label: "Stage",        desc: "Speakers & audience" },
+  ] as const;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -1831,13 +2293,36 @@ function AddChannelDialog({ communityId, open, onClose }: { communityId: number;
             <Label>{t("channelName")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("channelName")} maxLength={100} />
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setType("text")} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded border text-sm transition-colors ${type === "text" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-              <Hash className="w-4 h-4" /> {t("text")}
-            </button>
-            <button onClick={() => setType("voice")} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded border text-sm transition-colors ${type === "voice" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-              <Volume2 className="w-4 h-4" /> {t("voice")}
-            </button>
+          <div className="grid grid-cols-2 gap-2">
+            {TYPE_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setType(opt.value)}
+                className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-start transition-colors ${
+                  type === opt.value ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"
+                }`}
+              >
+                <div className={`flex items-center gap-1.5 ${type === opt.value ? "text-primary" : "text-muted-foreground"}`}>
+                  {opt.icon}
+                  <span className="text-sm font-medium">{opt.label}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground leading-snug">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+          {/* Private toggle */}
+          <div
+            onClick={() => setIsPrivate(v => !v)}
+            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isPrivate ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/30"}`}
+          >
+            <Lock className={`w-4 h-4 flex-shrink-0 ${isPrivate ? "text-primary" : "text-muted-foreground"}`} />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Private Channel</p>
+              <p className="text-xs text-muted-foreground">Only members with allowed roles can see this</p>
+            </div>
+            <div className={`w-8 h-4.5 rounded-full relative transition-colors ${isPrivate ? "bg-primary" : "bg-muted-foreground/30"}`}>
+              <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-all ${isPrivate ? "start-[17px]" : "start-0.5"}`} />
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -1868,6 +2353,7 @@ export default function CommunityHub() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [channelSettingsChannel, setChannelSettingsChannel] = useState<Channel | null>(null);
   const [voicePresence, setVoicePresence] = useState<VoicePresenceMap>({});
 
   const { data: community, isLoading, error } = useQuery<Community>({
@@ -2041,6 +2527,7 @@ export default function CommunityHub() {
         onBannerEdit={() => setBannerOpen(true)}
         onInvite={() => setInviteOpen(true)}
         onSettings={() => setServerSettingsOpen(true)}
+        onChannelSettings={(ch) => setChannelSettingsChannel(ch)}
         boostPending={boostMutation.isPending}
         voicePresence={voicePresence}
       />
@@ -2060,8 +2547,9 @@ export default function CommunityHub() {
           <button onClick={() => navigate("/communities")} className="text-muted-foreground hover:text-foreground me-1 text-sm">←</button>
           {activeChannel ? (
             <>
-              {activeChannel.type === "text" ? <Hash className="w-4 h-4 text-muted-foreground" /> : <Volume2 className="w-4 h-4 text-muted-foreground" />}
+              <ChannelIcon channel={activeChannel} size={4} className="text-muted-foreground" />
               <span className="font-semibold text-sm">{activeChannel.name}</span>
+              {activeChannel.isPrivate && <Lock className="w-3 h-3 text-muted-foreground/60 ms-0.5" />}
             </>
           ) : (
             <span className="text-muted-foreground text-sm">{t("channels")}</span>
@@ -2081,12 +2569,20 @@ export default function CommunityHub() {
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
             <p>{t("channels")}</p>
           </div>
-        ) : activeChannel.type === "text" ? (
+        ) : (activeChannel.type === "text" || activeChannel.type === "announcement") ? (
           <TextChannelPanel
             communityId={community.id}
             channel={activeChannel}
             isOwner={community.isOwner}
-            canMod={community.isOwner}
+            canMod={community.isMod ?? community.isOwner}
+            myUserId={myUserId}
+          />
+        ) : activeChannel.type === "stage" ? (
+          <StageChannelPanel
+            communityId={community.id}
+            channel={activeChannel}
+            participants={voicePresence[String(activeChannel.id)] ?? []}
+            isOwner={community.isMod ?? community.isOwner}
             myUserId={myUserId}
           />
         ) : (
@@ -2098,7 +2594,7 @@ export default function CommunityHub() {
             isMember={community.isMember || community.isOwner}
             textChannels={community.channels.filter(c => c.type === "text")}
             myUserId={myUserId}
-            isOwner={community.isOwner}
+            isOwner={community.isMod ?? community.isOwner}
           />
         )}
       </div>
@@ -2110,10 +2606,18 @@ export default function CommunityHub() {
 
       {/* Dialogs */}
       <AddChannelDialog communityId={community.id} open={addChannelOpen} onClose={() => setAddChannelOpen(false)} />
-      <InviteDialog communityId={community.id} isOwnerOrMod={community.isOwner} open={inviteOpen} onClose={() => setInviteOpen(false)} />
+      <InviteDialog communityId={community.id} isOwnerOrMod={community.isMod ?? community.isOwner} open={inviteOpen} onClose={() => setInviteOpen(false)} />
       {community.isOwner && <BannerDialog communityId={community.id} open={bannerOpen} onClose={() => setBannerOpen(false)} />}
       {community.isOwner && (
         <ServerSettingsDialog community={community} open={serverSettingsOpen} onClose={() => setServerSettingsOpen(false)} />
+      )}
+      {channelSettingsChannel && (community.isMod ?? community.isOwner) && (
+        <ChannelSettingsDialog
+          communityId={community.id}
+          channel={channelSettingsChannel}
+          open={!!channelSettingsChannel}
+          onClose={() => setChannelSettingsChannel(null)}
+        />
       )}
     </div>
   );

@@ -20,7 +20,8 @@ import { Progress } from "@/components/ui/progress";
 import {
   Hash, Volume2, Settings, Users, Plus, Send, MoreVertical, Trash2, Zap, LogOut,
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
-  Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor,
+  Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor, PhoneOff,
+  MicOff, Radio,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -555,69 +556,218 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
   );
 }
 
-// ── Voice channel row ──────────────────────────────────────────────────────────
+// ── Voice channel row (sidebar) ────────────────────────────────────────────────
 
-function VoiceChannelRow({ channel, communityId, communityName, isMember, participants }: {
+function VoiceChannelRow({ channel, communityId, communityName, isMember, participants, isSelected, onSelect }: {
   channel: Channel; communityId: number; communityName: string; isMember: boolean;
-  participants: VoicePresenceUser[];
+  participants: VoicePresenceUser[]; isSelected?: boolean; onSelect?: () => void;
 }) {
-  const { t } = useTranslation("communities");
-  const { activeRoom, joinCommunityVoice, leaveVoice } = useVoice();
+  const { activeRoom, joinCommunityVoice } = useVoice();
   const { toast } = useToast();
+  const { t } = useTranslation("communities");
   const isActive = activeRoom?.kind === "community" && activeRoom.channelId === channel.id;
 
   const handleClick = useCallback(async () => {
-    if (!isMember) { toast({ title: t("notMember"), variant: "destructive" }); return; }
-    if (isActive) { leaveVoice(); return; }
+    if (onSelect) onSelect();
+    if (!isMember || isActive) return;
     try { await joinCommunityVoice(communityId, channel.id, `${communityName} › #${channel.name}`); }
     catch { toast({ title: t("error"), variant: "destructive" }); }
-  }, [isMember, isActive, joinCommunityVoice, leaveVoice, communityId, channel, communityName, t, toast]);
+  }, [isMember, isActive, joinCommunityVoice, communityId, channel, communityName, t, toast, onSelect]);
+
+  const highlighted = isSelected || isActive;
 
   return (
-    <div className="mb-0.5">
-      {/* Channel row */}
+    <div>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-start hover:bg-muted/50 transition-colors group ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"}`}
+        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm text-start transition-all duration-150 group ${
+          highlighted
+            ? "bg-accent/70 text-foreground"
+            : "text-muted-foreground/80 hover:bg-accent/40 hover:text-foreground"
+        }`}
       >
-        <Volume2 className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="flex-1 truncate">{channel.name}</span>
+        <Volume2 className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? "text-green-400" : ""}`} />
+        <span className="flex-1 truncate font-medium text-[13px]">{channel.name}</span>
         {participants.length > 0 && (
-          <span className="text-[10px] font-mono text-muted-foreground">{participants.length}</span>
+          <span className="text-[10px] text-muted-foreground/60 tabular-nums">{participants.length}</span>
         )}
-        {isActive
-          ? <span className="text-[10px] font-mono text-primary">{t("inVoice")}</span>
-          : <Mic className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-        }
+        {isActive && <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 animate-pulse" />}
       </button>
 
-      {/* Discord-style participant list */}
+      {/* Participants beneath the channel (Discord style) */}
       {participants.length > 0 && (
-        <div className="ms-4 mt-0.5 space-y-px">
+        <div className="ms-5 mt-0.5 mb-1 space-y-px">
           {participants.map((p) => (
-            <div key={p.userId} className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-muted-foreground">
-              {/* Mini avatar */}
+            <div key={p.userId} className="flex items-center gap-2 px-2 py-[3px] rounded-sm text-xs text-muted-foreground hover:bg-accent/20 transition-colors">
               <div
-                className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[8px] font-bold overflow-hidden"
-                style={{ background: p.avatarUrl ? "transparent" : `hsl(${Math.abs(p.displayName.charCodeAt(0) * 17) % 360},60%,35%)` }}
+                className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold overflow-hidden ring-1 ring-border/50"
+                style={{ background: p.avatarUrl ? "transparent" : `hsl(${Math.abs(p.displayName.charCodeAt(0) * 17) % 360},55%,35%)` }}
               >
                 {p.avatarUrl
                   ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
-                  : p.displayName.charAt(0).toUpperCase()
-                }
+                  : p.displayName.charAt(0).toUpperCase()}
               </div>
-              <Mic className="w-2.5 h-2.5 text-green-400 flex-shrink-0" />
-              <span className="truncate flex-1">{p.displayName}</span>
-              {p.cameraEnabled && (
-                <Video className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
-              )}
-              {p.screenShareEnabled && (
-                <Monitor className="w-2.5 h-2.5 text-purple-400 flex-shrink-0" />
-              )}
+              <span className="truncate flex-1 text-foreground/70">{p.displayName}</span>
+              <div className="flex items-center gap-1">
+                <Mic className="w-2.5 h-2.5 text-green-400" />
+                {p.cameraEnabled && <Video className="w-2.5 h-2.5 text-blue-400" />}
+                {p.screenShareEnabled && <Monitor className="w-2.5 h-2.5 text-purple-400" />}
+              </div>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Voice stage participant tile ────────────────────────────────────────────────
+
+function ParticipantTile({ p }: { p: VoicePresenceUser }) {
+  const hue = Math.abs((p.displayName.charCodeAt(0) * 17 + p.displayName.charCodeAt(1) * 31) % 360);
+  return (
+    <div className="relative flex flex-col items-center gap-3 bg-card/80 border border-border/60 rounded-2xl p-5 hover:border-border transition-all group">
+      {/* Avatar with speaking ring */}
+      <div className="relative">
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl overflow-hidden ring-2 ring-border/40"
+          style={{ background: p.avatarUrl ? "transparent" : `hsl(${hue},55%,30%)`, color: `hsl(${hue},70%,80%)` }}
+        >
+          {p.avatarUrl
+            ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+            : p.displayName.slice(0, 2).toUpperCase()}
+        </div>
+        {/* Mic indicator */}
+        <div className="absolute -bottom-1.5 -end-1.5 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background shadow-lg">
+          <Mic className="w-3 h-3 text-white" />
+        </div>
+      </div>
+
+      {/* Name */}
+      <div className="text-center w-full">
+        <p className="text-sm font-semibold text-foreground truncate">{p.displayName}</p>
+        <p className="text-[11px] text-muted-foreground truncate">@{p.username}</p>
+      </div>
+
+      {/* Status badges */}
+      {(p.cameraEnabled || p.screenShareEnabled) && (
+        <div className="flex items-center gap-1.5">
+          {p.cameraEnabled && (
+            <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-2 py-0.5">
+              <Video className="w-2.5 h-2.5" /> Camera
+            </span>
+          )}
+          {p.screenShareEnabled && (
+            <span className="flex items-center gap-1 text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-full px-2 py-0.5">
+              <Monitor className="w-2.5 h-2.5" /> Share
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Community Voice Stage (main content when voice channel active) ──────────────
+
+function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember }: {
+  channel: Channel; communityId: number; communityName: string;
+  participants: VoicePresenceUser[]; isMember: boolean;
+}) {
+  const { activeRoom, joinCommunityVoice, leaveVoice } = useVoice();
+  const { toast } = useToast();
+  const isInChannel = activeRoom?.kind === "community" && activeRoom.channelId === channel.id;
+
+  const handleJoin = useCallback(async () => {
+    if (!isMember) { toast({ title: "Join the community first", variant: "destructive" }); return; }
+    try { await joinCommunityVoice(communityId, channel.id, `${communityName} › #${channel.name}`); }
+    catch { toast({ title: "Failed to join voice", variant: "destructive" }); }
+  }, [isMember, joinCommunityVoice, communityId, channel, communityName, toast]);
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Stage header */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-border/50 bg-card/30 flex-shrink-0">
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isInChannel ? "bg-green-500/20" : "bg-muted/60"}`}>
+            <Volume2 className={`w-5 h-5 ${isInChannel ? "text-green-400" : "text-muted-foreground"}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-foreground text-[15px] truncate">{channel.name}</span>
+              {isInChannel && (
+                <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2 py-0.5 font-medium">
+                  <Radio className="w-2.5 h-2.5" /> LIVE
+                </span>
+              )}
+            </div>
+            <p className="text-[12px] text-muted-foreground">
+              {participants.length === 0 ? "No one here yet" : `${participants.length} participant${participants.length !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+        </div>
+
+        {/* Join / Leave control */}
+        {isMember && (
+          isInChannel ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-1.5 h-8 rounded-lg font-medium"
+              onClick={() => leaveVoice()}
+            >
+              <PhoneOff className="w-3.5 h-3.5" />
+              Disconnect
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="gap-1.5 h-8 rounded-lg font-medium bg-green-600 hover:bg-green-500 text-white"
+              onClick={handleJoin}
+            >
+              <Mic className="w-3.5 h-3.5" />
+              Join Voice
+            </Button>
+          )
+        )}
+      </div>
+
+      {/* Participant grid */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {participants.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center gap-5 text-center">
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full bg-muted/20 flex items-center justify-center">
+                <Volume2 className="w-12 h-12 text-muted-foreground/20" />
+              </div>
+              <div className="absolute -bottom-1 -end-1 w-8 h-8 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+                <Plus className="w-4 h-4 text-green-400/60" />
+              </div>
+            </div>
+            <div>
+              <p className="text-foreground font-semibold text-base">No one's here yet</p>
+              <p className="text-muted-foreground text-sm mt-1">Be the first to join and start the conversation</p>
+            </div>
+            {isMember && !isInChannel && (
+              <Button
+                onClick={handleJoin}
+                className="gap-2 bg-green-600 hover:bg-green-500 text-white"
+              >
+                <Mic className="w-4 h-4" />
+                Join Voice Channel
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-3"
+            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(160px, 1fr))` }}
+          >
+            {participants.map((p) => (
+              <ParticipantTile key={p.userId} p={p} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -689,82 +839,110 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
   const isOwnerOrMod = community.isOwner;
 
   return (
-    <div className="w-56 border-e border-border flex flex-col bg-card/50 flex-shrink-0">
-      {/* Banner */}
-      {community.bannerKey && (
-        <div className="relative h-20 overflow-hidden flex-shrink-0">
-          <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-card/80" />
-          {community.isOwner && (
-            <button onClick={onBannerEdit} className="absolute top-1 end-1 bg-black/40 hover:bg-black/60 rounded p-1 text-white/80 transition-colors">
-              <Image className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Community header */}
-      <div className={`px-3 py-3 border-b border-border ${!community.bannerKey ? "" : ""}`}>
-        <div className="flex items-center gap-2">
-          {!community.bannerKey && community.isOwner && (
-            <button onClick={onBannerEdit} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors" title={t("uploadBanner")}>
-              <Image className="w-3 h-3" />
-            </button>
-          )}
-          <div className="font-bold text-foreground text-sm truncate flex-1">{community.name}</div>
-        </div>
-        {community.boostLevel > 0 && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <Zap className="w-2.5 h-2.5 text-yellow-400" />
-            <span className="text-[10px] font-mono text-yellow-400">{t("level", { level: community.boostLevel })}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1 mt-0.5">
-          <Users className="w-2.5 h-2.5 text-muted-foreground" />
-          <span className="text-[10px] text-muted-foreground">{community.memberCount.toLocaleString()}</span>
-        </div>
-      </div>
-
-      {/* Channels */}
-      <div className="flex-1 overflow-y-auto py-2 px-2 space-y-3">
-        {/* Text channels */}
-        <div>
-          <div className="flex items-center justify-between px-1 mb-1">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{t("channels")}</span>
+    <div className="w-60 flex flex-col flex-shrink-0 bg-card border-e border-border/60 overflow-hidden">
+      {/* Banner / Community header */}
+      <div className="flex-shrink-0 relative">
+        {community.bannerKey ? (
+          <div className="relative h-24 overflow-hidden">
+            <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/60" />
             {community.isOwner && (
-              <button onClick={onAddChannel} className="text-muted-foreground hover:text-foreground transition-colors">
-                <Plus className="w-3 h-3" />
+              <button onClick={onBannerEdit} className="absolute top-2 end-2 bg-black/50 hover:bg-black/70 rounded-md p-1.5 text-white/80 transition-colors backdrop-blur-sm">
+                <Image className="w-3 h-3" />
               </button>
             )}
+            {/* Overlay name */}
+            <div className="absolute bottom-0 inset-x-0 px-3 pb-2">
+              <div className="font-bold text-white text-sm truncate drop-shadow">{community.name}</div>
+              {community.boostLevel > 0 && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Zap className="w-2.5 h-2.5 text-yellow-300" />
+                  <span className="text-[10px] text-yellow-300 font-semibold">Level {community.boostLevel}</span>
+                </div>
+              )}
+            </div>
           </div>
-          {textChannels.map((ch) => (
-            <button
-              key={ch.id}
-              onClick={() => onSelectChannel(ch.id)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-start hover:bg-muted/50 transition-colors ${activeChannelId === ch.id ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate">{ch.name}</span>
-            </button>
-          ))}
-        </div>
+        ) : (
+          <div className="flex items-center justify-between px-4 h-12 border-b border-border/60 shadow-sm">
+            <div className="font-bold text-foreground text-[14px] truncate flex-1">{community.name}</div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {community.boostLevel > 0 && (
+                <span className="flex items-center gap-0.5 text-yellow-400">
+                  <Zap className="w-3 h-3" />
+                  <span className="text-[10px] font-bold">{community.boostLevel}</span>
+                </span>
+              )}
+              {community.isOwner && (
+                <button onClick={onBannerEdit} className="text-muted-foreground/40 hover:text-muted-foreground transition-colors ms-1">
+                  <Image className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {community.bannerKey && <div className="border-b border-border/40" />}
+      </div>
 
-        {/* Voice channels */}
+      {/* Channel list */}
+      <div className="flex-1 overflow-y-auto py-3 space-y-4 px-2">
+
+        {/* TEXT CHANNELS */}
+        {textChannels.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-2 mb-1 group/section">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 select-none">
+                Text Channels
+              </span>
+              {isOwnerOrMod && (
+                <button
+                  onClick={onAddChannel}
+                  className="opacity-0 group-hover/section:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              {textChannels.map((ch) => (
+                <button
+                  key={ch.id}
+                  onClick={() => onSelectChannel(ch.id)}
+                  className={`w-full flex items-center gap-2 px-2.5 py-[7px] rounded-md text-[13px] font-medium text-start transition-all duration-100 group/ch ${
+                    activeChannelId === ch.id
+                      ? "bg-accent/80 text-foreground"
+                      : "text-muted-foreground/70 hover:bg-accent/40 hover:text-foreground"
+                  }`}
+                >
+                  <Hash className="w-4 h-4 flex-shrink-0 opacity-80" />
+                  <span className="truncate">{ch.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VOICE CHANNELS */}
         {voiceChannels.length > 0 && (
           <div>
-            <div className="flex items-center justify-between px-1 mb-1">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{t("voiceChannel")}</span>
+            <div className="flex items-center px-2 mb-1">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 select-none flex-1">
+                Voice Channels
+              </span>
             </div>
-            {voiceChannels.map((ch) => (
-              <VoiceChannelRow
-                key={ch.id}
-                channel={ch}
-                communityId={community.id}
-                communityName={community.name}
-                isMember={community.isMember}
-                participants={voicePresence[String(ch.id)] ?? []}
-              />
-            ))}
+            <div className="space-y-0.5">
+              {voiceChannels.map((ch) => (
+                <VoiceChannelRow
+                  key={ch.id}
+                  channel={ch}
+                  communityId={community.id}
+                  communityName={community.name}
+                  isMember={community.isMember}
+                  participants={voicePresence[String(ch.id)] ?? []}
+                  isSelected={activeChannelId === ch.id}
+                  onSelect={() => onSelectChannel(ch.id)}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -772,19 +950,16 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
         <PollsSection communityId={community.id} isOwnerOrMod={isOwnerOrMod} />
       </div>
 
-      {/* Footer actions */}
-      <div className="border-t border-border p-2 space-y-1">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-primary/80 hover:text-primary hover:bg-primary/10" onClick={onInvite}>
-          <Link2 className="w-3.5 h-3.5 me-1.5" />
-          {t("inviteLinks")}
+      {/* Footer */}
+      <div className="flex-shrink-0 border-t border-border/40 p-2 space-y-0.5">
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-primary/70 hover:text-primary hover:bg-primary/10 h-8 rounded-md" onClick={onInvite}>
+          <Link2 className="w-3.5 h-3.5 me-2 opacity-80" />{t("inviteLinks")}
         </Button>
-        <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10" onClick={onBoost} disabled={boostPending}>
-          <Zap className="w-3.5 h-3.5 me-1.5" />
-          {t("boost")}
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-yellow-500/80 hover:text-yellow-400 hover:bg-yellow-400/10 h-8 rounded-md" onClick={onBoost} disabled={boostPending}>
+          <Zap className="w-3.5 h-3.5 me-2 opacity-80" />{t("boost")}
         </Button>
-        <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={onLeave}>
-          <LogOut className="w-3.5 h-3.5 me-1.5" />
-          {t("leave")}
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 h-8 rounded-md" onClick={onLeave}>
+          <LogOut className="w-3.5 h-3.5 me-2 opacity-80" />{t("leave")}
         </Button>
       </div>
     </div>
@@ -958,6 +1133,7 @@ export default function CommunityHub() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const { user } = useAuth() as any;
+  const { activeRoom } = useVoice();
 
   const [addChannelOpen, setAddChannelOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(true);
@@ -979,6 +1155,13 @@ export default function CommunityHub() {
       if (first) setActiveChannelId(first.id);
     }
   }, [community, activeChannelId]);
+
+  // Auto-navigate to voice channel in sidebar when user joins one
+  useEffect(() => {
+    if (activeRoom?.kind === "community" && community && activeRoom.communityId === community.id) {
+      setActiveChannelId(activeRoom.channelId);
+    }
+  }, [activeRoom, community?.id]);
 
   // Fetch initial voice presence snapshot when community loads
   useEffect(() => {
@@ -1164,7 +1347,11 @@ export default function CommunityHub() {
         </div>
 
         {/* Channel content */}
-        {activeChannel?.type === "text" ? (
+        {!activeChannel ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            <p>{t("channels")}</p>
+          </div>
+        ) : activeChannel.type === "text" ? (
           <TextChannelPanel
             communityId={community.id}
             channel={activeChannel}
@@ -1173,15 +1360,13 @@ export default function CommunityHub() {
             myUserId={myUserId}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            {activeChannel ? (
-              <div className="text-center space-y-2">
-                <Volume2 className="w-8 h-8 mx-auto opacity-30" />
-                <p>{t("voiceChannel")}</p>
-                <p className="text-xs">Use the sidebar to join #{activeChannel.name}</p>
-              </div>
-            ) : <p>{t("channels")}</p>}
-          </div>
+          <CommunityVoiceStage
+            channel={activeChannel}
+            communityId={community.id}
+            communityName={community.name}
+            participants={voicePresence[String(activeChannel.id)] ?? []}
+            isMember={community.isMember || community.isOwner}
+          />
         )}
       </div>
 

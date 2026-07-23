@@ -13,6 +13,7 @@ export interface VoicePresenceUser {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  cameraEnabled?: boolean;
 }
 
 /** channelId → Map<userId, VoicePresenceUser> */
@@ -87,6 +88,20 @@ export function removeCommunityVoicePresenceForUser(userId: number): Array<{
   }
   userChannels.delete(userId);
   return affected;
+}
+
+/** Update camera state for a user already in a channel. Returns false if user not found. */
+export function updateCommunityVoiceCameraState(
+  channelId: number,
+  userId: number,
+  cameraEnabled: boolean,
+): boolean {
+  const members = channelMembers.get(channelId);
+  if (!members) return false;
+  const user = members.get(userId);
+  if (!user) return false;
+  members.set(userId, { ...user, cameraEnabled });
+  return true;
 }
 
 /** Return all participants in a channel. */

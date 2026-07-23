@@ -59,6 +59,7 @@ import {
   addCommunityVoicePresence,
   removeCommunityVoicePresenceForChannel,
   getCommunityVoicePresenceSnapshot,
+  updateCommunityVoiceCameraState,
 } from "../lib/community-voice-presence";
 
 // ─── Premium DDL ──────────────────────────────────────────────────────────────
@@ -1083,6 +1084,44 @@ router.post("/communities/:id/voice-leave", requireAuth, async (req, res): Promi
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: voice-leave failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// POST /communities/:id/voice-camera — update camera-on/off state for a participant
+router.post("/communities/:id/voice-camera", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const { channelId, cameraEnabled } = req.body ?? {};
+  if (isNaN(id) || typeof channelId !== "number" || typeof cameraEnabled !== "boolean") {
+    res.status(400).json({ error: "Invalid params" }); return;
+  }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+
+    // Update in-memory state
+    updateCommunityVoiceCameraState(channelId, userId, cameraEnabled);
+
+    // Broadcast to all community members
+    const members = await db
+      .select({ userId: communityMembersTable.userId })
+      .from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+
+    const payload = {
+      type: "community-voice-update",
+      communityId: id,
+      channelId,
+      userId,
+      action: "camera",
+      cameraEnabled,
+    };
+    for (const m of members) pushToUser(m.userId, payload);
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: voice-camera failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

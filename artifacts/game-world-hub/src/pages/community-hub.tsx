@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Hash, Volume2, Settings, Users, Plus, Send, MoreVertical, Trash2, Zap, LogOut,
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
-  Image, X, Copy, Check, ChevronDown, ChevronRight,
+  Image, X, Copy, Check, ChevronDown, ChevronRight, Video,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ interface Member {
 
 interface VoicePresenceUser {
   userId: number; username: string; displayName: string; avatarUrl: string | null;
+  cameraEnabled?: boolean;
 }
 
 /** channelId (as string key) → VoicePresenceUser[] */
@@ -605,7 +606,10 @@ function VoiceChannelRow({ channel, communityId, communityName, isMember, partic
                 }
               </div>
               <Mic className="w-2.5 h-2.5 text-green-400 flex-shrink-0" />
-              <span className="truncate">{p.displayName}</span>
+              <span className="truncate flex-1">{p.displayName}</span>
+              {p.cameraEnabled && (
+                <Video className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
+              )}
             </div>
           ))}
         </div>
@@ -1009,6 +1013,13 @@ export default function CommunityHub() {
           else delete next[key];
           return next;
         });
+      } else if (msg.action === "camera") {
+        setVoicePresence((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map((p) =>
+            p.userId === msg.userId ? { ...p, cameraEnabled: msg.cameraEnabled } : p,
+          ),
+        }));
       }
     };
     window.addEventListener("gwh:community-voice-update", handler);

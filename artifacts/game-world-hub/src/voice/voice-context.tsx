@@ -259,23 +259,6 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   /** Stage info for the current pro-room — null when not in a stage-mode room. */
   const [stageInfo, setStageInfo] = useState<StageInfo | null>(null);
 
-  // ── Sync local camera state to community voice presence ────────────────────
-  // Runs whenever `cameraEnabled` flips while the user is in a community channel.
-  useEffect(() => {
-    if (activeRoom?.kind !== "community") return;
-    const { communityId, channelId } = activeRoom;
-    const token = localStorage.getItem("gwh_token");
-    fetch(`${getApiBase()}/api/communities/${communityId}/voice-camera`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ channelId, cameraEnabled }),
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraEnabled]);
-
   // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
   const livekitRef = useRef<Room | null>(null);
@@ -1273,10 +1256,23 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
 
   const toggleCamera = useCallback(async () => {
     const room = livekitRef.current;
-    if (!room || !activeRoomRef.current) return;
+    const ar = activeRoomRef.current;
+    if (!room || !ar) return;
     const next = !room.localParticipant.isCameraEnabled;
     try {
       await room.localParticipant.setCameraEnabled(next);
+      // Sync camera state to community voice presence sidebar
+      if (ar.kind === "community") {
+        const token = localStorage.getItem("gwh_token");
+        fetch(`${getApiBase()}/api/communities/${ar.communityId}/voice-camera`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ channelId: ar.channelId, cameraEnabled: next }),
+        }).catch(() => {});
+      }
     } catch {
       setError("Camera access denied");
     }

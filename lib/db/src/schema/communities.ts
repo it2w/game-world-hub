@@ -71,11 +71,19 @@ export const communityRolesTable = pgTable("community_roles", {
   iconKey:     varchar("icon_key", { length: 500 }),
   position:    integer("position").notNull().default(0),
   /**
-   * Permission flags as JSONB, e.g.
-   * { can_post: true, can_manage_channels: false, can_kick: false, can_ban: false }
+   * Permission flags as JSONB:
+   * is_admin, can_kick, can_ban, can_manage_channels, can_manage_roles,
+   * can_invite, can_mute_voice, can_pin_messages, can_manage_polls,
+   * can_change_banner, can_post, can_send_media, can_manage_events
    */
-  permissions: jsonb("permissions").notNull().default({}),
-  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  permissions:       jsonb("permissions").notNull().default({}),
+  /** Show this role as a separate section in the member list */
+  displaySeparately: boolean("display_separately").notNull().default(false),
+  /** Allow anyone to @mention this role */
+  mentionable:       boolean("mentionable").notNull().default(false),
+  /** True for the @everyone role (cannot be deleted) */
+  isDefault:         boolean("is_default").notNull().default(false),
+  createdAt:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type CommunityRole = typeof communityRolesTable.$inferSelect;

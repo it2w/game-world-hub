@@ -1,0 +1,433 @@
+/**
+ * Integration tests — Community Roles & Permissions (Task #416)
+ *
+ * Confirms that the new fine-grained permission system is enforced at every
+ * relevant API boundary:
+ *
+ *  1.  Owner short-circuits all permission checks (always allowed)
+ *  2.  @everyone default role grants can_post to all members
+ *  3.  A plain member without can_kick cannot kick another member (→ 403)
+ *  4.  Granting can_kick via a role allows that member to kick (→ 204)
+ *  5.  A plain member cannot create / edit / delete roles (→ 403)
+ *  6.  is_admin in a role grants every permission (can_kick, can_manage_roles…)
+ *  7.  can_manage_channels controls channel create / edit / delete
+ *  8.  can_invite controls invite create
+ */
+
+import { test, before, after, describe } from "node:test";
+import assert from "node:assert/strict";
+import {
+  createServer,
+  request as httpRequest,
+  type Server,
+  type IncomingMessage,
+} from "node:http";
+import { AddressInfo } from "node:net";
+import bcrypt from "bcryptjs";
+import { db, pool, usersTable } from "@workspace/db";
+import { signToken } from "../../middlewares/auth";
+import { attachSignaling } from "../../ws/signaling";
+import app from "../../app";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const SUFFIX = `cperm_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+let server: Server;
+let baseUrl: string;
+let closeSignaling: () => Promise<void>;
+
+function makeToken(userId: number, username: string): string {
+  // signToken is synchronous — it just wraps jwt.sign
+  return signToken({ userId, username });
+}
+
+function req(
+  method: string,
+  path: string,
+  token: string,
+  body?: unknown,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const payload = body !== undefined ? JSON.stringify(body) : undefined;
+    const url = new URL(baseUrl + path);
+    const r = httpRequest(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname + url.search,
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(payload
+            ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) }
+            : {}),
+        },
+      },
+      (res: IncomingMessage) => {
+        let raw = "";
+        res.on("data", (c: Buffer) => (raw += c));
+        res.on("end", () => {
+          if (!raw) { resolve({ status: res.statusCode ?? 0, body: null }); return; }
+          try { resolve({ status: res.statusCode ?? 0, body: JSON.parse(raw) }); }
+          catch { resolve({ status: res.statusCode ?? 0, body: raw }); }
+        });
+      },
+    );
+    r.on("error", reject);
+    if (payload) r.write(payload);
+    r.end();
+  });
+}
+
+async function createUser(username: string, extra: Record<string, unknown> = {}) {
+  const hash = await bcrypt.hash("pass", 4);
+  const [u] = await db
+    .insert(usersTable)
+    .values({ username, displayName: username, email: `${username}@test.local`, passwordHash: hash, ...extra })
+    .returning({ id: usersTable.id });
+  const token = makeToken(u.id, username);
+  return { id: u.id, username, token };
+}
+
+// ── Server lifecycle ──────────────────────────────────────────────────────────
+
+before(async () => {
+  server = createServer(app);
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  baseUrl = `http://127.0.0.1:${port}`;
+  closeSignaling = attachSignaling(server);
+});
+
+after(async () => {
+  await closeSignaling();
+  await new Promise<void>((r) => server.close(() => r()));
+  await pool.query(`DELETE FROM users WHERE username LIKE '${SUFFIX}%'`);
+});
+
+// ── Suites ────────────────────────────────────────────────────────────────────
+
+describe("Community permissions — owner always allowed", () => {
+  let ownerToken = "";
+  let communityId = 0;
+  let channelId = 0;
+
+  before(async () => {
+    const owner = await createUser(`${SUFFIX}_oa_owner`);
+    ownerToken = owner.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} OA`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community create: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "general" });
+    assert.equal(chRes.status, 201, `channel create: ${JSON.stringify(chRes.body)}`);
+    channelId = (chRes.body as any).id;
+  });
+
+  test("owner can create a role", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/roles`, ownerToken, {
+      name: "Mod", color: "#ff0000", permissions: { can_kick: true },
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+
+  test("owner can post messages", async () => {
+    const r = await req(
+      "POST",
+      `/api/communities/${communityId}/channels/${channelId}/messages`,
+      ownerToken,
+      { content: "hello from owner" },
+    );
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+
+  test("owner can create an invite", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/invites`, ownerToken, {});
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — @everyone grants can_post to all members", () => {
+  let ownerToken = "";
+  let memberToken = "";
+  let communityId = 0;
+  let channelId = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_pg_owner`);
+    const member = await createUser(`${SUFFIX}_pg_member`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} PG`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community create: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "chat" });
+    assert.equal(chRes.status, 201, `channel create: ${JSON.stringify(chRes.body)}`);
+    channelId = (chRes.body as any).id;
+
+    const joinRes = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(joinRes.status), `join: ${JSON.stringify(joinRes.body)}`);
+  });
+
+  test("plain member can post (can_post comes from @everyone)", async () => {
+    const r = await req(
+      "POST",
+      `/api/communities/${communityId}/channels/${channelId}/messages`,
+      memberToken,
+      { content: "hello" },
+    );
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — can_kick enforcement", () => {
+  let ownerToken  = "";
+  let memberToken = "";
+  let modToken    = "";
+  let victimToken = "";
+  let communityId = 0;
+  let victimId    = 0;
+  let modId       = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_kk_owner`);
+    const member = await createUser(`${SUFFIX}_kk_plain`);
+    const mod    = await createUser(`${SUFFIX}_kk_mod`);
+    const victim = await createUser(`${SUFFIX}_kk_victim`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+    modToken    = mod.token;
+    victimToken = victim.token;
+    modId       = mod.id;
+    victimId    = victim.id;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} KK`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    for (const t of [memberToken, modToken, victimToken]) {
+      const jr = await req("POST", `/api/communities/${communityId}/join`, t);
+      assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+    }
+
+    // Create a Moderator role with can_kick=true and assign to mod
+    const roleRes = await req("POST", `/api/communities/${communityId}/roles`, ownerToken, {
+      name: "Moderator", color: "#00ff00", permissions: { can_kick: true },
+    });
+    assert.equal(roleRes.status, 201, `role: ${JSON.stringify(roleRes.body)}`);
+    const kickRoleId = (roleRes.body as any).id;
+
+    const assignRes = await req("POST", `/api/communities/${communityId}/members/${modId}/roles/${kickRoleId}`, ownerToken);
+    assert.ok([200, 204].includes(assignRes.status), `assign: ${JSON.stringify(assignRes.body)}`);
+  });
+
+  test("plain member cannot kick (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/kick/${victimId}`, memberToken);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("member with can_kick role CAN kick (204)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/kick/${victimId}`, modToken);
+    assert.equal(r.status, 204, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — can_manage_roles enforcement", () => {
+  let ownerToken  = "";
+  let memberToken = "";
+  let communityId = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_mr_owner`);
+    const member = await createUser(`${SUFFIX}_mr_plain`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} MR`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const jr = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+  });
+
+  test("plain member cannot create a role (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/roles`, memberToken, {
+      name: "Hacker", color: "#ff0000", permissions: {},
+    });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("plain member cannot reorder roles (403)", async () => {
+    // get existing roles via owner
+    const rolesRes = await req("GET", `/api/communities/${communityId}/roles`, ownerToken);
+    assert.equal(rolesRes.status, 200, `roles: ${JSON.stringify(rolesRes.body)}`);
+    const roles = rolesRes.body as any[];
+    const r = await req("PATCH", `/api/communities/${communityId}/roles/reorder`, memberToken, {
+      order: roles.map((role: any, i: number) => ({ id: role.id, position: i })),
+    });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — is_admin grants all permissions", () => {
+  let ownerToken  = "";
+  let adminToken  = "";
+  let victimToken = "";
+  let communityId = 0;
+  let channelId   = 0;
+  let adminId     = 0;
+  let victimId    = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_ia_owner`);
+    const admin  = await createUser(`${SUFFIX}_ia_admin`);
+    const victim = await createUser(`${SUFFIX}_ia_victim`);
+    ownerToken  = owner.token;
+    adminToken  = admin.token;
+    victimToken = victim.token;
+    adminId     = admin.id;
+    victimId    = victim.id;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} IA`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "admin-ch" });
+    assert.equal(chRes.status, 201, `channel: ${JSON.stringify(chRes.body)}`);
+    channelId = (chRes.body as any).id;
+
+    for (const t of [adminToken, victimToken]) {
+      const jr = await req("POST", `/api/communities/${communityId}/join`, t);
+      assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+    }
+
+    // Create admin role with is_admin=true and assign
+    const roleRes = await req("POST", `/api/communities/${communityId}/roles`, ownerToken, {
+      name: "Admin", color: "#ff6600", permissions: { is_admin: true },
+    });
+    assert.equal(roleRes.status, 201, `role: ${JSON.stringify(roleRes.body)}`);
+    const adminRoleId = (roleRes.body as any).id;
+
+    const assignRes = await req("POST", `/api/communities/${communityId}/members/${adminId}/roles/${adminRoleId}`, ownerToken);
+    assert.ok([200, 204].includes(assignRes.status), `assign: ${JSON.stringify(assignRes.body)}`);
+  });
+
+  test("admin user can kick (is_admin grants can_kick)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/kick/${victimId}`, adminToken);
+    assert.equal(r.status, 204, JSON.stringify(r.body));
+  });
+
+  test("admin user can create a role (is_admin grants can_manage_roles)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/roles`, adminToken, {
+      name: "SubRole", color: "#aabbcc", permissions: {},
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+
+  test("admin user can create a channel (is_admin grants can_manage_channels)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels`, adminToken, {
+      name: "admin-created",
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — can_manage_channels enforcement", () => {
+  let ownerToken  = "";
+  let memberToken = "";
+  let communityId = 0;
+  let channelId   = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_mc_owner`);
+    const member = await createUser(`${SUFFIX}_mc_member`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} MC`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "protected" });
+    assert.equal(chRes.status, 201, `channel: ${JSON.stringify(chRes.body)}`);
+    channelId = (chRes.body as any).id;
+
+    const jr = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+  });
+
+  test("plain member cannot create a channel (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels`, memberToken, { name: "hacked" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("plain member cannot edit a channel (403)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, memberToken, { name: "hacked" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("plain member cannot delete a channel (403)", async () => {
+    const r = await req("DELETE", `/api/communities/${communityId}/channels/${channelId}`, memberToken);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+});
+
+describe("Community permissions — can_invite enforcement", () => {
+  let ownerToken  = "";
+  let memberToken = "";
+  let communityId = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_ci_owner`);
+    const member = await createUser(`${SUFFIX}_ci_member`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} CI`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const jr = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+
+    // Strip can_invite from @everyone so plain members can't invite
+    const rolesRes = await req("GET", `/api/communities/${communityId}/roles`, ownerToken);
+    assert.equal(rolesRes.status, 200, `roles: ${JSON.stringify(rolesRes.body)}`);
+    const roles = Array.isArray(rolesRes.body) ? rolesRes.body : [];
+    const everyone = roles.find((r: any) => r.is_default === true);
+    if (everyone) {
+      await req("PATCH", `/api/communities/${communityId}/roles/${everyone.id}`, ownerToken, {
+        permissions: { can_post: true, can_send_media: true },
+      });
+    }
+  });
+
+  test("plain member cannot create invite when @everyone lacks can_invite (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/invites`, memberToken, {});
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("owner can always create invite", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/invites`, ownerToken, {});
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+});

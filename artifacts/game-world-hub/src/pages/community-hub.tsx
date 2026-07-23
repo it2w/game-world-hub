@@ -22,7 +22,7 @@ import {
   Hash, Volume2, Settings, Users, Plus, Send, MoreVertical, Trash2, Zap, LogOut,
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
   Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor, PhoneOff,
-  MicOff, Radio, Headphones, VolumeX, MessageSquare,
+  MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -74,6 +74,14 @@ interface Invite {
   code: string; uses: number; max_uses: number | null;
   expires_at: string | null; creator_username: string; created_at: string;
 }
+
+interface Role {
+  id: number; communityId: number; name: string; color: string; position: number;
+  permissions: Record<string, boolean>; displaySeparately: boolean;
+  mentionable: boolean; isDefault: boolean; createdAt: string;
+}
+
+type MemberRolesMap = Record<number, Array<{ id: number; name: string; color: string; position: number; displaySeparately: boolean }>>;
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
 
@@ -389,22 +397,51 @@ function BannerDialog({ communityId, open, onClose }: { communityId: number; ope
 
 // ── Message bubble ─────────────────────────────────────────────────────────────
 
-function MessageRow({ msg, canDelete, canPin, onDelete, onPin }: {
+/** Parse message content and render @[RoleName] mentions in role colour. */
+function renderMessageContent(content: string, roles: Role[]) {
+  const roleByName = new Map(roles.map(r => [r.name.toLowerCase(), r]));
+  // Match @[RoleName] pattern
+  const parts = content.split(/(@\[[^\]]+\])/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("@[") && part.endsWith("]")) {
+      const roleName = part.slice(2, -1);
+      const role = roleByName.get(roleName.toLowerCase());
+      if (role) {
+        return (
+          <span key={i} className="font-semibold rounded px-0.5" style={{ color: role.color, background: `${role.color}22` }}>
+            @{roleName}
+          </span>
+        );
+      }
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function MessageRow({ msg, canDelete, canPin, onDelete, onPin, roleColor, roles }: {
   msg: Message; canDelete: boolean; canPin: boolean;
   onDelete: (id: number) => void; onPin: (id: number) => void;
+  roleColor?: string; roles?: Role[];
 }) {
   return (
     <div className={`flex items-start gap-3 px-4 py-1.5 hover:bg-muted/30 group rounded ${msg.isPinned ? "border-s-2 border-primary/40" : ""}`}>
       <Avatar name={msg.displayName} url={msg.avatarUrl} size={8} />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold text-foreground">{msg.displayName}</span>
+          <span
+            className="text-sm font-semibold"
+            style={roleColor ? { color: roleColor } : undefined}
+          >
+            {msg.displayName}
+          </span>
           <span className="text-[10px] font-mono text-muted-foreground">
             {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           {msg.isPinned && <Pin className="w-2.5 h-2.5 text-primary/60" />}
         </div>
-        <p className="text-sm text-foreground/90 break-words">{msg.content}</p>
+        <p className="text-sm text-foreground/90 break-words leading-relaxed">
+          {roles && roles.length > 0 ? renderMessageContent(msg.content, roles) : msg.content}
+        </p>
       </div>
       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
         {canPin && (
@@ -432,7 +469,9 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [showPins, setShowPins] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["community-messages", communityId, channel.id],
@@ -445,6 +484,24 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
     queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/pins`),
     enabled: showPins,
   });
+
+  // Role colour map (userId → hex) and roles list (for mention rendering + autocomplete)
+  const { data: roleColorMap = {} } = useQuery<Record<number, string>>({
+    queryKey: ["community-role-colors", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/role-colors`),
+    staleTime: 60_000,
+  });
+
+  const { data: roles = [] } = useQuery<Role[]>({
+    queryKey: ["community-roles", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/roles`),
+    staleTime: 60_000,
+  });
+
+  const mentionableRoles = useMemo(
+    () => roles.filter(r => r.mentionable && !r.isDefault),
+    [roles]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -478,8 +535,36 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
     const content = text.trim();
     if (!content) return;
     setText("");
+    setMentionSearch(null);
     sendMutation.mutate(content);
   }, [text, sendMutation]);
+
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setText(val);
+    // Detect @mention trigger: find last @ and see if there's a non-space word after it
+    const lastAt = val.lastIndexOf("@");
+    if (lastAt >= 0) {
+      const after = val.slice(lastAt + 1);
+      if (!after.includes(" ")) {
+        setMentionSearch(after.toLowerCase());
+        return;
+      }
+    }
+    setMentionSearch(null);
+  }, []);
+
+  const insertRoleMention = useCallback((role: Role) => {
+    const lastAt = text.lastIndexOf("@");
+    const newText = (lastAt >= 0 ? text.slice(0, lastAt) : text) + `@[${role.name}] `;
+    setText(newText);
+    setMentionSearch(null);
+    inputRef.current?.focus();
+  }, [text]);
+
+  const filteredMentions = mentionSearch !== null
+    ? mentionableRoles.filter(r => r.name.toLowerCase().includes(mentionSearch))
+    : [];
 
   const pinnedCount = messages.filter(m => m.isPinned).length;
 
@@ -531,6 +616,8 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
               canPin={canMod || isOwner}
               onDelete={(id) => deleteMutation.mutate(id)}
               onPin={(id) => pinMutation.mutate(id)}
+              roleColor={(roleColorMap as Record<number, string>)[msg.userId]}
+              roles={roles}
             />
           ))
         )}
@@ -538,14 +625,38 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
       </div>
 
       {/* Input */}
-      <div className="border-t border-border px-4 py-3">
+      <div className="border-t border-border px-4 py-3 relative">
+        {/* @mention autocomplete dropdown */}
+        {mentionSearch !== null && filteredMentions.length > 0 && (
+          <div className="absolute bottom-full start-4 end-4 mb-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+            <div className="px-3 py-1.5 border-b border-border">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Roles</span>
+            </div>
+            {filteredMentions.map(role => (
+              <button
+                key={role.id}
+                type="button"
+                onClick={() => insertRoleMention(role)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent transition-colors text-start"
+              >
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                <span className="text-sm font-medium" style={{ color: role.color }}>@{role.name}</span>
+                <span className="text-xs text-muted-foreground ms-auto">mentionable</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
           <input
+            ref={inputRef}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             placeholder={t("typeMessage", { channel: channel.name })}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            onChange={handleTextChange}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { setMentionSearch(null); return; }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+            }}
             maxLength={4000}
           />
           <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending} className="text-primary disabled:text-muted-foreground">
@@ -994,11 +1105,11 @@ function PollsSection({ communityId, isOwnerOrMod }: { communityId: number; isOw
 
 // ── Channel list (left sidebar) ────────────────────────────────────────────────
 
-function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, boostPending, voicePresence }: {
+function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChannel, onLeave, onBoost, onBannerEdit, onInvite, onSettings, boostPending, voicePresence }: {
   community: Community; activeChannelId: number | null;
   onSelectChannel: (id: number) => void; onAddChannel: () => void;
   onLeave: () => void; onBoost: () => void; onBannerEdit: () => void; onInvite: () => void;
-  boostPending: boolean; voicePresence: VoicePresenceMap;
+  onSettings: () => void; boostPending: boolean; voicePresence: VoicePresenceMap;
 }) {
   const { t } = useTranslation("communities");
   const textChannels = community.channels.filter((c) => c.type === "text");
@@ -1122,6 +1233,11 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
         <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-primary/70 hover:text-primary hover:bg-primary/10 h-8 rounded-md" onClick={onInvite}>
           <Link2 className="w-3.5 h-3.5 me-2 opacity-80" />{t("inviteLinks")}
         </Button>
+        {community.isOwner && (
+          <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-muted-foreground/70 hover:text-foreground hover:bg-accent/50 h-8 rounded-md" onClick={onSettings}>
+            <Settings className="w-3.5 h-3.5 me-2 opacity-80" />Server Settings
+          </Button>
+        )}
         <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-yellow-500/80 hover:text-yellow-400 hover:bg-yellow-400/10 h-8 rounded-md" onClick={onBoost} disabled={boostPending}>
           <Zap className="w-3.5 h-3.5 me-2 opacity-80" />{t("boost")}
         </Button>
@@ -1142,6 +1258,7 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"members" | "leaderboard">("members");
+  const [assigningUserId, setAssigningUserId] = useState<number | null>(null);
 
   const { data: members = [] } = useQuery<Member[]>({
     queryKey: ["community-members", communityId],
@@ -1157,6 +1274,20 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
     enabled: tab === "leaderboard",
   });
 
+  const { data: roles = [] } = useQuery<Role[]>({
+    queryKey: ["community-roles", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/roles`),
+    staleTime: 60_000,
+    enabled: tab === "members",
+  });
+
+  const { data: memberRolesMap = {} } = useQuery<MemberRolesMap>({
+    queryKey: ["community-all-member-roles", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/all-member-roles`),
+    staleTime: 30_000,
+    enabled: tab === "members",
+  });
+
   const kickMutation = useMutation({
     mutationFn: (userId: number) => customFetch(`/api/communities/${communityId}/kick/${userId}`, { method: "POST" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["community-members", communityId] }); toast({ title: t("kick") + " ✓" }); },
@@ -1169,8 +1300,110 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
     onError: () => toast({ title: t("error"), variant: "destructive" }),
   });
 
+  const assignRoleMutation = useMutation({
+    mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) =>
+      customFetch(`/api/communities/${communityId}/members/${userId}/roles/${roleId}`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-all-member-roles", communityId] });
+      setAssigningUserId(null);
+    },
+    onError: () => toast({ title: "Failed to assign role", variant: "destructive" }),
+  });
+
+  const removeRoleMutation = useMutation({
+    mutationFn: ({ userId, roleId }: { userId: number; roleId: number }) =>
+      customFetch(`/api/communities/${communityId}/members/${userId}/roles/${roleId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-all-member-roles", communityId] }),
+    onError: () => toast({ title: "Failed to remove role", variant: "destructive" }),
+  });
+
   const rankColors = ["text-yellow-400", "text-zinc-300", "text-amber-600"];
   const rankEmojis = ["🥇", "🥈", "🥉"];
+
+  // Group members: members with displaySeparately roles first, then the rest
+  const separateRoles = useMemo(() =>
+    [...roles].filter(r => r.displaySeparately && !r.isDefault).sort((a, b) => b.position - a.position),
+    [roles]
+  );
+
+  const memberGroups = useMemo(() => {
+    if (tab !== "members" || separateRoles.length === 0) return null;
+    const groups: { role: Role; members: Member[] }[] = [];
+    const ungrouped: Member[] = [];
+
+    for (const role of separateRoles) {
+      const roleMembers = members.filter(m => {
+        const mRoles = (memberRolesMap as MemberRolesMap)[m.userId] ?? [];
+        return mRoles.some(r => r.id === role.id);
+      });
+      if (roleMembers.length > 0) groups.push({ role, members: roleMembers });
+    }
+    const groupedIds = new Set(groups.flatMap(g => g.members.map(m => m.userId)));
+    for (const m of members) if (!groupedIds.has(m.userId)) ungrouped.push(m);
+    return { groups, ungrouped };
+  }, [members, memberRolesMap, separateRoles, tab]);
+
+  const getTopRoleColor = (userId: number) => {
+    const mRoles = (memberRolesMap as MemberRolesMap)[userId] ?? [];
+    const top = mRoles.find(r => !roles.find(role => role.id === r.id)?.isDefault);
+    return top?.color;
+  };
+
+  const assignableRoles = roles.filter(r => !r.isDefault);
+
+  const MemberRow = ({ m }: { m: Member }) => {
+    const topColor = getTopRoleColor(m.userId);
+    const mRoleIds = new Set(((memberRolesMap as MemberRolesMap)[m.userId] ?? []).map(r => r.id));
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30 group">
+        <Avatar name={m.displayName} url={m.avatarUrl} size={6} />
+        <span className="text-xs truncate flex-1" style={topColor ? { color: topColor } : { color: "hsl(var(--foreground)/0.8)" }}>
+          {m.displayName}
+        </span>
+        {m.userId === ownerId && <Crown className="w-2.5 h-2.5 text-yellow-400 flex-shrink-0" />}
+        {isOwner && m.userId !== ownerId && (
+          <DropdownMenu open={assigningUserId === m.userId} onOpenChange={o => setAssigningUserId(o ? m.userId : null)}>
+            <DropdownMenuTrigger asChild>
+              <button className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-0.5">
+                <MoreVertical className="w-3 h-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="left" align="start" className="w-48">
+              {assignableRoles.length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-mono uppercase text-muted-foreground tracking-widest">Roles</div>
+                  {assignableRoles.map(role => {
+                    const has = mRoleIds.has(role.id);
+                    return (
+                      <DropdownMenuItem
+                        key={role.id}
+                        onClick={() => has
+                          ? removeRoleMutation.mutate({ userId: m.userId, roleId: role.id })
+                          : assignRoleMutation.mutate({ userId: m.userId, roleId: role.id })
+                        }
+                        className="gap-2"
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                        <span className="flex-1 text-xs">{role.name}</span>
+                        {has && <Check className="w-3 h-3 text-primary flex-shrink-0" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  <div className="border-t border-border my-1" />
+                </>
+              )}
+              <DropdownMenuItem onClick={() => kickMutation.mutate(m.userId)} className="text-destructive">
+                <UserMinus className="w-3 h-3 me-2" />{t("kick")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => banMutation.mutate(m.userId)} className="text-destructive">
+                <Ban className="w-3 h-3 me-2" />{t("ban")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-52 border-s border-border flex flex-col flex-shrink-0 bg-card/50">
@@ -1194,30 +1427,33 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
 
       <div className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
         {tab === "members" ? (
-          members.map((m) => (
-            <div key={m.userId} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30 group">
-              <Avatar name={m.displayName} url={m.avatarUrl} size={6} />
-              <span className="text-xs truncate flex-1 text-foreground/80">{m.displayName}</span>
-              {m.userId === ownerId && <Crown className="w-2.5 h-2.5 text-yellow-400 flex-shrink-0" />}
-              {isOwner && m.userId !== ownerId && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-0.5">
-                      <MoreVertical className="w-3 h-3" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="left" align="start">
-                    <DropdownMenuItem onClick={() => kickMutation.mutate(m.userId)} className="text-destructive">
-                      <UserMinus className="w-3 h-3 me-2" />{t("kick")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => banMutation.mutate(m.userId)} className="text-destructive">
-                      <Ban className="w-3 h-3 me-2" />{t("ban")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+          memberGroups ? (
+            <>
+              {memberGroups.groups.map(({ role, members: gMembers }) => (
+                <div key={role.id}>
+                  <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest truncate" style={{ color: role.color }}>
+                      {role.name} — {gMembers.length}
+                    </span>
+                  </div>
+                  {gMembers.map(m => <MemberRow key={m.userId} m={m} />)}
+                </div>
+              ))}
+              {memberGroups.ungrouped.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Members — {memberGroups.ungrouped.length}
+                    </span>
+                  </div>
+                  {memberGroups.ungrouped.map(m => <MemberRow key={m.userId} m={m} />)}
+                </div>
               )}
-            </div>
-          ))
+            </>
+          ) : (
+            members.map(m => <MemberRow key={m.userId} m={m} />)
+          )
         ) : (
           leaderboard.map((entry) => (
             <div key={entry.userId} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30">
@@ -1234,6 +1470,331 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Permission definitions ────────────────────────────────────────────────────
+
+const PERMISSIONS: { key: string; label: string; description: string; category: string }[] = [
+  { key: "is_admin",           label: "Administrator",      description: "Full control over this community (except deletion)",  category: "Advanced" },
+  { key: "can_kick",           label: "Kick Members",       description: "Remove members from the community",                  category: "Moderation" },
+  { key: "can_ban",            label: "Ban Members",        description: "Permanently ban members",                            category: "Moderation" },
+  { key: "can_mute_voice",     label: "Mute in Voice",      description: "Server-mute members in voice channels",             category: "Moderation" },
+  { key: "can_pin_messages",   label: "Pin Messages",       description: "Pin and unpin messages in any channel",             category: "Moderation" },
+  { key: "can_manage_channels",label: "Manage Channels",   description: "Create, edit, and delete channels",                  category: "Management" },
+  { key: "can_manage_roles",   label: "Manage Roles",       description: "Create and assign roles below their own",           category: "Management" },
+  { key: "can_invite",         label: "Create Invites",     description: "Generate invite links",                             category: "Management" },
+  { key: "can_manage_polls",   label: "Manage Polls",       description: "Create and manage community polls",                 category: "Management" },
+  { key: "can_change_banner",  label: "Change Banner",      description: "Upload or remove the community banner",             category: "Management" },
+  { key: "can_manage_events",  label: "Manage Events",      description: "Create and manage community events",                category: "Management" },
+  { key: "can_post",           label: "Send Messages",      description: "Post messages in text channels",                    category: "General" },
+  { key: "can_send_media",     label: "Attach Media",       description: "Send images and files in messages",                 category: "General" },
+];
+
+// ── PermToggle ────────────────────────────────────────────────────────────────
+
+function PermToggle({ label, description, checked, onToggle, disabled = false }: {
+  label: string; description: string; checked: boolean; onToggle: () => void; disabled?: boolean;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-4 px-3 py-2.5 rounded-lg border transition-colors ${checked ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"} ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-checked={checked}
+        className={`flex-shrink-0 w-9 h-5 rounded-full relative transition-colors duration-150 focus:outline-none ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}
+      >
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-150 ${checked ? "start-[18px]" : "start-0.5"}`} />
+      </button>
+    </div>
+  );
+}
+
+// ── RoleEditor ────────────────────────────────────────────────────────────────
+
+function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
+  role: Role; onSave: (updates: Partial<Role>) => void;
+  onDelete: () => void; isSaving: boolean; isDeleting: boolean;
+}) {
+  const [name, setName] = useState(role.name);
+  const [color, setColor] = useState(role.color);
+  const [displaySeparately, setDisplaySeparately] = useState(role.displaySeparately);
+  const [mentionable, setMentionable] = useState(role.mentionable);
+  const [permissions, setPermissions] = useState<Record<string, boolean>>(role.permissions ?? {});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    setName(role.name); setColor(role.color);
+    setDisplaySeparately(role.displaySeparately); setMentionable(role.mentionable);
+    setPermissions(role.permissions ?? {}); setShowDeleteConfirm(false);
+  }, [role.id]);
+
+  const isDirty = name !== role.name || color !== role.color ||
+    displaySeparately !== role.displaySeparately || mentionable !== role.mentionable ||
+    JSON.stringify(permissions) !== JSON.stringify(role.permissions ?? {});
+
+  const categories = ["Advanced", "Moderation", "Management", "General"];
+  const byCategory = PERMISSIONS.reduce<Record<string, typeof PERMISSIONS>>((acc, p) => {
+    (acc[p.category] = acc[p.category] ?? []).push(p);
+    return acc;
+  }, {});
+
+  return (
+    <div className="p-5 space-y-6 overflow-y-auto h-full">
+      {/* Name + Color */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Role Name & Colour</p>
+        <div className="flex items-center gap-3">
+          <label className="cursor-pointer flex-shrink-0" title="Pick colour">
+            <div
+              className="w-9 h-9 rounded-full border-2 border-border flex items-center justify-center overflow-hidden"
+              style={{ background: color }}
+            />
+            <input type="color" value={color} onChange={e => setColor(e.target.value)} className="sr-only" />
+          </label>
+          <Input
+            value={name} onChange={e => setName(e.target.value)}
+            maxLength={80} placeholder="Role name"
+            disabled={role.isDefault} className="flex-1"
+          />
+        </div>
+      </div>
+
+      {/* Display settings */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Display</p>
+        <div className="space-y-2">
+          <PermToggle label="Show separately in member list" description="Members appear under this role's heading in the sidebar" checked={displaySeparately} onToggle={() => setDisplaySeparately(v => !v)} />
+          <PermToggle label="Allow @mentions" description="Anyone can ping this role to notify all its members" checked={mentionable} onToggle={() => setMentionable(v => !v)} />
+        </div>
+      </div>
+
+      {/* Permissions */}
+      {categories.map(cat => byCategory[cat] ? (
+        <div key={cat}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{cat}</p>
+          <div className="space-y-2">
+            {byCategory[cat].map(perm => (
+              <PermToggle
+                key={perm.key}
+                label={perm.label}
+                description={perm.description}
+                checked={!!permissions[perm.key]}
+                onToggle={() => setPermissions(prev => ({ ...prev, [perm.key]: !prev[perm.key] }))}
+                disabled={!!(permissions.is_admin && perm.key !== "is_admin")}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null)}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between pt-2 border-t border-border sticky bottom-0 bg-background pb-1">
+        <div>
+          {!role.isDefault && (showDeleteConfirm ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-destructive">Delete this role?</span>
+              <Button size="sm" variant="destructive" onClick={onDelete} disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
+              <Trash2 className="w-3.5 h-3.5 me-1.5" /> Delete Role
+            </Button>
+          ))}
+        </div>
+        <Button size="sm" onClick={() => onSave({ name, color, displaySeparately, mentionable, permissions })} disabled={!isDirty || isSaving}>
+          {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+          Save Changes
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── ServerSettingsDialog ───────────────────────────────────────────────────────
+
+function ServerSettingsDialog({ community, open, onClose }: {
+  community: Community; open: boolean; onClose: () => void;
+}) {
+  const [activeTab] = useState<"roles">("roles");
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+
+  const { data: roles = [] } = useQuery<Role[]>({
+    queryKey: ["community-roles", community.id],
+    queryFn: () => customFetch(`/api/communities/${community.id}/roles`),
+    enabled: open,
+  });
+
+  // Auto-select first non-default role (or @everyone if only that exists)
+  useEffect(() => {
+    if (!open || roles.length === 0) return;
+    if (!selectedRoleId || !roles.find(r => r.id === selectedRoleId)) {
+      const first = roles.find(r => !r.isDefault) ?? roles[0];
+      setSelectedRoleId(first?.id ?? null);
+    }
+  }, [open, roles]);
+
+  const selectedRole = roles.find(r => r.id === selectedRoleId) ?? null;
+
+  const nonDefaultSorted = useMemo(() =>
+    [...roles].filter(r => !r.isDefault).sort((a, b) => b.position - a.position),
+    [roles]
+  );
+  const defaultRoles = roles.filter(r => r.isDefault);
+
+  const createRole = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${community.id}/roles`, {
+      method: "POST", body: JSON.stringify({ name: "New Role", color: "#6366f1" }),
+    }),
+    onSuccess: (role: Role) => {
+      qc.invalidateQueries({ queryKey: ["community-roles", community.id] });
+      setSelectedRoleId(role.id);
+    },
+    onError: () => toast({ title: "Failed to create role", variant: "destructive" }),
+  });
+
+  const updateRole = useMutation({
+    mutationFn: ({ rid, updates }: { rid: number; updates: Partial<Role> }) =>
+      customFetch(`/api/communities/${community.id}/roles/${rid}`, {
+        method: "PATCH", body: JSON.stringify(updates),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-roles", community.id] });
+      toast({ title: "Role saved" });
+    },
+    onError: () => toast({ title: "Failed to save role", variant: "destructive" }),
+  });
+
+  const deleteRole = useMutation({
+    mutationFn: (rid: number) =>
+      customFetch(`/api/communities/${community.id}/roles/${rid}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-roles", community.id] });
+      setSelectedRoleId(null);
+      toast({ title: "Role deleted" });
+    },
+    onError: (e: any) => toast({ title: e?.message ?? "Failed to delete", variant: "destructive" }),
+  });
+
+  const reorder = useMutation({
+    mutationFn: (order: { id: number; position: number }[]) =>
+      customFetch(`/api/communities/${community.id}/roles/reorder`, {
+        method: "PATCH", body: JSON.stringify({ order }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-roles", community.id] }),
+  });
+
+  const moveRole = (role: Role, direction: "up" | "down") => {
+    const idx = nonDefaultSorted.findIndex(r => r.id === role.id);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= nonDefaultSorted.length) return;
+    reorder.mutate([
+      { id: nonDefaultSorted[idx].id, position: nonDefaultSorted[swapIdx].position },
+      { id: nonDefaultSorted[swapIdx].id, position: nonDefaultSorted[idx].position },
+    ]);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-4xl p-0 overflow-hidden h-[680px] flex flex-col">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left sidebar — settings nav */}
+          <div className="w-52 bg-muted/20 border-e border-border flex flex-col py-4 flex-shrink-0 overflow-y-auto">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 mb-3 truncate">
+              {community.name}
+            </p>
+            <button
+              className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors font-medium bg-accent text-foreground`}
+            >
+              <Shield className="w-4 h-4" />
+              Roles
+            </button>
+          </div>
+
+          {/* Role list */}
+          <div className="w-52 border-e border-border flex flex-col flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                {roles.length} role{roles.length !== 1 ? "s" : ""}
+              </span>
+              <button
+                onClick={() => createRole.mutate()}
+                disabled={createRole.isPending}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="Create role"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-1">
+              {nonDefaultSorted.map((role, i) => (
+                <div
+                  key={role.id}
+                  onClick={() => setSelectedRoleId(role.id)}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer group transition-colors ${
+                    selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                  <span className="text-sm truncate flex-1">{role.name}</span>
+                  <div className="flex flex-col gap-px opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    {i > 0 && (
+                      <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "up"); }} className="hover:text-foreground">
+                        <ChevronUp className="w-3 h-3" />
+                      </button>
+                    )}
+                    {i < nonDefaultSorted.length - 1 && (
+                      <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "down"); }} className="hover:text-foreground">
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {defaultRoles.map(role => (
+                <div
+                  key={role.id}
+                  onClick={() => setSelectedRoleId(role.id)}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                    selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                  <span className="text-sm truncate flex-1">{role.name}</span>
+                  <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">base</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Role editor */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {selectedRole ? (
+              <RoleEditor
+                role={selectedRole}
+                onSave={updates => updateRole.mutate({ rid: selectedRole.id, updates })}
+                onDelete={() => deleteRole.mutate(selectedRole.id)}
+                isSaving={updateRole.isPending}
+                isDeleting={deleteRole.isPending}
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                Select a role to edit
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1306,6 +1867,7 @@ export default function CommunityHub() {
   const [showMembers, setShowMembers] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
+  const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [voicePresence, setVoicePresence] = useState<VoicePresenceMap>({});
 
   const { data: community, isLoading, error } = useQuery<Community>({
@@ -1478,6 +2040,7 @@ export default function CommunityHub() {
         onBoost={() => boostMutation.mutate()}
         onBannerEdit={() => setBannerOpen(true)}
         onInvite={() => setInviteOpen(true)}
+        onSettings={() => setServerSettingsOpen(true)}
         boostPending={boostMutation.isPending}
         voicePresence={voicePresence}
       />
@@ -1549,6 +2112,9 @@ export default function CommunityHub() {
       <AddChannelDialog communityId={community.id} open={addChannelOpen} onClose={() => setAddChannelOpen(false)} />
       <InviteDialog communityId={community.id} isOwnerOrMod={community.isOwner} open={inviteOpen} onClose={() => setInviteOpen(false)} />
       {community.isOwner && <BannerDialog communityId={community.id} open={bannerOpen} onClose={() => setBannerOpen(false)} />}
+      {community.isOwner && (
+        <ServerSettingsDialog community={community} open={serverSettingsOpen} onClose={() => setServerSettingsOpen(false)} />
+      )}
     </div>
   );
 }

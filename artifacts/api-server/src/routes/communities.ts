@@ -67,6 +67,19 @@ import {
 
 export async function ensureCommunityPremiumTables(): Promise<void> {
   await pool.query(`
+    -- Extend community_roles with Discord-style columns
+    ALTER TABLE community_roles ADD COLUMN IF NOT EXISTS display_separately BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE community_roles ADD COLUMN IF NOT EXISTS mentionable BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE community_roles ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false;
+
+    -- Seed @everyone for communities that lack a default role
+    INSERT INTO community_roles (community_id, name, color, position, permissions, is_default, mentionable, display_separately)
+    SELECT c.id, '@everyone', '#99aab5', -1, '{"can_post":true,"can_send_media":true}'::jsonb, true, false, false
+    FROM communities c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM community_roles cr WHERE cr.community_id = c.id AND cr.is_default = true
+    );
+
     CREATE TABLE IF NOT EXISTS community_polls (
       id SERIAL PRIMARY KEY,
       community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
@@ -145,7 +158,35 @@ async function isOwnerOrMod(communityId: number, userId: number): Promise<boolea
     .where(eq(communityMemberRolesTable.memberId, membership.id));
   return roles.some((r) => {
     const p = r.permissions as Record<string, boolean> ?? {};
-    return p.can_kick === true || p.can_ban === true || p.can_manage_channels === true;
+    return p.is_admin === true || p.can_kick === true || p.can_ban === true || p.can_manage_channels === true;
+  });
+}
+
+/** Check if userId has a specific community permission (or is_admin / owner).
+ *  Effective permissions = union of user's assigned roles + the @everyone (is_default) role. */
+async function hasPermission(communityId: number, userId: number, permission: string): Promise<boolean> {
+  const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, communityId));
+  if (!community) return false;
+  if (community.ownerId === userId) return true;
+  const membership = await getMembership(communityId, userId);
+  if (!membership || membership.isBanned) return false;
+
+  // Explicitly assigned roles
+  const assigned = await db
+    .select({ permissions: communityRolesTable.permissions })
+    .from(communityMemberRolesTable)
+    .innerJoin(communityRolesTable, eq(communityMemberRolesTable.roleId, communityRolesTable.id))
+    .where(eq(communityMemberRolesTable.memberId, membership.id));
+
+  // @everyone (is_default=true) applies to every member automatically
+  const defaultRoles = await db
+    .select({ permissions: communityRolesTable.permissions })
+    .from(communityRolesTable)
+    .where(and(eq(communityRolesTable.communityId, communityId), eq(communityRolesTable.isDefault, true)));
+
+  return [...assigned, ...defaultRoles].some((r) => {
+    const p = r.permissions as Record<string, boolean> ?? {};
+    return p.is_admin === true || p[permission] === true;
   });
 }
 
@@ -254,6 +295,16 @@ router.post("/communities", requireAuth, async (req, res): Promise<void> => {
 
     // Auto-add owner as member
     await db.insert(communityMembersTable).values({ communityId: community.id, userId });
+
+    // Auto-create @everyone default role
+    await db.insert(communityRolesTable).values({
+      communityId: community.id,
+      name: "@everyone",
+      color: "#99aab5",
+      position: -1,
+      permissions: { can_post: true, can_send_media: true } as any,
+      isDefault: true,
+    } as any);
 
     res.status(201).json(community);
   } catch (err: any) {
@@ -481,7 +532,7 @@ router.post("/communities/:id/kick/:userId", requireAuth, async (req, res): Prom
   if (isNaN(id) || isNaN(targetId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   try {
-    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, actorId, "can_kick")) { res.status(403).json({ error: "Forbidden" }); return; }
     const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
     if (community?.ownerId === targetId) { res.status(400).json({ error: "Cannot kick the owner" }); return; }
 
@@ -508,7 +559,7 @@ router.post("/communities/:id/ban/:userId", requireAuth, async (req, res): Promi
   if (isNaN(id) || isNaN(targetId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   try {
-    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, actorId, "can_ban")) { res.status(403).json({ error: "Forbidden" }); return; }
     const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
     if (community?.ownerId === targetId) { res.status(400).json({ error: "Cannot ban the owner" }); return; }
 
@@ -543,7 +594,7 @@ router.post("/communities/:id/unban/:userId", requireAuth, async (req, res): Pro
   if (isNaN(id) || isNaN(targetId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   try {
-    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, actorId, "can_ban")) { res.status(403).json({ error: "Forbidden" }); return; }
     // Only unban if a banned row actually exists
     const existing = await getMembership(id, targetId);
     if (!existing || !existing.isBanned) {
@@ -623,7 +674,7 @@ router.post("/communities/:id/channels", requireAuth, async (req, res): Promise<
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const { name, type } = req.body ?? {};
     if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 100) {
@@ -653,7 +704,7 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
   const cid = Number(String(req.params.cid));
   if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
     const { name, position, slowmodeSeconds } = req.body ?? {};
     const updates: Partial<typeof communityChannelsTable.$inferInsert> = {};
     if (name && typeof name === "string") updates.name = name.trim().toLowerCase().replace(/\s+/g, "-");
@@ -675,7 +726,7 @@ router.delete("/communities/:id/channels/:cid", requireAuth, async (req, res): P
   const cid = Number(String(req.params.cid));
   if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
     await db.update(communityChannelsTable).set({ isArchived: true }).where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
     res.status(204).end();
   } catch (err) {
@@ -743,6 +794,7 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
   try {
     const membership = await getMembership(id, userId);
     if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    if (!await hasPermission(id, userId, "can_post")) { res.status(403).json({ error: "You don't have permission to post messages" }); return; }
 
     // Verify channel belongs to this community (prevents cross-community IDOR)
     const [channel] = await db.select({ id: communityChannelsTable.id })
@@ -831,6 +883,29 @@ router.delete("/communities/:id/channels/:cid/messages/:mid", requireAuth, async
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
+/** PATCH /communities/:id/roles/reorder — bulk-update positions */
+router.patch("/communities/:id/roles/reorder", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await hasPermission(id, userId, "can_manage_roles")) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { order } = req.body ?? {};
+    if (!Array.isArray(order)) { res.status(400).json({ error: "order must be an array" }); return; }
+    await Promise.all(
+      (order as { id: number; position: number }[]).map(({ id: roleId, position }) =>
+        db.update(communityRolesTable).set({ position }).where(
+          and(eq(communityRolesTable.id, roleId), eq(communityRolesTable.communityId, id))
+        )
+      )
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: role reorder failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.get("/communities/:id/roles", requireAuth, async (req, res): Promise<void> => {
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -848,7 +923,7 @@ router.post("/communities/:id/roles", requireAuth, async (req, res): Promise<voi
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_roles")) { res.status(403).json({ error: "Forbidden" }); return; }
     const { name, color, permissions } = req.body ?? {};
     if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 80) {
       res.status(400).json({ error: "name must be 1–80 characters" });
@@ -879,13 +954,15 @@ router.patch("/communities/:id/roles/:rid", requireAuth, async (req, res): Promi
   const rid = Number(String(req.params.rid));
   if (isNaN(id) || isNaN(rid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
-    const { name, color, permissions, position } = req.body ?? {};
+    if (!await hasPermission(id, userId, "can_manage_roles")) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { name, color, permissions, position, displaySeparately, mentionable } = req.body ?? {};
     const updates: Partial<typeof communityRolesTable.$inferInsert> = {};
     if (name && typeof name === "string") updates.name = name.trim();
     if (color) updates.color = color;
     if (permissions) updates.permissions = permissions;
     if (typeof position === "number") updates.position = position;
+    if (typeof displaySeparately === "boolean") (updates as any).displaySeparately = displaySeparately;
+    if (typeof mentionable === "boolean") (updates as any).mentionable = mentionable;
     const [updated] = await db.update(communityRolesTable).set(updates).where(and(eq(communityRolesTable.id, rid), eq(communityRolesTable.communityId, id))).returning();
     if (!updated) { res.status(404).json({ error: "Role not found" }); return; }
     res.json(updated);
@@ -901,7 +978,11 @@ router.delete("/communities/:id/roles/:rid", requireAuth, async (req, res): Prom
   const rid = Number(String(req.params.rid));
   if (isNaN(id) || isNaN(rid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_roles")) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Protect the @everyone (default) role from deletion
+    const [role] = await db.select({ isDefault: communityRolesTable.isDefault }).from(communityRolesTable).where(and(eq(communityRolesTable.id, rid), eq(communityRolesTable.communityId, id)));
+    if (!role) { res.status(404).json({ error: "Role not found" }); return; }
+    if ((role as any).isDefault) { res.status(400).json({ error: "Cannot delete the @everyone role" }); return; }
     await db.delete(communityRolesTable).where(and(eq(communityRolesTable.id, rid), eq(communityRolesTable.communityId, id)));
     res.status(204).end();
   } catch (err) {
@@ -942,7 +1023,7 @@ router.delete("/communities/:id/members/:uid/roles/:rid", requireAuth, async (re
   const rid = Number(String(req.params.rid));
   if (isNaN(id) || isNaN(targetUid) || isNaN(rid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, actorId, "can_manage_roles")) { res.status(403).json({ error: "Forbidden" }); return; }
     // Verify role belongs to this community (prevents cross-community role IDOR)
     const [role] = await db.select({ id: communityRolesTable.id })
       .from(communityRolesTable)
@@ -954,6 +1035,86 @@ router.delete("/communities/:id/members/:uid/roles/:rid", requireAuth, async (re
     res.status(204).end();
   } catch (err) {
     logger.error({ err }, "communities: remove role failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Member roles / role colour helpers ───────────────────────────────────────
+
+/** GET /communities/:id/members/:uid/roles */
+router.get("/communities/:id/members/:uid/roles", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  const targetUid = Number(String(req.params.uid));
+  if (isNaN(id) || isNaN(targetUid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, targetUid);
+    if (!membership) { res.status(404).json({ error: "Member not found" }); return; }
+    const roles = await db
+      .select({ role: communityRolesTable })
+      .from(communityMemberRolesTable)
+      .innerJoin(communityRolesTable, eq(communityMemberRolesTable.roleId, communityRolesTable.id))
+      .where(eq(communityMemberRolesTable.memberId, membership.id))
+      .orderBy(desc(communityRolesTable.position));
+    res.json(roles.map(r => r.role));
+  } catch (err) {
+    logger.error({ err }, "communities: member roles failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/role-colors — { [userId]: topRoleColor } map for all members */
+router.get("/communities/:id/role-colors", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const { rows } = await pool.query<{ user_id: number; color: string }>(`
+      SELECT DISTINCT ON (cm.user_id) cm.user_id, cr.color
+      FROM community_members cm
+      JOIN community_member_roles cmr ON cmr.member_id = cm.id
+      JOIN community_roles cr ON cr.id = cmr.role_id
+      WHERE cm.community_id = $1
+        AND cm.is_banned = false
+        AND cr.is_default = false
+      ORDER BY cm.user_id, cr.position DESC
+    `, [id]);
+    const map: Record<number, string> = {};
+    for (const row of rows) map[row.user_id] = row.color;
+    res.json(map);
+  } catch (err) {
+    logger.error({ err }, "communities: role-colors failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/all-member-roles — { [userId]: { id, name, color, position, displaySeparately }[] } */
+router.get("/communities/:id/all-member-roles", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const { rows } = await pool.query<{
+      user_id: number; role_id: number; role_name: string;
+      role_color: string; role_position: number; display_separately: boolean;
+    }>(`
+      SELECT cm.user_id, cr.id as role_id, cr.name as role_name,
+             cr.color as role_color, cr.position as role_position,
+             cr.display_separately
+      FROM community_members cm
+      JOIN community_member_roles cmr ON cmr.member_id = cm.id
+      JOIN community_roles cr ON cr.id = cmr.role_id
+      WHERE cm.community_id = $1 AND cm.is_banned = false
+      ORDER BY cm.user_id, cr.position DESC
+    `, [id]);
+    const map: Record<number, Array<{ id: number; name: string; color: string; position: number; displaySeparately: boolean }>> = {};
+    for (const row of rows) {
+      if (!map[row.user_id]) map[row.user_id] = [];
+      map[row.user_id].push({
+        id: row.role_id, name: row.role_name, color: row.role_color,
+        position: row.role_position, displaySeparately: row.display_separately,
+      });
+    }
+    res.json(map);
+  } catch (err) {
+    logger.error({ err }, "communities: all-member-roles failed");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -1193,8 +1354,7 @@ router.post("/communities/:id/polls", requireAuth, async (req, res): Promise<voi
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const mod = await isOwnerOrMod(id, userId);
-    if (!mod) { res.status(403).json({ error: "Only owner/mod can create polls" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_polls")) { res.status(403).json({ error: "Only owner/mod can create polls" }); return; }
     const { question, options, endsAt, channelId } = req.body ?? {};
     if (!question || typeof question !== "string" || question.trim().length < 1 || question.trim().length > 500) {
       res.status(400).json({ error: "question must be 1–500 chars" }); return;
@@ -1312,8 +1472,7 @@ router.delete("/communities/:id/polls/:pid", requireAuth, async (req, res): Prom
   const pid = Number(String(req.params.pid));
   if (isNaN(id) || isNaN(pid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const mod = await isOwnerOrMod(id, userId);
-    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_manage_polls")) { res.status(403).json({ error: "Forbidden" }); return; }
     await pool.query(`UPDATE community_polls SET is_closed = true WHERE id = $1 AND community_id = $2`, [pid, id]);
     res.json({ ok: true });
   } catch (err) {
@@ -1331,10 +1490,7 @@ router.post("/communities/:id/invites", requireAuth, async (req, res): Promise<v
   try {
     const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
-    if (community.ownerId !== userId) {
-      const mod = await isOwnerOrMod(id, userId);
-      if (!mod) { res.status(403).json({ error: "Only owner/mod can create invite links" }); return; }
-    }
+    if (!await hasPermission(id, userId, "can_invite")) { res.status(403).json({ error: "Forbidden" }); return; }
     const { maxUses, expiresIn } = req.body ?? {};
     const code = randomBytes(5).toString("base64url").slice(0, 8);
     const expiresAt = expiresIn ? new Date(Date.now() + Number(expiresIn) * 1000) : null;
@@ -1355,8 +1511,7 @@ router.get("/communities/:id/invites", requireAuth, async (req, res): Promise<vo
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const mod = await isOwnerOrMod(id, userId);
-    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_invite")) { res.status(403).json({ error: "Forbidden" }); return; }
     const { rows } = await pool.query(
       `SELECT ci.code, ci.max_uses, ci.uses, ci.expires_at, ci.created_at,
               u.username AS creator_username
@@ -1378,8 +1533,7 @@ router.delete("/communities/:id/invites/:code", requireAuth, async (req, res): P
   const { code } = req.params;
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const mod = await isOwnerOrMod(id, userId);
-    if (!mod) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!await hasPermission(id, userId, "can_invite")) { res.status(403).json({ error: "Forbidden" }); return; }
     await pool.query(`DELETE FROM community_invites WHERE community_id = $1 AND code = $2`, [id, code]);
     res.status(204).end();
   } catch (err) {
@@ -1433,7 +1587,7 @@ router.post("/communities/:id/banner", requireAuth, async (req, res): Promise<vo
   try {
     const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
-    if (community.ownerId !== userId) { res.status(403).json({ error: "Only owner can set banner" }); return; }
+    if (!await hasPermission(id, userId, "can_change_banner")) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const { data, mimeType } = req.body ?? {};
     if (!data || typeof data !== "string") { res.status(400).json({ error: "data (base64) required" }); return; }
@@ -1459,7 +1613,7 @@ router.delete("/communities/:id/banner", requireAuth, async (req, res): Promise<
   try {
     const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
-    if (community.ownerId !== userId) { res.status(403).json({ error: "Only owner can remove banner" }); return; }
+    if (!await hasPermission(id, userId, "can_change_banner")) { res.status(403).json({ error: "Forbidden" }); return; }
     await db.update(communitiesTable).set({ bannerKey: null }).where(eq(communitiesTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -1477,8 +1631,7 @@ router.patch("/communities/:id/channels/:cid/messages/:mid/pin", requireAuth, as
   const mid = Number(String(req.params.mid));
   if (isNaN(id) || isNaN(cid) || isNaN(mid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const mod = await isOwnerOrMod(id, userId);
-    if (!mod) { res.status(403).json({ error: "Only owner/mod can pin messages" }); return; }
+    if (!await hasPermission(id, userId, "can_pin_messages")) { res.status(403).json({ error: "Only owner/mod can pin messages" }); return; }
     const [ch] = await db.select({ id: communityChannelsTable.id }).from(communityChannelsTable)
       .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
     if (!ch) { res.status(404).json({ error: "Channel not found" }); return; }

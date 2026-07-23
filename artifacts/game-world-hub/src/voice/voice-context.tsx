@@ -1338,6 +1338,16 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           void r.localParticipant.unpublishTrack(screenAudioTrackRef.current, true);
           screenAudioTrackRef.current = null;
         }
+        // Clear screen-share indicator in community sidebar
+        const arEnded = activeRoomRef.current;
+        if (arEnded?.kind === "community") {
+          const tok = localStorage.getItem("gwh_token");
+          fetch(`${getApiBase()}/api/communities/${arEnded.communityId}/voice-screenshare`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+            body: JSON.stringify({ channelId: arEnded.channelId, screenShareEnabled: false }),
+          }).catch(() => {});
+        }
       });
 
       // ── Step 2: publish with a single encoding — no rid, no simulcast ────────
@@ -1369,6 +1379,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({ currentGame: "📡 يشارك شاشته" }),
       }).catch(() => {});
+      // Notify community sidebar that screen share started
+      const arShare = activeRoomRef.current;
+      if (arShare?.kind === "community") {
+        fetch(`${getApiBase()}/api/communities/${arShare.communityId}/voice-screenshare`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+          body: JSON.stringify({ channelId: arShare.channelId, screenShareEnabled: true }),
+        }).catch(() => {});
+      }
     } catch {
       setError("Screen share was cancelled");
       if (screenTrackRef.current) {
@@ -1408,6 +1427,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
       body: JSON.stringify({ currentGame: null }),
     }).catch(() => {});
+    // Notify community sidebar that screen share stopped
+    const arStop = activeRoomRef.current;
+    if (arStop?.kind === "community") {
+      fetch(`${getApiBase()}/api/communities/${arStop.communityId}/voice-screenshare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+        body: JSON.stringify({ channelId: arStop.channelId, screenShareEnabled: false }),
+      }).catch(() => {});
+    }
   }, []);
 
   /**

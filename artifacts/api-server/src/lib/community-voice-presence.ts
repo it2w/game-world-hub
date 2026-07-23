@@ -14,6 +14,7 @@ export interface VoicePresenceUser {
   displayName: string;
   avatarUrl: string | null;
   cameraEnabled?: boolean;
+  screenShareEnabled?: boolean;
 }
 
 /** channelId → Map<userId, VoicePresenceUser> */
@@ -101,6 +102,20 @@ export function updateCommunityVoiceCameraState(
   const user = members.get(userId);
   if (!user) return false;
   members.set(userId, { ...user, cameraEnabled });
+  return true;
+}
+
+/** Update screen-share state for a user already in a channel. Returns false if user not found. */
+export function updateCommunityVoiceScreenShareState(
+  channelId: number,
+  userId: number,
+  screenShareEnabled: boolean,
+): boolean {
+  const members = channelMembers.get(channelId);
+  if (!members) return false;
+  const user = members.get(userId);
+  if (!user) return false;
+  members.set(userId, { ...user, screenShareEnabled });
   return true;
 }
 

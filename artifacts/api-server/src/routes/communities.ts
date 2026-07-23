@@ -60,6 +60,7 @@ import {
   removeCommunityVoicePresenceForChannel,
   getCommunityVoicePresenceSnapshot,
   updateCommunityVoiceCameraState,
+  updateCommunityVoiceScreenShareState,
 } from "../lib/community-voice-presence";
 
 // ─── Premium DDL ──────────────────────────────────────────────────────────────
@@ -1122,6 +1123,42 @@ router.post("/communities/:id/voice-camera", requireAuth, async (req, res): Prom
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: voice-camera failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// POST /communities/:id/voice-screenshare — update screen-share on/off for a participant
+router.post("/communities/:id/voice-screenshare", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const { channelId, screenShareEnabled } = req.body ?? {};
+  if (isNaN(id) || typeof channelId !== "number" || typeof screenShareEnabled !== "boolean") {
+    res.status(400).json({ error: "Invalid params" }); return;
+  }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+
+    updateCommunityVoiceScreenShareState(channelId, userId, screenShareEnabled);
+
+    const members = await db
+      .select({ userId: communityMembersTable.userId })
+      .from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+
+    const payload = {
+      type: "community-voice-update",
+      communityId: id,
+      channelId,
+      userId,
+      action: "screenshare",
+      screenShareEnabled,
+    };
+    for (const m of members) pushToUser(m.userId, payload);
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: voice-screenshare failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Hash, Volume2, Settings, Users, Plus, Send, MoreVertical, Trash2, Zap, LogOut,
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
-  Image, X, Copy, Check, ChevronDown, ChevronRight, Video,
+  Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ interface Member {
 interface VoicePresenceUser {
   userId: number; username: string; displayName: string; avatarUrl: string | null;
   cameraEnabled?: boolean;
+  screenShareEnabled?: boolean;
 }
 
 /** channelId (as string key) → VoicePresenceUser[] */
@@ -610,6 +611,9 @@ function VoiceChannelRow({ channel, communityId, communityName, isMember, partic
               {p.cameraEnabled && (
                 <Video className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
               )}
+              {p.screenShareEnabled && (
+                <Monitor className="w-2.5 h-2.5 text-purple-400 flex-shrink-0" />
+              )}
             </div>
           ))}
         </div>
@@ -1018,6 +1022,13 @@ export default function CommunityHub() {
           ...prev,
           [key]: (prev[key] ?? []).map((p) =>
             p.userId === msg.userId ? { ...p, cameraEnabled: msg.cameraEnabled } : p,
+          ),
+        }));
+      } else if (msg.action === "screenshare") {
+        setVoicePresence((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map((p) =>
+            p.userId === msg.userId ? { ...p, screenShareEnabled: msg.screenShareEnabled } : p,
           ),
         }));
       }

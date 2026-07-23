@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useVoice } from "@/voice/voice-context";
+import { useVoice, PeerUiState } from "@/voice/voice-context";
 import { acquireInlineStage } from "@/voice/inline-stage-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import {
   Hash, Volume2, Settings, Users, Plus, Send, MoreVertical, Trash2, Zap, LogOut,
   Crown, UserMinus, Ban, Mic, Loader2, BarChart3, Link2, Pin, PinOff, Trophy,
   Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor, PhoneOff,
-  MicOff, Radio,
+  MicOff, Radio, Headphones, VolumeX, MessageSquare,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -622,27 +622,143 @@ function VoiceChannelRow({ channel, communityId, communityName, isMember, partic
   );
 }
 
-// ── Voice stage participant tile ────────────────────────────────────────────────
+// ── Video element helper ───────────────────────────────────────────────────────
+
+function VideoEl({ stream, muted: mutedProp = false, className = "" }: {
+  stream: MediaStream; muted?: boolean; className?: string;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+  return <video ref={ref} autoPlay playsInline muted={mutedProp} className={className} />;
+}
+
+// ── Single participant tile in the voice stage ─────────────────────────────────
+
+function VoiceStageTile({
+  p, speaking, cameraStream, isLocal,
+}: {
+  p: VoicePresenceUser;
+  speaking?: boolean;
+  cameraStream?: MediaStream | null;
+  isLocal?: boolean;
+}) {
+  const hue = Math.abs((p.displayName.charCodeAt(0) * 17 + (p.displayName.charCodeAt(1) || 0) * 31) % 360);
+  const hasCam = !!cameraStream;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative">
+        {hasCam ? (
+          /* Camera tile */
+          <div
+            className={`rounded-2xl overflow-hidden transition-all ${speaking ? "ring-2 ring-green-400" : "ring-1 ring-white/10"}`}
+            style={{ width: 160, height: 120 }}
+          >
+            <VideoEl stream={cameraStream!} muted={isLocal} className="w-full h-full object-cover" />
+            {/* Name overlay */}
+            <div className="absolute bottom-0 inset-x-0 px-2 py-1 bg-gradient-to-t from-black/70 to-transparent">
+              <span className="text-[11px] text-white/90 font-medium truncate block">{p.displayName}</span>
+            </div>
+          </div>
+        ) : (
+          /* Avatar circle */
+          <div className="relative w-24 h-24">
+            {/* Ping ring when speaking */}
+            {speaking && (
+              <span
+                className="absolute inset-0 rounded-full border-[3px] border-green-400 animate-ping"
+                style={{ animationDuration: "1.2s", opacity: 0.7 }}
+              />
+            )}
+            <div
+              className={`w-24 h-24 rounded-full overflow-hidden flex items-center justify-center font-bold text-xl select-none transition-all ${speaking ? "ring-2 ring-green-400" : "ring-1 ring-white/[0.08]"}`}
+              style={{
+                background: p.avatarUrl ? "transparent" : `hsl(${hue},50%,28%)`,
+                color: `hsl(${hue},70%,75%)`,
+              }}
+            >
+              {p.avatarUrl
+                ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+                : p.displayName.slice(0, 2).toUpperCase()}
+            </div>
+            {/* Status mini-badges */}
+            <div className="absolute -bottom-1 -end-1 flex gap-0.5">
+              {p.cameraEnabled && (
+                <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center border border-[#111214]">
+                  <Video className="w-2 h-2 text-white" />
+                </div>
+              )}
+              {p.screenShareEnabled && (
+                <div className="w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center border border-[#111214]">
+                  <Monitor className="w-2 h-2 text-white" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Name + speaking dot */}
+      {!hasCam && (
+        <div className="flex items-center gap-1.5">
+          {speaking && <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />}
+          <span className="text-[13px] font-medium text-white/65 max-w-[120px] truncate">{p.displayName}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Community Voice Stage (Discord-style: avatars centered, controls at bottom) ─
 
-function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember }: {
+function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember, textChannels, myUserId, isOwner }: {
   channel: Channel; communityId: number; communityName: string;
   participants: VoicePresenceUser[]; isMember: boolean;
+  textChannels: Channel[]; myUserId: number; isOwner: boolean;
 }) {
   const {
     activeRoom, joinCommunityVoice, leaveVoice,
     muted, toggleMute, cameraEnabled, toggleCamera,
     sharing, startScreenShare, stopScreenShare,
+    deafened, toggleDeafen,
+    speaking: localSpeaking,
+    peers,
+    localCameraStream, localScreenStream,
   } = useVoice();
+  const { user } = useAuth() as any;
   const { toast } = useToast();
   const isInChannel = activeRoom?.kind === "community" && activeRoom.channelId === channel.id;
+  const [showChat, setShowChat] = useState(false);
+  const firstTextChannel = textChannels[0] ?? null;
 
-  // Suppress the floating VoicePanel while connected in a community channel
+  // Suppress the floating VoicePanel while connected
   useEffect(() => {
     if (!isInChannel) return;
     return acquireInlineStage();
   }, [isInChannel]);
+
+  // Auto-close chat when leaving voice
+  useEffect(() => {
+    if (!isInChannel) setShowChat(false);
+  }, [isInChannel]);
+
+  // Build peer lookup map: userId → PeerUiState (for speaking + streams)
+  const peerMap = useMemo(() => {
+    const m = new Map<number, PeerUiState>();
+    for (const p of peers) m.set(p.userId, p);
+    return m;
+  }, [peers]);
+
+  // Find active screen share (local first, then remote)
+  const activeScreenShare = useMemo(() => {
+    if (localScreenStream) return { stream: localScreenStream, label: "Your screen" };
+    for (const p of peers) {
+      if (p.screenStream) return { stream: p.screenStream, label: `${p.displayName}'s screen` };
+    }
+    return null;
+  }, [localScreenStream, peers]);
 
   const handleJoin = useCallback(async () => {
     if (!isMember) { toast({ title: "Join the community first", variant: "destructive" }); return; }
@@ -653,104 +769,127 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#111214" }}>
 
-      {/* ── Dark stage area with participant circles ── */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden relative">
+      {/* ── Main stage area (+ optional chat panel side-by-side) ── */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* Participant avatars — Discord-style centered circles */}
-        {participants.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-center gap-8 px-8">
-            {participants.map((p) => {
-              const hue = Math.abs((p.displayName.charCodeAt(0) * 17 + (p.displayName.charCodeAt(1) || 0) * 31) % 360);
-              return (
-                <div key={p.userId} className="flex flex-col items-center gap-3">
-                  {/* Avatar circle — matches Discord's group call style */}
-                  <div className="relative">
-                    <div
-                      className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center font-bold text-2xl select-none"
-                      style={{
-                        background: p.avatarUrl ? "transparent" : `hsl(${hue},50%,28%)`,
-                        color: `hsl(${hue},70%,75%)`,
-                        boxShadow: "0 0 0 3px rgba(255,255,255,0.06)",
-                      }}
-                    >
-                      {p.avatarUrl
-                        ? <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
-                        : p.displayName.slice(0, 2).toUpperCase()}
-                    </div>
-                    {/* Status icons */}
-                    {(p.cameraEnabled || p.screenShareEnabled) && (
-                      <div className="absolute -bottom-1 -end-1 flex gap-0.5">
-                        {p.cameraEnabled && (
-                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center border-2 border-[#111214]">
-                            <Video className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        )}
-                        {p.screenShareEnabled && (
-                          <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center border-2 border-[#111214]">
-                            <Monitor className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* Name */}
-                  <span className="text-[13px] font-medium text-white/70 max-w-[96px] truncate text-center">
-                    {p.displayName}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* Empty state */
-          <div className="flex flex-col items-center gap-4 text-center select-none">
-            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
-              <Volume2 className="w-10 h-10 text-white/15" />
-            </div>
-            <div>
-              <p className="text-white/60 font-medium text-[15px]">No one's in here yet</p>
-              <p className="text-white/30 text-sm mt-1">Be the first to join</p>
-            </div>
-            {isMember && !isInChannel && (
-              <Button
-                onClick={handleJoin}
-                className="mt-2 gap-2 bg-green-600 hover:bg-green-500 text-white rounded-xl px-6"
+        {/* Stage */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
+
+          {/* Screen share — full width prominent view */}
+          {activeScreenShare && (
+            <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center bg-black">
+              <VideoEl
+                stream={activeScreenShare.stream}
+                muted={!!localScreenStream}
+                className="max-w-full max-h-full object-contain"
+              />
+              <div
+                className="absolute bottom-3 start-3 text-[11px] text-white/60 bg-black/50 px-2 py-0.5 rounded-full"
               >
-                <Mic className="w-4 h-4" />
-                Join Voice
-              </Button>
+                {activeScreenShare.label}
+              </div>
+            </div>
+          )}
+
+          {/* Participant tiles */}
+          <div
+            className={`flex items-center justify-center overflow-auto ${activeScreenShare ? "py-3 flex-shrink-0 border-t border-white/5" : "flex-1"}`}
+            style={activeScreenShare ? { maxHeight: 140 } : {}}
+          >
+            {participants.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-7 px-8 py-4">
+                {participants.map((p) => {
+                  const peer = peerMap.get(p.userId);
+                  const isLocal = p.userId === (user?.id ?? -1);
+                  const isSpeaking = isLocal ? localSpeaking : (peer?.speaking ?? false);
+                  const camStream = isLocal ? localCameraStream : (peer?.cameraStream ?? null);
+                  return (
+                    <VoiceStageTile
+                      key={p.userId}
+                      p={p}
+                      speaking={isSpeaking}
+                      cameraStream={camStream}
+                      isLocal={isLocal}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 text-center select-none py-8">
+                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
+                  <Volume2 className="w-10 h-10 text-white/15" />
+                </div>
+                <div>
+                  <p className="text-white/60 font-medium">No one's in here yet</p>
+                  <p className="text-white/30 text-sm mt-1">Be the first to join</p>
+                </div>
+                {isMember && !isInChannel && (
+                  <Button onClick={handleJoin} className="gap-2 bg-green-600 hover:bg-green-500 text-white rounded-xl">
+                    <Mic className="w-4 h-4" /> Join Voice
+                  </Button>
+                )}
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Text chat overlay panel */}
+        {showChat && firstTextChannel && (
+          <div
+            className="w-80 flex flex-col flex-shrink-0 border-s border-white/10 overflow-hidden"
+            style={{ background: "#1a1b1e" }}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 flex-shrink-0">
+              <span className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">
+                # {firstTextChannel.name}
+              </span>
+              <button
+                onClick={() => setShowChat(false)}
+                className="text-white/40 hover:text-white/70 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <TextChannelPanel
+              communityId={communityId}
+              channel={firstTextChannel}
+              isOwner={isOwner}
+              canMod={isOwner}
+              myUserId={myUserId}
+            />
           </div>
         )}
       </div>
 
-      {/* ── Controls bar — only shown when connected (Discord-style bottom bar) ── */}
+      {/* ── Discord-style controls bar ── */}
       {isInChannel ? (
         <div
-          className="flex items-center justify-center gap-3 py-4 px-6 flex-shrink-0"
+          className="flex items-center justify-center gap-2.5 py-4 px-6 flex-shrink-0"
           style={{ background: "#1e1f22", borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
           {/* Mute */}
           <button
             onClick={toggleMute}
             title={muted ? "Unmute" : "Mute"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-              muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"
-            }`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
           >
-            {muted
-              ? <MicOff className="w-5 h-5 text-white" />
-              : <Mic className="w-5 h-5 text-white" />
-            }
+            {muted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
+          </button>
+
+          {/* Deafen */}
+          <button
+            onClick={toggleDeafen}
+            title={deafened ? "Undeafen" : "Deafen"}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${deafened ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
+          >
+            {deafened ? <VolumeX className="w-5 h-5 text-white" /> : <Headphones className="w-5 h-5 text-white/80" />}
           </button>
 
           {/* Camera */}
           <button
             onClick={toggleCamera}
             title={cameraEnabled ? "Stop Camera" : "Start Camera"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-              cameraEnabled ? "bg-blue-600 hover:bg-blue-500" : "bg-white/10 hover:bg-white/20"
-            }`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${cameraEnabled ? "bg-blue-600 hover:bg-blue-500" : "bg-white/10 hover:bg-white/20"}`}
           >
             <Video className={`w-5 h-5 ${cameraEnabled ? "text-white" : "text-white/70"}`} />
           </button>
@@ -759,12 +898,21 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
           <button
             onClick={() => sharing ? stopScreenShare() : void startScreenShare()}
             title={sharing ? "Stop Sharing" : "Share Screen"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-              sharing ? "bg-green-600 hover:bg-green-500" : "bg-white/10 hover:bg-white/20"
-            }`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${sharing ? "bg-green-600 hover:bg-green-500" : "bg-white/10 hover:bg-white/20"}`}
           >
             <Monitor className={`w-5 h-5 ${sharing ? "text-white" : "text-white/70"}`} />
           </button>
+
+          {/* Chat toggle */}
+          {firstTextChannel && (
+            <button
+              onClick={() => setShowChat(v => !v)}
+              title="Text Chat"
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${showChat ? "bg-primary/80 hover:bg-primary" : "bg-white/10 hover:bg-white/20"}`}
+            >
+              <MessageSquare className={`w-5 h-5 ${showChat ? "text-white" : "text-white/70"}`} />
+            </button>
+          )}
 
           {/* Disconnect */}
           <button
@@ -776,18 +924,13 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
           </button>
         </div>
       ) : (
-        /* Not connected — show join bar */
-        participants.length > 0 && isMember && (
+        (participants.length > 0 || !isMember) ? null : (
           <div
             className="flex items-center justify-center py-4 flex-shrink-0"
             style={{ background: "#1e1f22", borderTop: "1px solid rgba(255,255,255,0.05)" }}
           >
-            <Button
-              onClick={handleJoin}
-              className="gap-2 bg-green-600 hover:bg-green-500 text-white rounded-xl px-8"
-            >
-              <Mic className="w-4 h-4" />
-              Join Voice
+            <Button onClick={handleJoin} className="gap-2 bg-green-600 hover:bg-green-500 text-white rounded-xl px-8">
+              <Mic className="w-4 h-4" /> Join Voice
             </Button>
           </div>
         )
@@ -1390,6 +1533,9 @@ export default function CommunityHub() {
             communityName={community.name}
             participants={voicePresence[String(activeChannel.id)] ?? []}
             isMember={community.isMember || community.isOwner}
+            textChannels={community.channels.filter(c => c.type === "text")}
+            myUserId={myUserId}
+            isOwner={community.isOwner}
           />
         )}
       </div>

@@ -58,6 +58,7 @@ import { logger } from "../lib/logger";
 import {
   addCommunityVoicePresence,
   removeCommunityVoicePresenceForChannel,
+  getCommunityVoiceParticipants,
   getCommunityVoicePresenceSnapshot,
   updateCommunityVoiceCameraState,
   updateCommunityVoiceScreenShareState,
@@ -1638,6 +1639,15 @@ router.post("/communities/:id/voice-leave", requireAuth, async (req, res): Promi
     // Remove from in-memory presence
     if (typeof channelId === "number") {
       removeCommunityVoicePresenceForChannel(channelId, userId);
+
+      // If the channel is now empty, delete its voice-chat messages so the
+      // next session starts fresh (Discord-style ephemeral voice text chat).
+      const remaining = getCommunityVoiceParticipants(channelId);
+      if (remaining.length === 0) {
+        await db
+          .delete(communityMessagesTable)
+          .where(eq(communityMessagesTable.channelId, channelId));
+      }
     }
 
     const payload = { type: "community-voice-update", communityId: id, channelId, userId, action: "leave" };

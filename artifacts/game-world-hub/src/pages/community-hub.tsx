@@ -1686,10 +1686,10 @@ function VoiceStageTile({
 
 // ── Community Voice Stage (Discord-style: avatars centered, controls at bottom) ─
 
-function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember, textChannels, myUserId, isOwner }: {
+function CommunityVoiceStage({ channel, communityId, communityName, participants, isMember, myUserId, isOwner }: {
   channel: Channel; communityId: number; communityName: string;
   participants: VoicePresenceUser[]; isMember: boolean;
-  textChannels: Channel[]; myUserId: number; isOwner: boolean;
+  myUserId: number; isOwner: boolean;
 }) {
   const {
     activeRoom, joinCommunityVoice, leaveVoice,
@@ -1704,7 +1704,6 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
   const { toast } = useToast();
   const isInChannel = activeRoom?.kind === "community" && activeRoom.channelId === channel.id;
   const [showChat, setShowChat] = useState(false);
-  const firstTextChannel = textChannels[0] ?? null;
 
   // Suppress the floating VoicePanel while connected
   useEffect(() => {
@@ -1806,16 +1805,18 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
           </div>
         </div>
 
-        {/* Text chat overlay panel */}
-        {showChat && firstTextChannel && (
+        {/* Text chat overlay panel — messages stored under the voice channel's own ID */}
+        {showChat && (
           <div
             className="w-80 flex flex-col flex-shrink-0 border-s border-white/10 overflow-hidden"
             style={{ background: "#1a1b1e" }}
           >
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 flex-shrink-0">
-              <span className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">
-                # {firstTextChannel.name}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">صوت</span>
+                <span className="text-white/30">/</span>
+                <span className="text-[12px] font-semibold text-white/70"># {channel.name}</span>
+              </div>
               <button
                 onClick={() => setShowChat(false)}
                 className="text-white/40 hover:text-white/70 transition-colors"
@@ -1825,7 +1826,7 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
             </div>
             <TextChannelPanel
               communityId={communityId}
-              channel={firstTextChannel}
+              channel={channel}
               isOwner={isOwner}
               canMod={isOwner}
               myUserId={myUserId}
@@ -1876,16 +1877,14 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
             <Monitor className={`w-5 h-5 ${sharing ? "text-white" : "text-white/70"}`} />
           </button>
 
-          {/* Chat toggle */}
-          {firstTextChannel && (
-            <button
-              onClick={() => setShowChat(v => !v)}
-              title="Text Chat"
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${showChat ? "bg-primary/80 hover:bg-primary" : "bg-white/10 hover:bg-white/20"}`}
-            >
-              <MessageSquare className={`w-5 h-5 ${showChat ? "text-white" : "text-white/70"}`} />
-            </button>
-          )}
+          {/* Chat toggle — uses the voice channel's own message store */}
+          <button
+            onClick={() => setShowChat(v => !v)}
+            title="Text Chat"
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${showChat ? "bg-primary/80 hover:bg-primary" : "bg-white/10 hover:bg-white/20"}`}
+          >
+            <MessageSquare className={`w-5 h-5 ${showChat ? "text-white" : "text-white/70"}`} />
+          </button>
 
           {/* Disconnect */}
           <button
@@ -4232,7 +4231,6 @@ export default function CommunityHub() {
             communityName={community.name}
             participants={voicePresence[String(activeChannel.id)] ?? []}
             isMember={community.isMember || community.isOwner}
-            textChannels={community.channels.filter(c => c.type === "text")}
             myUserId={myUserId}
             isOwner={community.isMod ?? community.isOwner}
           />

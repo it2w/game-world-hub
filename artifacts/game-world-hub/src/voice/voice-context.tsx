@@ -10,6 +10,7 @@ import React, {
 import {
   Room,
   RoomEvent,
+  ParticipantEvent,
   Track,
   ConnectionQuality,
   type RemoteParticipant,
@@ -512,8 +513,16 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         },
       );
 
+      // Local speaking — use the participant-level event so we always get
+      // accurate feedback even when the browser doesn't fire ActiveSpeakersChanged
+      // for the local participant (a known LiveKit quirk in some environments).
+      room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (isSpeaking: boolean) => {
+        setSpeaking(isSpeaking);
+      });
+
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
         const ids = new Set(speakers.map((s) => s.identity));
+        // Keep local speaking in sync via ActiveSpeakersChanged as a fallback
         const localId = room.localParticipant?.identity;
         if (localId) setSpeaking(ids.has(localId));
         setPeersState((prev) => {

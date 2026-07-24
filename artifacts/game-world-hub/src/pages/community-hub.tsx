@@ -2963,12 +2963,25 @@ function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: numbe
 
 // ── Danger zone panel ─────────────────────────────────────────────────────────
 
-function DangerZonePanel({ community, onClose }: { community: Community; onClose: () => void }) {
+export function DangerZonePanel({ community, onClose }: { community: Community; onClose: () => void }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [confirmName, setConfirmName] = useState("");
+
+  // Secondary ownership guard — the nav already hides this tab from non-owners,
+  // but we re-check here so a forced activeTab change never exposes the panel.
+  if (!community.isOwner) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center space-y-2">
+          <AlertCircle className="w-8 h-8 text-destructive/40 mx-auto" />
+          <p className="text-sm text-muted-foreground">{t("ownerOnly", "Owner-only settings")}</p>
+        </div>
+      </div>
+    );
+  }
 
   const deleteCommunity = useMutation({
     mutationFn: () => customFetch(`/api/communities/${community.id}`, { method: "DELETE" }),
@@ -3557,9 +3570,9 @@ function ServerSettingsDialog({ community, open, onClose }: {
             <InsightsDashboard communityId={community.id} />
           ) : activeTab === "invites" ? (
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
-          ) : (
+          ) : activeTab === "danger" ? (
             <DangerZonePanel community={community} onClose={onClose} />
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

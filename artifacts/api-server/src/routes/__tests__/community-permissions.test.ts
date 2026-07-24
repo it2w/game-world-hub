@@ -452,12 +452,47 @@ describe("Community permissions — channel create/delete is owner-only", () => 
     assert.equal(r.status, 204, JSON.stringify(r.body));
   });
 
-  test("mod with can_manage_channels CAN still edit a channel (200)", async () => {
-    // First create a fresh channel as owner for the mod to edit
-    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "editable-ch" });
-    assert.equal(chRes.status, 201);
-    const newCid = (chRes.body as any).id;
-    const r = await req("PATCH", `/api/communities/${communityId}/channels/${newCid}`, modToken, { name: "renamed-by-mod" });
+  test("mod with can_manage_channels CANNOT rename a channel (403 — owner-only field)", async () => {
+    // Renaming is a structural change reserved for the owner
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, modToken, { name: "renamed-by-mod" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels CANNOT reorder a channel (403 — owner-only field)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, modToken, { position: 99 });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels CANNOT toggle channel privacy (403 — owner-only field)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, modToken, { isPrivate: true });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels CANNOT change channel type (403 — owner-only field)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, modToken, { type: "announcement" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels CAN adjust slowmodeSeconds (200)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, modToken, { slowmodeSeconds: 30 });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal((r.body as any).slowmodeSeconds, 30);
+  });
+
+  test("owner CAN rename a channel (200)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, ownerToken, { name: "owner-renamed" });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal((r.body as any).name, "owner-renamed");
+  });
+
+  test("owner CAN reorder a channel (200)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, ownerToken, { position: 5 });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal((r.body as any).position, 5);
+  });
+
+  test("owner CAN toggle channel privacy (200)", async () => {
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${channelId}`, ownerToken, { isPrivate: true });
     assert.equal(r.status, 200, JSON.stringify(r.body));
   });
 });

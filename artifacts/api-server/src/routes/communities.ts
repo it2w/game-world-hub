@@ -953,8 +953,26 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
   const cid = Number(String(req.params.cid));
   if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    // Caller must have can_manage_channels (or be owner — owner short-circuits hasPermission)
     if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    // Determine if the caller is the community owner
+    const [community] = await db
+      .select({ ownerId: communitiesTable.ownerId })
+      .from(communitiesTable)
+      .where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    const isOwner = community.ownerId === userId;
+
     const { name, position, slowmodeSeconds, isPrivate, type } = req.body ?? {};
+
+    // Structural fields (rename, reorder, privacy toggle, type change) are owner-only.
+    // Mods with can_manage_channels may only adjust slowmodeSeconds.
+    if (!isOwner && (name !== undefined || position !== undefined || isPrivate !== undefined || type !== undefined)) {
+      res.status(403).json({ error: "Only the community owner can rename, reorder, or change channel type/privacy" });
+      return;
+    }
+
     const updates: Partial<typeof communityChannelsTable.$inferInsert> = {};
     if (name && typeof name === "string") updates.name = name.trim().toLowerCase().replace(/\s+/g, "-");
     if (typeof position === "number") updates.position = position;

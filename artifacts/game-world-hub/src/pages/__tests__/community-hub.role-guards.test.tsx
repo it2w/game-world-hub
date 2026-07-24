@@ -23,6 +23,7 @@
 
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
 import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel } from "../community-hub";
 
 // ── Module stubs ──────────────────────────────────────────────────────────────
@@ -40,9 +41,9 @@ vi.mock("@workspace/api-client-react", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: undefined, isLoading: false }),
-  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQuery: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -128,6 +129,14 @@ describe("setActiveTab wrapper — via resolveTabForRole", () => {
 
 // ── InviteSettingsPanel prop guard ────────────────────────────────────────────
 
+const MOCK_INVITE = {
+  code: "TESTCODE",
+  uses: 1,
+  max_uses: 10,
+  expires_at: null,
+  created_at: new Date().toISOString(),
+};
+
 describe("InviteSettingsPanel prop guard", () => {
   test("hides 'Create Invite' button when isOwnerOrMod=false", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
@@ -137,6 +146,32 @@ describe("InviteSettingsPanel prop guard", () => {
   test("shows 'Create Invite' button when isOwnerOrMod=true", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
     expect(screen.getByText("generateInvite")).toBeDefined();
+  });
+
+  test("hides revoke button for plain members even when invites are present", () => {
+    // Override useQuery to return a non-empty invite list for this test only
+    vi.mocked(useQuery).mockReturnValueOnce({
+      data: [MOCK_INVITE],
+      isLoading: false,
+    } as any);
+
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
+
+    // The invite row should be visible (copy button present)
+    expect(screen.getByTitle("Copy link")).toBeDefined();
+    // But the revoke button must be absent
+    expect(screen.queryByTitle("Revoke")).toBeNull();
+  });
+
+  test("shows revoke button for owners/mods when invites are present", () => {
+    vi.mocked(useQuery).mockReturnValueOnce({
+      data: [MOCK_INVITE],
+      isLoading: false,
+    } as any);
+
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
+
+    expect(screen.getByTitle("Revoke")).toBeDefined();
   });
 });
 

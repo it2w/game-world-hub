@@ -24,6 +24,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel, ChannelsSettingsPanel } from "../community-hub";
 
 // ── Module stubs ──────────────────────────────────────────────────────────────
@@ -172,6 +173,54 @@ describe("InviteSettingsPanel prop guard", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
 
     expect(screen.getByTitle("Revoke")).toBeDefined();
+  });
+});
+
+// ── InviteSettingsPanel fetch suppression guard ───────────────────────────────
+//
+// The query that loads invite codes carries `enabled: isOwnerOrMod`.
+// When a plain member reaches the panel the request must be suppressed entirely —
+// customFetch must never be called and useQuery must receive enabled=false.
+
+describe("InviteSettingsPanel fetch suppression guard", () => {
+  test("customFetch is never called when isOwnerOrMod=false", () => {
+    vi.mocked(customFetch).mockClear();
+    vi.mocked(useQuery).mockClear();
+
+    render(<InviteSettingsPanel communityId={42} isOwnerOrMod={false} />);
+
+    // The network helper must remain silent for plain members.
+    expect(vi.mocked(customFetch)).not.toHaveBeenCalled();
+  });
+
+  test("useQuery is called with enabled=false when isOwnerOrMod=false", () => {
+    vi.mocked(useQuery).mockClear();
+
+    render(<InviteSettingsPanel communityId={42} isOwnerOrMod={false} />);
+
+    // Find the call that is for the community-invites query key.
+    const inviteCall = vi.mocked(useQuery).mock.calls.find(([opts]) => {
+      const key = (opts as any).queryKey;
+      return Array.isArray(key) && key[0] === "community-invites";
+    });
+
+    expect(inviteCall).toBeDefined();
+    // The guard must disable the query so the network request is suppressed.
+    expect((inviteCall![0] as any).enabled).toBe(false);
+  });
+
+  test("useQuery is called with enabled=true when isOwnerOrMod=true", () => {
+    vi.mocked(useQuery).mockClear();
+
+    render(<InviteSettingsPanel communityId={42} isOwnerOrMod={true} />);
+
+    const inviteCall = vi.mocked(useQuery).mock.calls.find(([opts]) => {
+      const key = (opts as any).queryKey;
+      return Array.isArray(key) && key[0] === "community-invites";
+    });
+
+    expect(inviteCall).toBeDefined();
+    expect((inviteCall![0] as any).enabled).toBe(true);
   });
 });
 

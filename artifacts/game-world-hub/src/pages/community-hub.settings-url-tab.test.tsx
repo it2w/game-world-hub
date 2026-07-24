@@ -28,6 +28,7 @@
  * 15. Role change: owner re-rendered as mod — setActiveTab("danger") now resolves to "overview"
  * 16. Role change: mod re-rendered as owner opens danger tab; data-active-tab reflects new role
  * 17. Role change: owner re-rendered as mod; subsequent guard call blocks "danger"
+ * 18. Sidebar nav: Danger Zone item disappears immediately when owner loses role (re-render)
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
@@ -648,6 +649,50 @@ describe("ServerSettingsDialog role-change guard (community prop update)", () =>
     // hide the Delete Community button.  This confirms the render-time guard
     // works independently of the setActiveTab wrapper.
     expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
+  // ── Scenario 18 ────────────────────────────────────────────────────────────
+  //
+  // Sidebar nav re-render: the NAV_ITEMS list is derived from SETTINGS_NAV_META
+  // filtered by community.isOwner / community.isMod at render time (line ~3756 in
+  // community-hub.tsx).  When the parent re-renders ServerSettingsDialog with an
+  // updated community prop where isOwner flips to false, React re-runs the filter
+  // and the "Danger Zone" sidebar button must disappear immediately — without any
+  // additional state change or page reload.
+  test("Danger Zone sidebar item disappears immediately when owner loses their role mid-session", async () => {
+    setSearchParam("");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const { rerender } = render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: true, isMod: false })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // As owner: the "Danger Zone" sidebar item must be present.
+    // LABEL_MAP renders it via t("dangerZone"); the mock returns the key string.
+    expect(screen.queryByText("dangerZone")).not.toBeNull();
+
+    // Simulate the parent receiving an updated community object where the viewer
+    // is no longer the owner (e.g. ownership was transferred mid-session).
+    act(() => {
+      rerender(
+        <ServerSettingsDialog
+          community={makeCommunity({ isOwner: false, isMod: false })}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    // After re-render the "Danger Zone" item must be gone from the sidebar.
+    expect(screen.queryByText("dangerZone")).toBeNull();
+
+    // Complementary assertion: the sidebar itself is not hidden — the "Overview"
+    // item (rendered via t("settingsOverview")) must still be present.
+    expect(screen.queryByText("settingsOverview")).not.toBeNull();
   });
 
   // ── Scenario 17 ────────────────────────────────────────────────────────────

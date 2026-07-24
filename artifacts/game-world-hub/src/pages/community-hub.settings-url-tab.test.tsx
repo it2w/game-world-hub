@@ -1235,6 +1235,86 @@ describe("ServerSettingsDialog nav-click handler guard", () => {
     // resolveTabForRole confirms the gate also blocks any stale "danger" value.
     expect(resolveTabForRole("danger", false, true)).toBe("overview");
   });
+
+  // ── Parameterised: ownerOnly nav buttons are absent for every non-owner role ──
+  //
+  // Task 516: the hand-written tests above cover "danger" explicitly, but any
+  // future ownerOnly tab addition would not be covered without a manual update.
+  // This loop is derived from SETTINGS_NAV_META so that new ownerOnly tabs are
+  // automatically included in the nav-click Layer 1 guard test suite.
+  //
+  // For each ownerOnly tab we verify:
+  //   Layer 1a — nav button absent from DOM for a mod.
+  //   Layer 1b — nav button absent from DOM for a plain member.
+  //   Layer 2a — resolveTabForRole returns "overview" for a mod.
+  //   Layer 2b — resolveTabForRole returns "overview" for a plain member.
+
+  {
+    const OWNER_ONLY_NAV_TABS = SETTINGS_NAV_META
+      .filter(item => item.ownerOnly)
+      .map(item => item.id);
+
+    for (const tabId of OWNER_ONLY_NAV_TABS) {
+      // Layer 1a: mod
+      test(`ownerOnly nav button [data-tab="${tabId}"] is absent from the DOM for a mod (Layer 1)`, async () => {
+        // The NAV_ITEMS filter strips ownerOnly items for non-owners.  A mod must
+        // not see the sidebar button at all — there is no DOM target to click.
+        setSearchParam("");
+        const { ServerSettingsDialog } = await import("./community-hub");
+
+        render(
+          <ServerSettingsDialog
+            community={makeCommunity({ isOwner: false, isMod: true })}
+            open={true}
+            onClose={vi.fn()}
+          />
+        );
+
+        expect(
+          document.querySelector(`[data-tab="${tabId}"]`),
+          `[data-tab="${tabId}"] must be absent for a mod (Layer 1 — DOM filter failed)`,
+        ).toBeNull();
+      });
+
+      // Layer 1b: plain member
+      test(`ownerOnly nav button [data-tab="${tabId}"] is absent from the DOM for a plain member (Layer 1)`, async () => {
+        setSearchParam("");
+        const { ServerSettingsDialog } = await import("./community-hub");
+
+        render(
+          <ServerSettingsDialog
+            community={makeCommunity({ isOwner: false, isMod: false })}
+            open={true}
+            onClose={vi.fn()}
+          />
+        );
+
+        expect(
+          document.querySelector(`[data-tab="${tabId}"]`),
+          `[data-tab="${tabId}"] must be absent for a plain member (Layer 1 — DOM filter failed)`,
+        ).toBeNull();
+      });
+
+      // Layer 2a: resolveTabForRole gate — mod
+      test(`resolveTabForRole('${tabId}', false, true) returns 'overview' for a mod (Layer 2)`, () => {
+        // Even if the nav button were somehow present and clicked, the setActiveTab
+        // wrapper passes the value through resolveTabForRole which must block it
+        // for a mod and return "overview".
+        expect(
+          resolveTabForRole(tabId, false, true),
+          `resolveTabForRole must return 'overview' for mod + ownerOnly tab='${tabId}' (Layer 2 — wrapper gate failed)`,
+        ).toBe("overview");
+      });
+
+      // Layer 2b: resolveTabForRole gate — plain member
+      test(`resolveTabForRole('${tabId}', false, false) returns 'overview' for a plain member (Layer 2)`, () => {
+        expect(
+          resolveTabForRole(tabId, false, false),
+          `resolveTabForRole must return 'overview' for plain member + ownerOnly tab='${tabId}' (Layer 2 — wrapper gate failed)`,
+        ).toBe("overview");
+      });
+    }
+  }
 });
 
 // ── Parameterised: plain members are blocked from every ownerOrModOnly tab ────

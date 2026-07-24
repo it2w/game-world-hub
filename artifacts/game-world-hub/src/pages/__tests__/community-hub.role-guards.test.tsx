@@ -347,6 +347,27 @@ describe("ChannelsSettingsPanel prop guard", () => {
     const createBtn = screen.getByText("createBtn");
     expect((createBtn as HTMLButtonElement).disabled).toBe(true);
   });
+
+  test("Save button is disabled when the channel name is whitespace-only in the edit form", () => {
+    render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={false} />,
+    );
+
+    // Open the edit form by clicking the settings icon button
+    const editBtn = screen.getByTitle("Edit channel");
+    fireEvent.click(editBtn);
+
+    // The name input should now be visible and pre-filled with "general"
+    const nameInput = screen.getByPlaceholderText("channel-name");
+    expect((nameInput as HTMLInputElement).value).toBe("general");
+
+    // Set the name to spaces only — trim() reduces it to an empty string
+    fireEvent.change(nameInput, { target: { value: "   " } });
+
+    // Save button must be disabled because the trimmed name is still empty
+    const saveBtn = screen.getByText("Save");
+    expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 // ── InsightsDashboard panel-level guard ───────────────────────────────────────

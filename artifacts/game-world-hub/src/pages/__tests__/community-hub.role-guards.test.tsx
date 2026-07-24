@@ -22,7 +22,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel, ChannelsSettingsPanel } from "../community-hub";
@@ -199,6 +199,69 @@ describe("InviteSettingsPanel prop guard", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       `${window.location.origin}/join/TESTCODE`,
     );
+  });
+
+  test("clicking 'Copy link' as a plain member shows Check icon (visual feedback) after the clipboard write resolves", async () => {
+    // mockReturnValue (not Once) keeps the invite list populated across ALL
+    // renders triggered during this test. Without this, the re-render caused
+    // by setCopied("TESTCODE") fetches useQuery again, gets undefined (the
+    // Once mock is consumed), the invite row disappears, and the button
+    // detaches from the DOM before we can assert on it.
+    vi.mocked(useQuery).mockReturnValue({
+      data: [MOCK_INVITE],
+      isLoading: false,
+    } as any);
+
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
+
+    const copyBtn = screen.getByTitle("Copy link");
+
+    // Before clicking: only the Copy icon (lucide-copy) is present.
+    expect(copyBtn.querySelector(".lucide-copy")).not.toBeNull();
+    expect(copyBtn.querySelector(".lucide-check")).toBeNull();
+
+    // Click with the real async clipboard promise from beforeEach.
+    fireEvent.click(copyBtn);
+
+    // waitFor retries the assertion (wrapped in act) until React commits the
+    // setCopied state update from the resolved clipboard promise.
+    await waitFor(() => {
+      expect(screen.getByTitle("Copy link").querySelector(".lucide-check")).not.toBeNull();
+    });
+
+    // Copy icon must be gone while the Check icon is shown.
+    expect(screen.getByTitle("Copy link").querySelector(".lucide-copy")).toBeNull();
+
+    // Restore default so later tests in the suite are not affected.
+    vi.mocked(useQuery).mockImplementation((() => ({ data: undefined, isLoading: false })) as any);
+  });
+
+  test("clicking 'Copy link' as an owner/mod shows Check icon (visual feedback) after the clipboard write resolves", async () => {
+    // Same persistent-mock strategy: keep the invite data available across
+    // every render that occurs during this test, including the re-render
+    // triggered by setCopied("TESTCODE").
+    vi.mocked(useQuery).mockReturnValue({
+      data: [MOCK_INVITE],
+      isLoading: false,
+    } as any);
+
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
+
+    const copyBtn = screen.getByTitle("Copy link");
+
+    // Before clicking: only the Copy icon is present.
+    expect(copyBtn.querySelector(".lucide-copy")).not.toBeNull();
+    expect(copyBtn.querySelector(".lucide-check")).toBeNull();
+
+    fireEvent.click(copyBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Copy link").querySelector(".lucide-check")).not.toBeNull();
+    });
+
+    expect(screen.getByTitle("Copy link").querySelector(".lucide-copy")).toBeNull();
+
+    vi.mocked(useQuery).mockImplementation((() => ({ data: undefined, isLoading: false })) as any);
   });
 });
 

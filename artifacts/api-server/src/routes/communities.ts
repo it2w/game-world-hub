@@ -2872,15 +2872,16 @@ router.get("/communities/:id/insights", requireAuth, async (req, res): Promise<v
                 COUNT(*)::text AS count
          FROM community_messages cm
          JOIN community_channels cc ON cc.id = cm.channel_id
-         WHERE cm.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '30 days'
+         WHERE cc.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '30 days'
            AND cm.is_deleted = false
          GROUP BY cc.name, day ORDER BY day ASC, cc.name`, [id]
       ),
       pool.query<{ user_id: number; username: string; display_name: string; avatar_url: string | null; message_count: string }>(
         `SELECT u.id AS user_id, u.username, u.display_name, u.avatar_url, COUNT(*)::text AS message_count
          FROM community_messages cm
+         JOIN community_channels cc ON cc.id = cm.channel_id
          JOIN users u ON u.id = cm.user_id
-         WHERE cm.community_id = $1 AND cm.created_at >= date_trunc('month', NOW()) AND cm.is_deleted = false
+         WHERE cc.community_id = $1 AND cm.created_at >= date_trunc('month', NOW()) AND cm.is_deleted = false
          GROUP BY u.id, u.username, u.display_name, u.avatar_url
          ORDER BY message_count DESC LIMIT 5`, [id]
       ),
@@ -2889,7 +2890,8 @@ router.get("/communities/:id/insights", requireAuth, async (req, res): Promise<v
                 EXTRACT(HOUR FROM cm.created_at)::int::text AS hour,
                 COUNT(*)::text AS count
          FROM community_messages cm
-         WHERE cm.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '90 days'
+         JOIN community_channels cc ON cc.id = cm.channel_id
+         WHERE cc.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '90 days'
            AND cm.is_deleted = false
          GROUP BY dow, hour ORDER BY dow, hour`, [id]
       ),

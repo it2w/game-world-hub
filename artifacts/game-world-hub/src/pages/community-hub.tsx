@@ -3639,6 +3639,17 @@ export function ServerSettingsDialog({ community, open, onClose }: {
     },
     [community.isOwner, community.isMod],
   );
+
+  // Re-validate the current tab whenever the viewer's role changes mid-session
+  // (e.g. a mod is demoted to plain member while the dialog is open).  Using the
+  // functional-update form of setActiveTabRaw avoids adding activeTab to deps and
+  // prevents any re-render cycle — the effect only runs when isOwner/isMod change.
+  useEffect(() => {
+    setActiveTabRaw(prev =>
+      resolveTabForRole(prev, community.isOwner, community.isMod ?? false),
+    );
+  }, [community.isOwner, community.isMod]);
+
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);

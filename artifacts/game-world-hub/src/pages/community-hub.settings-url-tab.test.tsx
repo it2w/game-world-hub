@@ -390,6 +390,58 @@ describe("ServerSettingsDialog URL-tab security", () => {
   // browser address bar or history.pushState after the dialog is open, the
   // active tab must NOT change — the URL is no longer consulted.
 
+  // ── Insights tab: mid-session role demotion ───────────────────────────────
+  //
+  // A mod has the Insights tab open.  While the dialog is open, their mod role
+  // is removed (community prop re-renders with isMod: false).  A useEffect in
+  // ServerSettingsDialog re-validates the current activeTab through
+  // resolveTabForRole whenever isOwner/isMod change, so the dialog must
+  // automatically fall back to "overview" without requiring a page reload.
+
+  test("demoting mod to plain member while Insights is active redirects to overview", async () => {
+    // Start with the insights tab selected via URL
+    setSearchParam("?tab=insights");
+
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const modCommunity = makeCommunity({ isOwner: false, isMod: true });
+    const memberCommunity = makeCommunity({ isOwner: false, isMod: false });
+
+    const { getByTestId, rerender } = render(
+      <ServerSettingsDialog
+        community={modCommunity}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // As a mod, insights tab should be active initially
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("insights");
+
+    // Simulate the community prop updating mid-session (mod role removed)
+    rerender(
+      <ServerSettingsDialog
+        community={memberCommunity}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // The useEffect re-validates activeTab: resolveTabForRole("insights", false, false) → "overview"
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("overview");
+  });
+
+  test("after mod demotion, setActiveTab('insights') resolves to 'overview' not 'insights'", () => {
+    // Verify the pure gate function directly for the post-demotion scenario.
+    // This mirrors what the setActiveTab useCallback does after re-rendering with
+    // the updated community prop (isOwner: false, isMod: false).
+    expect(resolveTabForRole("insights", false, false)).toBe("overview");
+    // Confirm a plain member also cannot access insights via direct state injection
+    expect(resolveTabForRole("insights", false, false)).toBe("overview");
+    // But owner is still allowed (isOwner: true, isMod: false)
+    expect(resolveTabForRole("insights", true, false)).toBe("insights");
+  });
+
   test("mid-session URL change to ?tab=danger does not change active tab for mod", async () => {
     // Start with a clean URL so the dialog initialises to "overview"
     setSearchParam("");

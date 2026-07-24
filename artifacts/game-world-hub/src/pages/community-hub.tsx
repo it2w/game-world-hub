@@ -2828,11 +2828,27 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
 
 // ── Invites settings panel (inline, no dialog wrapper) ────────────────────────
 
+const EXPIRY_OPTIONS = [
+  { label: "Never", value: "" },
+  { label: "1 day", value: String(60 * 60 * 24) },
+  { label: "7 days", value: String(60 * 60 * 24 * 7) },
+  { label: "30 days", value: String(60 * 60 * 24 * 30) },
+] as const;
+
+const MAX_USES_OPTIONS = [
+  { label: "Unlimited", value: "" },
+  { label: "1 use", value: "1" },
+  { label: "5 uses", value: "5" },
+  { label: "10 uses", value: "10" },
+] as const;
+
 function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [copied, setCopied] = useState<string | null>(null);
+  const [expiresIn, setExpiresIn] = useState("");
+  const [maxUses, setMaxUses] = useState("");
 
   const { data: invites = [], isLoading } = useQuery<Invite[]>({
     queryKey: ["community-invites", communityId],
@@ -2841,7 +2857,13 @@ function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: numbe
   });
 
   const generate = useMutation({
-    mutationFn: () => customFetch(`/api/communities/${communityId}/invites`, { method: "POST", body: JSON.stringify({}) }),
+    mutationFn: () => customFetch(`/api/communities/${communityId}/invites`, {
+      method: "POST",
+      body: JSON.stringify({
+        expiresIn: expiresIn ? Number(expiresIn) : undefined,
+        maxUses: maxUses ? Number(maxUses) : undefined,
+      }),
+    }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["community-invites", communityId] }),
     onError: (e: any) => toast({ title: e?.message ?? t("error"), variant: "destructive" }),
   });
@@ -2857,42 +2879,75 @@ function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: numbe
     });
   };
 
+  const selectCls = "rounded-md border border-input bg-background px-2 py-1 text-xs";
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("inviteLinks")}</p>
-        {isOwnerOrMod && (
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("inviteLinks")}</p>
+
+      {isOwnerOrMod && (
+        <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+          <p className="text-xs font-semibold text-foreground">Generate invite link</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Expires after</Label>
+              <select value={expiresIn} onChange={e => setExpiresIn(e.target.value)} className={selectCls + " w-full"}>
+                {EXPIRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Max uses</Label>
+              <select value={maxUses} onChange={e => setMaxUses(e.target.value)} className={selectCls + " w-full"}>
+                {MAX_USES_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
           <Button size="sm" onClick={() => generate.mutate()} disabled={generate.isPending}>
             {generate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
             {t("generateInvite")}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
       ) : invites.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-6">{t("noInvites")}</p>
       ) : (
         <div className="space-y-2">
-          {invites.map(inv => (
-            <div key={inv.code} className="flex items-center gap-2 bg-muted/40 rounded-md px-3 py-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-mono text-foreground truncate">{window.location.origin}/join/{inv.code}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ""} {t("uses")}
-                  {inv.expires_at && ` · expires ${new Date(inv.expires_at).toLocaleDateString()}`}
-                </p>
-              </div>
-              <button onClick={() => copyLink(inv.code)} className="text-muted-foreground hover:text-primary p-1">
-                {copied === inv.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-              {isOwnerOrMod && (
-                <button onClick={() => revoke.mutate(inv.code)} className="text-muted-foreground hover:text-destructive p-1">
-                  <X className="w-3.5 h-3.5" />
+          {invites.map(inv => {
+            const remaining = inv.max_uses !== null ? inv.max_uses - inv.uses : null;
+            const isExpired = inv.expires_at ? new Date(inv.expires_at) < new Date() : false;
+            const isExhausted = remaining !== null && remaining <= 0;
+            return (
+              <div key={inv.code} className={`flex items-center gap-2 rounded-md px-3 py-2 ${isExpired || isExhausted ? "bg-muted/20 opacity-60" : "bg-muted/40"}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono text-foreground truncate">{window.location.origin}/join/{inv.code}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <span className="text-[10px] text-muted-foreground">
+                      {inv.uses}{inv.max_uses !== null ? `/${inv.max_uses}` : ""} uses
+                      {remaining !== null && <> · <span className={remaining === 0 ? "text-destructive/70" : ""}>{remaining} remaining</span></>}
+                    </span>
+                    {inv.expires_at && (
+                      <span className={`text-[10px] flex items-center gap-0.5 ${isExpired ? "text-destructive/70" : "text-muted-foreground"}`}>
+                        <Clock className="w-2.5 h-2.5" />
+                        {isExpired ? "Expired" : `Expires ${new Date(inv.expires_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`}
+                      </span>
+                    )}
+                    {!inv.expires_at && <span className="text-[10px] text-muted-foreground">No expiry</span>}
+                  </div>
+                </div>
+                <button onClick={() => copyLink(inv.code)} className="text-muted-foreground hover:text-primary p-1" title="Copy link">
+                  {copied === inv.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
-              )}
-            </div>
-          ))}
+                {isOwnerOrMod && (
+                  <button onClick={() => revoke.mutate(inv.code)} className="text-muted-foreground hover:text-destructive p-1" title="Revoke">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

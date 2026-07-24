@@ -483,6 +483,67 @@ describe("ServerSettingsDialog URL-tab security", () => {
     }
   }
 
+  // ── Parameterised: direct URL navigation is rejected for every ownerOnly tab ──
+  //
+  // Task 514: mirrors the task-513 ownerOrModOnly loop but targets ownerOnly tabs
+  // (currently "danger").  Two role variants per tab id are tested so that any
+  // future ownerOnly tab addition is automatically covered without a manual update.
+  //
+  //   Variant A — mod   (isOwner: false, isMod: true):  must land on "overview"
+  //   Variant B — plain member (isOwner: false, isMod: false): must land on "overview"
+
+  {
+    const OWNER_ONLY_TAB_IDS = SETTINGS_NAV_META
+      .filter(item => item.ownerOnly)
+      .map(item => item.id);
+
+    for (const tabId of OWNER_ONLY_TAB_IDS) {
+      // Variant A: mod
+      test(`mod with ?tab=${tabId} in URL: data-active-tab must be 'overview', not '${tabId}'`, async () => {
+        setSearchParam(`?tab=${tabId}`);
+
+        const { ServerSettingsDialog } = await import("./community-hub");
+
+        const { getByTestId } = render(
+          <ServerSettingsDialog
+            community={makeCommunity({ isOwner: false, isMod: true })}
+            open={true}
+            onClose={vi.fn()}
+          />
+        );
+
+        // resolveTabForRole(tabId, false, true) → "overview" must be honoured
+        // by the useState initialiser; data-active-tab must reflect "overview".
+        expect(
+          getByTestId("settings-content").getAttribute("data-active-tab"),
+          `data-active-tab must be 'overview' for mod + ?tab=${tabId}`,
+        ).toBe("overview");
+      });
+
+      // Variant B: plain member
+      test(`plain member with ?tab=${tabId} in URL: data-active-tab must be 'overview', not '${tabId}'`, async () => {
+        setSearchParam(`?tab=${tabId}`);
+
+        const { ServerSettingsDialog } = await import("./community-hub");
+
+        const { getByTestId } = render(
+          <ServerSettingsDialog
+            community={makeCommunity({ isOwner: false, isMod: false })}
+            open={true}
+            onClose={vi.fn()}
+          />
+        );
+
+        // resolveTabForRole(tabId, false, false) → "overview" must be honoured
+        // by the useState initialiser; data-active-tab must reflect "overview".
+        expect(
+          getByTestId("settings-content").getAttribute("data-active-tab"),
+          `data-active-tab must be 'overview' for plain member + ?tab=${tabId}`,
+        ).toBe("overview");
+      });
+    }
+  }
+
   test("mid-session URL change to ?tab=danger does not change active tab for mod", async () => {
     // Start with a clean URL so the dialog initialises to "overview"
     setSearchParam("");

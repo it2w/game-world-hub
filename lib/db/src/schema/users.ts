@@ -49,6 +49,9 @@ export const usersTable = pgTable("users", {
   // Force-logout: any JWT whose iat (Unix seconds) is before this timestamp is rejected.
   // Set by POST /owner/users/:id/force-logout to instantly invalidate all active sessions.
   sessionsInvalidatedBefore: timestamp("sessions_invalidated_before", { withTimezone: true }),
+  // Set to true for bot user accounts created by the community bots system.
+  // Column added via ALTER TABLE IF NOT EXISTS in bots route startup.
+  isBot: boolean("is_bot").notNull().default(false),
   // Prestige system: resets level to 1 when user hits TRANSCENDENT (level 106).
   // prestige_xp_offset stores the cumulative effective XP at each prestige point;
   // getUserProgress subtracts it so level resets to 1 after each prestige.

@@ -55,6 +55,7 @@ import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
 import { pushToUser, broadcastAll, getOnlineUserIds } from "../ws/signaling";
 import { logger } from "../lib/logger";
+import { deliverWebhooks, triggerWelcomeBot } from "./bots";
 import {
   addCommunityVoicePresence,
   removeCommunityVoicePresenceForChannel,
@@ -715,6 +716,10 @@ router.post("/communities/:id/join", requireAuth, async (req, res): Promise<void
     await db.update(communitiesTable).set({ memberCount: sql`${communitiesTable.memberCount} + 1` }).where(eq(communitiesTable.id, id));
     await logMod(id, userId, userId, "join");
 
+    // Trigger welcome bot (best-effort)
+    const [joiner] = await db.select({ id: usersTable.id, displayName: usersTable.displayName, username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId));
+    if (joiner) triggerWelcomeBot(id, joiner).catch(() => {});
+
     res.status(201).json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: join failed");
@@ -1219,19 +1224,18 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
         .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false), ne(communityMembersTable.userId, userId)));
 
       const [author] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-      const payload = {
-        type: "community-message",
-        communityId: id,
-        channelId: cid,
-        message: {
-          ...msg,
-          userId: author?.id,
-          username: author?.username,
-          displayName: author?.displayName,
-          avatarUrl: toPublicImageUrl(author?.avatarUrl ?? null),
-        },
+      const msgPayload = {
+        ...msg,
+        userId: author?.id,
+        username: author?.username,
+        displayName: author?.displayName,
+        avatarUrl: toPublicImageUrl(author?.avatarUrl ?? null),
+        isBot: (author as any)?.isBot ?? false,
       };
+      const payload = { type: "community-message", communityId: id, channelId: cid, message: msgPayload };
       for (const m of members) pushToUser(m.userId, payload);
+      // Fire webhooks (best-effort, non-blocking)
+      deliverWebhooks(id, { event: "message.created", communityId: id, channelId: cid, message: msgPayload }).catch(() => {});
     } catch { /* non-fatal */ }
 
     const [author] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
@@ -1241,6 +1245,7 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
       username: author?.username,
       displayName: author?.displayName,
       avatarUrl: toPublicImageUrl(author?.avatarUrl ?? null),
+      isBot: (author as any)?.isBot ?? false,
     });
   } catch (err) {
     logger.error({ err }, "communities: message send failed");

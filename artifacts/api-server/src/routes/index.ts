@@ -43,6 +43,7 @@ import soundboardRouter from "./soundboard";
 import stageRouter from "./stage";
 import communitiesRouter from "./communities";
 import clipsRouter from "./clips";
+import botsRouter, { ensureBotsSchema } from "./bots";
 
 const router: IRouter = Router();
 
@@ -116,5 +117,9 @@ router.use(soundboardRouter);
 router.use(stageRouter);
 router.use(communitiesRouter);
 router.use(clipsRouter);
+router.use(botsRouter);
+
+// Run bots DDL once (additive, safe to re-run)
+ensureBotsSchema().catch(() => {});
 
 export default router;

@@ -62,7 +62,15 @@ function ChannelIcon({ channel, size = 4, className = "" }: { channel: Channel; 
 interface Message {
   id: number; channelId: number; content: string; createdAt: string;
   userId: number; username: string; displayName: string; avatarUrl: string | null;
-  isPinned?: boolean;
+  isPinned?: boolean; isBot?: boolean;
+}
+
+interface CommunityBot {
+  id: number; communityId: number; botUserId: number | null;
+  displayName: string; avatarUrl: string | null;
+  botType: "webhook" | "builtin"; builtinKind: string | null;
+  webhookUrl: string | null; isActive: boolean; createdAt: string;
+  botToken: string; // masked on list, full on create/regenerate
 }
 
 interface Member {
@@ -1199,6 +1207,12 @@ function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, th
               title={roleBadge.name}
             >
               {badgeAbbrev}
+            </span>
+          )}
+          {msg.isBot && (
+            <span className="inline-flex items-center text-[9px] font-bold px-1 py-px rounded leading-none flex-shrink-0 select-none"
+              style={{ background: "rgba(88,101,242,0.2)", color: "#5865f2", border: "1px solid rgba(88,101,242,0.4)" }}>
+              BOT
             </span>
           )}
           <span className="text-[10px] font-mono text-muted-foreground leading-none">
@@ -3237,6 +3251,333 @@ export function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId
   );
 }
 
+// ── Bots panel ────────────────────────────────────────────────────────────────
+
+function BotsPanel({ communityId }: { communityId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editBot, setEditBot] = useState<CommunityBot | null>(null);
+  const [revealedToken, setRevealedToken] = useState<{ botId: number; token: string } | null>(null);
+
+  // Form state
+  const [formName, setFormName] = useState("");
+  const [formType, setFormType] = useState<"webhook" | "builtin">("webhook");
+  const [formBuiltinKind, setFormBuiltinKind] = useState("welcome");
+  const [formWebhookUrl, setFormWebhookUrl] = useState("");
+  const [formSecret, setFormSecret] = useState("");
+
+  const { data: bots = [], isLoading } = useQuery<CommunityBot[]>({
+    queryKey: ["community-bots", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/bots`),
+  });
+
+  const resetForm = () => {
+    setFormName(""); setFormType("webhook"); setFormBuiltinKind("welcome");
+    setFormWebhookUrl(""); setFormSecret(""); setShowForm(false); setEditBot(null);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/bots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: formName.trim(),
+        botType: formType,
+        builtinKind: formType === "builtin" ? formBuiltinKind : undefined,
+        webhookUrl: formWebhookUrl.trim() || undefined,
+        webhookSecret: formSecret.trim() || undefined,
+      }),
+    }),
+    onSuccess: (data: CommunityBot) => {
+      qc.invalidateQueries({ queryKey: ["community-bots", communityId] });
+      setRevealedToken({ botId: data.id, token: data.botToken });
+      resetForm();
+      toast({ title: "تم إنشاء البوت" });
+    },
+    onError: (e: any) => toast({ title: e?.message ?? "خطأ", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: object }) =>
+      customFetch(`/api/communities/${communityId}/bots/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-bots", communityId] });
+      resetForm();
+      toast({ title: "تم التحديث" });
+    },
+    onError: (e: any) => toast({ title: e?.message ?? "خطأ", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => customFetch(`/api/communities/${communityId}/bots/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-bots", communityId] });
+      toast({ title: "تم حذف البوت" });
+    },
+    onError: () => toast({ title: "خطأ", variant: "destructive" }),
+  });
+
+  const regenMutation = useMutation({
+    mutationFn: (id: number) => customFetch(`/api/communities/${communityId}/bots/${id}/regenerate-token`, { method: "POST" }),
+    onSuccess: (data: { botToken: string }, id: number) => {
+      setRevealedToken({ botId: id, token: data.botToken });
+      toast({ title: "تم تجديد التوكن" });
+    },
+    onError: () => toast({ title: "خطأ", variant: "destructive" }),
+  });
+
+  const openEdit = (bot: CommunityBot) => {
+    setEditBot(bot);
+    setFormName(bot.displayName);
+    setFormType(bot.botType);
+    setFormBuiltinKind(bot.builtinKind ?? "welcome");
+    setFormWebhookUrl(bot.webhookUrl ?? "");
+    setFormSecret("");
+    setShowForm(true);
+  };
+
+  const handleSubmit = () => {
+    if (!formName.trim()) return;
+    if (editBot) {
+      const patch: Record<string, unknown> = { displayName: formName.trim() };
+      if (formType === "webhook") {
+        patch.webhookUrl = formWebhookUrl.trim() || null;
+        if (formSecret.trim()) patch.webhookSecret = formSecret.trim();
+      }
+      updateMutation.mutate({ id: editBot.id, patch });
+    } else {
+      createMutation.mutate();
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Bot className="w-5 h-5 text-primary" /> البوتات
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">اربط بوتات خارجية أو فعّل بوتات مدمجة</p>
+        </div>
+        {!showForm && (
+          <Button size="sm" onClick={() => setShowForm(true)} className="gap-1.5">
+            <Plus className="w-4 h-4" /> إضافة بوت
+          </Button>
+        )}
+      </div>
+
+      {/* Revealed token banner */}
+      {revealedToken && (
+        <div className="rounded-lg p-4 border border-yellow-500/40 bg-yellow-500/10 space-y-2">
+          <p className="text-sm font-semibold text-yellow-400">احفظ هذا التوكن الآن — لن يظهر مرة أخرى</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs bg-black/30 px-3 py-2 rounded font-mono break-all select-all">
+              {revealedToken.token}
+            </code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(revealedToken.token); toast({ title: "تم النسخ" }); }}
+              className="flex-shrink-0 p-2 rounded hover:bg-white/10"
+            >
+              <Copy className="w-4 h-4 text-yellow-400" />
+            </button>
+          </div>
+          <button onClick={() => setRevealedToken(null)} className="text-xs text-muted-foreground hover:text-foreground">
+            حسناً، حفظت التوكن ✓
+          </button>
+        </div>
+      )}
+
+      {/* Create / Edit form */}
+      {showForm && (
+        <div className="rounded-lg border border-border p-5 space-y-4 bg-card/50">
+          <h3 className="font-semibold text-sm">{editBot ? "تعديل البوت" : "بوت جديد"}</h3>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">الاسم</label>
+            <input
+              value={formName} onChange={e => setFormName(e.target.value)}
+              placeholder="مثال: Welcome Bot"
+              className="w-full h-9 px-3 rounded-md text-sm bg-background border border-input focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          {!editBot && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">النوع</label>
+              <div className="flex gap-2">
+                {(["webhook", "builtin"] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setFormType(t)}
+                    className={`flex-1 py-2 rounded-md text-xs font-medium border transition-colors ${formType === t ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/50"}`}
+                  >
+                    {t === "webhook" ? "🔗 Webhook (خارجي)" : "⚡ مدمج"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {formType === "webhook" && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Webhook URL</label>
+                <input
+                  value={formWebhookUrl} onChange={e => setFormWebhookUrl(e.target.value)}
+                  placeholder="https://your-bot.example.com/webhook"
+                  dir="ltr"
+                  className="w-full h-9 px-3 rounded-md text-sm bg-background border border-input focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Webhook Secret (اختياري)</label>
+                <input
+                  value={formSecret} onChange={e => setFormSecret(e.target.value)}
+                  placeholder="سيُرسل في X-Bot-Secret header"
+                  dir="ltr"
+                  className="w-full h-9 px-3 rounded-md text-sm bg-background border border-input focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                />
+              </div>
+            </>
+          )}
+
+          {formType === "builtin" && !editBot && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">النوع المدمج</label>
+              <select
+                value={formBuiltinKind} onChange={e => setFormBuiltinKind(e.target.value)}
+                className="w-full h-9 px-3 rounded-md text-sm bg-background border border-input focus:outline-none"
+              >
+                <option value="welcome">👋 Welcome Bot — يرحب بالأعضاء الجدد</option>
+              </select>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              size="sm" onClick={handleSubmit}
+              disabled={!formName.trim() || createMutation.isPending || updateMutation.isPending}
+            >
+              {editBot ? "حفظ" : "إنشاء"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={resetForm}>إلغاء</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Bot list */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : bots.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          لا يوجد بوتات بعد
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {bots.map(bot => (
+            <div key={bot.id} className="rounded-lg border border-border p-4 flex items-start gap-3 bg-card/40">
+              {/* Avatar / icon */}
+              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Bot className="w-5 h-5 text-primary" />
+              </div>
+
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">{bot.displayName}</span>
+                  <span className="text-[10px] px-1.5 py-px rounded font-bold"
+                    style={{ background: bot.botType === "webhook" ? "rgba(88,101,242,0.15)" : "rgba(87,242,135,0.15)",
+                             color: bot.botType === "webhook" ? "#5865f2" : "#57f287",
+                             border: `1px solid ${bot.botType === "webhook" ? "rgba(88,101,242,0.4)" : "rgba(87,242,135,0.4)"}` }}>
+                    {bot.botType === "webhook" ? "WEBHOOK" : "BUILTIN"}
+                  </span>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${bot.isActive ? "bg-green-500" : "bg-zinc-500"}`} />
+                </div>
+                {bot.webhookUrl && (
+                  <p className="text-xs text-muted-foreground font-mono truncate" dir="ltr">{bot.webhookUrl}</p>
+                )}
+                {bot.builtinKind && (
+                  <p className="text-xs text-muted-foreground">نوع مدمج: {bot.builtinKind}</p>
+                )}
+                {/* Token row */}
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-[11px] font-mono text-muted-foreground bg-muted/40 px-2 py-0.5 rounded">
+                    {revealedToken?.botId === bot.id ? revealedToken.token : bot.botToken}
+                  </code>
+                  <button
+                    onClick={() => regenMutation.mutate(bot.id)}
+                    title="تجديد التوكن"
+                    className="text-muted-foreground hover:text-foreground p-0.5"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => updateMutation.mutate({ id: bot.id, patch: { isActive: !bot.isActive } })}
+                  title={bot.isActive ? "تعطيل" : "تفعيل"}
+                  className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                >
+                  {bot.isActive ? <Zap className="w-4 h-4 text-green-500" /> : <Zap className="w-4 h-4" />}
+                </button>
+                <button onClick={() => openEdit(bot)} className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
+                  <Settings className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { if (confirm(`حذف بوت "${bot.displayName}"؟`)) deleteMutation.mutate(bot.id); }}
+                  className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Webhook API reference */}
+      <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Bot API — إرسال رسالة</h3>
+        <pre className="text-[11px] font-mono bg-black/30 rounded p-3 overflow-x-auto leading-relaxed text-green-400/90 whitespace-pre-wrap" dir="ltr">{`POST /api/bot/v1/messages
+Authorization: Bot <your_token>
+Content-Type: application/json
+
+{
+  "channelId": 123,
+  "content": "مرحباً من البوت! 🤖"
+}`}</pre>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground pt-1">Webhook Event Shape</h3>
+        <pre className="text-[11px] font-mono bg-black/30 rounded p-3 overflow-x-auto leading-relaxed text-blue-400/90 whitespace-pre-wrap" dir="ltr">{`POST <your_webhook_url>
+X-Bot-Secret: <your_secret>   // if set
+Content-Type: application/json
+
+{
+  "event": "message.created",
+  "communityId": 1,
+  "channelId": 123,
+  "message": {
+    "id": 456,
+    "content": "...",
+    "userId": 789,
+    "displayName": "...",
+    "isBot": false
+  }
+}`}</pre>
+      </div>
+    </div>
+  );
+}
+
 // ── Danger zone panel ─────────────────────────────────────────────────────────
 
 export function DangerZonePanel({ community, onClose }: { community: Community; onClose: () => void }) {
@@ -3584,7 +3925,7 @@ function EventsSettingsPanel({ communityId, channels }: { communityId: number; c
 
 // ── ServerSettingsDialog ───────────────────────────────────────────────────────
 
-export type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "danger";
+export type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "bots" | "danger";
 
 /** Metadata for each settings tab — id plus optional visibility flags.
  *  Exported so tests can assert against the real config without duplication. */
@@ -3602,6 +3943,7 @@ export const SETTINGS_NAV_META: ReadonlyArray<{
   { id: "badges" },
   { id: "insights", ownerOrModOnly: true },
   { id: "invites" },
+  { id: "bots", ownerOnly: true },
   { id: "danger", ownerOnly: true },
 ];
 
@@ -3770,6 +4112,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
     badges:    <Award className="w-4 h-4" />,
     insights:  <BarChart3 className="w-4 h-4" />,
     invites:   <Link2 className="w-4 h-4" />,
+    bots:      <Bot className="w-4 h-4" />,
     danger:    <AlertCircle className="w-4 h-4" />,
   };
   const LABEL_MAP: Record<SettingsTab, string> = {
@@ -3782,6 +4125,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
     badges:   t("badges"),
     insights: t("insights"),
     invites:  t("invites"),
+    bots:     t("bots"),
     danger:   t("dangerZone"),
   };
 
@@ -3913,6 +4257,8 @@ export function ServerSettingsDialog({ community, open, onClose }: {
             <InsightsDashboard communityId={community.id} isOwnerOrMod={community.isOwner || (community.isMod ?? false)} />
           ) : safeTab === "invites" ? (
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
+          ) : safeTab === "bots" && community.isOwner ? (
+            <BotsPanel communityId={community.id} />
           ) : safeTab === "danger" && community.isOwner ? (
             <DangerZonePanel community={community} onClose={onClose} />
           ) : null}

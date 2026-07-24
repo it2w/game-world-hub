@@ -9,6 +9,7 @@ import {
   timestamp,
   jsonb,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
@@ -210,6 +211,27 @@ export const communityThreadMessagesTable = pgTable("community_thread_messages",
   content:   text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── Community Bots ───────────────────────────────────────────────────────────
+
+export const communityBotsTable = pgTable("community_bots", {
+  id:            serial("id").primaryKey(),
+  communityId:   integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  botUserId:     integer("bot_user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  displayName:   varchar("display_name", { length: 64 }).notNull(),
+  avatarUrl:     text("avatar_url"),
+  botType:       varchar("bot_type", { length: 20 }).notNull().default("webhook"), // "webhook" | "builtin"
+  builtinKind:   varchar("builtin_kind", { length: 32 }),                          // "welcome" | null
+  webhookUrl:    text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
+  botToken:      text("bot_token").notNull().unique(),
+  isActive:      boolean("is_active").notNull().default(true),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  communityIdx: index("community_bots_community_idx").on(t.communityId),
+}));
+
+export type CommunityBot = typeof communityBotsTable.$inferSelect;
 
 // ─── Moderation log ───────────────────────────────────────────────────────────
 

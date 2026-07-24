@@ -3,6 +3,15 @@
   "notFound": "الملف الشخصي غير موجود",
   "activeProcess": "اللعبة الحالية:",
   "none": "لا شيء",
+  "statusSection": {
+    "title": "الحالة الحالية",
+    "playing": "يلعب",
+    "clearStatus": "مسح الحالة",
+    "statusSet": "تم تحديث الحالة",
+    "statusCleared": "تم مسح الحالة",
+    "noStatus": "لا توجد حالة",
+    "sessionFor": "الجلسة: {{duration}}"
+  },
   "init": "تاريخ الإنشاء: {{date}}",
   "deleteAvatar": "إزالة الصورة الشخصية",
   "deleteBanner": "إزالة الغلاف",

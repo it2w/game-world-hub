@@ -7,6 +7,7 @@ import "./dashboard.css";
 import {
   useGetMe, useGetOnlineFriendsSummary, useGetPartyActivityFeed,
   useListPartyInvites, useBlockUser, useAcceptPartyInvite, useDeclinePartyInvite,
+  useUpdateMyStatus,
   customFetch,
   getGetOnlineFriendsSummaryQueryKey, getGetPartyActivityFeedQueryKey,
   getListPartyInvitesQueryKey, getGetMeQueryKey,
@@ -132,22 +133,54 @@ function StatCard({ icon, value, label, color, sub }: { icon:string;value:string
 }
 
 // ── MoodStatus ─────────────────────────────────────────────────────────────────
+// Maps each mood to a persistent status message shown on the user's profile.
+const MOOD_CONFIG = [
+  { icon:"😤", statusText:"🎮 Let's Play!" },
+  { icon:"😎", statusText:"😎 Casual Gaming" },
+  { icon:"🎯", statusText:"🎯 Training Mode" },
+  { icon:"🏆", statusText:"🏆 Ranked Grind" },
+  { icon:"😴", statusText:"😴 Going to Sleep" },
+];
+
 function MoodStatus() {
   const { t } = useTranslation("dashboard");
-  const [selected, setSelected] = useState(0);
-  const MOODS = [
-    { icon:"😤", label:t("mood.playing") },
-    { icon:"😎", label:t("mood.casual") },
-    { icon:"🎯", label:t("mood.training") },
-    { icon:"🏆", label:t("mood.ranked") },
-    { icon:"😴", label:t("mood.sleeping") },
+  const { data: me } = useGetMe();
+  const updateStatus = useUpdateMyStatus();
+  const isAr = i18n.resolvedLanguage?.startsWith("ar");
+
+  const currentStatusText = (me as any)?.statusText ?? "";
+  const activeIdx = currentStatusText
+    ? MOOD_CONFIG.findIndex(m => currentStatusText.startsWith(m.statusText.split(" ")[0]))
+    : -1;
+
+  const handleMood = (i: number) => {
+    if (i === activeIdx) {
+      updateStatus.mutate({ data: { statusText: null } });
+      return;
+    }
+    const mood = MOOD_CONFIG[i];
+    updateStatus.mutate({ data: { statusText: mood.statusText } });
+  };
+
+  const MOOD_LABELS = [
+    isAr ? "يلا نلعب" : "Let's Play!",
+    isAr ? "كاجوال" : "Casual",
+    isAr ? "تدريب" : "Training",
+    isAr ? "تنافسي" : "Ranked",
+    isAr ? "سأنام" : "Sleeping",
   ];
+
   return (
     <div className="mood-bar">
       <span className="mood-title">{t("mood.label")}</span>
-      {MOODS.map((m,i)=>(
-        <button key={i} className={`mood-btn${selected===i?" mood-btn--on":""}`} onClick={()=>setSelected(i)}>
-          {m.icon} {m.label}
+      {MOOD_CONFIG.map((m,i)=>(
+        <button
+          key={i}
+          className={`mood-btn${activeIdx === i ? " mood-btn--on" : ""}`}
+          onClick={() => handleMood(i)}
+          title={m.statusText}
+        >
+          {m.icon} <span className="mood-label">{MOOD_LABELS[i]}</span>
         </button>
       ))}
     </div>

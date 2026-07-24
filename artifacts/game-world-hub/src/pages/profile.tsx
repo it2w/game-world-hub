@@ -1,6 +1,6 @@
 import { Link, useRoute } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useGetUser, useGetUserPlatforms, useGetUserContentLinks, useGetFriendStatus, useSendFriendRequest, useAcceptFriendRequest, useRemoveFriend, useBlockUser, useUnblockUser, useGetLibrary, useGetMe, useUpdateMyStatus, useUpdateProfile, useListProfilePhotos, useAddProfilePhoto, useDeleteProfilePhoto, useListProfileComments, useCreateProfileComment, useDeleteProfileComment, useDeleteMyAvatar, useDeleteMyBanner, getGetUserQueryKey, getGetUserPlatformsQueryKey, getGetUserContentLinksQueryKey, getGetFriendStatusQueryKey, getGetLibraryQueryKey, getGetMeQueryKey, getListProfilePhotosQueryKey, getListProfileCommentsQueryKey, customFetch } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,6 +31,16 @@ const LIBRARY_PLATFORM_COLORS: Record<string, string> = {
   other: "#9aa0a6",
 };
 
+// Inject profile-specific CSS once
+let profileStylesInjected = false;
+function injectProfileStyles() {
+  if (profileStylesInjected) return;
+  profileStylesInjected = true;
+  const el = document.createElement("style");
+  el.textContent = profileStatusStyles;
+  document.head.appendChild(el);
+}
+
 export default function Profile() {
   const { t } = useTranslation("profile");
   const { t: pt } = useTranslation("prestige");
@@ -38,6 +48,7 @@ export default function Profile() {
   const userId = params?.userId ? parseInt(params.userId) : 0;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  useEffect(() => { injectProfileStyles(); }, []);
 
   const { data: user, isLoading } = useGetUser(userId, {
     query: { enabled: !!userId, queryKey: getGetUserQueryKey(userId) }
@@ -765,6 +776,55 @@ export default function Profile() {
             <p className="text-muted-foreground border-s-2 border-border ps-4 italic font-mono text-sm leading-relaxed">
               "{user.bio}"
             </p>
+          )}
+
+          {/* ── Status Section — Luxurious gaming mood display ── */}
+          {((user as any).statusText || user.currentGame) && (
+            <div className="profile-status-section">
+              {user.currentGame && (
+                <div className="profile-status-game">
+                  <div className="profile-status-game-glow" />
+                  <Radio className="w-4 h-4 text-[#22C55E] animate-pulse shrink-0" />
+                  <span className="profile-status-game-name">{user.currentGame}</span>
+                  <span className="profile-status-game-badge">{t("statusSection.playing")}</span>
+                </div>
+              )}
+              {(user as any).statusText && (
+                <div className="profile-status-text">
+                  <div className="profile-status-text-glow" />
+                  <span className="profile-status-text-emoji">
+                    {extractEmoji((user as any).statusText) || "💬"}
+                  </span>
+                  <span className="profile-status-text-msg">
+                    {stripEmoji((user as any).statusText)}
+                  </span>
+                  {isOwner && (
+                    <button
+                      className="profile-status-clear"
+                      onClick={() => {
+                        updateStatus.mutate(
+                          { data: { statusText: null } },
+                          {
+                            onSuccess: () => toast({ title: t("statusSection.statusCleared") }),
+                            onError: () => toast({ title: t("toasts.statusSaveFailed"), variant: "destructive" }),
+                          }
+                        );
+                      }}
+                      title={t("statusSection.clearStatus")}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* Session duration when playing */}
+              {presenceData?.sessionStartedAt && presenceData.currentGame && (
+                <div className="profile-status-session">
+                  <span className="profile-status-session-dot" />
+                  <SessionTimer start={presenceData.sessionStartedAt} />
+                </div>
+              )}
+            </div>
           )}
 
           {/* Rank + XP block — Design 4 holographic style */}
@@ -2047,3 +2107,167 @@ export default function Profile() {
 
 // Needed to fix import error above
 import { Library, Play, Award, Trophy, Zap, Flame, BarChart2 } from "lucide-react";
+
+// ── SessionTimer — live-updating duration counter ────────────────────────────
+function SessionTimer({ start }: { start: string }) {
+  const startedAt = new Date(start).getTime();
+  const [elapsed, setElapsed] = useState(() => Date.now() - startedAt);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Date.now() - startedAt), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  const h = Math.floor(elapsed / 3600000);
+  const m = Math.floor((elapsed % 3600000) / 60000);
+  const s = Math.floor((elapsed % 60000) / 1000);
+  const str = h > 0
+    ? `${h}h ${m}m ${s}s`
+    : m > 0
+      ? `${m}m ${s}s`
+      : `${s}s`;
+  return <span className="profile-session-timer">{str}</span>;
+}
+
+// Extract/strip emoji helpers (avoid Unicode regex issues in TS)
+function extractEmoji(text: string): string | null {
+  const chars = [...text];
+  for (const ch of chars) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp >= 0x1F000 && cp <= 0x1FFFF) return ch;
+    if (cp >= 0x2600 && cp <= 0x27BF) return ch;
+  }
+  return null;
+}
+function stripEmoji(text: string): string {
+  return [...text].filter(ch => {
+    const cp = ch.codePointAt(0) ?? 0;
+    return cp < 0x1F000 || cp > 0x1FFFF;
+  }).join("").trim();
+}
+
+/* ── Profile status section styles ── */
+const profileStatusStyles = `
+.profile-status-section {
+  background: linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(34,197,94,0.02) 50%, transparent 100%);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 0 30px rgba(34,197,94,0.05), inset 0 0 30px rgba(34,197,94,0.03);
+}
+.profile-status-game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.profile-status-game-glow {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%);
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  animation: profile-glow-pulse 2s ease-in-out infinite;
+}
+@keyframes profile-glow-pulse {
+  0%, 100% { opacity: 0.5; transform: translateY(-50%) scale(1); }
+  50% { opacity: 1; transform: translateY(-50%) scale(1.15); }
+}
+.profile-status-game-name {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #22C55E;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 20px rgba(34,197,94,0.4);
+}
+.profile-status-game-badge {
+  font-family: monospace;
+  font-size: 9px;
+  padding: 2px 8px;
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 20px;
+  color: #22C55E;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  background: rgba(34,197,94,0.08);
+}
+.profile-status-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+  background: rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+.profile-status-text-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(34,197,94,0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+.profile-status-text-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+.profile-status-text-msg {
+  font-family: monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.02em;
+  flex: 1;
+}
+.profile-status-clear {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.25);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-status-clear:hover {
+  color: #EF4444;
+  background: rgba(239,68,68,0.1);
+}
+.profile-status-session {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+.profile-status-session-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22C55E;
+  animation: profile-dot-blink 1.4s ease-in-out infinite;
+}
+@keyframes profile-dot-blink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.profile-session-timer {
+  font-family: monospace;
+  font-size: 10px;
+  color: rgba(34,197,94,0.6);
+  letter-spacing: 0.1em;
+}
+`;

@@ -3,6 +3,15 @@
   "notFound": "PROFILE NOT FOUND",
   "activeProcess": "Active Process:",
   "none": "NONE",
+  "statusSection": {
+    "title": "CURRENT STATUS",
+    "playing": "Playing",
+    "clearStatus": "Clear status",
+    "statusSet": "Status updated",
+    "statusCleared": "Status cleared",
+    "noStatus": "No status set",
+    "sessionFor": "Session: {{duration}}"
+  },
   "init": "INIT: {{date}}",
   "deleteAvatar": "Remove profile picture",
   "deleteBanner": "Remove banner",

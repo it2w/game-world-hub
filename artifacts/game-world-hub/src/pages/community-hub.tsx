@@ -3415,10 +3415,43 @@ export const SETTINGS_NAV_META: ReadonlyArray<{
   { id: "danger", ownerOnly: true },
 ];
 
-function ServerSettingsDialog({ community, open, onClose }: {
+/**
+ * Validates a raw tab value (e.g. from a URL query parameter) against the
+ * viewer's role and returns a safe SettingsTab to activate.
+ *
+ * Rules:
+ *  - Unknown / non-string values → "overview"
+ *  - ownerOnly tabs (e.g. "danger") → "overview" unless isOwner
+ *  - ownerOrModOnly tabs (e.g. "insights") → "overview" unless isOwner || isMod
+ *  - All other known tabs → returned as-is
+ *
+ * Exported so the same logic can be unit-tested without mounting the dialog.
+ */
+export function resolveTabForRole(
+  rawTab: string | null | undefined,
+  isOwner: boolean,
+  isMod: boolean,
+): SettingsTab {
+  const meta = SETTINGS_NAV_META.find(item => item.id === rawTab);
+  if (!meta) return "overview";
+  if (meta.ownerOnly && !isOwner) return "overview";
+  if (meta.ownerOrModOnly && !isOwner && !isMod) return "overview";
+  return meta.id;
+}
+
+export function ServerSettingsDialog({ community, open, onClose }: {
   community: Community; open: boolean; onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("overview");
+  // If the dialog is opened via a URL that carries ?tab=<id>, validate the
+  // requested tab against the viewer's role before activating it.  This
+  // prevents a mod from deep-linking to an owner-only tab (e.g. ?tab=danger)
+  // and landing on its content even though the nav item is hidden for them.
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const rawTab = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : ""
+    ).get("tab");
+    return resolveTabForRole(rawTab, community.isOwner, community.isMod ?? false);
+  });
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);

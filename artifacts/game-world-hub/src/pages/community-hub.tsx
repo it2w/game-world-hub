@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
+} from "recharts";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -136,6 +140,15 @@ interface AutomodConfig {
   block_external_links: boolean; max_emoji_per_message: number;
   block_caps: boolean; block_invites: boolean;
 }
+
+interface InsightData {
+  memberGrowth: Array<{ day: string; count: number }>;
+  dailyMessages: Array<{ channelName: string; day: string; count: number }>;
+  topMembers: Array<{ userId: number; username: string; displayName: string; avatarUrl: string | null; messageCount: number }>;
+  peakHours: Array<{ dow: number; hour: number; count: number }>;
+}
+
+interface RoleBadge { name: string; color: string; }
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
 
@@ -1073,25 +1086,41 @@ function renderMessageContent(content: string, roles: Role[]) {
   });
 }
 
-function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, threadId, roleColor, roles }: {
+function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, threadId, roleColor, roleBadge, roles }: {
   msg: Message; canDelete: boolean; canPin: boolean;
   onDelete: (id: number) => void; onPin: (id: number) => void;
   onStartThread?: (msg: Message) => void; threadId?: number;
-  roleColor?: string; roles?: Role[];
+  roleColor?: string; roleBadge?: RoleBadge; roles?: Role[];
 }) {
   const { t } = useTranslation("communities");
+  const badgeAbbrev = roleBadge
+    ? roleBadge.name.replace(/\s+/g, "").slice(0, 2).toUpperCase()
+    : null;
   return (
     <div className={`flex items-start gap-3 px-4 py-1.5 hover:bg-muted/30 group rounded ${msg.isPinned ? "border-s-2 border-primary/40" : ""}`}>
       <Avatar name={msg.displayName} url={msg.avatarUrl} size={8} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold" style={roleColor ? { color: roleColor } : undefined}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-sm font-semibold leading-none" style={roleColor ? { color: roleColor } : undefined}>
             {msg.displayName}
           </span>
-          <span className="text-[10px] font-mono text-muted-foreground">
+          {roleBadge && badgeAbbrev && (
+            <span
+              className="inline-flex items-center text-[9px] font-bold px-1.5 py-px rounded-full leading-none flex-shrink-0 select-none"
+              style={{
+                backgroundColor: `${roleBadge.color}25`,
+                color: roleBadge.color,
+                border: `1px solid ${roleBadge.color}50`,
+              }}
+              title={roleBadge.name}
+            >
+              {badgeAbbrev}
+            </span>
+          )}
+          <span className="text-[10px] font-mono text-muted-foreground leading-none">
             {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
-          {msg.isPinned && <Pin className="w-2.5 h-2.5 text-primary/60" />}
+          {msg.isPinned && <Pin className="w-2.5 h-2.5 text-primary/60 flex-shrink-0" />}
           {threadId != null && (
             <button
               onClick={() => onStartThread?.(msg)}
@@ -1101,7 +1130,7 @@ function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, th
             </button>
           )}
         </div>
-        <p className="text-sm text-foreground/90 break-words leading-relaxed">
+        <p className="text-sm text-foreground/90 break-words leading-relaxed mt-0.5">
           {roles && roles.length > 0 ? renderMessageContent(msg.content, roles) : msg.content}
         </p>
       </div>
@@ -1161,10 +1190,16 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
     enabled: showPins,
   });
 
-  // Role colour map (userId → hex) and roles list (for mention rendering + autocomplete)
+  // Role colour map (userId → hex) and role badge map (userId → { name, color })
   const { data: roleColorMap = {} } = useQuery<Record<number, string>>({
     queryKey: ["community-role-colors", communityId],
     queryFn: () => customFetch(`/api/communities/${communityId}/role-colors`),
+    staleTime: 60_000,
+  });
+
+  const { data: roleBadgeMap = {} } = useQuery<Record<number, RoleBadge>>({
+    queryKey: ["community-role-badges", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/role-badges`),
     staleTime: 60_000,
   });
 
@@ -1336,6 +1371,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
                 onStartThread={handleStartThread}
                 threadId={threadMap[msg.id]}
                 roleColor={(roleColorMap as Record<number, string>)[msg.userId]}
+                roleBadge={(roleBadgeMap as Record<number, RoleBadge>)[msg.userId]}
                 roles={roles}
               />
             ))
@@ -2611,12 +2647,525 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
   );
 }
 
+// ── Overview settings panel ───────────────────────────────────────────────────
+
+function OverviewSettingsPanel({ community }: { community: Community }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [name, setName] = useState(community.name);
+  const [description, setDescription] = useState(community.description ?? "");
+
+  const save = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${community.id}`, {
+      method: "PATCH", body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined }),
+    }),
+    onSuccess: () => { toast({ title: "Settings saved" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const isDirty = name.trim() !== community.name || description !== (community.description ?? "");
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Community Overview</p>
+        <div className="space-y-4 max-w-sm">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Community Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} maxLength={100} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description</Label>
+            <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={500} className="resize-none" />
+          </div>
+          <Button size="sm" onClick={() => save.mutate()} disabled={!isDirty || !name.trim() || save.isPending}>
+            {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save Changes
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Channels settings panel ───────────────────────────────────────────────────
+
+function ChannelsSettingsPanel({ communityId, channels }: { communityId: number; channels: Channel[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addForm, setAddForm] = useState<{ name: string; type: string } | null>(null);
+
+  const addChannel = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels`, {
+      method: "POST", body: JSON.stringify({ name: addForm?.name?.trim(), type: addForm?.type ?? "text" }),
+    }),
+    onSuccess: () => { toast({ title: "Channel added" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setAddForm(null); },
+    onError: () => toast({ title: "Failed to add channel", variant: "destructive" }),
+  });
+
+  const deleteChannel = useMutation({
+    mutationFn: (cid: number) => customFetch(`/api/communities/${communityId}/channels/${cid}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Channel deleted" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
+    onError: () => toast({ title: "Failed to delete channel", variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Channels</p>
+        <Button size="sm" variant="outline" onClick={() => setAddForm({ name: "", type: "text" })}>
+          <Plus className="w-3.5 h-3.5 me-1.5" />Add
+        </Button>
+      </div>
+      {addForm && (
+        <div className="bg-muted/30 rounded-lg p-3 space-y-3 border border-border">
+          <Input placeholder="Channel name" value={addForm.name} onChange={e => setAddForm(f => f ? { ...f, name: e.target.value } : null)} maxLength={80} />
+          <select value={addForm.type} onChange={e => setAddForm(f => f ? { ...f, type: e.target.value } : null)}
+            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+            <option value="text">Text</option>
+            <option value="voice">Voice</option>
+            <option value="announcement">Announcement</option>
+            <option value="stage">Stage</option>
+          </select>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setAddForm(null)}>Cancel</Button>
+            <Button size="sm" onClick={() => addChannel.mutate()} disabled={!addForm.name.trim() || addChannel.isPending}>
+              {addChannel.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Create
+            </Button>
+          </div>
+        </div>
+      )}
+      <div className="space-y-0.5">
+        {channels.map(ch => (
+          <div key={ch.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-muted/40 group">
+            <ChannelIcon channel={ch} size={4} className="text-muted-foreground flex-shrink-0" />
+            <span className="text-sm flex-1 truncate">{ch.name}</span>
+            {ch.isPrivate && <Lock className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />}
+            <button
+              onClick={() => { if (window.confirm(`Delete #${ch.name}? This cannot be undone.`)) deleteChannel.mutate(ch.id); }}
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-opacity flex-shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Invites settings panel (inline, no dialog wrapper) ────────────────────────
+
+function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const { data: invites = [], isLoading } = useQuery<Invite[]>({
+    queryKey: ["community-invites", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/invites`),
+    enabled: isOwnerOrMod,
+  });
+
+  const generate = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/invites`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-invites", communityId] }),
+    onError: (e: any) => toast({ title: e?.message ?? t("error"), variant: "destructive" }),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (code: string) => customFetch(`/api/communities/${communityId}/invites/${code}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-invites", communityId] }),
+  });
+
+  const copyLink = (code: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/join/${code}`).then(() => {
+      setCopied(code); setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("inviteLinks")}</p>
+        {isOwnerOrMod && (
+          <Button size="sm" onClick={() => generate.mutate()} disabled={generate.isPending}>
+            {generate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
+            {t("generateInvite")}
+          </Button>
+        )}
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+      ) : invites.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-6">{t("noInvites")}</p>
+      ) : (
+        <div className="space-y-2">
+          {invites.map(inv => (
+            <div key={inv.code} className="flex items-center gap-2 bg-muted/40 rounded-md px-3 py-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-mono text-foreground truncate">{window.location.origin}/join/{inv.code}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ""} {t("uses")}
+                  {inv.expires_at && ` · expires ${new Date(inv.expires_at).toLocaleDateString()}`}
+                </p>
+              </div>
+              <button onClick={() => copyLink(inv.code)} className="text-muted-foreground hover:text-primary p-1">
+                {copied === inv.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+              {isOwnerOrMod && (
+                <button onClick={() => revoke.mutate(inv.code)} className="text-muted-foreground hover:text-destructive p-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Danger zone panel ─────────────────────────────────────────────────────────
+
+function DangerZonePanel({ community, onClose }: { community: Community; onClose: () => void }) {
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const qc = useQueryClient();
+  const [confirmName, setConfirmName] = useState("");
+
+  const deleteCommunity = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${community.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Community deleted" });
+      qc.invalidateQueries({ queryKey: ["communities-mine"] });
+      onClose();
+      navigate("/communities");
+    },
+    onError: () => toast({ title: "Failed to delete community", variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <p className="text-xs font-bold uppercase tracking-widest text-destructive/80">Danger Zone</p>
+      <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm font-semibold">Delete This Community</span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Permanently deletes this community and all its channels, messages, roles, and member data. This action cannot be undone.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Type <span className="font-mono font-bold text-foreground">{community.name}</span> to confirm:
+        </p>
+        <Input
+          className="text-sm"
+          value={confirmName}
+          onChange={e => setConfirmName(e.target.value)}
+          placeholder={community.name}
+        />
+        <Button
+          variant="destructive" size="sm"
+          disabled={confirmName !== community.name || deleteCommunity.isPending}
+          onClick={() => deleteCommunity.mutate()}
+        >
+          {deleteCommunity.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+          Delete Community
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Insights dashboard ─────────────────────────────────────────────────────────
+
+const CHART_COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e"];
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function InsightsDashboard({ communityId }: { communityId: number }) {
+  const { data, isLoading } = useQuery<InsightData>({
+    queryKey: ["community-insights", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/insights`),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const hasAnyData = data.memberGrowth.length > 0 || data.peakHours.length > 0 || data.topMembers.length > 0;
+  if (!hasAnyData) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-center p-8">
+        <div>
+          <BarChart3 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No activity data yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">Stats appear once members start sending messages.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Member growth line chart data
+  const growthData = data.memberGrowth.map(r => ({
+    date: new Date(r.day).toLocaleDateString([], { month: "short", day: "numeric" }),
+    members: r.count,
+  }));
+
+  // Daily messages bar chart — pivot by channel, last 14 days
+  const channelNames = [...new Set(data.dailyMessages.map(r => r.channelName))];
+  const byDay = new Map<string, Record<string, number>>();
+  for (const r of data.dailyMessages) {
+    const d = new Date(r.day).toLocaleDateString([], { month: "short", day: "numeric" });
+    if (!byDay.has(d)) byDay.set(d, { date: d } as any);
+    byDay.get(d)![r.channelName] = r.count;
+  }
+  const msgData = [...byDay.values()].sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(-14);
+
+  // Peak hours heatmap
+  const maxCount = Math.max(...data.peakHours.map(r => r.count), 1);
+  const peakMap = new Map<string, number>();
+  for (const r of data.peakHours) peakMap.set(`${r.dow}-${r.hour}`, r.count);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      {/* Member Growth */}
+      {growthData.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Member Growth — Last 30 Days</p>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={growthData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={28} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+                  cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1 }}
+                />
+                <Line type="monotone" dataKey="members" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Messages */}
+      {msgData.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Daily Messages — Last 14 Days</p>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={msgData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={28} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+                  cursor={{ fill: "hsl(var(--accent))" }}
+                />
+                {channelNames.slice(0, 5).map((name, i) => (
+                  <Bar key={name} dataKey={name} stackId="m" fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Top Members */}
+      {data.topMembers.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Top Members — This Month</p>
+          <div className="space-y-2">
+            {data.topMembers.map((m, i) => (
+              <div key={m.userId} className="flex items-center gap-2.5">
+                <span className="text-xs font-mono text-muted-foreground w-4 text-end flex-shrink-0">{i + 1}</span>
+                <Avatar name={m.displayName} url={m.avatarUrl} size={7} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{m.displayName}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">@{m.username}</p>
+                </div>
+                <span className="text-xs font-mono text-muted-foreground flex-shrink-0">{m.messageCount} msgs</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Peak Hours Heatmap */}
+      {data.peakHours.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Peak Activity — Heatmap (UTC)</p>
+          <div className="overflow-x-auto">
+            <div className="flex gap-1.5 min-w-0">
+              {/* Day labels */}
+              <div className="flex flex-col gap-0.5 mt-4 flex-shrink-0">
+                {WEEK_DAYS.map(d => (
+                  <div key={d} className="h-4 flex items-center">
+                    <span className="text-[9px] text-muted-foreground w-6">{d}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Grid */}
+              <div className="flex-1 min-w-0">
+                {/* Hour labels */}
+                <div className="flex mb-0.5">
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <div key={h} className="flex-1 flex justify-center">
+                      <span className="text-[8px] text-muted-foreground">{h % 6 === 0 ? h : ""}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Heatmap rows */}
+                {WEEK_DAYS.map((_, dow) => (
+                  <div key={dow} className="flex gap-0.5 mb-0.5">
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const count = peakMap.get(`${dow}-${hour}`) ?? 0;
+                      const intensity = count / maxCount;
+                      return (
+                        <div
+                          key={hour}
+                          className="flex-1 h-4 rounded-sm"
+                          style={{
+                            background: intensity > 0
+                              ? `hsla(249,89%,64%,${0.15 + intensity * 0.85})`
+                              : "hsl(var(--muted))",
+                          }}
+                          title={`${WEEK_DAYS[dow]} ${hour}:00 — ${count} msg${count !== 1 ? "s" : ""}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Events settings panel (inline, no dialog wrapper) ─────────────────────────
+
+function EventsSettingsPanel({ communityId, channels }: { communityId: number; channels: Channel[] }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", startAt: "", endAt: "", channelId: "" });
+
+  const { data: events = [], isLoading } = useQuery<CommunityEvent[]>({
+    queryKey: ["community-events", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/events`),
+  });
+
+  const createEvent = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/events`, {
+      method: "POST",
+      body: JSON.stringify({ title: form.title, description: form.description || undefined,
+        startAt: form.startAt, endAt: form.endAt || undefined,
+        channelId: form.channelId ? Number(form.channelId) : undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: t("eventCreated") });
+      qc.invalidateQueries({ queryKey: ["community-events", communityId] });
+      setCreating(false); setForm({ title: "", description: "", startAt: "", endAt: "", channelId: "" });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const deleteEvent = useMutation({
+    mutationFn: (eid: number) => customFetch(`/api/communities/${communityId}/events/${eid}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: t("eventDeleted") }); qc.invalidateQueries({ queryKey: ["community-events", communityId] }); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const textChannels = channels.filter(c => c.type === "text");
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("events")}</p>
+        {!creating && (
+          <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+            <Plus className="w-3.5 h-3.5 me-1.5" />{t("createEvent")}
+          </Button>
+        )}
+      </div>
+      {creating && (
+        <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+          <Input placeholder={t("eventTitle")} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} maxLength={200} />
+          <Textarea placeholder={t("eventDescription")} value={form.description} rows={2} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1"><Label className="text-xs">{t("eventStart")}</Label>
+              <Input type="datetime-local" value={form.startAt} onChange={e => setForm(f => ({ ...f, startAt: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">{t("eventEnd")}</Label>
+              <Input type="datetime-local" value={form.endAt} onChange={e => setForm(f => ({ ...f, endAt: e.target.value }))} /></div>
+          </div>
+          {textChannels.length > 0 && (
+            <select value={form.channelId} onChange={e => setForm(f => ({ ...f, channelId: e.target.value }))}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+              <option value="">— No channel —</option>
+              {textChannels.map(ch => <option key={ch.id} value={ch.id}>#{ch.name}</option>)}
+            </select>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => createEvent.mutate()} disabled={!form.title || !form.startAt || createEvent.isPending}>
+              {createEvent.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+            </Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : events.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">
+          <Calendar className="w-7 h-7 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">{t("noEvents")}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {events.map(ev => {
+            const start = new Date(ev.start_at);
+            const isLive = ev.status === "live";
+            return (
+              <div key={ev.id} className={`rounded-lg border p-3 flex items-start gap-2 ${isLive ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                <div className="flex-1 min-w-0">
+                  {isLive && <span className="text-[10px] font-bold text-primary bg-primary/15 px-1.5 py-0.5 rounded-full mr-1.5">{t("liveNow")}</span>}
+                  <span className="text-sm font-medium">{ev.title}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {start.toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                <button onClick={() => deleteEvent.mutate(ev.id)} className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ServerSettingsDialog ───────────────────────────────────────────────────────
+
+type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "danger";
 
 function ServerSettingsDialog({ community, open, onClose }: {
   community: Community; open: boolean; onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"roles" | "welcome" | "automod" | "badges">("roles");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("overview");
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
@@ -2696,12 +3245,27 @@ function ServerSettingsDialog({ community, open, onClose }: {
     ]);
   };
 
-  const NAV_ITEMS = [
-    { id: "roles" as const, label: "Roles", icon: <Shield className="w-4 h-4" /> },
-    { id: "welcome" as const, label: "Welcome", icon: <Sparkles className="w-4 h-4" /> },
-    { id: "automod" as const, label: "AutoMod", icon: <Bot className="w-4 h-4" /> },
-    { id: "badges" as const, label: "Badges", icon: <Award className="w-4 h-4" /> },
+  const { data: channels = [] } = useQuery<Channel[]>({
+    queryKey: ["community-slug", community.slug],
+    queryFn: () => customFetch(`/api/communities/${community.slug}`),
+    enabled: open,
+    select: (d: any) => d.channels ?? [],
+  });
+
+  type NavItem = { id: SettingsTab; label: string; icon: React.ReactNode; ownerOnly?: boolean };
+  const ALL_NAV_ITEMS: NavItem[] = [
+    { id: "overview" as SettingsTab, label: "Overview", icon: <Settings className="w-4 h-4" /> },
+    { id: "roles" as SettingsTab, label: "Roles", icon: <Shield className="w-4 h-4" /> },
+    { id: "channels" as SettingsTab, label: "Channels", icon: <Hash className="w-4 h-4" /> },
+    { id: "automod" as SettingsTab, label: "AutoMod", icon: <Bot className="w-4 h-4" /> },
+    { id: "welcome" as SettingsTab, label: "Welcome & Rules", icon: <Sparkles className="w-4 h-4" /> },
+    { id: "events" as SettingsTab, label: "Events", icon: <Calendar className="w-4 h-4" /> },
+    { id: "badges" as SettingsTab, label: "Badges", icon: <Award className="w-4 h-4" /> },
+    { id: "insights" as SettingsTab, label: "Insights", icon: <BarChart3 className="w-4 h-4" />, ownerOnly: true },
+    { id: "invites" as SettingsTab, label: "Invites", icon: <Link2 className="w-4 h-4" /> },
+    { id: "danger" as SettingsTab, label: "Danger Zone", icon: <AlertCircle className="w-4 h-4" />, ownerOnly: true },
   ];
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => !item.ownerOnly || community.isOwner);
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -2716,9 +3280,10 @@ function ServerSettingsDialog({ community, open, onClose }: {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors font-medium ${
-                  activeTab === item.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                }`}
+                className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors ${
+                  item.id === "danger" ? "mt-2 text-destructive/80 hover:text-destructive hover:bg-destructive/10" :
+                  activeTab === item.id ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent/40 font-medium"
+                } ${activeTab === item.id && item.id !== "danger" ? "" : ""}`}
               >
                 {item.icon}
                 {item.label}
@@ -2801,12 +3366,24 @@ function ServerSettingsDialog({ community, open, onClose }: {
                 )}
               </div>
             </>
+          ) : activeTab === "overview" ? (
+            <OverviewSettingsPanel community={community} />
+          ) : activeTab === "channels" ? (
+            <ChannelsSettingsPanel communityId={community.id} channels={channels} />
           ) : activeTab === "welcome" ? (
             <WelcomeSettingsPanel communityId={community.id} />
           ) : activeTab === "automod" ? (
             <AutomodSettingsPanel communityId={community.id} />
-          ) : (
+          ) : activeTab === "events" ? (
+            <EventsSettingsPanel communityId={community.id} channels={channels} />
+          ) : activeTab === "badges" ? (
             <BadgesManagerPanel communityId={community.id} />
+          ) : activeTab === "insights" ? (
+            <InsightsDashboard communityId={community.id} />
+          ) : activeTab === "invites" ? (
+            <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
+          ) : (
+            <DangerZonePanel community={community} onClose={onClose} />
           )}
         </div>
       </DialogContent>
@@ -3292,6 +3869,16 @@ export default function CommunityHub() {
             <span className="text-muted-foreground text-sm">{t("channels")}</span>
           )}
           <div className="ms-auto flex items-center gap-1.5">
+            {/* Community Settings gear — visible to owner/mod */}
+            {(community.isOwner || (community.isMod ?? false)) && (
+              <button
+                onClick={() => setServerSettingsOpen(true)}
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Community Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
             {/* Events button */}
             <button
               onClick={() => setEventsOpen(true)}

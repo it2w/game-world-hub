@@ -1415,6 +1415,28 @@ router.get("/communities/:id/members/:uid/roles", requireAuth, async (req, res):
   }
 });
 
+/** GET /communities/:id/role-badges — { [userId]: { name, color } } top non-default role per member */
+router.get("/communities/:id/role-badges", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const { rows } = await pool.query<{ user_id: number; name: string; color: string }>(`
+      SELECT DISTINCT ON (cm.user_id) cm.user_id, cr.name, cr.color
+      FROM community_members cm
+      JOIN community_member_roles cmr ON cmr.member_id = cm.id
+      JOIN community_roles cr ON cr.id = cmr.role_id
+      WHERE cm.community_id = $1 AND cm.is_banned = false AND cr.is_default = false
+      ORDER BY cm.user_id, cr.position DESC
+    `, [id]);
+    const map: Record<number, { name: string; color: string }> = {};
+    for (const r of rows) map[r.user_id] = { name: r.name, color: r.color };
+    res.json(map);
+  } catch (err) {
+    logger.error({ err }, "communities: role-badges failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 /** GET /communities/:id/role-colors — { [userId]: topRoleColor } map for all members */
 router.get("/communities/:id/role-colors", requireAuth, async (req, res): Promise<void> => {
   const id = Number(String(req.params.id));
@@ -2819,6 +2841,74 @@ router.patch("/communities/:id/threads/:tid", requireAuth, async (req, res): Pro
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, "communities: thread patch failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ── Insights cache (10-min TTL per community) ─────────────────────────────────
+const insightsCache = new Map<number, { data: unknown; expiresAt: number }>();
+
+/** GET /communities/:id/insights — owner/mod only, cached 10 min */
+router.get("/communities/:id/insights", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const cached = insightsCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) { res.json(cached.data); return; }
+
+  try {
+    const [growthRes, msgRes, topRes, heatmapRes] = await Promise.all([
+      pool.query<{ day: string; count: string }>(
+        `SELECT date_trunc('day', joined_at AT TIME ZONE 'UTC')::date AS day, COUNT(*)::text AS count
+         FROM community_members
+         WHERE community_id = $1 AND joined_at >= NOW() - INTERVAL '30 days'
+         GROUP BY day ORDER BY day ASC`, [id]
+      ),
+      pool.query<{ channel_name: string; day: string; count: string }>(
+        `SELECT cc.name AS channel_name,
+                date_trunc('day', cm.created_at AT TIME ZONE 'UTC')::date AS day,
+                COUNT(*)::text AS count
+         FROM community_messages cm
+         JOIN community_channels cc ON cc.id = cm.channel_id
+         WHERE cm.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '30 days'
+           AND cm.is_deleted = false
+         GROUP BY cc.name, day ORDER BY day ASC, cc.name`, [id]
+      ),
+      pool.query<{ user_id: number; username: string; display_name: string; avatar_url: string | null; message_count: string }>(
+        `SELECT u.id AS user_id, u.username, u.display_name, u.avatar_url, COUNT(*)::text AS message_count
+         FROM community_messages cm
+         JOIN users u ON u.id = cm.user_id
+         WHERE cm.community_id = $1 AND cm.created_at >= date_trunc('month', NOW()) AND cm.is_deleted = false
+         GROUP BY u.id, u.username, u.display_name, u.avatar_url
+         ORDER BY message_count DESC LIMIT 5`, [id]
+      ),
+      pool.query<{ dow: string; hour: string; count: string }>(
+        `SELECT EXTRACT(DOW FROM cm.created_at)::int::text AS dow,
+                EXTRACT(HOUR FROM cm.created_at)::int::text AS hour,
+                COUNT(*)::text AS count
+         FROM community_messages cm
+         WHERE cm.community_id = $1 AND cm.created_at >= NOW() - INTERVAL '90 days'
+           AND cm.is_deleted = false
+         GROUP BY dow, hour ORDER BY dow, hour`, [id]
+      ),
+    ]);
+
+    const data = {
+      memberGrowth: growthRes.rows.map(r => ({ day: r.day, count: Number(r.count) })),
+      dailyMessages: msgRes.rows.map(r => ({ channelName: r.channel_name, day: r.day, count: Number(r.count) })),
+      topMembers: topRes.rows.map(r => ({
+        userId: r.user_id, username: r.username, displayName: r.display_name,
+        avatarUrl: toPublicImageUrl(r.avatar_url), messageCount: Number(r.message_count),
+      })),
+      peakHours: heatmapRes.rows.map(r => ({ dow: Number(r.dow), hour: Number(r.hour), count: Number(r.count) })),
+    };
+
+    insightsCache.set(id, { data, expiresAt: Date.now() + 10 * 60 * 1000 });
+    res.json(data);
+  } catch (err) {
+    logger.error({ err }, "communities: insights failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

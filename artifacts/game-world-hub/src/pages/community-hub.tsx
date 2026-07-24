@@ -3740,7 +3740,11 @@ export function ServerSettingsDialog({ community, open, onClose }: {
             ))}
           </div>
 
-          {/* Content area */}
+          {/* Content area — data-active-tab lets tests introspect the resolved tab
+              without exposing setActiveTab; resolveTabForRole is the authoritative
+              gate so any state mutation (React DevTools, extensions) is re-validated
+              through the wrapper before being committed to state. */}
+          <div data-testid="settings-content" data-active-tab={activeTab} className="contents">
           {activeTab === "roles" ? (
             <>
               {/* Role list */}
@@ -3834,6 +3838,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
           ) : activeTab === "danger" ? (
             <DangerZonePanel community={community} onClose={onClose} />
           ) : null}
+          </div>{/* /settings-content */}
         </div>
       </DialogContent>
     </Dialog>

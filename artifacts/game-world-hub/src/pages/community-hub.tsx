@@ -1867,14 +1867,30 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
           className="flex items-center justify-center gap-2.5 py-4 px-6 flex-shrink-0"
           style={{ background: "#1e1f22", borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
-          {/* Mute */}
-          <button
-            onClick={toggleMute}
-            title={muted ? "Unmute" : "Mute"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
-          >
-            {muted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
-          </button>
+          {/* Mute — speaking ring shows when mic is live and detecting voice */}
+          <div className="relative">
+            {localSpeaking && !muted && (
+              <>
+                {/* Outer ping */}
+                <span className="absolute inset-0 rounded-full border-2 border-green-400 animate-ping opacity-60 pointer-events-none" style={{ animationDuration: "1s" }} />
+                {/* Static ring */}
+                <span className="absolute inset-0 rounded-full border-2 border-green-400/70 pointer-events-none" />
+              </>
+            )}
+            <button
+              onClick={toggleMute}
+              title={muted ? "Unmute" : "Mute"}
+              className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                muted
+                  ? "bg-red-600 hover:bg-red-500"
+                  : localSpeaking
+                  ? "bg-green-600/80 hover:bg-green-500/80"
+                  : "bg-white/10 hover:bg-white/20"
+              }`}
+            >
+              {muted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
+            </button>
+          </div>
 
           {/* Deafen */}
           <button

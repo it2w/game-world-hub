@@ -54,7 +54,10 @@
   "library": {
     "title": "مكتبة الألعاب",
     "launchTitle": "تشغيل {{name}}",
-    "empty": "المكتبة فارغة"
+    "empty": "المكتبة فارغة",
+    "showAll": "عرض جميع الألعاب ({{count}})",
+    "showLess": "عرض أقل",
+    "hoursAbbr": "{{h}}س"
   },
   "visualLog": {
     "title": "السجل المرئي",

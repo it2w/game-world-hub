@@ -54,7 +54,10 @@
   "library": {
     "title": "GAME_LIBRARY",
     "launchTitle": "Launch {{name}}",
-    "empty": "LIBRARY EMPTY"
+    "empty": "LIBRARY EMPTY",
+    "showAll": "Show all {{count}} games",
+    "showLess": "Show less",
+    "hoursAbbr": "{{h}}h"
   },
   "visualLog": {
     "title": "VISUAL_LOG",

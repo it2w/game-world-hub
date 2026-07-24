@@ -18,6 +18,19 @@ import { useImageUpload } from "@/hooks/use-image-upload";
 import { displayImageUrl } from "@/lib/image-url";
 import { PrestigeBadge } from "@/components/prestige-badge";
 
+const LIBRARY_PLATFORM_COLORS: Record<string, string> = {
+  steam: "#66c0f4",
+  epic: "#e0e0e0",
+  battlenet: "#00aeff",
+  xbox: "#107c10",
+  playstation: "#0070d1",
+  nintendo: "#e60012",
+  riot: "#d13639",
+  ea: "#ff4747",
+  gog: "#a259ff",
+  other: "#9aa0a6",
+};
+
 export default function Profile() {
   const { t } = useTranslation("profile");
   const { t: pt } = useTranslation("prestige");
@@ -320,6 +333,7 @@ export default function Profile() {
   const [isVouching, setIsVouching] = useState(false);
   const [prestigeConfirmOpen, setPrestigeConfirmOpen] = useState(false);
   const [isPrestiging, setIsPrestiging] = useState(false);
+  const [libraryExpanded, setLibraryExpanded] = useState(false);
 
   // Prestige tiers (mirrors PRESTIGE_TIERS in prestige.ts)
   const NEXT_TIER_LABELS = ["Prestige I", "Prestige II", "Prestige III", "Prestige IV", "Prestige V", "Prestige VI"];
@@ -1151,64 +1165,98 @@ export default function Profile() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Linked Platforms */}
-        <div className="bg-card border border-border p-6">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-            <LinkIcon className="w-4 h-4" /> {t("linkedSystems.title")}
-          </h2>
-          
-          <div className="space-y-3">
-            {!platforms || platforms.length === 0 ? (
-              <div className="text-sm font-mono text-muted-foreground italic">{t("linkedSystems.empty")}</div>
-            ) : (
-              platforms.map(p => (
-                <a key={p.id} href={p.profileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 border border-border hover:border-primary/50 bg-background transition-colors group">
-                  <div className="flex items-center gap-3">
-                    <Monitor className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <span className="font-bold text-sm capitalize">{p.platform}</span>
-                  </div>
-                  <span className="font-mono text-xs text-muted-foreground">{p.username || t("linkedSystems.linked")}</span>
-                </a>
-              ))
-            )}
-          </div>
+      {/* Linked Platforms */}
+      <div className="bg-card border border-border p-6">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+          <LinkIcon className="w-4 h-4" /> {t("linkedSystems.title")}
+        </h2>
+        <div className="space-y-3">
+          {!platforms || platforms.length === 0 ? (
+            <div className="text-sm font-mono text-muted-foreground italic">{t("linkedSystems.empty")}</div>
+          ) : (
+            platforms.map(p => (
+              <a key={p.id} href={p.profileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 border border-border hover:border-primary/50 bg-background transition-colors group">
+                <div className="flex items-center gap-3">
+                  <Monitor className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="font-bold text-sm capitalize">{p.platform}</span>
+                </div>
+                <span className="font-mono text-xs text-muted-foreground">{p.username || t("linkedSystems.linked")}</span>
+              </a>
+            ))
+          )}
         </div>
+      </div>
 
-        {/* Library Preview */}
-        <div className="bg-card border border-border p-6">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+      {/* Game Library — full width, expandable */}
+      <div className="bg-card border border-border p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-mono text-sm uppercase tracking-widest text-primary flex items-center gap-2">
             <Library className="w-4 h-4" /> {t("library.title")} {library && library.length > 0 ? `(${library.length})` : ""}
           </h2>
-
-          <div className="grid grid-cols-3 gap-2">
-            {library?.slice(0, 9).map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => handleLaunch(g.launchUri, g.name)}
-                title={g.launchUri ? t("library.launchTitle", { name: g.name }) : g.name}
-                className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-start"
-              >
-                {g.coverUrl ? (
-                  <img src={g.coverUrl} alt="" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" loading="lazy" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center font-mono text-xs text-center p-1 text-muted-foreground">
-                    {g.name.substring(0, 3).toUpperCase()}
-                  </div>
-                )}
-                {g.launchUri && (
-                  <span className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Play className="w-5 h-5 text-primary" />
-                  </span>
-                )}
-              </button>
-            ))}
-            {(!library || library.length === 0) && (
-              <div className="col-span-full text-sm font-mono text-muted-foreground italic">{t("library.empty")}</div>
-            )}
-          </div>
+          {library && library.length > 12 && (
+            <button
+              type="button"
+              onClick={() => setLibraryExpanded(v => !v)}
+              className="font-mono text-[11px] text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest"
+            >
+              {libraryExpanded ? t("library.showLess") : t("library.showAll", { count: library.length })}
+            </button>
+          )}
         </div>
+
+        {(!library || library.length === 0) ? (
+          <div className="text-sm font-mono text-muted-foreground italic">{t("library.empty")}</div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+            {(libraryExpanded ? library : library.slice(0, 12)).map((g) => {
+              const rawHours = g.playtimeMinutes ? Math.round(g.playtimeMinutes / 60) : null;
+              const platformColor = LIBRARY_PLATFORM_COLORS[g.platform as string] ?? "#9aa0a6";
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => handleLaunch(g.launchUri, g.name)}
+                  title={g.name}
+                  className="aspect-[3/4] bg-background border border-border relative group overflow-hidden text-start focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                >
+                  {g.coverUrl ? (
+                    <img
+                      src={g.coverUrl}
+                      alt={g.name}
+                      className="w-full h-full object-cover transition-all duration-200 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-mono text-[10px] text-center p-1 text-muted-foreground leading-tight">
+                      {g.name.substring(0, 3).toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Platform accent strip */}
+                  <span
+                    className="absolute bottom-0 inset-x-0 h-[3px]"
+                    style={{ background: platformColor }}
+                  />
+
+                  {/* Playtime badge */}
+                  {rawHours !== null && rawHours > 0 && (
+                    <span className="absolute top-1 end-1 bg-black/80 text-white font-mono text-[8px] px-1 py-px leading-none rounded-sm">
+                      {t("library.hoursAbbr", { h: rawHours < 1 ? "<1" : rawHours })}
+                    </span>
+                  )}
+
+                  {/* Hover overlay: name + launch cue */}
+                  <span className="absolute inset-0 flex flex-col items-center justify-end bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity px-1.5 pb-2 gap-1">
+                    <span className="text-white text-[9px] font-mono text-center leading-snug line-clamp-2">
+                      {g.name}
+                    </span>
+                    {g.launchUri && <PlayIcon className="w-3.5 h-3.5 text-primary shrink-0" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Visual Log + Clips (tabbed) */}

@@ -276,4 +276,24 @@ describe("ServerSettingsDialog URL-tab security", () => {
     expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
     expect(screen.queryByText(/dangerZone/i)).toBeNull();
   });
+
+  test("owner with ?tab=danger in URL lands on the danger panel (accepted normally)", async () => {
+    // An owner deep-linking to ?tab=danger must be allowed through; the guard
+    // must only block non-owners, not suppress the tab for everyone.
+    setSearchParam("?tab=danger");
+
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: true, isMod: false })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // The Delete Community button is rendered inside the danger panel.
+    // Its presence confirms the dialog initialised with activeTab === "danger".
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeNull();
+  });
 });

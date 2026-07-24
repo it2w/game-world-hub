@@ -228,5 +228,15 @@
   "channelUpdated": "تم تحديث القناة",
   "channelUpdateFailed": "فشل تحديث القناة",
   "channelDeleted": "تم حذف القناة",
-  "channelDeleteFailed": "فشل حذف القناة"
+  "channelDeleteFailed": "فشل حذف القناة",
+  "slowMode": "الوضع البطيء",
+  "slowModeOff": "إيقاف",
+  "privateChannel": "قناة خاصة",
+  "privateChannelDesc": "فقط الأعضاء ذوو الأدوار المسموح بها يمكنهم رؤية هذه القناة",
+  "rolePermissions": "صلاحيات الأدوار",
+  "permColRole": "الدور",
+  "permColView": "عرض",
+  "permColPost": "نشر",
+  "permColMedia": "وسائط",
+  "permCycleHint": "✓ سماح · ✗ رفض · — توريث. انقر للتبديل."
 }

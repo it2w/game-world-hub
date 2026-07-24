@@ -228,5 +228,15 @@
   "channelUpdated": "Channel updated",
   "channelUpdateFailed": "Failed to update channel",
   "channelDeleted": "Channel deleted",
-  "channelDeleteFailed": "Failed to delete channel"
+  "channelDeleteFailed": "Failed to delete channel",
+  "slowMode": "Slow Mode",
+  "slowModeOff": "Off",
+  "privateChannel": "Private Channel",
+  "privateChannelDesc": "Only members with allowed roles can view this channel",
+  "rolePermissions": "Role Permissions",
+  "permColRole": "Role",
+  "permColView": "View",
+  "permColPost": "Post",
+  "permColMedia": "Media",
+  "permCycleHint": "✓ Allow · ✗ Deny · — Inherit. Click to cycle."
 }

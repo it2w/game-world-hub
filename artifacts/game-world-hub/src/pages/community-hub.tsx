@@ -3548,6 +3548,7 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
   const [name, setName] = useState(channel.name);
   const [slowmode, setSlowmode] = useState(channel.slowmodeSeconds);
   const [isPrivate, setIsPrivate] = useState(!!channel.isPrivate);
+  const { t } = useTranslation("communities");
   const SLOWMODE_OPTIONS = [0, 5, 30, 60, 300, 3600];
 
   useEffect(() => {
@@ -3568,11 +3569,11 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
       body: JSON.stringify({ name, slowmodeSeconds: slowmode, isPrivate }),
     }),
     onSuccess: () => {
-      toast({ title: "Channel updated" });
+      toast({ title: t("channelUpdated") });
       qc.invalidateQueries({ queryKey: ["community-slug"] });
       onClose();
     },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+    onError: () => toast({ title: t("channelUpdateFailed"), variant: "destructive" }),
   });
 
   const savePermission = useMutation({
@@ -3583,7 +3584,7 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["channel-perms", communityId, channel.id] }),
   });
 
-  const slowmodeLabel = (s: number) => s === 0 ? "Off" : s < 60 ? `${s}s` : s < 3600 ? `${s / 60}m` : `${s / 3600}h`;
+  const slowmodeLabel = (s: number) => s === 0 ? t("slowModeOff") : s < 60 ? `${s}s` : s < 3600 ? `${s / 60}m` : `${s / 3600}h`;
   const getPermForRole = (roleId: number) => channelPerms.find((p: any) => p.role_id === roleId) ?? { allow: {}, deny: {} };
 
   return (
@@ -3598,7 +3599,7 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
         <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
           {/* Name */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Channel Name</Label>
+            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("channelName")}</Label>
             <Input value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/\s+/g, "-"))} maxLength={100} />
           </div>
           {/* Slow mode */}
@@ -3606,7 +3607,7 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="w-3 h-3" /> Slow Mode
+                  <Clock className="w-3 h-3" /> {t("slowMode")}
                 </Label>
                 <span className="text-xs font-mono text-primary">{slowmodeLabel(slowmode)}</span>
               </div>
@@ -3623,8 +3624,8 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
           {/* Private toggle */}
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>
-              <p className="text-sm font-medium flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> Private Channel</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Only members with allowed roles can view this channel</p>
+              <p className="text-sm font-medium flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> {t("privateChannel")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("privateChannelDesc")}</p>
             </div>
             <button
               onClick={() => setIsPrivate(v => !v)}
@@ -3636,13 +3637,13 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
           {/* Role Permissions */}
           {roles.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Role Permissions</Label>
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("rolePermissions")}</Label>
               <div className="rounded-lg border border-border overflow-hidden text-sm">
                 <div className="grid grid-cols-[1fr_64px_64px_72px] text-[10px] font-mono uppercase tracking-widest text-muted-foreground bg-muted/30 px-3 py-1.5 gap-1">
-                  <span>Role</span>
-                  <span className="text-center">View</span>
-                  <span className="text-center">Post</span>
-                  <span className="text-center">Media</span>
+                  <span>{t("permColRole")}</span>
+                  <span className="text-center">{t("permColView")}</span>
+                  <span className="text-center">{t("permColPost")}</span>
+                  <span className="text-center">{t("permColMedia")}</span>
                 </div>
                 {roles.map(role => {
                   const perm = getPermForRole(role.id);
@@ -3677,15 +3678,15 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
                   );
                 })}
               </div>
-              <p className="text-[10px] text-muted-foreground">✓ Allow · ✗ Deny · — Inherit. Click to cycle.</p>
+              <p className="text-[10px] text-muted-foreground">{t("permCycleHint")}</p>
             </div>
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t("cancel")}</Button>
           <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
-            Save Changes
+            {t("saveChanges")}
           </Button>
         </DialogFooter>
       </DialogContent>

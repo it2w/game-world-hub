@@ -2695,6 +2695,8 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addForm, setAddForm] = useState<{ name: string; type: string } | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; type: string; isPrivate: boolean }>({ name: "", type: "text", isPrivate: false });
 
   const addChannel = useMutation({
     mutationFn: () => customFetch(`/api/communities/${communityId}/channels`, {
@@ -2704,11 +2706,25 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
     onError: () => toast({ title: "Failed to add channel", variant: "destructive" }),
   });
 
+  const updateChannel = useMutation({
+    mutationFn: (cid: number) => customFetch(`/api/communities/${communityId}/channels/${cid}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: editForm.name.trim(), type: editForm.type, isPrivate: editForm.isPrivate }),
+    }),
+    onSuccess: () => { toast({ title: "Channel updated" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setEditingId(null); },
+    onError: () => toast({ title: "Failed to update channel", variant: "destructive" }),
+  });
+
   const deleteChannel = useMutation({
     mutationFn: (cid: number) => customFetch(`/api/communities/${communityId}/channels/${cid}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Channel deleted" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
     onError: () => toast({ title: "Failed to delete channel", variant: "destructive" }),
   });
+
+  const startEdit = (ch: Channel) => {
+    setEditingId(ch.id);
+    setEditForm({ name: ch.name, type: ch.type, isPrivate: !!ch.isPrivate });
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -2738,16 +2754,71 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
       )}
       <div className="space-y-0.5">
         {channels.map(ch => (
-          <div key={ch.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-muted/40 group">
-            <ChannelIcon channel={ch} size={4} className="text-muted-foreground flex-shrink-0" />
-            <span className="text-sm flex-1 truncate">{ch.name}</span>
-            {ch.isPrivate && <Lock className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />}
-            <button
-              onClick={() => { if (window.confirm(`Delete #${ch.name}? This cannot be undone.`)) deleteChannel.mutate(ch.id); }}
-              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-opacity flex-shrink-0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          <div key={ch.id}>
+            <div className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-muted/40 group">
+              <ChannelIcon channel={ch} size={4} className="text-muted-foreground flex-shrink-0" />
+              <span className="text-sm flex-1 truncate">{ch.name}</span>
+              {ch.isPrivate && <Lock className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />}
+              <button
+                onClick={() => editingId === ch.id ? setEditingId(null) : startEdit(ch)}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-1 rounded transition-opacity flex-shrink-0"
+                title="Edit channel"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => { if (window.confirm(`Delete #${ch.name}? This cannot be undone.`)) deleteChannel.mutate(ch.id); }}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-opacity flex-shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {editingId === ch.id && (
+              <div className="mx-3 mb-1 bg-muted/30 rounded-lg p-3 space-y-3 border border-border">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Edit #{ch.name}</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">Name</Label>
+                  <Input
+                    value={editForm.name}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    maxLength={80}
+                    placeholder="channel-name"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Type</Label>
+                  <select
+                    value={editForm.type}
+                    onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                  >
+                    <option value="text">Text</option>
+                    <option value="voice">Voice</option>
+                    <option value="announcement">Announcement</option>
+                    <option value="stage">Stage</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`private-${ch.id}`}
+                    checked={editForm.isPrivate}
+                    onChange={e => setEditForm(f => ({ ...f, isPrivate: e.target.checked }))}
+                    className="rounded border-input"
+                  />
+                  <Label htmlFor={`private-${ch.id}`} className="text-sm cursor-pointer flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                    Private channel
+                  </Label>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                  <Button size="sm" onClick={() => updateChannel.mutate(ch.id)} disabled={!editForm.name.trim() || updateChannel.isPending}>
+                    {updateChannel.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -308,6 +308,27 @@ describe("ChannelsSettingsPanel prop guard", () => {
     // Button count must remain exactly 1 (the edit icon for the channel row)
     expect(container.querySelectorAll("button").length).toBe(1);
   });
+
+  test("Save button is disabled when a mod clears the channel name in the edit form", () => {
+    render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={false} />,
+    );
+
+    // Open the edit form by clicking the settings icon button
+    const editBtn = screen.getByTitle("Edit channel");
+    fireEvent.click(editBtn);
+
+    // The name input should now be visible and pre-filled with "general"
+    const nameInput = screen.getByPlaceholderText("channel-name");
+    expect((nameInput as HTMLInputElement).value).toBe("general");
+
+    // Clear the name field
+    fireEvent.change(nameInput, { target: { value: "" } });
+
+    // Save button must be disabled when trimmed name is empty
+    const saveBtn = screen.getByText("Save");
+    expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 // ── InsightsDashboard panel-level guard ───────────────────────────────────────

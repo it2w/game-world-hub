@@ -3115,8 +3115,22 @@ export function DangerZonePanel({ community, onClose }: { community: Community; 
 const CHART_COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e"];
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function InsightsDashboard({ communityId }: { communityId: number }) {
+function InsightsDashboard({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
   const { t } = useTranslation("communities");
+
+  // Panel-level guard — mirrors DangerZonePanel so a DevTools state mutation
+  // cannot expose analytics to a plain member who guessed the tab name.
+  if (!isOwnerOrMod) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center space-y-2">
+          <AlertCircle className="w-8 h-8 text-destructive/40 mx-auto" />
+          <p className="text-sm text-muted-foreground">{t("ownerOnly", "Owner-only settings")}</p>
+        </div>
+      </div>
+    );
+  }
+
   const { data, isLoading } = useQuery<InsightData>({
     queryKey: ["community-insights", communityId],
     queryFn: () => customFetch(`/api/communities/${communityId}/insights`),
@@ -3445,12 +3459,23 @@ export function ServerSettingsDialog({ community, open, onClose }: {
   // requested tab against the viewer's role before activating it.  This
   // prevents a mod from deep-linking to an owner-only tab (e.g. ?tab=danger)
   // and landing on its content even though the nav item is hidden for them.
-  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+  const [activeTab, setActiveTabRaw] = useState<SettingsTab>(() => {
     const rawTab = new URLSearchParams(
       typeof window !== "undefined" ? window.location.search : ""
     ).get("tab");
     return resolveTabForRole(rawTab, community.isOwner, community.isMod ?? false);
   });
+
+  // Wrap the setter so any caller — including React DevTools — cannot set a tab
+  // that the current viewer is not allowed to see.  resolveTabForRole falls back
+  // to "overview" for unknown or role-restricted values, making the state
+  // self-healing against in-browser state mutations.
+  const setActiveTab = useCallback(
+    (tab: SettingsTab) => {
+      setActiveTabRaw(resolveTabForRole(tab, community.isOwner, community.isMod ?? false));
+    },
+    [community.isOwner, community.isMod],
+  );
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
@@ -3685,7 +3710,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
           ) : activeTab === "badges" ? (
             <BadgesManagerPanel communityId={community.id} />
           ) : activeTab === "insights" ? (
-            <InsightsDashboard communityId={community.id} />
+            <InsightsDashboard communityId={community.id} isOwnerOrMod={community.isOwner || (community.isMod ?? false)} />
           ) : activeTab === "invites" ? (
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
           ) : activeTab === "danger" ? (

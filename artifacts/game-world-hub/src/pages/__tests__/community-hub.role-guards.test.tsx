@@ -22,7 +22,7 @@
  */
 
 import { describe, test, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel, ChannelsSettingsPanel } from "../community-hub";
@@ -261,6 +261,26 @@ describe("ChannelsSettingsPanel prop guard", () => {
     // Three buttons: Add (header), edit icon, delete icon
     const buttons = container.querySelectorAll("button");
     expect(buttons.length).toBe(3);
+  });
+
+  test("add-channel form never appears when isOwner=false, even after keyboard and programmatic interactions", () => {
+    const { container } = render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={false} />,
+    );
+
+    // The Add button is not rendered at all (not merely hidden), so there is no
+    // DOM element a keyboard or programmatic click could target to open the form.
+    // Firing keyboard events on the panel root confirms no stray handler exposes
+    // the form state.
+    const panel = container.firstElementChild as HTMLElement;
+    fireEvent.keyDown(panel, { key: "Enter", code: "Enter" });
+    fireEvent.keyDown(panel, { key: " ", code: "Space" });
+    fireEvent.keyPress(panel, { key: "Enter", code: "Enter" });
+
+    // The add-form's channel-name input must never be present in the DOM
+    expect(screen.queryByPlaceholderText("channelName")).toBeNull();
+    // Button count must remain exactly 1 (the edit icon for the channel row)
+    expect(container.querySelectorAll("button").length).toBe(1);
   });
 });
 

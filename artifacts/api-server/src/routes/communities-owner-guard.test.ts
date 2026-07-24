@@ -16,7 +16,7 @@ import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { db, pool, usersTable, communitiesTable, communityMembersTable, communityRolesTable, communityMemberRolesTable } from "@workspace/db";
+import { db, pool, usersTable, communitiesTable, communityMembersTable, communityRolesTable, communityMemberRolesTable, communityChannelsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { signToken } from "../middlewares/auth";
 import { ensureCommunityPremiumTables } from "./communities";
@@ -37,6 +37,7 @@ let memberId = 0;
 let memberUsername = "";
 
 let communityId = 0;
+let channelId = 0;
 
 const createdUserIds: number[] = [];
 const createdCommunityIds: number[] = [];
@@ -133,6 +134,13 @@ before(async () => {
     memberId: modMembership.id,
     roleId: modRole.id,
   });
+
+  // Create a text channel owned by the community
+  const [channel] = await db
+    .insert(communityChannelsTable)
+    .values({ communityId, name: "general", type: "text", position: 0 })
+    .returning();
+  channelId = channel.id;
 
   // Start the HTTP server on an ephemeral port
   server = createServer(app);
@@ -243,5 +251,55 @@ describe("PATCH /communities/:id — owner-only guard", () => {
     );
     assert.equal(status, 200, `expected 200 for owner, got ${status}: ${JSON.stringify(body)}`);
     assert.equal((body as any).description, "owner-update");
+  });
+});
+
+// ─── PATCH /communities/:id/channels/:cid ─────────────────────────────────────
+
+describe("PATCH /communities/:id/channels/:cid — owner-only guard for rename/privacy", () => {
+  test("unauthenticated request returns 401", async () => {
+    const { status } = await request("PATCH", `/communities/${communityId}/channels/${channelId}`, {}, { name: "hack" });
+    assert.equal(status, 401);
+  });
+
+  test("regular member receives 403 when renaming", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${channelId}`,
+      auth(memberId, memberUsername),
+      { name: "member-rename" },
+    );
+    assert.equal(status, 403, `expected 403 for member rename, got ${status}: ${JSON.stringify(body)}`);
+  });
+
+  test("mod receives 403 when renaming channel (not owner)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${channelId}`,
+      auth(modId, modUsername),
+      { name: "mod-rename" },
+    );
+    assert.equal(status, 403, `expected 403 for mod rename, got ${status}: ${JSON.stringify(body)}`);
+  });
+
+  test("mod receives 403 when toggling channel privacy (not owner)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${channelId}`,
+      auth(modId, modUsername),
+      { isPrivate: true },
+    );
+    assert.equal(status, 403, `expected 403 for mod privacy change, got ${status}: ${JSON.stringify(body)}`);
+  });
+
+  test("owner receives 200 when renaming channel", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${channelId}`,
+      auth(ownerId, ownerUsername),
+      { name: "renamed-by-owner" },
+    );
+    assert.equal(status, 200, `expected 200 for owner rename, got ${status}: ${JSON.stringify(body)}`);
+    assert.equal((body as any).name, "renamed-by-owner");
   });
 });

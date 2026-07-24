@@ -2263,7 +2263,7 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
                     <span className="truncate flex-1">{ch.name}</span>
                     {ch.isPrivate && <Lock className="w-2.5 h-2.5 text-muted-foreground/50 flex-shrink-0" />}
                   </button>
-                  {isOwnerOrMod && (
+                  {community.isOwner && (
                     <button
                       onClick={() => onChannelSettings(ch)}
                       className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 me-1 text-muted-foreground hover:text-foreground"
@@ -2304,7 +2304,7 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
                       <span className="flex-1 truncate">{ch.name}</span>
                       {ch.isPrivate && <Lock className="w-2.5 h-2.5 text-muted-foreground/50 flex-shrink-0" />}
                     </button>
-                    {isOwnerOrMod && (
+                    {community.isOwner && (
                       <button onClick={() => onChannelSettings(ch)} className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 me-1 text-muted-foreground hover:text-foreground">
                         <Settings className="w-3 h-3" />
                       </button>
@@ -2322,7 +2322,7 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
                       isSelected={activeChannelId === ch.id}
                       onSelect={() => onSelectChannel(ch.id)}
                     />
-                    {isOwnerOrMod && (
+                    {community.isOwner && (
                       <button onClick={() => onChannelSettings(ch)} className="absolute top-1.5 end-1 opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground">
                         <Settings className="w-3 h-3" />
                       </button>
@@ -4249,7 +4249,7 @@ export default function CommunityHub() {
       {(community.isOwner || (community.isMod ?? false)) && (
         <ServerSettingsDialog community={community} open={serverSettingsOpen} onClose={() => setServerSettingsOpen(false)} />
       )}
-      {channelSettingsChannel && (community.isMod ?? community.isOwner) && (
+      {channelSettingsChannel && community.isOwner && (
         <ChannelSettingsDialog
           communityId={community.id}
           channel={channelSettingsChannel}

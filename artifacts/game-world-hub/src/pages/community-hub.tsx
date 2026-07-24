@@ -3388,7 +3388,7 @@ function ServerSettingsDialog({ community, open, onClose }: {
   });
 
   const { t } = useTranslation("communities");
-  type NavItem = { id: SettingsTab; label: string; icon: React.ReactNode; ownerOnly?: boolean };
+  type NavItem = { id: SettingsTab; label: string; icon: React.ReactNode; ownerOnly?: boolean; ownerOrModOnly?: boolean };
   const ALL_NAV_ITEMS: NavItem[] = [
     { id: "overview" as SettingsTab, label: t("settingsOverview"), icon: <Settings className="w-4 h-4" /> },
     { id: "roles" as SettingsTab, label: t("roles"), icon: <Shield className="w-4 h-4" /> },
@@ -3397,11 +3397,15 @@ function ServerSettingsDialog({ community, open, onClose }: {
     { id: "welcome" as SettingsTab, label: t("welcomeAndRules"), icon: <Sparkles className="w-4 h-4" /> },
     { id: "events" as SettingsTab, label: t("events"), icon: <Calendar className="w-4 h-4" /> },
     { id: "badges" as SettingsTab, label: t("badges"), icon: <Award className="w-4 h-4" /> },
-    { id: "insights" as SettingsTab, label: t("insights"), icon: <BarChart3 className="w-4 h-4" />, ownerOnly: true },
+    { id: "insights" as SettingsTab, label: t("insights"), icon: <BarChart3 className="w-4 h-4" />, ownerOrModOnly: true },
     { id: "invites" as SettingsTab, label: t("invites"), icon: <Link2 className="w-4 h-4" /> },
     { id: "danger" as SettingsTab, label: t("dangerZone"), icon: <AlertCircle className="w-4 h-4" />, ownerOnly: true },
   ];
-  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => !item.ownerOnly || community.isOwner);
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
+    if (item.ownerOnly) return community.isOwner;
+    if (item.ownerOrModOnly) return community.isOwner || community.isMod;
+    return true;
+  });
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>

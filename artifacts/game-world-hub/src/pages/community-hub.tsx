@@ -3664,6 +3664,13 @@ export function ServerSettingsDialog({ community, open, onClose }: {
     );
   }, [community.isOwner, community.isMod]);
 
+  // Derive the safe tab at render time so the content area never shows a
+  // forbidden panel even during the single-render window before the useEffect
+  // above fires.  activeTab state may be stale for one render cycle when the
+  // community prop updates with a lower-privilege role; safeTab is always
+  // authoritative for what is actually rendered.
+  const safeTab = resolveTabForRole(activeTab, community.isOwner, community.isMod ?? false);
+
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
@@ -3801,8 +3808,8 @@ export function ServerSettingsDialog({ community, open, onClose }: {
                 onClick={() => setActiveTab(item.id)}
                 className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors ${
                   item.id === "danger" ? "mt-2 text-destructive/80 hover:text-destructive hover:bg-destructive/10" :
-                  activeTab === item.id ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent/40 font-medium"
-                } ${activeTab === item.id && item.id !== "danger" ? "" : ""}`}
+                  safeTab === item.id ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent/40 font-medium"
+                } ${safeTab === item.id && item.id !== "danger" ? "" : ""}`}
               >
                 {item.icon}
                 {item.label}
@@ -3814,8 +3821,8 @@ export function ServerSettingsDialog({ community, open, onClose }: {
               without exposing setActiveTab; resolveTabForRole is the authoritative
               gate so any state mutation (React DevTools, extensions) is re-validated
               through the wrapper before being committed to state. */}
-          <div data-testid="settings-content" data-active-tab={activeTab} className="contents">
-          {activeTab === "roles" ? (
+          <div data-testid="settings-content" data-active-tab={safeTab} className="contents">
+          {safeTab === "roles" ? (
             <>
               {/* Role list */}
               <div className="w-52 border-e border-border flex flex-col flex-shrink-0">
@@ -3889,23 +3896,23 @@ export function ServerSettingsDialog({ community, open, onClose }: {
                 )}
               </div>
             </>
-          ) : activeTab === "overview" ? (
+          ) : safeTab === "overview" ? (
             <OverviewSettingsPanel community={community} />
-          ) : activeTab === "channels" ? (
+          ) : safeTab === "channels" ? (
             <ChannelsSettingsPanel communityId={community.id} channels={channels} isOwner={community.isOwner} />
-          ) : activeTab === "welcome" ? (
+          ) : safeTab === "welcome" ? (
             <WelcomeSettingsPanel communityId={community.id} />
-          ) : activeTab === "automod" ? (
+          ) : safeTab === "automod" ? (
             <AutomodSettingsPanel communityId={community.id} />
-          ) : activeTab === "events" ? (
+          ) : safeTab === "events" ? (
             <EventsSettingsPanel communityId={community.id} channels={channels} />
-          ) : activeTab === "badges" ? (
+          ) : safeTab === "badges" ? (
             <BadgesManagerPanel communityId={community.id} />
-          ) : activeTab === "insights" ? (
+          ) : safeTab === "insights" ? (
             <InsightsDashboard communityId={community.id} isOwnerOrMod={community.isOwner || (community.isMod ?? false)} />
-          ) : activeTab === "invites" ? (
+          ) : safeTab === "invites" ? (
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
-          ) : activeTab === "danger" ? (
+          ) : safeTab === "danger" ? (
             <DangerZonePanel community={community} onClose={onClose} />
           ) : null}
           </div>{/* /settings-content */}

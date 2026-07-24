@@ -3295,7 +3295,26 @@ function EventsSettingsPanel({ communityId, channels }: { communityId: number; c
 
 // ── ServerSettingsDialog ───────────────────────────────────────────────────────
 
-type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "danger";
+export type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "danger";
+
+/** Metadata for each settings tab — id plus optional visibility flags.
+ *  Exported so tests can assert against the real config without duplication. */
+export const SETTINGS_NAV_META: ReadonlyArray<{
+  id: SettingsTab;
+  ownerOnly?: boolean;
+  ownerOrModOnly?: boolean;
+}> = [
+  { id: "overview" },
+  { id: "roles" },
+  { id: "channels" },
+  { id: "automod" },
+  { id: "welcome" },
+  { id: "events" },
+  { id: "badges" },
+  { id: "insights", ownerOrModOnly: true },
+  { id: "invites" },
+  { id: "danger", ownerOnly: true },
+];
 
 function ServerSettingsDialog({ community, open, onClose }: {
   community: Community; open: boolean; onClose: () => void;
@@ -3388,24 +3407,40 @@ function ServerSettingsDialog({ community, open, onClose }: {
   });
 
   const { t } = useTranslation("communities");
-  type NavItem = { id: SettingsTab; label: string; icon: React.ReactNode; ownerOnly?: boolean; ownerOrModOnly?: boolean };
-  const ALL_NAV_ITEMS: NavItem[] = [
-    { id: "overview" as SettingsTab, label: t("settingsOverview"), icon: <Settings className="w-4 h-4" /> },
-    { id: "roles" as SettingsTab, label: t("roles"), icon: <Shield className="w-4 h-4" /> },
-    { id: "channels" as SettingsTab, label: t("channels"), icon: <Hash className="w-4 h-4" /> },
-    { id: "automod" as SettingsTab, label: t("automod"), icon: <Bot className="w-4 h-4" /> },
-    { id: "welcome" as SettingsTab, label: t("welcomeAndRules"), icon: <Sparkles className="w-4 h-4" /> },
-    { id: "events" as SettingsTab, label: t("events"), icon: <Calendar className="w-4 h-4" /> },
-    { id: "badges" as SettingsTab, label: t("badges"), icon: <Award className="w-4 h-4" /> },
-    { id: "insights" as SettingsTab, label: t("insights"), icon: <BarChart3 className="w-4 h-4" />, ownerOrModOnly: true },
-    { id: "invites" as SettingsTab, label: t("invites"), icon: <Link2 className="w-4 h-4" /> },
-    { id: "danger" as SettingsTab, label: t("dangerZone"), icon: <AlertCircle className="w-4 h-4" />, ownerOnly: true },
-  ];
-  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => {
-    if (item.ownerOnly) return community.isOwner;
-    if (item.ownerOrModOnly) return community.isOwner || community.isMod;
-    return true;
-  });
+
+  // Map module-level metadata to labelled, icon-enriched items for rendering
+  const ICON_MAP: Record<SettingsTab, React.ReactNode> = {
+    overview:  <Settings className="w-4 h-4" />,
+    roles:     <Shield className="w-4 h-4" />,
+    channels:  <Hash className="w-4 h-4" />,
+    automod:   <Bot className="w-4 h-4" />,
+    welcome:   <Sparkles className="w-4 h-4" />,
+    events:    <Calendar className="w-4 h-4" />,
+    badges:    <Award className="w-4 h-4" />,
+    insights:  <BarChart3 className="w-4 h-4" />,
+    invites:   <Link2 className="w-4 h-4" />,
+    danger:    <AlertCircle className="w-4 h-4" />,
+  };
+  const LABEL_MAP: Record<SettingsTab, string> = {
+    overview: t("settingsOverview"),
+    roles:    t("roles"),
+    channels: t("channels"),
+    automod:  t("automod"),
+    welcome:  t("welcomeAndRules"),
+    events:   t("events"),
+    badges:   t("badges"),
+    insights: t("insights"),
+    invites:  t("invites"),
+    danger:   t("dangerZone"),
+  };
+
+  const NAV_ITEMS = SETTINGS_NAV_META
+    .filter(item => {
+      if (item.ownerOnly) return community.isOwner;
+      if (item.ownerOrModOnly) return community.isOwner || community.isMod;
+      return true;
+    })
+    .map(item => ({ ...item, label: LABEL_MAP[item.id], icon: ICON_MAP[item.id] }));
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>

@@ -378,4 +378,38 @@ describe("ServerSettingsDialog URL-tab security", () => {
     // Its presence confirms the dialog initialised with activeTab === "danger".
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeNull();
   });
+
+  // ── Mid-session URL manipulation guard ───────────────────────────────────
+  //
+  // The tab is resolved from the URL only in the useState initialiser (runs
+  // once on mount).  If an attacker edits window.location.search via the
+  // browser address bar or history.pushState after the dialog is open, the
+  // active tab must NOT change — the URL is no longer consulted.
+
+  test("mid-session URL change to ?tab=danger does not change active tab for mod", async () => {
+    // Start with a clean URL so the dialog initialises to "overview"
+    setSearchParam("");
+
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const { getByTestId } = render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: false, isMod: true })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // The dialog must start on "overview" (no URL tab param supplied)
+    const content = getByTestId("settings-content");
+    expect(content.getAttribute("data-active-tab")).toBe("overview");
+
+    // Simulate an attacker editing the address bar / using history.pushState
+    // to inject ?tab=danger after the dialog is already mounted.
+    setSearchParam("?tab=danger");
+
+    // The useState initialiser already fired on mount; a subsequent URL change
+    // cannot re-trigger it.  The rendered tab must remain "overview".
+    expect(content.getAttribute("data-active-tab")).toBe("overview");
+  });
 });

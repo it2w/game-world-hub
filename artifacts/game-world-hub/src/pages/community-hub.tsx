@@ -30,9 +30,10 @@ import {
   MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
   Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
   Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
-  Star, Flame, UserCheck, Search,
+  Star, Flame, UserCheck, Search, RefreshCw,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { SCREEN_PRESETS, SCREEN_QUALITY_ORDER, type ScreenQuality } from "@/voice/quality";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1695,16 +1696,39 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
   const {
     activeRoom, joinCommunityVoice, leaveVoice,
     muted, toggleMute, cameraEnabled, toggleCamera,
-    sharing, startScreenShare, stopScreenShare,
+    sharing, startScreenShare, stopScreenShare, changeScreenShare,
     deafened, toggleDeafen,
     speaking: localSpeaking,
     peers,
     localCameraStream, localScreenStream,
+    screenAudioEnabled, toggleScreenAudio,
+    screenQuality, setScreenQuality,
   } = useVoice();
   const { user } = useAuth() as any;
   const { toast } = useToast();
   const isInChannel = activeRoom?.kind === "community" && activeRoom.channelId === channel.id;
   const [showChat, setShowChat] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareMenuView, setShareMenuView] = useState<"main" | "quality">("main");
+  const shareMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close share-settings menu on outside click
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
+        setShareMenuOpen(false);
+        setShareMenuView("main");
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [shareMenuOpen]);
+
+  // Close share-settings menu when screen share stops
+  useEffect(() => {
+    if (!sharing) { setShareMenuOpen(false); setShareMenuView("main"); }
+  }, [sharing]);
 
   // Suppress the floating VoicePanel while connected
   useEffect(() => {
@@ -1887,6 +1911,112 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
           >
             <MessageSquare className={`w-5 h-5 ${showChat ? "text-white" : "text-white/70"}`} />
           </button>
+
+          {/* Screen-share settings — only visible while sharing */}
+          {sharing && (
+            <div className="relative" ref={shareMenuRef}>
+              <button
+                onClick={() => { setShareMenuOpen(v => !v); setShareMenuView("main"); }}
+                title="Stream Settings"
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${shareMenuOpen ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+              >
+                <Settings className="w-5 h-5 text-white/80" />
+              </button>
+
+              {shareMenuOpen && (
+                <div
+                  className="absolute bottom-[calc(100%+8px)] end-0 py-1 overflow-hidden z-50"
+                  style={{
+                    width: 220,
+                    background: "#1a1a2e",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
+                  }}
+                >
+                  {shareMenuView === "quality" ? (
+                    <>
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-[10px] text-[13px] text-white/50 hover:bg-white/[0.07] border-b border-white/[0.08]"
+                        onClick={() => setShareMenuView("main")}
+                      >
+                        <ChevronLeft className="w-4 h-4 shrink-0" />
+                        <span className="font-semibold">Stream Quality</span>
+                      </button>
+                      {SCREEN_QUALITY_ORDER.map((q: ScreenQuality) => {
+                        const preset = SCREEN_PRESETS[q];
+                        const active = screenQuality === q;
+                        return (
+                          <button
+                            key={q}
+                            onClick={() => { setScreenQuality(q); setShareMenuOpen(false); setShareMenuView("main"); }}
+                            className="flex items-center justify-between w-full px-4 py-[10px] text-[13px] transition-colors"
+                            style={{
+                              color: active ? "#fff" : "rgba(255,255,255,0.7)",
+                              background: active ? "rgba(255,255,255,0.07)" : undefined,
+                            }}
+                          >
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span className="font-bold font-mono text-[12px]">{q.toUpperCase()}</span>
+                              <span className="text-[10px] text-white/40 font-mono">
+                                {preset.width}×{preset.height} · {preset.frameRate}fps
+                              </span>
+                            </div>
+                            {active && <Check className="w-4 h-4 shrink-0 text-primary" />}
+                          </button>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      {/* Change Stream */}
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-[10px] text-[13px] text-white/90 hover:bg-white/[0.07]"
+                        onClick={async () => { setShareMenuOpen(false); await changeScreenShare(); }}
+                      >
+                        <RefreshCw className="w-4 h-4 shrink-0 text-white/50" />
+                        <span>Change Stream</span>
+                      </button>
+
+                      {/* Stream Quality */}
+                      <button
+                        className="flex items-center justify-between w-full px-4 py-[10px] text-[13px] text-white/90 hover:bg-white/[0.07]"
+                        onClick={() => setShareMenuView("quality")}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Monitor className="w-4 h-4 shrink-0 text-white/50" />
+                          <span>Stream Quality</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-white/40">
+                          <span className="text-[11px] font-mono">{screenQuality.toUpperCase()}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </div>
+                      </button>
+
+                      {/* Share Stream Audio */}
+                      <button
+                        className="flex items-center justify-between w-full px-4 py-[10px] text-[13px] text-white/90 hover:bg-white/[0.07]"
+                        onClick={() => void toggleScreenAudio()}
+                      >
+                        <div className="flex items-center gap-3">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-white/50" />
+                          <span>Share Stream Audio</span>
+                        </div>
+                        <span
+                          className="w-5 h-5 flex items-center justify-center shrink-0 transition-colors"
+                          style={{
+                            background: screenAudioEnabled ? "#5865f2" : "rgba(255,255,255,0.1)",
+                            border: screenAudioEnabled ? "none" : "1px solid rgba(255,255,255,0.3)",
+                          }}
+                        >
+                          {screenAudioEnabled && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                        </span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Disconnect */}
           <button

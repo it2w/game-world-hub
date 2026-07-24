@@ -985,69 +985,98 @@ function InviteDialog({ communityId, communityName, open, onClose }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-semibold text-base leading-snug">
+      <DialogContent className="w-[480px] max-w-[95vw] p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-border/60">
+          <DialogTitle className="font-bold text-lg leading-tight truncate">
             {t("inviteFriendsTitle", { name: communityName })}
           </DialogTitle>
-        </DialogHeader>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder={t("inviteSearchFriends")}
-            className="ps-9"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          {/* Search */}
+          <div className="relative mt-4">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder={t("inviteSearchFriends")}
+              className="ps-9 bg-muted/30 border-muted-foreground/20 focus-visible:bg-background"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Friends list */}
-        <div className="max-h-60 overflow-y-auto space-y-0.5 -mx-1 px-1">
+        <div className="overflow-y-auto" style={{ maxHeight: "280px" }}>
           {friends.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">{t("inviteNoFriends")}</p>
+            <div className="flex flex-col items-center justify-center py-10 text-center px-6">
+              <Users className="w-8 h-8 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">{t("inviteNoFriends")}</p>
+            </div>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">{t("inviteNoResults")}</p>
+            <div className="flex flex-col items-center justify-center py-10 text-center px-6">
+              <p className="text-sm text-muted-foreground">{t("inviteNoResults")}</p>
+            </div>
           ) : (
-            filtered.map(f => (
-              <div key={f.id} className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-accent/40 transition-colors">
-                <Avatar name={f.displayName ?? f.username} url={f.avatarUrl} size={9} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate leading-tight">{f.displayName ?? f.username}</p>
-                  <p className="text-xs text-muted-foreground truncate">@{f.username}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant={sent.has(f.id) ? "outline" : "default"}
-                  disabled={sent.has(f.id) || sending === f.id || !inviteUrl}
-                  onClick={() => handleInvite(f.id)}
-                  className="shrink-0 min-w-[68px]"
-                >
-                  {sending === f.id
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : sent.has(f.id)
-                    ? <><Check className="w-3.5 h-3.5 me-1" />{t("inviteSent")}</>
-                    : t("invite")}
-                </Button>
-              </div>
-            ))
+            <div className="py-2">
+              {filtered.map(f => {
+                const isSent = sent.has(f.id);
+                const isSending = sending === f.id;
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/40 transition-colors"
+                  >
+                    <Avatar name={f.displayName ?? f.username} url={f.avatarUrl} size={9} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate leading-tight">
+                        {f.displayName ?? f.username}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">@{f.username}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isSent ? "ghost" : "default"}
+                      disabled={isSent || isSending || !inviteUrl}
+                      onClick={() => handleInvite(f.id)}
+                      className={`shrink-0 w-20 ${isSent ? "text-green-500 hover:text-green-500" : ""}`}
+                    >
+                      {isSending
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : isSent
+                        ? <><Check className="w-3.5 h-3.5 me-1" />{t("inviteSent")}</>
+                        : t("invite")}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* Copyable link */}
-        <div className="border-t border-border pt-4 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+        {/* Copyable link footer */}
+        <div className="border-t border-border/60 bg-muted/20 px-6 py-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">
             {t("inviteCopyLinkLabel")}
           </p>
-          <div className="flex gap-2">
-            <div className="flex-1 bg-muted/40 border border-border rounded-md px-3 py-2 font-mono text-xs text-muted-foreground truncate select-all">
-              {inviteUrl ?? "…"}
-            </div>
-            <Button size="sm" variant="outline" onClick={copyLink} disabled={!inviteUrl} className="shrink-0 gap-1.5">
-              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-              {t(copied ? "inviteCopied" : "copyLink")}
-            </Button>
+          <div className="flex items-center gap-2 bg-background border border-border rounded-md overflow-hidden">
+            <input
+              readOnly
+              value={inviteUrl ?? ""}
+              placeholder="…"
+              onClick={e => (e.target as HTMLInputElement).select()}
+              className="flex-1 min-w-0 bg-transparent px-3 py-2 text-xs font-mono text-muted-foreground outline-none cursor-text"
+              dir="ltr"
+            />
+            <button
+              onClick={copyLink}
+              disabled={!inviteUrl}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors border-s border-border
+                ${copied
+                  ? "bg-green-500/10 text-green-500"
+                  : "hover:bg-primary hover:text-primary-foreground text-foreground"}`}
+            >
+              {copied
+                ? <><Check className="w-3.5 h-3.5" />{t("inviteCopied")}</>
+                : <><Copy className="w-3.5 h-3.5" />{t("copyLink")}</>}
+            </button>
           </div>
         </div>
       </DialogContent>

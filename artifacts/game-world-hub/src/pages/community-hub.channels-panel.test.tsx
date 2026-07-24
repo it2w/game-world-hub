@@ -25,7 +25,7 @@ import { ChannelsSettingsPanel } from "./community-hub";
 interface TestChannel {
   id: number;
   name: string;
-  type: string;
+  type: "text" | "voice" | "announcement" | "stage";
   position: number;
   isPrivate: boolean;
   slowmodeSeconds: number;

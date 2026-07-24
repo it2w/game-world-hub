@@ -21,7 +21,7 @@
  * 11. Does NOT render access-denied UI when isOwnerOrMod=true (renders data area)
  */
 
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -139,6 +139,14 @@ const MOCK_INVITE = {
 };
 
 describe("InviteSettingsPanel prop guard", () => {
+  beforeEach(() => {
+    // Provide a working clipboard stub for every test in this suite.
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+  });
   test("hides 'Create Invite' button when isOwnerOrMod=false", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
     expect(screen.queryByText("generateInvite")).toBeNull();
@@ -173,6 +181,24 @@ describe("InviteSettingsPanel prop guard", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
 
     expect(screen.getByTitle("Revoke")).toBeDefined();
+  });
+
+  test("clicking 'Copy link' as a plain member calls clipboard.writeText with the correct invite URL", async () => {
+    vi.mocked(useQuery).mockReturnValueOnce({
+      data: [MOCK_INVITE],
+      isLoading: false,
+    } as any);
+
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
+
+    const copyBtn = screen.getByTitle("Copy link");
+    fireEvent.click(copyBtn);
+
+    // navigator.clipboard.writeText should have been called once with the join URL
+    expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/join/TESTCODE`,
+    );
   });
 });
 

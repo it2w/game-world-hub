@@ -2750,7 +2750,7 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
 
 // ── Channels settings panel ───────────────────────────────────────────────────
 
-function ChannelsSettingsPanel({ communityId, channels }: { communityId: number; channels: Channel[] }) {
+export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { communityId: number; channels: Channel[]; isOwner: boolean }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -2790,9 +2790,11 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("channels")}</p>
-        <Button size="sm" variant="outline" onClick={() => setAddForm({ name: "", type: "text" })}>
-          <Plus className="w-3.5 h-3.5 me-1.5" />{t("add")}
-        </Button>
+        {isOwner && (
+          <Button size="sm" variant="outline" onClick={() => setAddForm({ name: "", type: "text" })}>
+            <Plus className="w-3.5 h-3.5 me-1.5" />{t("add")}
+          </Button>
+        )}
       </div>
       {addForm && (
         <div className="bg-muted/30 rounded-lg p-3 space-y-3 border border-border">
@@ -2826,12 +2828,14 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
               >
                 <Settings className="w-3.5 h-3.5" />
               </button>
-              <button
-                onClick={() => { if (window.confirm(`Delete #${ch.name}? This cannot be undone.`)) deleteChannel.mutate(ch.id); }}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-opacity flex-shrink-0"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              {isOwner && (
+                <button
+                  onClick={() => { if (window.confirm(`Delete #${ch.name}? This cannot be undone.`)) deleteChannel.mutate(ch.id); }}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-opacity flex-shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             {editingId === ch.id && (
               <div className="mx-3 mb-1 bg-muted/30 rounded-lg p-3 space-y-3 border border-border">
@@ -3610,7 +3614,7 @@ function ServerSettingsDialog({ community, open, onClose }: {
           ) : activeTab === "overview" ? (
             <OverviewSettingsPanel community={community} />
           ) : activeTab === "channels" ? (
-            <ChannelsSettingsPanel communityId={community.id} channels={channels} />
+            <ChannelsSettingsPanel communityId={community.id} channels={channels} isOwner={community.isOwner} />
           ) : activeTab === "welcome" ? (
             <WelcomeSettingsPanel communityId={community.id} />
           ) : activeTab === "automod" ? (

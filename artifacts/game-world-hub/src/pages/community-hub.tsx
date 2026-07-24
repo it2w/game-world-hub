@@ -2650,6 +2650,7 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
 // ── Overview settings panel ───────────────────────────────────────────────────
 
 function OverviewSettingsPanel({ community }: { community: Community }) {
+  const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState(community.name);
@@ -2668,18 +2669,18 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Community Overview</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">{t("communityOverview")}</p>
         <div className="space-y-4 max-w-sm">
           <div className="space-y-1.5">
-            <Label className="text-xs">Community Name</Label>
+            <Label className="text-xs">{t("communityName")}</Label>
             <Input value={name} onChange={e => setName(e.target.value)} maxLength={100} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Description</Label>
+            <Label className="text-xs">{t("description")}</Label>
             <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={500} className="resize-none" />
           </div>
           <Button size="sm" onClick={() => save.mutate()} disabled={!isDirty || !name.trim() || save.isPending}>
-            {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save Changes
+            {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}{t("saveChanges")}
           </Button>
         </div>
       </div>
@@ -2690,6 +2691,7 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
 // ── Channels settings panel ───────────────────────────────────────────────────
 
 function ChannelsSettingsPanel({ communityId, channels }: { communityId: number; channels: Channel[] }) {
+  const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addForm, setAddForm] = useState<{ name: string; type: string } | null>(null);
@@ -2711,25 +2713,25 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Channels</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("channels")}</p>
         <Button size="sm" variant="outline" onClick={() => setAddForm({ name: "", type: "text" })}>
-          <Plus className="w-3.5 h-3.5 me-1.5" />Add
+          <Plus className="w-3.5 h-3.5 me-1.5" />{t("add")}
         </Button>
       </div>
       {addForm && (
         <div className="bg-muted/30 rounded-lg p-3 space-y-3 border border-border">
-          <Input placeholder="Channel name" value={addForm.name} onChange={e => setAddForm(f => f ? { ...f, name: e.target.value } : null)} maxLength={80} />
+          <Input placeholder={t("channelName")} value={addForm.name} onChange={e => setAddForm(f => f ? { ...f, name: e.target.value } : null)} maxLength={80} />
           <select value={addForm.type} onChange={e => setAddForm(f => f ? { ...f, type: e.target.value } : null)}
             className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-            <option value="text">Text</option>
-            <option value="voice">Voice</option>
-            <option value="announcement">Announcement</option>
-            <option value="stage">Stage</option>
+            <option value="text">{t("text")}</option>
+            <option value="voice">{t("voice")}</option>
+            <option value="announcement">{t("announcement")}</option>
+            <option value="stage">{t("stage")}</option>
           </select>
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setAddForm(null)}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={() => setAddForm(null)}>{t("cancel")}</Button>
             <Button size="sm" onClick={() => addChannel.mutate()} disabled={!addForm.name.trim() || addChannel.isPending}>
-              {addChannel.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Create
+              {addChannel.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}{t("createBtn")}
             </Button>
           </div>
         </div>
@@ -2829,6 +2831,7 @@ function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: numbe
 // ── Danger zone panel ─────────────────────────────────────────────────────────
 
 function DangerZonePanel({ community, onClose }: { community: Community; onClose: () => void }) {
+  const { t } = useTranslation("communities");
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
@@ -2847,17 +2850,15 @@ function DangerZonePanel({ community, onClose }: { community: Community; onClose
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <p className="text-xs font-bold uppercase tracking-widest text-destructive/80">Danger Zone</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-destructive/80">{t("dangerZone")}</p>
       <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 space-y-3">
         <div className="flex items-center gap-2 text-destructive">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm font-semibold">Delete This Community</span>
+          <span className="text-sm font-semibold">{t("deleteCommunityTitle")}</span>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Permanently deletes this community and all its channels, messages, roles, and member data. This action cannot be undone.
-        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{t("deleteWarning")}</p>
         <p className="text-xs text-muted-foreground">
-          Type <span className="font-mono font-bold text-foreground">{community.name}</span> to confirm:
+          {t("typeToConfirm", { name: community.name })}
         </p>
         <Input
           className="text-sm"
@@ -2871,7 +2872,7 @@ function DangerZonePanel({ community, onClose }: { community: Community; onClose
           onClick={() => deleteCommunity.mutate()}
         >
           {deleteCommunity.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
-          Delete Community
+          {t("delete")}
         </Button>
       </div>
     </div>
@@ -2884,6 +2885,7 @@ const CHART_COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e"];
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function InsightsDashboard({ communityId }: { communityId: number }) {
+  const { t } = useTranslation("communities");
   const { data, isLoading } = useQuery<InsightData>({
     queryKey: ["community-insights", communityId],
     queryFn: () => customFetch(`/api/communities/${communityId}/insights`),
@@ -2905,8 +2907,8 @@ function InsightsDashboard({ communityId }: { communityId: number }) {
       <div className="flex-1 flex items-center justify-center text-center p-8">
         <div>
           <BarChart3 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">No activity data yet.</p>
-          <p className="text-xs text-muted-foreground mt-1">Stats appear once members start sending messages.</p>
+          <p className="text-sm text-muted-foreground">{t("noInsightsData")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("noInsightsDataDesc")}</p>
         </div>
       </div>
     );
@@ -2938,7 +2940,7 @@ function InsightsDashboard({ communityId }: { communityId: number }) {
       {/* Member Growth */}
       {growthData.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Member Growth — Last 30 Days</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("memberGrowth")}</p>
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={growthData}>
@@ -2959,7 +2961,7 @@ function InsightsDashboard({ communityId }: { communityId: number }) {
       {/* Daily Messages */}
       {msgData.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Daily Messages — Last 14 Days</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("dailyMessages")}</p>
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={msgData}>
@@ -2982,7 +2984,7 @@ function InsightsDashboard({ communityId }: { communityId: number }) {
       {/* Top Members */}
       {data.topMembers.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Top Members — This Month</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("topMembersMonth")}</p>
           <div className="space-y-2">
             {data.topMembers.map((m, i) => (
               <div key={m.userId} className="flex items-center gap-2.5">
@@ -3002,7 +3004,7 @@ function InsightsDashboard({ communityId }: { communityId: number }) {
       {/* Peak Hours Heatmap */}
       {data.peakHours.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Peak Activity — Heatmap (UTC)</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("peakActivity")}</p>
           <div className="overflow-x-auto">
             <div className="flex gap-1.5 min-w-0">
               {/* Day labels */}
@@ -3252,18 +3254,19 @@ function ServerSettingsDialog({ community, open, onClose }: {
     select: (d: any) => d.channels ?? [],
   });
 
+  const { t } = useTranslation("communities");
   type NavItem = { id: SettingsTab; label: string; icon: React.ReactNode; ownerOnly?: boolean };
   const ALL_NAV_ITEMS: NavItem[] = [
-    { id: "overview" as SettingsTab, label: "Overview", icon: <Settings className="w-4 h-4" /> },
-    { id: "roles" as SettingsTab, label: "Roles", icon: <Shield className="w-4 h-4" /> },
-    { id: "channels" as SettingsTab, label: "Channels", icon: <Hash className="w-4 h-4" /> },
-    { id: "automod" as SettingsTab, label: "AutoMod", icon: <Bot className="w-4 h-4" /> },
-    { id: "welcome" as SettingsTab, label: "Welcome & Rules", icon: <Sparkles className="w-4 h-4" /> },
-    { id: "events" as SettingsTab, label: "Events", icon: <Calendar className="w-4 h-4" /> },
-    { id: "badges" as SettingsTab, label: "Badges", icon: <Award className="w-4 h-4" /> },
-    { id: "insights" as SettingsTab, label: "Insights", icon: <BarChart3 className="w-4 h-4" />, ownerOnly: true },
-    { id: "invites" as SettingsTab, label: "Invites", icon: <Link2 className="w-4 h-4" /> },
-    { id: "danger" as SettingsTab, label: "Danger Zone", icon: <AlertCircle className="w-4 h-4" />, ownerOnly: true },
+    { id: "overview" as SettingsTab, label: t("settingsOverview"), icon: <Settings className="w-4 h-4" /> },
+    { id: "roles" as SettingsTab, label: t("roles"), icon: <Shield className="w-4 h-4" /> },
+    { id: "channels" as SettingsTab, label: t("channels"), icon: <Hash className="w-4 h-4" /> },
+    { id: "automod" as SettingsTab, label: t("automod"), icon: <Bot className="w-4 h-4" /> },
+    { id: "welcome" as SettingsTab, label: t("welcomeAndRules"), icon: <Sparkles className="w-4 h-4" /> },
+    { id: "events" as SettingsTab, label: t("events"), icon: <Calendar className="w-4 h-4" /> },
+    { id: "badges" as SettingsTab, label: t("badges"), icon: <Award className="w-4 h-4" /> },
+    { id: "insights" as SettingsTab, label: t("insights"), icon: <BarChart3 className="w-4 h-4" />, ownerOnly: true },
+    { id: "invites" as SettingsTab, label: t("invites"), icon: <Link2 className="w-4 h-4" /> },
+    { id: "danger" as SettingsTab, label: t("dangerZone"), icon: <AlertCircle className="w-4 h-4" />, ownerOnly: true },
   ];
   const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => !item.ownerOnly || community.isOwner);
 
@@ -3298,7 +3301,7 @@ function ServerSettingsDialog({ community, open, onClose }: {
               <div className="w-52 border-e border-border flex flex-col flex-shrink-0">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
                   <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    {roles.length} role{roles.length !== 1 ? "s" : ""}
+                    {t("rolesCount", { count: roles.length })}
                   </span>
                   <button
                     onClick={() => createRole.mutate()}
@@ -3361,7 +3364,7 @@ function ServerSettingsDialog({ community, open, onClose }: {
                   />
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                    Select a role to edit
+                    {t("selectRoleToEdit")}
                   </div>
                 )}
               </div>
@@ -3874,7 +3877,7 @@ export default function CommunityHub() {
               <button
                 onClick={() => setServerSettingsOpen(true)}
                 className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                title="Community Settings"
+                title={t("communitySettingsGear")}
               >
                 <Settings className="w-4 h-4" />
               </button>

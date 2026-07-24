@@ -443,6 +443,46 @@ describe("ServerSettingsDialog URL-tab security", () => {
     expect(resolveTabForRole("insights", true, false)).toBe("insights");
   });
 
+  // ── Parameterised: plain member direct URL navigation is rejected for every ownerOrModOnly tab ──
+  //
+  // Task 513: there is no existing integration test that mounts ServerSettingsDialog
+  // as a plain member (isOwner: false, isMod: false) with ?tab=<ownerOrModOnly> in
+  // window.location.search and then checks that data-active-tab is "overview".
+  //
+  // The loop is derived from SETTINGS_NAV_META so that any future ownerOrModOnly
+  // tab addition is automatically covered without a manual test update.
+
+  {
+    const OWNER_OR_MOD_ONLY_TAB_IDS = SETTINGS_NAV_META
+      .filter(item => item.ownerOrModOnly)
+      .map(item => item.id);
+
+    for (const tabId of OWNER_OR_MOD_ONLY_TAB_IDS) {
+      test(`plain member with ?tab=${tabId} in URL: data-active-tab must be 'overview', not '${tabId}'`, async () => {
+        // Simulate a plain member landing on the dialog via a direct URL that
+        // contains ?tab=<ownerOrModOnly id> — e.g. copied from a mod's session.
+        setSearchParam(`?tab=${tabId}`);
+
+        const { ServerSettingsDialog } = await import("./community-hub");
+
+        const { getByTestId } = render(
+          <ServerSettingsDialog
+            community={makeCommunity({ isOwner: false, isMod: false })}
+            open={true}
+            onClose={vi.fn()}
+          />
+        );
+
+        // resolveTabForRole(tabId, false, false) → "overview" must be honoured
+        // by the useState initialiser; data-active-tab must reflect "overview".
+        expect(
+          getByTestId("settings-content").getAttribute("data-active-tab"),
+          `data-active-tab must be 'overview' for plain member + ?tab=${tabId}`,
+        ).toBe("overview");
+      });
+    }
+  }
+
   test("mid-session URL change to ?tab=danger does not change active tab for mod", async () => {
     // Start with a clean URL so the dialog initialises to "overview"
     setSearchParam("");

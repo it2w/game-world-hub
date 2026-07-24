@@ -348,6 +348,24 @@ describe("ChannelsSettingsPanel prop guard", () => {
     expect((createBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
+  test("Create button is disabled when the channel name is whitespace-only in the add-channel form", () => {
+    render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={true} />,
+    );
+
+    // Open the add-channel form
+    const addBtn = screen.getByText("add");
+    fireEvent.click(addBtn);
+
+    // Type whitespace-only into the name field — trim() reduces it to ""
+    const nameInput = screen.getByPlaceholderText("channelName");
+    fireEvent.change(nameInput, { target: { value: "   " } });
+
+    // Create button must remain disabled because the trimmed name is still empty
+    const createBtn = screen.getByText("createBtn");
+    expect((createBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test("Save button is disabled when the channel name is whitespace-only in the edit form", () => {
     render(
       <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={false} />,

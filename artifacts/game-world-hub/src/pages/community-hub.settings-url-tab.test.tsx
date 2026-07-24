@@ -1094,3 +1094,89 @@ describe("ServerSettingsDialog nav-click handler guard", () => {
     expect(resolveTabForRole("danger", false, true)).toBe("overview");
   });
 });
+
+// ── Parameterised: mod can reach every permitted settings tab ─────────────────
+//
+// Task 495: the inverse of the guard tests — mods must NOT be silently locked
+// out of the tabs they are allowed to access.  A regression in resolveTabForRole
+// or NAV_ITEMS could remove mod access without any existing test catching it.
+//
+// Permitted tabs for mods: every tab except ownerOnly ones (i.e. "danger").
+// This includes ownerOrModOnly tabs such as "insights".
+//
+// For each permitted tab we verify three things end-to-end:
+//   1. The nav sidebar button [data-tab="<id>"] is present in the DOM.
+//   2. Clicking it changes data-active-tab to the expected tab id.
+//   3. resolveTabForRole returns the tab id (not "overview") for a mod.
+
+describe("ServerSettingsDialog — mod can reach all permitted settings tabs", () => {
+  const originalLocation = window.location;
+
+  function setSearchParam(search: string) {
+    Object.defineProperty(window, "location", {
+      value: { ...originalLocation, search },
+      writable: true,
+      configurable: true,
+    });
+  }
+
+  beforeEach(() => {
+    // jsdom does not implement ResizeObserver; stub it so Radix UI components
+    // used inside some settings panels do not throw during rendering.
+    if (typeof window.ResizeObserver === "undefined") {
+      (window as any).ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+    }
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  // Derive permitted tab ids from the authoritative meta list so the test
+  // automatically covers any future tab additions without manual updates.
+  const MOD_PERMITTED_TABS = SETTINGS_NAV_META
+    .filter(item => !item.ownerOnly)   // exclude danger (ownerOnly)
+    .map(item => item.id);
+
+  for (const tabId of MOD_PERMITTED_TABS) {
+    test(`mod can reach the '${tabId}' tab: nav button present, click updates data-active-tab`, async () => {
+      // Start with no URL param so the dialog opens on "overview".
+      setSearchParam("");
+      const { ServerSettingsDialog } = await import("./community-hub");
+
+      const { getByTestId } = render(
+        <ServerSettingsDialog
+          community={makeCommunity({ isOwner: false, isMod: true })}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      // 1. The nav button must exist in the DOM (NAV_ITEMS filter must not hide it).
+      //    The dialog renders into a portal (document.body), so we query the full document.
+      const navBtn = document.querySelector(`[data-tab="${tabId}"]`);
+      expect(navBtn, `[data-tab="${tabId}"] button missing from DOM for a mod`).not.toBeNull();
+
+      // 2. Clicking the nav button must switch the active tab.
+      fireEvent.click(navBtn!);
+      expect(
+        getByTestId("settings-content").getAttribute("data-active-tab"),
+        `data-active-tab did not update to '${tabId}' after nav click`,
+      ).toBe(tabId);
+
+      // 3. resolveTabForRole must allow the tab for a mod (guard must not block it).
+      expect(
+        resolveTabForRole(tabId, false, true),
+        `resolveTabForRole incorrectly returned 'overview' for mod+tab='${tabId}'`,
+      ).toBe(tabId);
+    });
+  }
+});

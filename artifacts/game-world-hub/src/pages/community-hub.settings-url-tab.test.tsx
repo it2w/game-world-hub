@@ -982,6 +982,80 @@ describe("ServerSettingsDialog nav-click handler guard", () => {
     expect(content.getAttribute("data-active-tab")).toBe("overview");
   });
 
+  // ── Insights tab: plain member cannot reach it via nav ───────────────────
+
+  test("insights nav button is absent from the DOM when rendered as a plain member", async () => {
+    // Layer 1 guard: the NAV_ITEMS filter strips ownerOrModOnly items for plain
+    // members.  The insights sidebar button must not exist in the DOM at all —
+    // there is no [data-tab="insights"] element for browser automation to click.
+    setSearchParam("");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: false, isMod: false })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector('[data-tab="insights"]')).toBeNull();
+  });
+
+  test("resolveTabForRole('insights', false, false) returns 'overview' (plain member blocked)", () => {
+    // Companion pure-function check that mirrors the DOM-filter guarantee:
+    // even if [data-tab="insights"] were somehow clicked, the setActiveTab
+    // wrapper would pass the value through resolveTabForRole which returns
+    // "overview" for a plain member.
+    expect(resolveTabForRole("insights", false, false)).toBe("overview");
+  });
+
+  test("insights nav button IS present for a mod and clicking it switches data-active-tab to 'insights'", async () => {
+    // Positive case: mods ARE allowed to access the insights tab.
+    // The button must be rendered and clickable, and the active tab must
+    // switch to "insights" after the click.
+    setSearchParam("");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const { getByTestId } = render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: false, isMod: true })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    const insightsBtn = document.querySelector('[data-tab="insights"]');
+    expect(insightsBtn).not.toBeNull();
+
+    fireEvent.click(insightsBtn!);
+
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("insights");
+  });
+
+  test("insights nav button IS present for an owner and clicking it switches data-active-tab to 'insights'", async () => {
+    // Positive case: owners are also allowed to access the insights tab.
+    setSearchParam("");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const { getByTestId } = render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: true, isMod: false })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    const insightsBtn = document.querySelector('[data-tab="insights"]');
+    expect(insightsBtn).not.toBeNull();
+
+    fireEvent.click(insightsBtn!);
+
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("insights");
+  });
+
+  // ── End of insights nav tests ─────────────────────────────────────────────
+
   test("nav click on 'danger' as owner then re-rendering as mod reverts to overview", async () => {
     // Snapshot test: an owner switches to "danger" via the nav button, then
     // the same dialog is re-rendered for a mod (e.g., role change without reload).

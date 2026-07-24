@@ -24,7 +24,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { useQuery } from "@tanstack/react-query";
-import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel } from "../community-hub";
+import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel, ChannelsSettingsPanel } from "../community-hub";
 
 // ── Module stubs ──────────────────────────────────────────────────────────────
 
@@ -172,6 +172,46 @@ describe("InviteSettingsPanel prop guard", () => {
     render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
 
     expect(screen.getByTitle("Revoke")).toBeDefined();
+  });
+});
+
+// ── ChannelsSettingsPanel prop guard ─────────────────────────────────────────
+//
+// Owner-only controls:
+//  - "Add" channel button (header)          → guarded by {isOwner && ...}
+//  - Delete button (Trash2 icon, per row)   → guarded by {isOwner && ...}
+//
+// With one channel in the list the button count is deterministic:
+//   isOwner=false  → 1 button  (edit/Settings icon only)
+//   isOwner=true   → 3 buttons (Add header + edit icon + delete icon)
+
+describe("ChannelsSettingsPanel prop guard", () => {
+  // Channel interface is not exported; cast to satisfy the prop type.
+  const mockChannels = [
+    { id: 1, name: "general", type: "text", isPrivate: false },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ] as any[];
+
+  test("hides owner-only controls (add button + delete button) when isOwner=false", () => {
+    const { container } = render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={false} />,
+    );
+    // Add-channel button must not appear
+    expect(screen.queryByText("add")).toBeNull();
+    // Only the edit (Settings) icon button should be present — no delete button
+    const buttons = container.querySelectorAll("button");
+    expect(buttons.length).toBe(1);
+  });
+
+  test("shows owner-only controls (add button + delete button) when isOwner=true", () => {
+    const { container } = render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={true} />,
+    );
+    // Add-channel button must appear
+    expect(screen.getByText("add")).toBeDefined();
+    // Three buttons: Add (header), edit icon, delete icon
+    const buttons = container.querySelectorAll("button");
+    expect(buttons.length).toBe(3);
   });
 });
 

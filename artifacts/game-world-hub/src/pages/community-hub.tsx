@@ -3913,7 +3913,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
             <InsightsDashboard communityId={community.id} isOwnerOrMod={community.isOwner || (community.isMod ?? false)} />
           ) : safeTab === "invites" ? (
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
-          ) : safeTab === "danger" ? (
+          ) : safeTab === "danger" && community.isOwner ? (
             <DangerZonePanel community={community} onClose={onClose} />
           ) : null}
           </div>{/* /settings-content */}

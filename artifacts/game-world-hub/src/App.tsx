@@ -41,6 +41,7 @@ import Events from '@/pages/events';
 import HallOfFame from '@/pages/hall-of-fame';
 import Admin from '@/pages/admin';
 import Owner from '@/pages/owner';
+import JoinCommunity from '@/pages/join-community';
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/landing';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
@@ -90,6 +91,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/join/:code" component={JoinCommunity} />
       <Route path="/owner" component={Owner} />
       <Route path="/privacy" component={PrivacyPolicy} />
 

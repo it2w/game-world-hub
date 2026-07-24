@@ -1239,8 +1239,8 @@ function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, th
 
 // ── Text channel panel ─────────────────────────────────────────────────────────
 
-function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
-  communityId: number; channel: Channel; isOwner: boolean; canMod: boolean; myUserId: number;
+function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hideThreads }: {
+  communityId: number; channel: Channel; isOwner: boolean; canMod: boolean; myUserId: number; hideThreads?: boolean;
 }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
@@ -1450,8 +1450,8 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
                 canPin={canMod || isOwner}
                 onDelete={(id) => deleteMutation.mutate(id)}
                 onPin={(id) => pinMutation.mutate(id)}
-                onStartThread={handleStartThread}
-                threadId={threadMap[msg.id]}
+                onStartThread={hideThreads ? undefined : handleStartThread}
+                threadId={hideThreads ? undefined : threadMap[msg.id]}
                 roleColor={(roleColorMap as Record<number, string>)[msg.userId]}
                 roleBadge={(roleBadgeMap as Record<number, RoleBadge>)[msg.userId]}
                 roles={roles}
@@ -1518,7 +1518,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
       </div>
 
       {/* Thread panel (slides in from right) */}
-      {activeThreadId != null && (
+      {activeThreadId != null && !hideThreads && (
         <ThreadPanel
           communityId={communityId}
           threadId={activeThreadId}
@@ -1772,8 +1772,8 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
               <div className="flex flex-wrap items-center justify-center gap-7 px-8 py-4">
                 {participants.map((p) => {
                   const peer = peerMap.get(p.userId);
-                  const isLocal = p.userId === (user?.id ?? -1);
-                  const isSpeaking = isLocal ? localSpeaking : (peer?.speaking ?? false);
+                  const isLocal = p.userId === Number(user?.id ?? -1);
+                  const isSpeaking = isLocal ? (localSpeaking && !muted) : (peer?.speaking ?? false);
                   const camStream = isLocal ? localCameraStream : (peer?.cameraStream ?? null);
                   return (
                     <VoiceStageTile
@@ -1830,6 +1830,7 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
               isOwner={isOwner}
               canMod={isOwner}
               myUserId={myUserId}
+              hideThreads
             />
           </div>
         )}

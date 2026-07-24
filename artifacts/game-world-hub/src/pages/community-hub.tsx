@@ -3805,6 +3805,7 @@ export function ServerSettingsDialog({ community, open, onClose }: {
             {NAV_ITEMS.map(item => (
               <button
                 key={item.id}
+                data-tab={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors ${
                   item.id === "danger" ? "mt-2 text-destructive/80 hover:text-destructive hover:bg-destructive/10" :

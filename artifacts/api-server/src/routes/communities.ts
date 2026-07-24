@@ -53,7 +53,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { toPublicImageUrl } from "../lib/objectStorage";
-import { pushToUser, broadcastAll } from "../ws/signaling";
+import { pushToUser, broadcastAll, getOnlineUserIds } from "../ws/signaling";
 import { logger } from "../lib/logger";
 import {
   addCommunityVoicePresence,
@@ -872,6 +872,23 @@ router.get("/communities/:id/members", requireAuth, async (req, res): Promise<vo
     res.json(rows.map(r => ({ ...r, avatarUrl: toPublicImageUrl(r.avatarUrl) })));
   } catch (err) {
     logger.error({ err }, "communities: members failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /communities/:id/online-members — which member userIds have an active WS connection
+router.get("/communities/:id/online-members", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = await db
+      .select({ userId: communityMembersTable.userId })
+      .from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, id), eq(communityMembersTable.isBanned, false)));
+    const allIds = rows.map(r => r.userId);
+    res.json({ onlineIds: getOnlineUserIds(allIds) });
+  } catch (err) {
+    logger.error({ err }, "communities: online-members failed");
     res.status(500).json({ error: "Internal error" });
   }
 });

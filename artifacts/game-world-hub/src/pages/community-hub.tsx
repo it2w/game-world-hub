@@ -2547,6 +2547,13 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
   const [tab, setTab] = useState<"members" | "leaderboard">("members");
   const [assigningUserId, setAssigningUserId] = useState<number | null>(null);
 
+  const { data: onlineData } = useQuery<{ onlineIds: number[] }>({
+    queryKey: ["community-online", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/online-members`),
+    refetchInterval: 30_000,
+  });
+  const onlineSet = useMemo(() => new Set(onlineData?.onlineIds ?? []), [onlineData]);
+
   const { data: members = [] } = useQuery<Member[]>({
     queryKey: ["community-members", communityId],
     queryFn: () => customFetch(`/api/communities/${communityId}/members?limit=100`),
@@ -2641,9 +2648,16 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
   const MemberRow = ({ m }: { m: Member }) => {
     const topColor = getTopRoleColor(m.userId);
     const mRoleIds = new Set(((memberRolesMap as MemberRolesMap)[m.userId] ?? []).map(r => r.id));
+    const isOnline = onlineSet.has(m.userId);
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30 group">
-        <Avatar name={m.displayName} url={m.avatarUrl} size={6} />
+        <div className="relative flex-shrink-0">
+          <Avatar name={m.displayName} url={m.avatarUrl} size={6} />
+          <span
+            className="absolute bottom-0 end-0 w-2 h-2 rounded-full border border-card"
+            style={{ background: isOnline ? "#23a55a" : "#80848e" }}
+          />
+        </div>
         <span className="text-xs truncate flex-1" style={topColor ? { color: topColor } : { color: "hsl(var(--foreground)/0.8)" }}>
           {m.displayName}
         </span>

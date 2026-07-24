@@ -86,6 +86,14 @@ function unregisterClient(client: Client): void {
 }
 
 /**
+ * Return the subset of the given userIds that currently have at least one
+ * open WebSocket connection.  Used by the community online-presence endpoint.
+ */
+export function getOnlineUserIds(userIds: number[]): number[] {
+  return userIds.filter((id) => (clientsByUser.get(id)?.size ?? 0) > 0);
+}
+
+/**
  * Push an arbitrary payload to all open WebSocket connections for a given user.
  * Used by HTTP route handlers that need to send a real-time event without going
  * through the signaling message loop (e.g. reputation vouches, quest credits).

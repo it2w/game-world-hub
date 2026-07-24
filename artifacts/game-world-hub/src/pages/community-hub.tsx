@@ -9,6 +9,7 @@ import { acquireInlineStage } from "@/voice/inline-stage-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { RoleGuard } from "@/components/role-guard";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -3056,19 +3057,7 @@ export function DangerZonePanel({ community, onClose }: { community: Community; 
   const qc = useQueryClient();
   const [confirmName, setConfirmName] = useState("");
 
-  // Secondary ownership guard — the nav already hides this tab from non-owners,
-  // but we re-check here so a forced activeTab change never exposes the panel.
-  if (!community.isOwner) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center space-y-2">
-          <AlertCircle className="w-8 h-8 text-destructive/40 mx-auto" />
-          <p className="text-sm text-muted-foreground">{t("ownerOnly", "Owner-only settings")}</p>
-        </div>
-      </div>
-    );
-  }
-
+  // All hooks must be called unconditionally before any early return.
   const deleteCommunity = useMutation({
     mutationFn: () => customFetch(`/api/communities/${community.id}`, { method: "DELETE" }),
     onSuccess: () => {
@@ -3080,34 +3069,38 @@ export function DangerZonePanel({ community, onClose }: { community: Community; 
     onError: () => toast({ title: "Failed to delete community", variant: "destructive" }),
   });
 
+  // RoleGuard re-checks ownership at render time so a forced activeTab change
+  // or DevTools state mutation can never expose this panel to a plain member.
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      <p className="text-xs font-bold uppercase tracking-widest text-destructive/80">{t("dangerZone")}</p>
-      <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 space-y-3">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm font-semibold">{t("deleteCommunityTitle")}</span>
+    <RoleGuard allowed={community.isOwner}>
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <p className="text-xs font-bold uppercase tracking-widest text-destructive/80">{t("dangerZone")}</p>
+        <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-semibold">{t("deleteCommunityTitle")}</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">{t("deleteWarning")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("typeToConfirm", { name: community.name })}
+          </p>
+          <Input
+            className="text-sm"
+            value={confirmName}
+            onChange={e => setConfirmName(e.target.value)}
+            placeholder={community.name}
+          />
+          <Button
+            variant="destructive" size="sm"
+            disabled={confirmName !== community.name || deleteCommunity.isPending}
+            onClick={() => deleteCommunity.mutate()}
+          >
+            {deleteCommunity.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+            {t("delete")}
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">{t("deleteWarning")}</p>
-        <p className="text-xs text-muted-foreground">
-          {t("typeToConfirm", { name: community.name })}
-        </p>
-        <Input
-          className="text-sm"
-          value={confirmName}
-          onChange={e => setConfirmName(e.target.value)}
-          placeholder={community.name}
-        />
-        <Button
-          variant="destructive" size="sm"
-          disabled={confirmName !== community.name || deleteCommunity.isPending}
-          onClick={() => deleteCommunity.mutate()}
-        >
-          {deleteCommunity.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
-          {t("delete")}
-        </Button>
       </div>
-    </div>
+    </RoleGuard>
   );
 }
 
@@ -3119,24 +3112,18 @@ const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function InsightsDashboard({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
   const { t } = useTranslation("communities");
 
-  // Panel-level guard — mirrors DangerZonePanel so a DevTools state mutation
-  // cannot expose analytics to a plain member who guessed the tab name.
-  if (!isOwnerOrMod) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center space-y-2">
-          <AlertCircle className="w-8 h-8 text-destructive/40 mx-auto" />
-          <p className="text-sm text-muted-foreground">{t("ownerOnly", "Owner-only settings")}</p>
-        </div>
-      </div>
-    );
-  }
-
+  // All hooks must be called unconditionally before any early return.
+  // `enabled: isOwnerOrMod` prevents the network request when access is denied.
   const { data, isLoading } = useQuery<InsightData>({
     queryKey: ["community-insights", communityId],
     queryFn: () => customFetch(`/api/communities/${communityId}/insights`),
     staleTime: 10 * 60 * 1000,
+    enabled: isOwnerOrMod,
   });
+
+  // RoleGuard re-checks at render time so a DevTools state mutation or a
+  // crafted URL cannot expose analytics to a plain member who guessed the tab.
+  if (!isOwnerOrMod) return <RoleGuard allowed={false}>{null}</RoleGuard>;
 
   if (isLoading) {
     return (

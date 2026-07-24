@@ -321,9 +321,9 @@ function EventsDialog({ communityId, channels, isOwnerOrMod, open, onClose }: {
                 </div>
               )}
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+                <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>{t("cancel")}</Button>
                 <Button size="sm" onClick={() => createEvent.mutate()} disabled={!form.title || !form.startAt || createEvent.isPending}>
-                  {createEvent.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+                  {createEvent.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}{t("save")}
                 </Button>
               </div>
             </div>
@@ -726,9 +726,9 @@ function BadgesManagerPanel({ communityId }: { communityId: number }) {
             </select>
           )}
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>{t("cancel")}</Button>
             <Button size="sm" onClick={() => createBadge.mutate()} disabled={!form.name || createBadge.isPending}>
-              {createBadge.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+              {createBadge.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}{t("save")}
             </Button>
           </div>
         </div>
@@ -2504,20 +2504,20 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
 
 // ── Permission definitions ────────────────────────────────────────────────────
 
-const PERMISSIONS: { key: string; label: string; description: string; category: string }[] = [
-  { key: "is_admin",           label: "Administrator",      description: "Full control over this community (except deletion)",  category: "Advanced" },
-  { key: "can_kick",           label: "Kick Members",       description: "Remove members from the community",                  category: "Moderation" },
-  { key: "can_ban",            label: "Ban Members",        description: "Permanently ban members",                            category: "Moderation" },
-  { key: "can_mute_voice",     label: "Mute in Voice",      description: "Server-mute members in voice channels",             category: "Moderation" },
-  { key: "can_pin_messages",   label: "Pin Messages",       description: "Pin and unpin messages in any channel",             category: "Moderation" },
-  { key: "can_manage_channels",label: "Manage Channels",   description: "Create, edit, and delete channels",                  category: "Management" },
-  { key: "can_manage_roles",   label: "Manage Roles",       description: "Create and assign roles below their own",           category: "Management" },
-  { key: "can_invite",         label: "Create Invites",     description: "Generate invite links",                             category: "Management" },
-  { key: "can_manage_polls",   label: "Manage Polls",       description: "Create and manage community polls",                 category: "Management" },
-  { key: "can_change_banner",  label: "Change Banner",      description: "Upload or remove the community banner",             category: "Management" },
-  { key: "can_manage_events",  label: "Manage Events",      description: "Create and manage community events",                category: "Management" },
-  { key: "can_post",           label: "Send Messages",      description: "Post messages in text channels",                    category: "General" },
-  { key: "can_send_media",     label: "Attach Media",       description: "Send images and files in messages",                 category: "General" },
+const PERMISSIONS: { key: string; labelKey: string; descKey: string; category: string }[] = [
+  { key: "is_admin",           labelKey: "permLabel_is_admin",           descKey: "permDesc_is_admin",           category: "Advanced" },
+  { key: "can_kick",           labelKey: "permLabel_can_kick",           descKey: "permDesc_can_kick",           category: "Moderation" },
+  { key: "can_ban",            labelKey: "permLabel_can_ban",            descKey: "permDesc_can_ban",            category: "Moderation" },
+  { key: "can_mute_voice",     labelKey: "permLabel_can_mute_voice",     descKey: "permDesc_can_mute_voice",     category: "Moderation" },
+  { key: "can_pin_messages",   labelKey: "permLabel_can_pin_messages",   descKey: "permDesc_can_pin_messages",   category: "Moderation" },
+  { key: "can_manage_channels",labelKey: "permLabel_can_manage_channels",descKey: "permDesc_can_manage_channels",category: "Management" },
+  { key: "can_manage_roles",   labelKey: "permLabel_can_manage_roles",   descKey: "permDesc_can_manage_roles",   category: "Management" },
+  { key: "can_invite",         labelKey: "permLabel_can_invite",         descKey: "permDesc_can_invite",         category: "Management" },
+  { key: "can_manage_polls",   labelKey: "permLabel_can_manage_polls",   descKey: "permDesc_can_manage_polls",   category: "Management" },
+  { key: "can_change_banner",  labelKey: "permLabel_can_change_banner",  descKey: "permDesc_can_change_banner",  category: "Management" },
+  { key: "can_manage_events",  labelKey: "permLabel_can_manage_events",  descKey: "permDesc_can_manage_events",  category: "Management" },
+  { key: "can_post",           labelKey: "permLabel_can_post",           descKey: "permDesc_can_post",           category: "General" },
+  { key: "can_send_media",     labelKey: "permLabel_can_send_media",     descKey: "permDesc_can_send_media",     category: "General" },
 ];
 
 // ── PermToggle ────────────────────────────────────────────────────────────────
@@ -2549,6 +2549,7 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
   role: Role; onSave: (updates: Partial<Role>) => void;
   onDelete: () => void; isSaving: boolean; isDeleting: boolean;
 }) {
+  const { t } = useTranslation("communities");
   const [name, setName] = useState(role.name);
   const [color, setColor] = useState(role.color);
   const [displaySeparately, setDisplaySeparately] = useState(role.displaySeparately);
@@ -2566,7 +2567,13 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
     displaySeparately !== role.displaySeparately || mentionable !== role.mentionable ||
     JSON.stringify(permissions) !== JSON.stringify(role.permissions ?? {});
 
-  const categories = ["Advanced", "Moderation", "Management", "General"];
+  const categoryKeys = ["Advanced", "Moderation", "Management", "General"] as const;
+  const categoryLabels: Record<string, string> = {
+    Advanced: t("permCategoryAdvanced"),
+    Moderation: t("permCategoryModeration"),
+    Management: t("permCategoryManagement"),
+    General: t("permCategoryGeneral"),
+  };
   const byCategory = PERMISSIONS.reduce<Record<string, typeof PERMISSIONS>>((acc, p) => {
     (acc[p.category] = acc[p.category] ?? []).push(p);
     return acc;
@@ -2576,9 +2583,9 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
     <div className="p-5 space-y-6 overflow-y-auto h-full">
       {/* Name + Color */}
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Role Name & Colour</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("roleNameAndColor")}</p>
         <div className="flex items-center gap-3">
-          <label className="cursor-pointer flex-shrink-0" title="Pick colour">
+          <label className="cursor-pointer flex-shrink-0" title={t("pickColor")}>
             <div
               className="w-9 h-9 rounded-full border-2 border-border flex items-center justify-center overflow-hidden"
               style={{ background: color }}
@@ -2587,7 +2594,7 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
           </label>
           <Input
             value={name} onChange={e => setName(e.target.value)}
-            maxLength={80} placeholder="Role name"
+            maxLength={80} placeholder={t("roleNamePlaceholder")}
             disabled={role.isDefault} className="flex-1"
           />
         </div>
@@ -2595,23 +2602,23 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
 
       {/* Display settings */}
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Display</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{t("display")}</p>
         <div className="space-y-2">
-          <PermToggle label="Show separately in member list" description="Members appear under this role's heading in the sidebar" checked={displaySeparately} onToggle={() => setDisplaySeparately(v => !v)} />
-          <PermToggle label="Allow @mentions" description="Anyone can ping this role to notify all its members" checked={mentionable} onToggle={() => setMentionable(v => !v)} />
+          <PermToggle label={t("showSeparately")} description={t("showSeparatelyDesc")} checked={displaySeparately} onToggle={() => setDisplaySeparately(v => !v)} />
+          <PermToggle label={t("allowMentions")} description={t("allowMentionsDesc")} checked={mentionable} onToggle={() => setMentionable(v => !v)} />
         </div>
       </div>
 
       {/* Permissions */}
-      {categories.map(cat => byCategory[cat] ? (
+      {categoryKeys.map(cat => byCategory[cat] ? (
         <div key={cat}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{cat}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{categoryLabels[cat]}</p>
           <div className="space-y-2">
             {byCategory[cat].map(perm => (
               <PermToggle
                 key={perm.key}
-                label={perm.label}
-                description={perm.description}
+                label={t(perm.labelKey)}
+                description={t(perm.descKey)}
                 checked={!!permissions[perm.key]}
                 onToggle={() => setPermissions(prev => ({ ...prev, [perm.key]: !prev[perm.key] }))}
                 disabled={!!(permissions.is_admin && perm.key !== "is_admin")}
@@ -2626,21 +2633,21 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
         <div>
           {!role.isDefault && (showDeleteConfirm ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-destructive">Delete this role?</span>
+              <span className="text-xs text-destructive">{t("deleteThisRole")}</span>
               <Button size="sm" variant="destructive" onClick={onDelete} disabled={isDeleting}>
-                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : t("confirm")}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>{t("cancel")}</Button>
             </div>
           ) : (
             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="w-3.5 h-3.5 me-1.5" /> Delete Role
+              <Trash2 className="w-3.5 h-3.5 me-1.5" /> {t("deleteRole")}
             </Button>
           ))}
         </div>
         <Button size="sm" onClick={() => onSave({ name, color, displaySeparately, mentionable, permissions })} disabled={!isDirty || isSaving}>
           {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
-          Save Changes
+          {t("saveChanges")}
         </Button>
       </div>
     </div>
@@ -2660,8 +2667,8 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
     mutationFn: () => customFetch(`/api/communities/${community.id}`, {
       method: "PATCH", body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined }),
     }),
-    onSuccess: () => { toast({ title: "Settings saved" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+    onSuccess: () => { toast({ title: t("settingsSaved") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
+    onError: () => toast({ title: t("settingsFailed"), variant: "destructive" }),
   });
 
   const isDirty = name.trim() !== community.name || description !== (community.description ?? "");
@@ -2702,8 +2709,8 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
     mutationFn: () => customFetch(`/api/communities/${communityId}/channels`, {
       method: "POST", body: JSON.stringify({ name: addForm?.name?.trim(), type: addForm?.type ?? "text" }),
     }),
-    onSuccess: () => { toast({ title: "Channel added" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setAddForm(null); },
-    onError: () => toast({ title: "Failed to add channel", variant: "destructive" }),
+    onSuccess: () => { toast({ title: t("channelAdded") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setAddForm(null); },
+    onError: () => toast({ title: t("channelAddFailed"), variant: "destructive" }),
   });
 
   const updateChannel = useMutation({
@@ -2711,14 +2718,14 @@ function ChannelsSettingsPanel({ communityId, channels }: { communityId: number;
       method: "PATCH",
       body: JSON.stringify({ name: editForm.name.trim(), type: editForm.type, isPrivate: editForm.isPrivate }),
     }),
-    onSuccess: () => { toast({ title: "Channel updated" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setEditingId(null); },
-    onError: () => toast({ title: "Failed to update channel", variant: "destructive" }),
+    onSuccess: () => { toast({ title: t("channelUpdated") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setEditingId(null); },
+    onError: () => toast({ title: t("channelUpdateFailed"), variant: "destructive" }),
   });
 
   const deleteChannel = useMutation({
     mutationFn: (cid: number) => customFetch(`/api/communities/${communityId}/channels/${cid}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Channel deleted" }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
-    onError: () => toast({ title: "Failed to delete channel", variant: "destructive" }),
+    onSuccess: () => { toast({ title: t("channelDeleted") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
+    onError: () => toast({ title: t("channelDeleteFailed"), variant: "destructive" }),
   });
 
   const startEdit = (ch: Channel) => {
@@ -3473,7 +3480,7 @@ function ServerSettingsDialog({ community, open, onClose }: {
                     >
                       <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
                       <span className="text-sm truncate flex-1">{role.name}</span>
-                      <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">base</span>
+                      <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">{t("baseRole")}</span>
                     </div>
                   ))}
                 </div>

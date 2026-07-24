@@ -1136,6 +1136,88 @@ describe("ServerSettingsDialog nav-click handler guard", () => {
   });
 });
 
+// ── Parameterised: plain members are blocked from every ownerOrModOnly tab ────
+//
+// Task 508: the complement of the mod-access tests (task 495).
+//
+// A regression in the NAV_ITEMS filter could silently expose ownerOrModOnly
+// tabs to plain members.  This parameterised suite loops over every tab whose
+// meta entry carries ownerOrModOnly: true so that any future addition is
+// automatically covered without a manual test update.
+//
+// For each ownerOrModOnly tab we verify:
+//   1. The nav sidebar button [data-tab="<id>"] is ABSENT from the DOM
+//      (Layer 1 — NAV_ITEMS filter must strip it for plain members).
+//   2. resolveTabForRole returns "overview" for (plain member, tabId)
+//      (Layer 2 — setActiveTab wrapper must also block it).
+
+describe("ServerSettingsDialog — plain member is blocked from every ownerOrModOnly tab", () => {
+  const originalLocation = window.location;
+
+  function setSearchParam(search: string) {
+    Object.defineProperty(window, "location", {
+      value: { ...originalLocation, search },
+      writable: true,
+      configurable: true,
+    });
+  }
+
+  beforeEach(() => {
+    if (typeof window.ResizeObserver === "undefined") {
+      (window as any).ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+    }
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      value: originalLocation,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  // Derive the list from the authoritative meta so future tabs are auto-covered.
+  const OWNER_OR_MOD_ONLY_TABS = SETTINGS_NAV_META
+    .filter(item => item.ownerOrModOnly)
+    .map(item => item.id);
+
+  for (const tabId of OWNER_OR_MOD_ONLY_TABS) {
+    test(`plain member: [data-tab="${tabId}"] nav button is absent from the DOM`, async () => {
+      setSearchParam("");
+      const { ServerSettingsDialog } = await import("./community-hub");
+
+      render(
+        <ServerSettingsDialog
+          community={makeCommunity({ isOwner: false, isMod: false })}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      // Layer 1: the NAV_ITEMS filter must strip ownerOrModOnly tabs for plain
+      // members, so the sidebar button must not exist in the DOM at all.
+      expect(
+        document.querySelector(`[data-tab="${tabId}"]`),
+        `[data-tab="${tabId}"] must be absent for a plain member (Layer 1 — DOM filter failed)`,
+      ).toBeNull();
+    });
+
+    test(`plain member: resolveTabForRole('${tabId}', false, false) returns 'overview'`, () => {
+      // Layer 2: even if the button were somehow present and clicked, the
+      // setActiveTab wrapper passes the value through resolveTabForRole which
+      // must return "overview" for a plain member requesting an ownerOrModOnly tab.
+      expect(
+        resolveTabForRole(tabId, false, false),
+        `resolveTabForRole must return 'overview' for plain member + tab='${tabId}' (Layer 2 — wrapper gate failed)`,
+      ).toBe("overview");
+    });
+  }
+});
+
 // ── Parameterised: mod can reach every permitted settings tab ─────────────────
 //
 // Task 495: the inverse of the guard tests — mods must NOT be silently locked

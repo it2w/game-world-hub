@@ -683,4 +683,88 @@ describe("ServerSettingsDialog role-change guard (community prop update)", () =>
     // ownerOrModOnly tabs are also blocked for a plain member after demotion.
     expect(resolveTabForRole("insights", false, false)).toBe("overview");
   });
+
+  // ── Scenario 19: ownership transfer — Danger tab auto-closes ─────────────
+  //
+  // An owner has the Danger tab open.  Mid-session they transfer ownership to
+  // another member; the parent re-renders ServerSettingsDialog with
+  // isOwner: false, isMod: false.  The useEffect inside ServerSettingsDialog
+  // re-validates activeTab through resolveTabForRole and must call
+  // setActiveTabRaw("overview") synchronously before the next paint.
+  test("owner transfers ownership while on Danger tab: data-active-tab reverts to 'overview'", async () => {
+    // Start the dialog as owner with ?tab=danger so activeTab initialises to "danger".
+    setSearchParam("?tab=danger");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const ownerCommunity = makeCommunity({ isOwner: true, isMod: false });
+    const plainMemberCommunity = makeCommunity({ isOwner: false, isMod: false });
+
+    const { getByTestId, rerender } = render(
+      <ServerSettingsDialog
+        community={ownerCommunity}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Owner starts on the Danger tab.
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("danger");
+
+    // Simulate ownership transfer: the parent re-fetches the community and
+    // the current viewer is no longer the owner (isOwner: false, isMod: false).
+    act(() => {
+      rerender(
+        <ServerSettingsDialog
+          community={plainMemberCommunity}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    // The useEffect re-validates: resolveTabForRole("danger", false, false) → "overview".
+    // data-active-tab must reflect the corrected value without a page reload.
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("overview");
+  });
+
+  // ── Scenario 20: ownership transfer — Insights tab auto-closes ────────────
+  //
+  // The complementary case for the ownerOrModOnly Insights tab: an owner who
+  // has Insights open transfers ownership and becomes a plain member.  The
+  // same useEffect must auto-close the stale privileged tab.
+  test("owner transfers ownership while on Insights tab: data-active-tab reverts to 'overview'", async () => {
+    // Start the dialog as owner with ?tab=insights so activeTab initialises to "insights".
+    setSearchParam("?tab=insights");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const ownerCommunity = makeCommunity({ isOwner: true, isMod: false });
+    const plainMemberCommunity = makeCommunity({ isOwner: false, isMod: false });
+
+    const { getByTestId, rerender } = render(
+      <ServerSettingsDialog
+        community={ownerCommunity}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Owner starts on the Insights tab (ownerOrModOnly — allowed for owners).
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("insights");
+
+    // Simulate ownership transfer to a different member; current viewer becomes
+    // a plain member with neither isOwner nor isMod.
+    act(() => {
+      rerender(
+        <ServerSettingsDialog
+          community={plainMemberCommunity}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    // The useEffect re-validates: resolveTabForRole("insights", false, false) → "overview".
+    // data-active-tab must be corrected automatically.
+    expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("overview");
+  });
 });

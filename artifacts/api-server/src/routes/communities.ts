@@ -1923,6 +1923,37 @@ router.delete("/communities/:id/invites/:code", requireAuth, async (req, res): P
   }
 });
 
+// POST /communities/:id/member-invite — any member (not just can_invite) gets or creates a permanent invite link
+router.post("/communities/:id/member-invite", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Reuse an existing non-expired invite created by this member
+    const { rows: existing } = await pool.query<{ code: string }>(
+      `SELECT code FROM community_invites
+       WHERE community_id = $1 AND created_by = $2
+         AND (expires_at IS NULL OR expires_at > now())
+       ORDER BY created_at DESC LIMIT 1`,
+      [id, userId]
+    );
+    if (existing[0]) { res.json({ code: existing[0].code }); return; }
+    // Create a new permanent invite (no expiry, no max uses)
+    const code = randomBytes(5).toString("base64url").slice(0, 8);
+    const { rows: created } = await pool.query<{ code: string }>(
+      `INSERT INTO community_invites (community_id, code, created_by, max_uses, expires_at)
+       VALUES ($1, $2, $3, NULL, NULL) RETURNING code`,
+      [id, code, userId]
+    );
+    res.status(201).json({ code: created[0].code });
+  } catch (err) {
+    logger.error({ err }, "communities: member-invite failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 router.get("/communities/:id/leaderboard", requireAuth, async (req, res): Promise<void> => {

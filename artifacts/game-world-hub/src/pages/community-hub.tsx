@@ -29,7 +29,7 @@ import {
   MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
   Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
   Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
-  Star, Flame, UserCheck,
+  Star, Flame, UserCheck, Search,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
@@ -917,36 +917,69 @@ function CreatePollDialog({ communityId, open, onClose }: { communityId: number;
 
 // ── Invite Dialog ─────────────────────────────────────────────────────────────
 
-function InviteDialog({ communityId, isOwnerOrMod, open, onClose }: {
-  communityId: number; isOwnerOrMod: boolean; open: boolean; onClose: () => void;
+function InviteDialog({ communityId, communityName, open, onClose }: {
+  communityId: number; communityName: string; open: boolean; onClose: () => void;
 }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
-  const qc = useQueryClient();
-  const [copied, setCopied] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [sent, setSent] = useState<Set<number>>(new Set());
+  const [sending, setSending] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
 
-  const { data: invites = [], isLoading } = useQuery<Invite[]>({
-    queryKey: ["community-invites", communityId],
-    queryFn: () => customFetch(`/api/communities/${communityId}/invites`),
-    enabled: open && isOwnerOrMod,
+  // Reset state on close
+  useEffect(() => {
+    if (!open) { setSearch(""); setSent(new Set()); setCopied(false); }
+  }, [open]);
+
+  // Fetch friends list
+  const { data: friendsRaw = [] } = useQuery<any[]>({
+    queryKey: ["friends-list"],
+    queryFn: () => customFetch("/api/friends"),
+    enabled: open,
   });
+  const friends: { id: number; displayName: string; username: string; avatarUrl: string | null }[] =
+    friendsRaw.map((f: any) => f.friend ?? f);
 
-  const generate = useMutation({
-    mutationFn: () => customFetch(`/api/communities/${communityId}/invites`, { method: "POST", body: JSON.stringify({}) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-invites", communityId] }),
-    onError: (e: any) => toast({ title: e?.message ?? t("error"), variant: "destructive" }),
-  });
+  // Auto-generate / retrieve member invite on open
+  useEffect(() => {
+    if (!open) return;
+    customFetch<{ code: string }>(`/api/communities/${communityId}/member-invite`, { method: "POST" })
+      .then(data => setInviteCode(data.code))
+      .catch(() => {});
+  }, [open, communityId]);
 
-  const revoke = useMutation({
-    mutationFn: (code: string) => customFetch(`/api/communities/${communityId}/invites/${code}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-invites", communityId] }),
-  });
+  const inviteUrl = inviteCode ? `${window.location.origin}/join/${inviteCode}` : null;
 
-  const copyLink = (code: string) => {
-    const url = `${window.location.origin}/join/${code}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(code);
-      setTimeout(() => setCopied(null), 2000);
+  const filtered = search.trim()
+    ? friends.filter(f =>
+        f.displayName?.toLowerCase().includes(search.toLowerCase()) ||
+        f.username?.toLowerCase().includes(search.toLowerCase()))
+    : friends;
+
+  const handleInvite = async (friendId: number) => {
+    if (!inviteUrl || sending !== null) return;
+    setSending(friendId);
+    try {
+      const conv = await customFetch<{ id: number }>(`/api/conversations/direct/${friendId}`);
+      await customFetch(`/api/conversations/${conv.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: t("inviteDmMessage", { name: communityName, url: inviteUrl }) }),
+      });
+      setSent(prev => new Set(prev).add(friendId));
+    } catch {
+      toast({ title: t("error"), variant: "destructive" });
+    } finally {
+      setSending(null);
+    }
+  };
+
+  const copyLink = () => {
+    if (!inviteUrl) return;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     });
   };
 
@@ -954,49 +987,69 @@ function InviteDialog({ communityId, isOwnerOrMod, open, onClose }: {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-mono uppercase tracking-widest flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-primary" />
-            {t("inviteLinks")}
+          <DialogTitle className="font-semibold text-base leading-snug">
+            {t("inviteFriendsTitle", { name: communityName })}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          {isOwnerOrMod && (
-            <Button size="sm" onClick={() => generate.mutate()} disabled={generate.isPending} className="w-full">
-              {generate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
-              {t("generateInvite")}
-            </Button>
-          )}
-          {isLoading ? (
-            <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
-          ) : invites.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">{t("noInvites")}</p>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder={t("inviteSearchFriends")}
+            className="ps-9"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Friends list */}
+        <div className="max-h-60 overflow-y-auto space-y-0.5 -mx-1 px-1">
+          {friends.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">{t("inviteNoFriends")}</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">{t("inviteNoResults")}</p>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {invites.map(inv => (
-                <div key={inv.code} className="flex items-center gap-2 bg-muted/40 rounded-md px-3 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono text-foreground truncate">{window.location.origin}/join/{inv.code}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ""} {t("uses")}
-                      {inv.expires_at && ` · ${t("expires")} ${new Date(inv.expires_at).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                  <button onClick={() => copyLink(inv.code)} className="text-muted-foreground hover:text-primary transition-colors p-1">
-                    {copied === inv.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                  {isOwnerOrMod && (
-                    <button onClick={() => revoke.mutate(inv.code)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+            filtered.map(f => (
+              <div key={f.id} className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-accent/40 transition-colors">
+                <Avatar name={f.displayName ?? f.username} url={f.avatarUrl} size={9} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate leading-tight">{f.displayName ?? f.username}</p>
+                  <p className="text-xs text-muted-foreground truncate">@{f.username}</p>
                 </div>
-              ))}
-            </div>
+                <Button
+                  size="sm"
+                  variant={sent.has(f.id) ? "outline" : "default"}
+                  disabled={sent.has(f.id) || sending === f.id || !inviteUrl}
+                  onClick={() => handleInvite(f.id)}
+                  className="shrink-0 min-w-[68px]"
+                >
+                  {sending === f.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : sent.has(f.id)
+                    ? <><Check className="w-3.5 h-3.5 me-1" />{t("inviteSent")}</>
+                    : t("invite")}
+                </Button>
+              </div>
+            ))
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose}>{t("leave")}</Button>
-        </DialogFooter>
+
+        {/* Copyable link */}
+        <div className="border-t border-border pt-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+            {t("inviteCopyLinkLabel")}
+          </p>
+          <div className="flex gap-2">
+            <div className="flex-1 bg-muted/40 border border-border rounded-md px-3 py-2 font-mono text-xs text-muted-foreground truncate select-all">
+              {inviteUrl ?? "…"}
+            </div>
+            <Button size="sm" variant="outline" onClick={copyLink} disabled={!inviteUrl} className="shrink-0 gap-1.5">
+              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+              {t(copied ? "inviteCopied" : "copyLink")}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -4127,7 +4180,7 @@ export default function CommunityHub() {
 
       {/* Dialogs */}
       <AddChannelDialog communityId={community.id} open={addChannelOpen} onClose={() => setAddChannelOpen(false)} />
-      <InviteDialog communityId={community.id} isOwnerOrMod={community.isMod ?? community.isOwner} open={inviteOpen} onClose={() => setInviteOpen(false)} />
+      <InviteDialog communityId={community.id} communityName={community.name} open={inviteOpen} onClose={() => setInviteOpen(false)} />
       {community.isOwner && <BannerDialog communityId={community.id} open={bannerOpen} onClose={() => setBannerOpen(false)} />}
       {(community.isOwner || (community.isMod ?? false)) && (
         <ServerSettingsDialog community={community} open={serverSettingsOpen} onClose={() => setServerSettingsOpen(false)} />

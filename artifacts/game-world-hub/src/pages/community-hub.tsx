@@ -2936,7 +2936,7 @@ const MAX_USES_OPTIONS = [
   { label: "10 uses", value: "10" },
 ] as const;
 
-function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
+export function InviteSettingsPanel({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();

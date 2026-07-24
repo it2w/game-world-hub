@@ -23,7 +23,7 @@
 
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { resolveTabForRole, InsightsDashboard } from "../community-hub";
+import { resolveTabForRole, InsightsDashboard, InviteSettingsPanel } from "../community-hub";
 
 // ── Module stubs ──────────────────────────────────────────────────────────────
 
@@ -123,6 +123,20 @@ describe("setActiveTab wrapper — via resolveTabForRole", () => {
   test("plain member cannot transition to 'insights' (resolves to 'overview')", () => {
     const resolved = resolveTabForRole("insights", false, false);
     expect(resolved).toBe("overview");
+  });
+});
+
+// ── InviteSettingsPanel prop guard ────────────────────────────────────────────
+
+describe("InviteSettingsPanel prop guard", () => {
+  test("hides 'Create Invite' button when isOwnerOrMod=false", () => {
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={false} />);
+    expect(screen.queryByText("generateInvite")).toBeNull();
+  });
+
+  test("shows 'Create Invite' button when isOwnerOrMod=true", () => {
+    render(<InviteSettingsPanel communityId={1} isOwnerOrMod={true} />);
+    expect(screen.getByText("generateInvite")).toBeDefined();
   });
 });
 

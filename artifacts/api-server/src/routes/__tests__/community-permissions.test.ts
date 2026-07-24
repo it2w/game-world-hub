@@ -339,11 +339,11 @@ describe("Community permissions — is_admin grants all permissions", () => {
     assert.equal(r.status, 201, JSON.stringify(r.body));
   });
 
-  test("admin user can create a channel (is_admin grants can_manage_channels)", async () => {
+  test("admin user cannot create a channel (channel create is owner-only)", async () => {
     const r = await req("POST", `/api/communities/${communityId}/channels`, adminToken, {
       name: "admin-created",
     });
-    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.status, 403, JSON.stringify(r.body));
   });
 });
 
@@ -386,6 +386,79 @@ describe("Community permissions — can_manage_channels enforcement", () => {
   test("plain member cannot delete a channel (403)", async () => {
     const r = await req("DELETE", `/api/communities/${communityId}/channels/${channelId}`, memberToken);
     assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Channel create / delete — owner-only; mods with can_manage_channels cannot
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("Community permissions — channel create/delete is owner-only", () => {
+  let ownerToken  = "";
+  let modToken    = "";
+  let communityId = 0;
+  let channelId   = 0;
+  let modId       = 0;
+
+  before(async () => {
+    const owner = await createUser(`${SUFFIX}_cho_owner`);
+    const mod   = await createUser(`${SUFFIX}_cho_mod`);
+    ownerToken  = owner.token;
+    modToken    = mod.token;
+    modId       = mod.id;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} CHO`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    // Create a channel (as owner) to test deletion attempts
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "target-ch" });
+    assert.equal(chRes.status, 201, `channel create: ${JSON.stringify(chRes.body)}`);
+    channelId = (chRes.body as any).id;
+
+    // Join mod and assign a role with can_manage_channels=true
+    const jr = await req("POST", `/api/communities/${communityId}/join`, modToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+
+    const roleRes = await req("POST", `/api/communities/${communityId}/roles`, ownerToken, {
+      name: "ChannelMod", color: "#0099ff", permissions: { can_manage_channels: true },
+    });
+    assert.equal(roleRes.status, 201, `role: ${JSON.stringify(roleRes.body)}`);
+    const roleId = (roleRes.body as any).id;
+
+    const assignRes = await req("POST", `/api/communities/${communityId}/members/${modId}/roles/${roleId}`, ownerToken);
+    assert.ok([200, 204].includes(assignRes.status), `assign: ${JSON.stringify(assignRes.body)}`);
+  });
+
+  test("mod with can_manage_channels cannot create a channel (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels`, modToken, { name: "mod-attempt" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels cannot delete a channel (403)", async () => {
+    const r = await req("DELETE", `/api/communities/${communityId}/channels/${channelId}`, modToken);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  test("owner can still create a channel (201)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "owner-new-ch" });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+
+  test("owner can still delete a channel (204)", async () => {
+    const r = await req("DELETE", `/api/communities/${communityId}/channels/${channelId}`, ownerToken);
+    assert.equal(r.status, 204, JSON.stringify(r.body));
+  });
+
+  test("mod with can_manage_channels CAN still edit a channel (200)", async () => {
+    // First create a fresh channel as owner for the mod to edit
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "editable-ch" });
+    assert.equal(chRes.status, 201);
+    const newCid = (chRes.body as any).id;
+    const r = await req("PATCH", `/api/communities/${communityId}/channels/${newCid}`, modToken, { name: "renamed-by-mod" });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
   });
 });
 

@@ -919,7 +919,10 @@ router.post("/communities/:id/channels", requireAuth, async (req, res): Promise<
   const id = Number(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Channel creation is owner-only — mods cannot add channels
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const { name, type, isPrivate } = req.body ?? {};
     if (!name || typeof name !== "string" || name.trim().length < 1 || name.trim().length > 100) {
@@ -975,7 +978,10 @@ router.delete("/communities/:id/channels/:cid", requireAuth, async (req, res): P
   const cid = Number(String(req.params.cid));
   if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    if (!await hasPermission(id, userId, "can_manage_channels")) { res.status(403).json({ error: "Forbidden" }); return; }
+    // Channel deletion is owner-only — mods cannot remove channels
+    const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
     await db.update(communityChannelsTable).set({ isArchived: true }).where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
     res.status(204).end();
   } catch (err) {

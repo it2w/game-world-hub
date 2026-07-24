@@ -329,6 +329,24 @@ describe("ChannelsSettingsPanel prop guard", () => {
     const saveBtn = screen.getByText("Save");
     expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
   });
+
+  test("Create button is disabled when an owner opens the Add form and leaves the name blank", () => {
+    render(
+      <ChannelsSettingsPanel communityId={1} channels={mockChannels} isOwner={true} />,
+    );
+
+    // Open the add-channel form by clicking the Add button
+    const addBtn = screen.getByText("add");
+    fireEvent.click(addBtn);
+
+    // The channel-name input should now be visible and empty by default
+    const nameInput = screen.getByPlaceholderText("channelName");
+    expect((nameInput as HTMLInputElement).value).toBe("");
+
+    // Create button must be disabled when the name is blank
+    const createBtn = screen.getByText("createBtn");
+    expect((createBtn as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 // ── InsightsDashboard panel-level guard ───────────────────────────────────────

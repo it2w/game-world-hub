@@ -25,10 +25,23 @@ async function ensureTables(): Promise<void> {
       role        VARCHAR(20)  NOT NULL DEFAULT 'audience',
       hand_raised BOOLEAN      NOT NULL DEFAULT FALSE,
       granted_at  TIMESTAMPTZ,
-      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-      UNIQUE (room_name, user_id)
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS stage_participants_room_idx ON stage_participants(room_name);
+  `);
+  // Add the unique constraint idempotently — DO NOT rely on CREATE TABLE IF NOT EXISTS
+  // for constraints because the table may already exist without the constraint.
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'stage_participants_room_name_user_id_key'
+          AND conrelid = 'stage_participants'::regclass
+      ) THEN
+        ALTER TABLE stage_participants ADD CONSTRAINT stage_participants_room_name_user_id_key UNIQUE (room_name, user_id);
+      END IF;
+    END$$;
   `);
 }
 

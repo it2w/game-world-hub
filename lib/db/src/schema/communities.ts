@@ -123,6 +123,94 @@ export const communityBoostsTable = pgTable("community_boosts", {
   pointsSpent: integer("points_spent").notNull().default(0),
 });
 
+// ─── Welcome & Rules ──────────────────────────────────────────────────────────
+
+export const communityWelcomeTable = pgTable("community_welcome", {
+  communityId:        integer("community_id").primaryKey().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  welcomeMessage:     text("welcome_message"),
+  rulesText:          text("rules_text"),
+  requiresAgreement:  boolean("requires_agreement").notNull().default(false),
+  updatedAt:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── AutoMod ──────────────────────────────────────────────────────────────────
+
+export const communityAutomodTable = pgTable("community_automod", {
+  communityId:        integer("community_id").primaryKey().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  bannedWords:        text("banned_words").array().notNull().default([]),
+  blockExternalLinks: boolean("block_external_links").notNull().default(false),
+  maxEmojiPerMessage: integer("max_emoji_per_message").notNull().default(0),
+  blockCaps:          boolean("block_caps").notNull().default(false),
+  blockInvites:       boolean("block_invites").notNull().default(false),
+});
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+export const communityEventsTable = pgTable("community_events", {
+  id:          serial("id").primaryKey(),
+  communityId: integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  creatorId:   integer("creator_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  title:       varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  startAt:     timestamp("start_at", { withTimezone: true }).notNull(),
+  endAt:       timestamp("end_at", { withTimezone: true }),
+  channelId:   integer("channel_id").references(() => communityChannelsTable.id, { onDelete: "set null" }),
+  status:      varchar("status", { length: 20 }).notNull().default("scheduled"), // scheduled|live|ended
+  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const eventRsvpsTable = pgTable("event_rsvps", {
+  eventId: integer("event_id").notNull().references(() => communityEventsTable.id, { onDelete: "cascade" }),
+  userId:  integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  status:  varchar("status", { length: 20 }).notNull().default("attending"), // attending|interested
+}, (t) => ({
+  pk: uniqueIndex("event_rsvps_event_user_uniq").on(t.eventId, t.userId),
+}));
+
+// ─── Badges ───────────────────────────────────────────────────────────────────
+
+export const communityBadgesTable = pgTable("community_badges", {
+  id:          serial("id").primaryKey(),
+  communityId: integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  name:        varchar("name", { length: 100 }).notNull(),
+  iconEmoji:   varchar("icon_emoji", { length: 10 }).notNull().default("🏅"),
+  description: text("description"),
+  type:        varchar("type", { length: 20 }).notNull().default("manual"), // manual|auto
+  autoTrigger: varchar("auto_trigger", { length: 50 }), // early_member|active_speaker|anniversary|streak_7
+  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const memberBadgesTable = pgTable("member_badges", {
+  id:          serial("id").primaryKey(),
+  badgeId:     integer("badge_id").notNull().references(() => communityBadgesTable.id, { onDelete: "cascade" }),
+  userId:      integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  communityId: integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  earnedAt:    timestamp("earned_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniq: uniqueIndex("member_badges_badge_user_uniq").on(t.badgeId, t.userId),
+}));
+
+// ─── Community Threads ────────────────────────────────────────────────────────
+
+export const communityMessageThreadsTable = pgTable("community_message_threads", {
+  id:             serial("id").primaryKey(),
+  parentMessageId: integer("parent_message_id").notNull().references(() => communityMessagesTable.id, { onDelete: "cascade" }),
+  channelId:      integer("channel_id").notNull().references(() => communityChannelsTable.id, { onDelete: "cascade" }),
+  communityId:    integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  title:          varchar("title", { length: 200 }),
+  isClosed:       boolean("is_closed").notNull().default(false),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const communityThreadMessagesTable = pgTable("community_thread_messages", {
+  id:        serial("id").primaryKey(),
+  threadId:  integer("thread_id").notNull().references(() => communityMessageThreadsTable.id, { onDelete: "cascade" }),
+  userId:    integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  content:   text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Moderation log ───────────────────────────────────────────────────────────
 
 export const communityModLogTable = pgTable("community_mod_log", {

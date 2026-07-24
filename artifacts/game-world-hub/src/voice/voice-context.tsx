@@ -765,6 +765,22 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent("gwh:community-voice-update", { detail: msg }));
           break;
 
+        case "community-thread-created":
+          window.dispatchEvent(new CustomEvent("gwh:community-thread-created", { detail: msg }));
+          break;
+
+        case "community-thread-message":
+          window.dispatchEvent(new CustomEvent("gwh:community-thread-message", { detail: msg }));
+          break;
+
+        case "event-reminder":
+          window.dispatchEvent(new CustomEvent("gwh:event-reminder", { detail: msg }));
+          break;
+
+        case "event-live":
+          window.dispatchEvent(new CustomEvent("gwh:event-live", { detail: msg }));
+          break;
+
         case "stage-raise-hand":
           window.dispatchEvent(new CustomEvent("gwh:stage-raise-hand", { detail: msg }));
           break;

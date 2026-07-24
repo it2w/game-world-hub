@@ -431,3 +431,180 @@ describe("Community permissions — can_invite enforcement", () => {
     assert.equal(r.status, 201, JSON.stringify(r.body));
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Private-channel thread access — member without can_view cannot use thread APIs
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("Community thread access — private-channel guard", () => {
+  let ownerToken = "";
+  let memberToken = "";
+  let communityId = 0;
+  let publicChannelId = 0;
+  let privateChannelId = 0;
+  let publicMsgId = 0;
+  let privateMsgId = 0;
+  let publicThreadId = 0;
+  let privateThreadId = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_pta_owner`);
+    const member = await createUser(`${SUFFIX}_pta_member`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    // Community + member join
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} PTA`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+    const jr = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+
+    // Public channel — both can post
+    const pubCh = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "public-thread-ch" });
+    assert.equal(pubCh.status, 201);
+    publicChannelId = (pubCh.body as any).id;
+
+    // Private channel — member does NOT get can_view
+    const privCh = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "private-thread-ch", isPrivate: true });
+    assert.equal(privCh.status, 201);
+    privateChannelId = (privCh.body as any).id;
+
+    // Owner posts one message in each channel and creates threads
+    const pubMsg = await req("POST", `/api/communities/${communityId}/channels/${publicChannelId}/messages`, ownerToken, { content: "pub thread root" });
+    assert.equal(pubMsg.status, 201);
+    publicMsgId = (pubMsg.body as any).id;
+
+    const privMsg = await req("POST", `/api/communities/${communityId}/channels/${privateChannelId}/messages`, ownerToken, { content: "priv thread root" });
+    assert.equal(privMsg.status, 201);
+    privateMsgId = (privMsg.body as any).id;
+
+    // Create threads (as owner) so we have IDs to test against
+    const pubThread = await req("POST", `/api/communities/${communityId}/messages/${publicMsgId}/thread`, ownerToken, {});
+    assert.equal(pubThread.status, 201);
+    publicThreadId = (pubThread.body as any).id;
+
+    const privThread = await req("POST", `/api/communities/${communityId}/messages/${privateMsgId}/thread`, ownerToken, {});
+    assert.equal(privThread.status, 201);
+    privateThreadId = (privThread.body as any).id;
+  });
+
+  after(async () => {
+    await pool.query(`DELETE FROM community_message_threads WHERE community_id = $1`, [communityId]);
+    await pool.query(`DELETE FROM communities WHERE id = $1`, [communityId]);
+  });
+
+  // ── Thread create ─────────────────────────────────────────────────────────
+
+  test("member can start a thread on a public channel message (201)", async () => {
+    // Post a second message so the member has something fresh to thread
+    const msg = await req("POST", `/api/communities/${communityId}/channels/${publicChannelId}/messages`, memberToken, { content: "second root" });
+    assert.equal(msg.status, 201, `msg: ${JSON.stringify(msg.body)}`);
+    const msgId = (msg.body as any).id;
+    const r = await req("POST", `/api/communities/${communityId}/messages/${msgId}/thread`, memberToken, {});
+    // May return 201 (new) or 200 (existing)
+    assert.ok([200, 201].includes(r.status), `expected 200/201 got ${r.status}: ${JSON.stringify(r.body)}`);
+  });
+
+  test("member cannot start a thread on a private-channel message they cannot view (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/messages/${privateMsgId}/thread`, memberToken, {});
+    assert.equal(r.status, 403, `expected 403 got ${r.status}: ${JSON.stringify(r.body)}`);
+  });
+
+  // ── Thread list ────────────────────────────────────────────────────────────
+
+  test("member can list threads on a public channel (200)", async () => {
+    const r = await req("GET", `/api/communities/${communityId}/channels/${publicChannelId}/threads`, memberToken);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+  });
+
+  test("member cannot list threads on a private channel they cannot view (403)", async () => {
+    const r = await req("GET", `/api/communities/${communityId}/channels/${privateChannelId}/threads`, memberToken);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  // ── Thread read ────────────────────────────────────────────────────────────
+
+  test("member can read messages of a public thread (200)", async () => {
+    const r = await req("GET", `/api/communities/${communityId}/threads/${publicThreadId}/messages`, memberToken);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+  });
+
+  test("member cannot read messages of a thread in a private channel (403)", async () => {
+    const r = await req("GET", `/api/communities/${communityId}/threads/${privateThreadId}/messages`, memberToken);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+
+  // ── Thread post ────────────────────────────────────────────────────────────
+
+  test("member can reply to a public thread (201)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/threads/${publicThreadId}/messages`, memberToken, { content: "reply" });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  });
+
+  test("member cannot reply to a thread in a private channel (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/threads/${privateThreadId}/messages`, memberToken, { content: "sneaky reply" });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Rules-agreement enforcement — posting blocked until member agrees
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("Community rules-agreement — posting gated until agreed", () => {
+  let ownerToken = "";
+  let memberToken = "";
+  let communityId = 0;
+  let channelId   = 0;
+
+  before(async () => {
+    const owner  = await createUser(`${SUFFIX}_ra_owner`);
+    const member = await createUser(`${SUFFIX}_ra_member`);
+    ownerToken  = owner.token;
+    memberToken = member.token;
+
+    const cr = await req("POST", "/api/communities", ownerToken, {
+      name: `${SUFFIX} RA`, privacy: "public", gameTag: "test",
+    });
+    assert.equal(cr.status, 201, `community: ${JSON.stringify(cr.body)}`);
+    communityId = (cr.body as any).id;
+
+    const jr = await req("POST", `/api/communities/${communityId}/join`, memberToken);
+    assert.ok([200, 201, 204].includes(jr.status), `join: ${JSON.stringify(jr.body)}`);
+
+    const chRes = await req("POST", `/api/communities/${communityId}/channels`, ownerToken, { name: "general" });
+    assert.equal(chRes.status, 201);
+    channelId = (chRes.body as any).id;
+
+    // Enable requires_agreement via the welcome PUT endpoint
+    const wRes = await req("PUT", `/api/communities/${communityId}/welcome`, ownerToken, {
+      welcomeMessage: "Welcome!", rulesText: "Be nice.", requiresAgreement: true,
+    });
+    assert.equal(wRes.status, 200, `welcome put: ${JSON.stringify(wRes.body)}`);
+  });
+
+  after(async () => {
+    await pool.query(`DELETE FROM communities WHERE id = $1`, [communityId]);
+  });
+
+  test("member is blocked from posting before agreeing to rules (403)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels/${channelId}/messages`, memberToken, { content: "hi" });
+    assert.equal(r.status, 403, `expected 403 got ${r.status}: ${JSON.stringify(r.body)}`);
+  });
+
+  test("member can post after agreeing to rules (201)", async () => {
+    const agreeRes = await req("POST", `/api/communities/${communityId}/welcome/agree`, memberToken);
+    assert.equal(agreeRes.status, 200, `agree: ${JSON.stringify(agreeRes.body)}`);
+
+    const r = await req("POST", `/api/communities/${communityId}/channels/${channelId}/messages`, memberToken, { content: "agreed!" });
+    assert.equal(r.status, 201, `post after agree: ${JSON.stringify(r.body)}`);
+  });
+
+  test("owner bypasses rules-agreement gate (201 even without agreeing)", async () => {
+    const r = await req("POST", `/api/communities/${communityId}/channels/${channelId}/messages`, ownerToken, { content: "owner post" });
+    assert.equal(r.status, 201, `owner post: ${JSON.stringify(r.body)}`);
+  });
+});

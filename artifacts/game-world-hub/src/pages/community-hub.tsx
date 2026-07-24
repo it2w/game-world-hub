@@ -24,6 +24,8 @@ import {
   Image, X, Copy, Check, ChevronDown, ChevronRight, Video, Monitor, PhoneOff,
   MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
   Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
+  Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
+  Star, Flame, UserCheck,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
@@ -95,6 +97,46 @@ interface Role {
 
 type MemberRolesMap = Record<number, Array<{ id: number; name: string; color: string; position: number; displaySeparately: boolean }>>;
 
+interface CommunityEvent {
+  id: number; community_id: number; creator_id: number; title: string;
+  description: string | null; start_at: string; end_at: string | null;
+  channel_id: number | null; status: string;
+  attending_count: number; interested_count: number; my_rsvp: string | null;
+}
+
+interface CommunityBadge {
+  id: number; community_id: number; name: string; icon_emoji: string;
+  description: string | null; type: "manual" | "auto"; auto_trigger: string | null;
+  created_at: string;
+}
+
+interface MemberBadge extends CommunityBadge {
+  badge_id: number; user_id: number; earned_at: string;
+}
+
+interface CommunityThread {
+  id: number; parent_message_id: number; channel_id: number;
+  community_id: number; title: string | null; is_closed: boolean;
+  last_activity_at: string; created_at: string;
+  username: string; display_name: string; reply_count: number;
+}
+
+interface ThreadMessage {
+  id: number; thread_id: number; content: string; created_at: string;
+  user_id: number; username: string; display_name: string; avatar_url: string | null;
+}
+
+interface WelcomeConfig {
+  community_id: number; welcome_message: string | null; rules_text: string | null;
+  requires_agreement: boolean; hasAgreed: boolean;
+}
+
+interface AutomodConfig {
+  community_id: number; banned_words: string[];
+  block_external_links: boolean; max_emoji_per_message: number;
+  block_caps: boolean; block_invites: boolean;
+}
+
 // ── Avatar helper ─────────────────────────────────────────────────────────────
 
 function Avatar({ name, url, size = 8 }: { name: string; url?: string | null; size?: number }) {
@@ -105,6 +147,607 @@ function Avatar({ name, url, size = 8 }: { name: string; url?: string | null; si
   return (
     <div className={cls} style={{ background: `hsl(${hue} 70% 40%)`, width: `${size * 4}px`, height: `${size * 4}px`, fontSize: `${size * 1.5}px` }}>
       {name.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+// ── Welcome Modal ─────────────────────────────────────────────────────────────
+
+function WelcomeModal({ communityId, communityName, config, onAgreed, onClose }: {
+  communityId: number; communityName: string; config: WelcomeConfig;
+  onAgreed: () => void; onClose: () => void;
+}) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const agree = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/welcome/agree`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => { onAgreed(); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+  const canSkip = !config.requires_agreement;
+  return (
+    <Dialog open onOpenChange={v => { if (!v && canSkip) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="w-5 h-5 text-primary" />
+            {t("welcomeTitle", { name: communityName })}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+          {config.welcome_message && (
+            <p className="text-sm text-foreground leading-relaxed">{config.welcome_message}</p>
+          )}
+          {config.rules_text && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("rulesText")}</span>
+              </div>
+              <div className="bg-muted/40 rounded-lg px-3 py-2.5 text-sm text-foreground/80 leading-relaxed whitespace-pre-line border border-border/50">
+                {config.rules_text}
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          {canSkip && (
+            <Button variant="ghost" size="sm" onClick={onClose}>Dismiss</Button>
+          )}
+          <Button size="sm" onClick={() => agree.mutate()} disabled={agree.isPending}>
+            {agree.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+            {t("agreeAndEnter")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Events Dialog ─────────────────────────────────────────────────────────────
+
+function EventsDialog({ communityId, channels, isOwnerOrMod, open, onClose }: {
+  communityId: number; channels: Channel[]; isOwnerOrMod: boolean; open: boolean; onClose: () => void;
+}) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", startAt: "", endAt: "", channelId: "" });
+
+  const { data: events = [], isLoading } = useQuery<CommunityEvent[]>({
+    queryKey: ["community-events", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/events`),
+    enabled: open,
+    refetchInterval: open ? 30000 : false,
+  });
+
+  const createEvent = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/events`, {
+      method: "POST",
+      body: JSON.stringify({ title: form.title, description: form.description || undefined,
+        startAt: form.startAt, endAt: form.endAt || undefined,
+        channelId: form.channelId ? Number(form.channelId) : undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: t("eventCreated") });
+      qc.invalidateQueries({ queryKey: ["community-events", communityId] });
+      setCreating(false); setForm({ title: "", description: "", startAt: "", endAt: "", channelId: "" });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const deleteEvent = useMutation({
+    mutationFn: (eid: number) => customFetch(`/api/communities/${communityId}/events/${eid}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: t("eventDeleted") }); qc.invalidateQueries({ queryKey: ["community-events", communityId] }); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const rsvp = useMutation({
+    mutationFn: ({ eid, status }: { eid: number; status: string }) =>
+      customFetch(`/api/communities/${communityId}/events/${eid}/rsvp`, {
+        method: "POST", body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-events", communityId] }),
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const formatEvent = (ev: CommunityEvent) => {
+    const start = new Date(ev.start_at);
+    const now = new Date();
+    const isLive = ev.status === "live" || (start <= now && (!ev.end_at || new Date(ev.end_at) >= now));
+    return { start, isLive };
+  };
+
+  const textChannels = channels.filter(c => c.type === "text");
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />{t("events")}</span>
+            {isOwnerOrMod && !creating && (
+              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+                <Plus className="w-3.5 h-3.5 me-1.5" />{t("createEvent")}
+              </Button>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-3 py-1">
+          {creating && (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("createEvent")}</p>
+              <Input
+                placeholder={t("eventTitle")} value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} maxLength={200}
+              />
+              <Textarea
+                placeholder={t("eventDescription")} value={form.description} rows={2}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">{t("eventStart")}</Label>
+                  <Input type="datetime-local" value={form.startAt} onChange={e => setForm(f => ({ ...f, startAt: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t("eventEnd")}</Label>
+                  <Input type="datetime-local" value={form.endAt} onChange={e => setForm(f => ({ ...f, endAt: e.target.value }))} />
+                </div>
+              </div>
+              {textChannels.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">{t("eventChannel")}</Label>
+                  <select value={form.channelId} onChange={e => setForm(f => ({ ...f, channelId: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                    <option value="">— {t("eventChannel")}</option>
+                    {textChannels.map(ch => <option key={ch.id} value={ch.id}>#{ch.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => createEvent.mutate()} disabled={!form.title || !form.startAt || createEvent.isPending}>
+                  {createEvent.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          ) : events.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <Calendar className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">{t("noEvents")}</p>
+            </div>
+          ) : events.map(ev => {
+            const { start, isLive } = formatEvent(ev);
+            return (
+              <div key={ev.id} className={`rounded-lg border p-3 space-y-2 ${isLive ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {isLive && <span className="text-[10px] font-bold text-primary bg-primary/15 px-1.5 py-0.5 rounded-full animate-pulse">{t("liveNow")}</span>}
+                      <span className="font-semibold text-sm">{ev.title}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {start.toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {ev.end_at && ` → ${new Date(ev.end_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                    </p>
+                    {ev.description && <p className="text-xs text-foreground/70 mt-1 line-clamp-2">{ev.description}</p>}
+                  </div>
+                  {isOwnerOrMod && (
+                    <button onClick={() => deleteEvent.mutate(ev.id)} className="text-muted-foreground hover:text-destructive p-1 rounded flex-shrink-0">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">
+                    <UserCheck className="w-3 h-3 inline me-0.5" />{ev.attending_count}
+                    {ev.interested_count > 0 && <> · <Star className="w-3 h-3 inline me-0.5" />{ev.interested_count}</>}
+                  </span>
+                  <div className="flex gap-1 ms-auto">
+                    {(["attending", "interested", "none"] as const).map(s => (
+                      <button
+                        key={s}
+                        onClick={() => rsvp.mutate({ eid: ev.id, status: s })}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                          ev.my_rsvp === s || (s === "none" && !ev.my_rsvp)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        {t(s === "none" ? "notGoing" : s)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Thread Panel ───────────────────────────────────────────────────────────────
+
+function ThreadPanel({ communityId, threadId, onClose, canMod }: {
+  communityId: number; threadId: number; onClose: () => void; canMod: boolean;
+}) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [reply, setReply] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data, isLoading } = useQuery<{ isClosed: boolean; title: string | null; messages: ThreadMessage[] }>({
+    queryKey: ["thread-messages", communityId, threadId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/threads/${threadId}/messages`),
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [data?.messages.length]);
+
+  const sendReply = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/threads/${threadId}/messages`, {
+      method: "POST", body: JSON.stringify({ content: reply.trim() }),
+    }),
+    onSuccess: () => {
+      setReply("");
+      qc.invalidateQueries({ queryKey: ["thread-messages", communityId, threadId] });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const toggleClose = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/threads/${threadId}`, {
+      method: "PATCH", body: JSON.stringify({ isClosed: !data?.isClosed }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["thread-messages", communityId, threadId] }),
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const isClosed = !!data?.isClosed;
+
+  return (
+    <div className="w-80 flex flex-col border-s border-border bg-card flex-shrink-0">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border flex-shrink-0">
+        <MessageCircle className="w-4 h-4 text-primary flex-shrink-0" />
+        <span className="text-sm font-semibold flex-1 truncate">{data?.title || t("threads")}</span>
+        {isClosed && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{t("threadClosed")}</span>}
+        {canMod && (
+          <button onClick={() => toggleClose.mutate()} className="text-muted-foreground hover:text-foreground p-1 rounded" title={isClosed ? t("reopenThread") : t("closeThread")}>
+            {isClosed ? <Flame className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+          </button>
+        )}
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 rounded ms-1">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto py-2 space-y-0.5">
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : !data?.messages.length ? (
+          <div className="text-center py-10 text-muted-foreground text-xs px-4">{t("noThreadMessages")}</div>
+        ) : data.messages.map(msg => (
+          <div key={msg.id} className="flex items-start gap-2 px-3 py-1.5 hover:bg-muted/30 rounded">
+            <Avatar name={msg.display_name} url={msg.avatar_url} size={7} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xs font-semibold">{msg.display_name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+              <p className="text-xs text-foreground/90 break-words leading-relaxed">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Reply input */}
+      {!isClosed && (
+        <div className="border-t border-border p-2 flex-shrink-0">
+          <div className="flex gap-2">
+            <Input
+              className="text-xs h-8" placeholder={t("replyInThread")}
+              value={reply} onChange={e => setReply(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && reply.trim() && sendReply.mutate()}
+              maxLength={4000}
+            />
+            <Button size="sm" className="h-8 px-2" onClick={() => sendReply.mutate()} disabled={!reply.trim() || sendReply.isPending}>
+              <Send className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── AutoMod Settings Panel ─────────────────────────────────────────────────────
+
+function AutomodSettingsPanel({ communityId }: { communityId: number }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: cfg, isLoading } = useQuery<AutomodConfig>({
+    queryKey: ["community-automod", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/automod`),
+  });
+
+  const [bannedWords, setBannedWords] = useState("");
+  const [blockLinks, setBlockLinks] = useState(false);
+  const [maxEmoji, setMaxEmoji] = useState(0);
+  const [blockCaps, setBlockCaps] = useState(false);
+  const [blockInvites, setBlockInvites] = useState(false);
+
+  useEffect(() => {
+    if (!cfg) return;
+    setBannedWords(cfg.banned_words.join("\n"));
+    setBlockLinks(cfg.block_external_links);
+    setMaxEmoji(cfg.max_emoji_per_message);
+    setBlockCaps(cfg.block_caps);
+    setBlockInvites(cfg.block_invites);
+  }, [cfg?.community_id]);
+
+  const save = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/automod`, {
+      method: "PUT",
+      body: JSON.stringify({
+        bannedWords: bannedWords.split("\n").map(w => w.trim()).filter(Boolean),
+        blockExternalLinks: blockLinks,
+        maxEmojiPerMessage: maxEmoji,
+        blockCaps,
+        blockInvites,
+      }),
+    }),
+    onSuccess: () => { toast({ title: t("automodSaved") }); qc.invalidateQueries({ queryKey: ["community-automod", communityId] }); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
+
+  const Toggle = ({ value, onChange, label, desc }: { value: boolean; onChange: (v: boolean) => void; label: string; desc?: string }) => (
+    <div className="flex items-center justify-between py-2 border-b border-border/40 last:border-0">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${value ? "bg-primary" : "bg-muted-foreground/30"}`}
+      >
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${value ? "start-[18px]" : "start-0.5"}`} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <Bot className="w-3.5 h-3.5" />{t("bannedWords")}
+        </Label>
+        <Textarea
+          value={bannedWords} onChange={e => setBannedWords(e.target.value)} rows={4}
+          placeholder={t("bannedWordsHint")} className="text-sm font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground">{t("bannedWordsHint")}</p>
+      </div>
+
+      <div className="rounded-lg border border-border divide-y divide-border/40">
+        <Toggle value={blockLinks} onChange={setBlockLinks} label={t("blockExternalLinks")} />
+        <Toggle value={blockCaps} onChange={setBlockCaps} label={t("blockCaps")} />
+        <Toggle value={blockInvites} onChange={setBlockInvites} label={t("blockInvites")} />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("maxEmoji")}</Label>
+        <div className="flex items-center gap-3">
+          <Slider value={[maxEmoji]} onValueChange={([v]) => setMaxEmoji(v)} min={0} max={20} step={1} className="flex-1" />
+          <span className="text-sm font-mono text-primary w-8 text-center">{maxEmoji === 0 ? "∞" : maxEmoji}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">{maxEmoji === 0 ? t("maxEmojiOff") : `Max ${maxEmoji} emoji per message`}</p>
+      </div>
+
+      <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+        {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+        {t("saveChanges")}
+      </Button>
+    </div>
+  );
+}
+
+// ── Welcome Settings Panel ─────────────────────────────────────────────────────
+
+function WelcomeSettingsPanel({ communityId }: { communityId: number }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: cfg, isLoading } = useQuery<WelcomeConfig>({
+    queryKey: ["community-welcome", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/welcome`),
+  });
+
+  const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [rulesText, setRulesText] = useState("");
+  const [requiresAgreement, setRequiresAgreement] = useState(false);
+
+  useEffect(() => {
+    if (!cfg) return;
+    setWelcomeMsg(cfg.welcome_message ?? "");
+    setRulesText(cfg.rules_text ?? "");
+    setRequiresAgreement(cfg.requires_agreement);
+  }, [cfg?.community_id]);
+
+  const save = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/welcome`, {
+      method: "PUT",
+      body: JSON.stringify({ welcomeMessage: welcomeMsg || null, rulesText: rulesText || null, requiresAgreement }),
+    }),
+    onSuccess: () => { toast({ title: t("updated") }); qc.invalidateQueries({ queryKey: ["community-welcome", communityId] }); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("welcomeMessage")}</Label>
+        <Textarea
+          value={welcomeMsg} onChange={e => setWelcomeMsg(e.target.value)} rows={3}
+          placeholder={t("welcomeMessagePlaceholder")}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("rulesText")}</Label>
+        <Textarea
+          value={rulesText} onChange={e => setRulesText(e.target.value)} rows={5}
+          placeholder={t("rulesTextPlaceholder")}
+        />
+      </div>
+      <div className="flex items-center justify-between rounded-lg border border-border p-3">
+        <div>
+          <p className="text-sm font-medium">{t("requiresAgreement")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Members must agree to the rules before posting</p>
+        </div>
+        <button
+          onClick={() => setRequiresAgreement(v => !v)}
+          className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${requiresAgreement ? "bg-primary" : "bg-muted-foreground/30"}`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${requiresAgreement ? "start-[18px]" : "start-0.5"}`} />
+        </button>
+      </div>
+      <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+        {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}
+        {t("saveChanges")}
+      </Button>
+    </div>
+  );
+}
+
+// ── Badges Manager Panel ────────────────────────────────────────────────────────
+
+function BadgesManagerPanel({ communityId }: { communityId: number }) {
+  const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", iconEmoji: "🏅", description: "", type: "manual" as "manual" | "auto", autoTrigger: "" });
+
+  const { data: badges = [], isLoading } = useQuery<CommunityBadge[]>({
+    queryKey: ["community-badges", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/badges`),
+  });
+
+  const createBadge = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/badges`, {
+      method: "POST",
+      body: JSON.stringify({ name: form.name, iconEmoji: form.iconEmoji, description: form.description || undefined,
+        type: form.type, autoTrigger: form.autoTrigger || undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: t("badgeCreated") });
+      qc.invalidateQueries({ queryKey: ["community-badges", communityId] });
+      setCreating(false); setForm({ name: "", iconEmoji: "🏅", description: "", type: "manual", autoTrigger: "" });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const deleteBadge = useMutation({
+    mutationFn: (bid: number) => customFetch(`/api/communities/${communityId}/badges/${bid}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["community-badges", communityId] }); },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const AUTO_TRIGGERS = ["early_member", "active_speaker", "anniversary", "streak_7"];
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {!creating ? (
+        <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+          <Plus className="w-3.5 h-3.5 me-1.5" />{t("createBadge")}
+        </Button>
+      ) : (
+        <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("createBadge")}</p>
+          <div className="flex gap-2">
+            <Input value={form.iconEmoji} onChange={e => setForm(f => ({ ...f, iconEmoji: e.target.value }))}
+              className="w-16 text-center text-lg" maxLength={2} placeholder="🏅" />
+            <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder={t("badgeName")} maxLength={100} className="flex-1" />
+          </div>
+          <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder={t("badgeDescription")} maxLength={200} />
+          <div className="flex gap-2">
+            <button onClick={() => setForm(f => ({ ...f, type: "manual" }))}
+              className={`flex-1 text-xs py-1.5 rounded border transition-colors ${form.type === "manual" ? "bg-primary text-primary-foreground border-primary" : "border-border"}`}>
+              {t("badgeTypeManual")}
+            </button>
+            <button onClick={() => setForm(f => ({ ...f, type: "auto" }))}
+              className={`flex-1 text-xs py-1.5 rounded border transition-colors ${form.type === "auto" ? "bg-primary text-primary-foreground border-primary" : "border-border"}`}>
+              {t("badgeTypeAuto")}
+            </button>
+          </div>
+          {form.type === "auto" && (
+            <select value={form.autoTrigger} onChange={e => setForm(f => ({ ...f, autoTrigger: e.target.value }))}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+              <option value="">— Select trigger</option>
+              {AUTO_TRIGGERS.map(tr => <option key={tr} value={tr}>{t(tr.replace("_", "")) || tr}</option>)}
+            </select>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => createBadge.mutate()} disabled={!form.name || createBadge.isPending}>
+              {createBadge.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Save
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {badges.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <Award className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">{t("noBadges")}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {badges.map(badge => (
+            <div key={badge.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 group">
+              <span className="text-2xl">{badge.icon_emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold">{badge.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${badge.type === "auto" ? "bg-blue-500/15 text-blue-500" : "bg-muted text-muted-foreground"}`}>
+                    {badge.type}
+                  </span>
+                </div>
+                {badge.description && <p className="text-xs text-muted-foreground truncate">{badge.description}</p>}
+                {badge.auto_trigger && <p className="text-[10px] text-muted-foreground">Trigger: {badge.auto_trigger}</p>}
+              </div>
+              <button onClick={() => deleteBadge.mutate(badge.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 rounded transition-all">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -430,32 +1073,44 @@ function renderMessageContent(content: string, roles: Role[]) {
   });
 }
 
-function MessageRow({ msg, canDelete, canPin, onDelete, onPin, roleColor, roles }: {
+function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, threadId, roleColor, roles }: {
   msg: Message; canDelete: boolean; canPin: boolean;
   onDelete: (id: number) => void; onPin: (id: number) => void;
+  onStartThread?: (msg: Message) => void; threadId?: number;
   roleColor?: string; roles?: Role[];
 }) {
+  const { t } = useTranslation("communities");
   return (
     <div className={`flex items-start gap-3 px-4 py-1.5 hover:bg-muted/30 group rounded ${msg.isPinned ? "border-s-2 border-primary/40" : ""}`}>
       <Avatar name={msg.displayName} url={msg.avatarUrl} size={8} />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span
-            className="text-sm font-semibold"
-            style={roleColor ? { color: roleColor } : undefined}
-          >
+          <span className="text-sm font-semibold" style={roleColor ? { color: roleColor } : undefined}>
             {msg.displayName}
           </span>
           <span className="text-[10px] font-mono text-muted-foreground">
             {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           {msg.isPinned && <Pin className="w-2.5 h-2.5 text-primary/60" />}
+          {threadId != null && (
+            <button
+              onClick={() => onStartThread?.(msg)}
+              className="text-[10px] text-primary/70 hover:text-primary flex items-center gap-0.5"
+            >
+              <MessageCircle className="w-2.5 h-2.5" />{t("viewThread")}
+            </button>
+          )}
         </div>
         <p className="text-sm text-foreground/90 break-words leading-relaxed">
           {roles && roles.length > 0 ? renderMessageContent(msg.content, roles) : msg.content}
         </p>
       </div>
       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all">
+        {onStartThread && !threadId && (
+          <button onClick={() => onStartThread(msg)} className="text-muted-foreground hover:text-primary p-1 rounded" title={t("startThread")}>
+            <MessageCircle className="w-3 h-3" />
+          </button>
+        )}
         {canPin && (
           <button onClick={() => onPin(msg.id)} className="text-muted-foreground hover:text-primary p-1 rounded">
             {msg.isPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
@@ -483,6 +1138,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
   const [showPins, setShowPins] = useState(false);
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const [slowmodeLeft, setSlowmodeLeft] = useState(0);
+  const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -597,115 +1253,160 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId }: {
 
   const pinnedCount = messages.filter(m => m.isPinned).length;
 
+  const { data: channelThreads = [] } = useQuery<CommunityThread[]>({
+    queryKey: ["community-threads", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/threads`),
+    refetchInterval: 15000,
+  });
+
+  const threadMap = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const t of channelThreads) m[t.parent_message_id] = t.id;
+    return m;
+  }, [channelThreads]);
+
+  const startThread = useMutation({
+    mutationFn: ({ msgId, title }: { msgId: number; title?: string }) =>
+      customFetch(`/api/communities/${communityId}/messages/${msgId}/thread`, {
+        method: "POST", body: JSON.stringify({ title: title ?? undefined }),
+      }),
+    onSuccess: (data: { id: number }) => {
+      setActiveThreadId(data.id);
+      qc.invalidateQueries({ queryKey: ["community-threads", communityId, channel.id] });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const handleStartThread = useCallback((msg: Message) => {
+    const existingThread = threadMap[msg.id];
+    if (existingThread) { setActiveThreadId(existingThread); return; }
+    startThread.mutate({ msgId: msg.id });
+  }, [threadMap, startThread]);
+
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Pinned bar */}
-      {pinnedCount > 0 && (
-        <button
-          onClick={() => setShowPins(v => !v)}
-          className="flex items-center gap-2 px-4 py-1.5 bg-primary/5 border-b border-primary/20 hover:bg-primary/10 transition-colors text-start w-full"
-        >
-          <Pin className="w-3 h-3 text-primary flex-shrink-0" />
-          <span className="text-xs text-primary font-medium">{pinnedCount} {t("pinnedMessage", { count: pinnedCount })}</span>
-          <ChevronRight className={`w-3 h-3 text-primary ms-auto transition-transform ${showPins ? "rotate-90" : ""}`} />
-        </button>
-      )}
+    <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* Main channel column */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Pinned bar */}
+        {pinnedCount > 0 && (
+          <button
+            onClick={() => setShowPins(v => !v)}
+            className="flex items-center gap-2 px-4 py-1.5 bg-primary/5 border-b border-primary/20 hover:bg-primary/10 transition-colors text-start w-full flex-shrink-0"
+          >
+            <Pin className="w-3 h-3 text-primary flex-shrink-0" />
+            <span className="text-xs text-primary font-medium">{pinnedCount} {t("pinnedMessage", { count: pinnedCount })}</span>
+            <ChevronRight className={`w-3 h-3 text-primary ms-auto transition-transform ${showPins ? "rotate-90" : ""}`} />
+          </button>
+        )}
 
-      {/* Pinned messages dropdown */}
-      {showPins && (
-        <div className="border-b border-border bg-card/50 max-h-40 overflow-y-auto">
-          {pins.map(msg => (
-            <div key={msg.id} className="flex items-start gap-2 px-4 py-2 hover:bg-muted/30">
-              <Pin className="w-2.5 h-2.5 text-primary flex-shrink-0 mt-1" />
-              <div>
-                <span className="text-xs font-semibold text-foreground">{msg.displayName}</span>
-                <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
+        {/* Pinned messages dropdown */}
+        {showPins && (
+          <div className="border-b border-border bg-card/50 max-h-40 overflow-y-auto flex-shrink-0">
+            {pins.map(msg => (
+              <div key={msg.id} className="flex items-start gap-2 px-4 py-2 hover:bg-muted/30">
+                <Pin className="w-2.5 h-2.5 text-primary flex-shrink-0 mt-1" />
+                <div>
+                  <span className="text-xs font-semibold text-foreground">{msg.displayName}</span>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto py-2">
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-4">
-            <Hash className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">{t("noMessages")}</p>
-            <p className="text-xs text-muted-foreground">{t("noMessagesDesc", { channel: channel.name })}</p>
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto py-2">
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-4">
+              <Hash className="w-8 h-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">{t("noMessages")}</p>
+              <p className="text-xs text-muted-foreground">{t("noMessagesDesc", { channel: channel.name })}</p>
+            </div>
+          ) : (
+            messages.map((msg) => (
+              <MessageRow
+                key={msg.id}
+                msg={msg}
+                canDelete={isOwner || canMod || msg.userId === myUserId}
+                canPin={canMod || isOwner}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onPin={(id) => pinMutation.mutate(id)}
+                onStartThread={handleStartThread}
+                threadId={threadMap[msg.id]}
+                roleColor={(roleColorMap as Record<number, string>)[msg.userId]}
+                roles={roles}
+              />
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input — announcement restriction or normal input */}
+        {(channel.type !== "announcement" || isOwner || canMod) ? (
+          <div className="border-t border-border px-4 py-3 relative flex-shrink-0">
+            {/* @mention autocomplete dropdown */}
+            {mentionSearch !== null && filteredMentions.length > 0 && (
+              <div className="absolute bottom-full start-4 end-4 mb-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                <div className="px-3 py-1.5 border-b border-border">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Roles</span>
+                </div>
+                {filteredMentions.map(role => (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => insertRoleMention(role)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent transition-colors text-start"
+                  >
+                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                    <span className="text-sm font-medium" style={{ color: role.color }}>@{role.name}</span>
+                    <span className="text-xs text-muted-foreground ms-auto">mentionable</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {slowmodeLeft > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-500/80 mb-2">
+                <Clock className="w-3 h-3" />
+                <span>Slow mode — wait {slowmodeLeft}s before sending</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
+              <input
+                ref={inputRef}
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+                placeholder={slowmodeLeft > 0 ? `Slow mode — ${slowmodeLeft}s remaining` : t("typeMessage", { channel: channel.name })}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setMentionSearch(null); return; }
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                }}
+                maxLength={4000}
+                disabled={slowmodeLeft > 0}
+              />
+              <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending || slowmodeLeft > 0} className="text-primary disabled:text-muted-foreground">
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <MessageRow
-              key={msg.id}
-              msg={msg}
-              canDelete={isOwner || canMod || msg.userId === myUserId}
-              canPin={canMod || isOwner}
-              onDelete={(id) => deleteMutation.mutate(id)}
-              onPin={(id) => pinMutation.mutate(id)}
-              roleColor={(roleColorMap as Record<number, string>)[msg.userId]}
-              roles={roles}
-            />
-          ))
+          <div className="border-t border-border px-4 py-3 flex items-center gap-2.5 text-muted-foreground bg-muted/20 flex-shrink-0">
+            <Megaphone className="w-4 h-4 text-amber-500/70 flex-shrink-0" />
+            <span className="text-sm">This is an announcement channel — only moderators can post here.</span>
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
-      {/* Input — announcement restriction or normal input */}
-      {(channel.type !== "announcement" || isOwner || canMod) ? (
-        <div className="border-t border-border px-4 py-3 relative">
-          {/* @mention autocomplete dropdown */}
-          {mentionSearch !== null && filteredMentions.length > 0 && (
-            <div className="absolute bottom-full start-4 end-4 mb-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-              <div className="px-3 py-1.5 border-b border-border">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Roles</span>
-              </div>
-              {filteredMentions.map(role => (
-                <button
-                  key={role.id}
-                  type="button"
-                  onClick={() => insertRoleMention(role)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent transition-colors text-start"
-                >
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
-                  <span className="text-sm font-medium" style={{ color: role.color }}>@{role.name}</span>
-                  <span className="text-xs text-muted-foreground ms-auto">mentionable</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {slowmodeLeft > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-amber-500/80 mb-2">
-              <Clock className="w-3 h-3" />
-              <span>Slow mode — wait {slowmodeLeft}s before sending</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
-            <input
-              ref={inputRef}
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
-              placeholder={slowmodeLeft > 0 ? `Slow mode — ${slowmodeLeft}s remaining` : t("typeMessage", { channel: channel.name })}
-              value={text}
-              onChange={handleTextChange}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") { setMentionSearch(null); return; }
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-              }}
-              maxLength={4000}
-              disabled={slowmodeLeft > 0}
-            />
-            <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending || slowmodeLeft > 0} className="text-primary disabled:text-muted-foreground">
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="border-t border-border px-4 py-3 flex items-center gap-2.5 text-muted-foreground bg-muted/20 flex-shrink-0">
-          <Megaphone className="w-4 h-4 text-amber-500/70 flex-shrink-0" />
-          <span className="text-sm">This is an announcement channel — only moderators can post here.</span>
-        </div>
+      {/* Thread panel (slides in from right) */}
+      {activeThreadId != null && (
+        <ThreadPanel
+          communityId={communityId}
+          threadId={activeThreadId}
+          onClose={() => setActiveThreadId(null)}
+          canMod={canMod || isOwner}
+        />
       )}
     </div>
   );
@@ -1915,7 +2616,7 @@ function RoleEditor({ role, onSave, onDelete, isSaving, isDeleting }: {
 function ServerSettingsDialog({ community, open, onClose }: {
   community: Community; open: boolean; onClose: () => void;
 }) {
-  const [activeTab] = useState<"roles">("roles");
+  const [activeTab, setActiveTab] = useState<"roles" | "welcome" | "automod" | "badges">("roles");
   const qc = useQueryClient();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
@@ -1995,6 +2696,13 @@ function ServerSettingsDialog({ community, open, onClose }: {
     ]);
   };
 
+  const NAV_ITEMS = [
+    { id: "roles" as const, label: "Roles", icon: <Shield className="w-4 h-4" /> },
+    { id: "welcome" as const, label: "Welcome", icon: <Sparkles className="w-4 h-4" /> },
+    { id: "automod" as const, label: "AutoMod", icon: <Bot className="w-4 h-4" /> },
+    { id: "badges" as const, label: "Badges", icon: <Award className="w-4 h-4" /> },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden h-[680px] flex flex-col">
@@ -2004,86 +2712,102 @@ function ServerSettingsDialog({ community, open, onClose }: {
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 mb-3 truncate">
               {community.name}
             </p>
-            <button
-              className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors font-medium bg-accent text-foreground`}
-            >
-              <Shield className="w-4 h-4" />
-              Roles
-            </button>
-          </div>
-
-          {/* Role list */}
-          <div className="w-52 border-e border-border flex flex-col flex-shrink-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {roles.length} role{roles.length !== 1 ? "s" : ""}
-              </span>
+            {NAV_ITEMS.map(item => (
               <button
-                onClick={() => createRole.mutate()}
-                disabled={createRole.isPending}
-                className="text-muted-foreground hover:text-primary transition-colors"
-                title="Create role"
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex items-center gap-2.5 px-4 py-2 text-sm text-start transition-colors font-medium ${
+                  activeTab === item.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                }`}
               >
-                <Plus className="w-4 h-4" />
+                {item.icon}
+                {item.label}
               </button>
-            </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              {nonDefaultSorted.map((role, i) => (
-                <div
-                  key={role.id}
-                  onClick={() => setSelectedRoleId(role.id)}
-                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer group transition-colors ${
-                    selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
-                  <span className="text-sm truncate flex-1">{role.name}</span>
-                  <div className="flex flex-col gap-px opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    {i > 0 && (
-                      <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "up"); }} className="hover:text-foreground">
-                        <ChevronUp className="w-3 h-3" />
-                      </button>
-                    )}
-                    {i < nonDefaultSorted.length - 1 && (
-                      <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "down"); }} className="hover:text-foreground">
-                        <ChevronDown className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {defaultRoles.map(role => (
-                <div
-                  key={role.id}
-                  onClick={() => setSelectedRoleId(role.id)}
-                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
-                    selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
-                  <span className="text-sm truncate flex-1">{role.name}</span>
-                  <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">base</span>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
 
-          {/* Role editor */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {selectedRole ? (
-              <RoleEditor
-                role={selectedRole}
-                onSave={updates => updateRole.mutate({ rid: selectedRole.id, updates })}
-                onDelete={() => deleteRole.mutate(selectedRole.id)}
-                isSaving={updateRole.isPending}
-                isDeleting={deleteRole.isPending}
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-                Select a role to edit
+          {/* Content area */}
+          {activeTab === "roles" ? (
+            <>
+              {/* Role list */}
+              <div className="w-52 border-e border-border flex flex-col flex-shrink-0">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {roles.length} role{roles.length !== 1 ? "s" : ""}
+                  </span>
+                  <button
+                    onClick={() => createRole.mutate()}
+                    disabled={createRole.isPending}
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    title="Create role"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto py-1">
+                  {nonDefaultSorted.map((role, i) => (
+                    <div
+                      key={role.id}
+                      onClick={() => setSelectedRoleId(role.id)}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer group transition-colors ${
+                        selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                      <span className="text-sm truncate flex-1">{role.name}</span>
+                      <div className="flex flex-col gap-px opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        {i > 0 && (
+                          <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "up"); }} className="hover:text-foreground">
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                        )}
+                        {i < nonDefaultSorted.length - 1 && (
+                          <button type="button" onClick={e => { e.stopPropagation(); moveRole(role, "down"); }} className="hover:text-foreground">
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {defaultRoles.map(role => (
+                    <div
+                      key={role.id}
+                      onClick={() => setSelectedRoleId(role.id)}
+                      className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                        selectedRoleId === role.id ? "bg-accent/70 text-foreground" : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: role.color }} />
+                      <span className="text-sm truncate flex-1">{role.name}</span>
+                      <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">base</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
+              {/* Role editor */}
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {selectedRole ? (
+                  <RoleEditor
+                    role={selectedRole}
+                    onSave={updates => updateRole.mutate({ rid: selectedRole.id, updates })}
+                    onDelete={() => deleteRole.mutate(selectedRole.id)}
+                    isSaving={updateRole.isPending}
+                    isDeleting={deleteRole.isPending}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                    Select a role to edit
+                  </div>
+                )}
+              </div>
+            </>
+          ) : activeTab === "welcome" ? (
+            <WelcomeSettingsPanel communityId={community.id} />
+          ) : activeTab === "automod" ? (
+            <AutomodSettingsPanel communityId={community.id} />
+          ) : (
+            <BadgesManagerPanel communityId={community.id} />
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -2353,8 +3077,10 @@ export default function CommunityHub() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bannerOpen, setBannerOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [eventsOpen, setEventsOpen] = useState(false);
   const [channelSettingsChannel, setChannelSettingsChannel] = useState<Channel | null>(null);
   const [voicePresence, setVoicePresence] = useState<VoicePresenceMap>({});
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   const { data: community, isLoading, error } = useQuery<Community>({
     queryKey: ["community-slug", slug],
@@ -2363,6 +3089,17 @@ export default function CommunityHub() {
   });
 
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
+
+  // Welcome & rules
+  const { data: welcomeConfig } = useQuery<WelcomeConfig>({
+    queryKey: ["community-welcome", community?.id],
+    queryFn: () => customFetch(`/api/communities/${community!.id}/welcome`),
+    enabled: !!community && (community.isMember || community.isOwner),
+  });
+
+  const showWelcome = !welcomeDismissed && !!welcomeConfig &&
+    (!!welcomeConfig.welcome_message || !!welcomeConfig.rules_text) &&
+    (welcomeConfig.requires_agreement ? !welcomeConfig.hasAgreed : true);
 
   useEffect(() => {
     if (community && !activeChannelId) {
@@ -2554,7 +3291,15 @@ export default function CommunityHub() {
           ) : (
             <span className="text-muted-foreground text-sm">{t("channels")}</span>
           )}
-          <div className="ms-auto flex items-center gap-1">
+          <div className="ms-auto flex items-center gap-1.5">
+            {/* Events button */}
+            <button
+              onClick={() => setEventsOpen(true)}
+              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1"
+              title={t("events")}
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
             <button
               onClick={() => setShowMembers((v) => !v)}
               className={`p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${showMembers ? "text-foreground bg-muted" : ""}`}
@@ -2608,7 +3353,7 @@ export default function CommunityHub() {
       <AddChannelDialog communityId={community.id} open={addChannelOpen} onClose={() => setAddChannelOpen(false)} />
       <InviteDialog communityId={community.id} isOwnerOrMod={community.isMod ?? community.isOwner} open={inviteOpen} onClose={() => setInviteOpen(false)} />
       {community.isOwner && <BannerDialog communityId={community.id} open={bannerOpen} onClose={() => setBannerOpen(false)} />}
-      {community.isOwner && (
+      {(community.isOwner || (community.isMod ?? false)) && (
         <ServerSettingsDialog community={community} open={serverSettingsOpen} onClose={() => setServerSettingsOpen(false)} />
       )}
       {channelSettingsChannel && (community.isMod ?? community.isOwner) && (
@@ -2617,6 +3362,27 @@ export default function CommunityHub() {
           channel={channelSettingsChannel}
           open={!!channelSettingsChannel}
           onClose={() => setChannelSettingsChannel(null)}
+        />
+      )}
+      {/* Events dialog — always available to members */}
+      <EventsDialog
+        communityId={community.id}
+        channels={community.channels}
+        isOwnerOrMod={community.isMod ?? community.isOwner}
+        open={eventsOpen}
+        onClose={() => setEventsOpen(false)}
+      />
+      {/* Welcome modal — shown on first visit if configured */}
+      {showWelcome && welcomeConfig && (
+        <WelcomeModal
+          communityId={community.id}
+          communityName={community.name}
+          config={welcomeConfig}
+          onAgreed={() => {
+            setWelcomeDismissed(true);
+            qc.invalidateQueries({ queryKey: ["community-welcome", community.id] });
+          }}
+          onClose={() => setWelcomeDismissed(true)}
         />
       )}
     </div>

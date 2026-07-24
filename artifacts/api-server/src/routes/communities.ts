@@ -121,6 +121,86 @@ export async function ensureCommunityPremiumTables(): Promise<void> {
       deny  JSONB NOT NULL DEFAULT '{}',
       UNIQUE(channel_id, role_id)
     );
+
+    -- ── Welcome & Rules ───────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS community_welcome (
+      community_id INTEGER PRIMARY KEY REFERENCES communities(id) ON DELETE CASCADE,
+      welcome_message TEXT,
+      rules_text TEXT,
+      requires_agreement BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE community_members ADD COLUMN IF NOT EXISTS has_agreed_rules BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE community_members ADD COLUMN IF NOT EXISTS agreed_at TIMESTAMPTZ;
+
+    -- ── AutoMod ────────────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS community_automod (
+      community_id INTEGER PRIMARY KEY REFERENCES communities(id) ON DELETE CASCADE,
+      banned_words TEXT[] NOT NULL DEFAULT '{}',
+      block_external_links BOOLEAN NOT NULL DEFAULT false,
+      max_emoji_per_message INTEGER NOT NULL DEFAULT 0,
+      block_caps BOOLEAN NOT NULL DEFAULT false,
+      block_invites BOOLEAN NOT NULL DEFAULT false
+    );
+
+    -- ── Events ────────────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS community_events (
+      id SERIAL PRIMARY KEY,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      creator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title VARCHAR(200) NOT NULL,
+      description TEXT,
+      start_at TIMESTAMPTZ NOT NULL,
+      end_at TIMESTAMPTZ,
+      channel_id INTEGER REFERENCES community_channels(id) ON DELETE SET NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS event_rsvps (
+      event_id INTEGER NOT NULL REFERENCES community_events(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status VARCHAR(20) NOT NULL DEFAULT 'attending',
+      PRIMARY KEY(event_id, user_id)
+    );
+
+    -- ── Badges ────────────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS community_badges (
+      id SERIAL PRIMARY KEY,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      icon_emoji VARCHAR(10) NOT NULL DEFAULT '🏅',
+      description TEXT,
+      type VARCHAR(20) NOT NULL DEFAULT 'manual',
+      auto_trigger VARCHAR(50),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS member_badges (
+      id SERIAL PRIMARY KEY,
+      badge_id INTEGER NOT NULL REFERENCES community_badges(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(badge_id, user_id)
+    );
+
+    -- ── Threads ───────────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS community_message_threads (
+      id SERIAL PRIMARY KEY,
+      parent_message_id INTEGER NOT NULL REFERENCES community_messages(id) ON DELETE CASCADE,
+      channel_id INTEGER NOT NULL REFERENCES community_channels(id) ON DELETE CASCADE,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      title VARCHAR(200),
+      is_closed BOOLEAN NOT NULL DEFAULT false,
+      last_activity_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS community_thread_messages (
+      id SERIAL PRIMARY KEY,
+      thread_id INTEGER NOT NULL REFERENCES community_message_threads(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
   logger.info("communities: premium tables ensured");
 }
@@ -159,6 +239,108 @@ async function getMembership(communityId: number, userId: number) {
     .from(communityMembersTable)
     .where(and(eq(communityMembersTable.communityId, communityId), eq(communityMembersTable.userId, userId)));
   return m ?? null;
+}
+
+/**
+ * Checks whether a user may access a (potentially private) channel in a community.
+ * Returns null on success, or an HTTP error shape {status, error} if access is denied.
+ * Also returns the channel row so callers don't have to re-fetch it.
+ */
+async function assertChannelAccess(
+  communityId: number,
+  channelId: number,
+  userId: number,
+): Promise<{ denied: true; status: number; error: string } | { denied: false; channel: typeof communityChannelsTable.$inferSelect }> {
+  const [channel] = await db
+    .select()
+    .from(communityChannelsTable)
+    .where(and(eq(communityChannelsTable.id, channelId), eq(communityChannelsTable.communityId, communityId)));
+  if (!channel) return { denied: true, status: 404, error: "Channel not found" };
+  if (channel.isPrivate && !await isOwnerOrMod(communityId, userId)) {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM channel_role_permissions crp
+       JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+       JOIN community_members cm ON cm.id = cmr.member_id
+       WHERE cm.user_id = $1 AND cm.community_id = $2 AND crp.channel_id = $3
+         AND cm.is_banned = false AND (crp.allow->>'can_view')::boolean IS TRUE
+       LIMIT 1`,
+      [userId, communityId, channelId]
+    );
+    if (rows.length === 0) return { denied: true, status: 403, error: "Forbidden" };
+  }
+  return { denied: false, channel };
+}
+
+/**
+ * Returns the user IDs of all non-banned community members who are authorized
+ * to view the given channel. For public channels this is every member; for
+ * private channels this is owners/mods plus members with a role that grants can_view.
+ */
+async function getChannelAuthorizedRecipients(communityId: number, channelId: number): Promise<number[]> {
+  // Fetch channel to check privacy
+  const [ch] = await db
+    .select({ isPrivate: communityChannelsTable.isPrivate })
+    .from(communityChannelsTable)
+    .where(and(eq(communityChannelsTable.id, channelId), eq(communityChannelsTable.communityId, communityId)));
+  if (!ch) return [];
+
+  if (!ch.isPrivate) {
+    // Public — all non-banned members
+    const members = await db
+      .select({ userId: communityMembersTable.userId })
+      .from(communityMembersTable)
+      .where(and(eq(communityMembersTable.communityId, communityId), eq(communityMembersTable.isBanned, false)));
+    return members.map(m => m.userId);
+  }
+
+  // Private — owners/mods OR members with role-based can_view on this channel
+  const [community] = await db.select({ ownerId: communitiesTable.ownerId }).from(communitiesTable).where(eq(communitiesTable.id, communityId));
+  const ownerId = community?.ownerId ?? -1;
+
+  const { rows } = await pool.query<{ user_id: number }>(
+    `SELECT DISTINCT cm.user_id
+     FROM community_members cm
+     WHERE cm.community_id = $1 AND cm.is_banned = false AND (
+       -- owner always sees all
+       cm.user_id = $2
+       -- mod roles (is_admin, can_kick, can_ban, can_manage_channels)
+       OR EXISTS (
+         SELECT 1 FROM community_member_roles cmr
+         JOIN community_roles cr ON cr.id = cmr.role_id
+         WHERE cmr.member_id = cm.id
+           AND ((cr.permissions->>'is_admin')::boolean IS TRUE
+             OR (cr.permissions->>'can_kick')::boolean IS TRUE
+             OR (cr.permissions->>'can_ban')::boolean IS TRUE
+             OR (cr.permissions->>'can_manage_channels')::boolean IS TRUE)
+       )
+       -- role-based can_view on this channel
+       OR EXISTS (
+         SELECT 1 FROM channel_role_permissions crp
+         JOIN community_member_roles cmr ON cmr.role_id = crp.role_id
+         WHERE cmr.member_id = cm.id AND crp.channel_id = $3
+           AND (crp.allow->>'can_view')::boolean IS TRUE
+       )
+     )`,
+    [communityId, ownerId, channelId]
+  );
+  return rows.map(r => r.user_id);
+}
+
+/**
+ * Returns 403 if the community requires rules agreement and the calling user has not agreed.
+ * Returns null if the check passes (posting is allowed).
+ */
+async function assertRulesAgreed(communityId: number, userId: number): Promise<{ status: number; error: string } | null> {
+  const { rows: wcRows } = await pool.query<{ requires_agreement: boolean }>(
+    `SELECT requires_agreement FROM community_welcome WHERE community_id = $1 LIMIT 1`, [communityId]
+  );
+  if (!wcRows[0]?.requires_agreement) return null; // No agreement required
+  const { rows: agrRows } = await pool.query<{ has_agreed_rules: boolean }>(
+    `SELECT has_agreed_rules FROM community_members WHERE community_id = $1 AND user_id = $2 LIMIT 1`,
+    [communityId, userId]
+  );
+  if (agrRows[0]?.has_agreed_rules) return null;
+  return { status: 403, error: "Must agree to community rules before posting" };
 }
 
 async function isOwnerOrMod(communityId: number, userId: number): Promise<boolean> {
@@ -930,6 +1112,53 @@ router.post("/communities/:id/channels/:cid/messages", requireAuth, async (req, 
     if (!content || typeof content !== "string" || content.trim().length === 0 || content.trim().length > 4000) {
       res.status(400).json({ error: "content must be 1–4000 characters" });
       return;
+    }
+
+    // Rules-agreement enforcement (non-owner/mod only — mods can always post)
+    if (!await isOwnerOrMod(id, userId)) {
+      const agreementErr = await assertRulesAgreed(id, userId);
+      if (agreementErr) { res.status(agreementErr.status).json({ error: agreementErr.error }); return; }
+    }
+
+    // AutoMod enforcement (non-owner/mod only)
+    const isPrivileged = await isOwnerOrMod(id, userId);
+    if (!isPrivileged) {
+      const { rows: automodRows } = await pool.query(
+        `SELECT * FROM community_automod WHERE community_id = $1 LIMIT 1`, [id]
+      );
+      if (automodRows[0]) {
+        const am = automodRows[0];
+        const trimmed = content.trim();
+        // Banned words (case-insensitive substring match)
+        if (am.banned_words && am.banned_words.length > 0) {
+          const lower = trimmed.toLowerCase();
+          const hit = (am.banned_words as string[]).find(w => w && lower.includes(w.toLowerCase()));
+          if (hit) { res.status(400).json({ error: "automod", reason: "banned_word" }); return; }
+        }
+        // Block external links
+        if (am.block_external_links && /https?:\/\//i.test(trimmed)) {
+          res.status(400).json({ error: "automod", reason: "external_link" }); return;
+        }
+        // Discord invite links
+        if (am.block_invites && /discord\.gg\//i.test(trimmed)) {
+          res.status(400).json({ error: "automod", reason: "invite_link" }); return;
+        }
+        // Excessive caps (>70% uppercase letters when message is >10 chars)
+        if (am.block_caps && trimmed.length > 10) {
+          const letters = trimmed.replace(/[^a-zA-Z]/g, "");
+          if (letters.length > 5) {
+            const capsRatio = (trimmed.replace(/[^A-Z]/g, "").length) / letters.length;
+            if (capsRatio > 0.7) { res.status(400).json({ error: "automod", reason: "excessive_caps" }); return; }
+          }
+        }
+        // Emoji count
+        if (am.max_emoji_per_message && am.max_emoji_per_message > 0) {
+          const emojiMatches = trimmed.match(/\p{Emoji}/gu) ?? [];
+          if (emojiMatches.length > am.max_emoji_per_message) {
+            res.status(400).json({ error: "automod", reason: "too_many_emoji" }); return;
+          }
+        }
+      }
     }
 
     const [msg] = await db
@@ -2022,5 +2251,586 @@ router.get("/communities/:id/channels/:cid/pins", requireAuth, async (req, res):
     res.status(500).json({ error: "Internal error" });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Welcome & Rules ───────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** GET /communities/:id/welcome */
+router.get("/communities/:id/welcome", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    const { rows } = await pool.query<{
+      community_id: number; welcome_message: string | null; rules_text: string | null;
+      requires_agreement: boolean; updated_at: string;
+    }>(`SELECT * FROM community_welcome WHERE community_id = $1`, [id]);
+    const config = rows[0] ?? { community_id: id, welcome_message: null, rules_text: null, requires_agreement: false };
+    // Fetch has_agreed_rules via raw SQL — Drizzle schema doesn't include this ALTER TABLE-added column
+    const { rows: agreedRows } = await pool.query<{ has_agreed_rules: boolean }>(
+      `SELECT has_agreed_rules FROM community_members WHERE community_id = $1 AND user_id = $2 LIMIT 1`, [id, userId]
+    );
+    res.json({ ...config, hasAgreed: !!(agreedRows[0]?.has_agreed_rules) });
+  } catch (err) {
+    logger.error({ err }, "communities: welcome get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** PUT /communities/:id/welcome */
+router.put("/communities/:id/welcome", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { welcomeMessage, rulesText, requiresAgreement } = req.body ?? {};
+  try {
+    await pool.query(
+      `INSERT INTO community_welcome (community_id, welcome_message, rules_text, requires_agreement, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (community_id) DO UPDATE
+         SET welcome_message = EXCLUDED.welcome_message,
+             rules_text = EXCLUDED.rules_text,
+             requires_agreement = EXCLUDED.requires_agreement,
+             updated_at = now()`,
+      [id, welcomeMessage ?? null, rulesText ?? null, !!requiresAgreement]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: welcome put failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/welcome/agree */
+router.post("/communities/:id/welcome/agree", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const membership = await getMembership(id, userId);
+    if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+    await pool.query(
+      `UPDATE community_members SET has_agreed_rules = true, agreed_at = now()
+       WHERE community_id = $1 AND user_id = $2`, [id, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: welcome agree failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── AutoMod ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** GET /communities/:id/automod */
+router.get("/communities/:id/automod", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM community_automod WHERE community_id = $1`, [id]
+    );
+    res.json(rows[0] ?? { community_id: id, banned_words: [], block_external_links: false, max_emoji_per_message: 0, block_caps: false, block_invites: false });
+  } catch (err) {
+    logger.error({ err }, "communities: automod get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** PUT /communities/:id/automod */
+router.put("/communities/:id/automod", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { bannedWords, blockExternalLinks, maxEmojiPerMessage, blockCaps, blockInvites } = req.body ?? {};
+  try {
+    const words = Array.isArray(bannedWords) ? bannedWords.filter((w: any) => typeof w === "string" && w.trim()).map((w: any) => w.trim().toLowerCase()) : [];
+    await pool.query(
+      `INSERT INTO community_automod (community_id, banned_words, block_external_links, max_emoji_per_message, block_caps, block_invites)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (community_id) DO UPDATE
+         SET banned_words = EXCLUDED.banned_words,
+             block_external_links = EXCLUDED.block_external_links,
+             max_emoji_per_message = EXCLUDED.max_emoji_per_message,
+             block_caps = EXCLUDED.block_caps,
+             block_invites = EXCLUDED.block_invites`,
+      [id, words, !!blockExternalLinks, Math.max(0, Number(maxEmojiPerMessage) || 0), !!blockCaps, !!blockInvites]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: automod put failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Events ────────────────────────────────────────────════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+
+type CommunityEvent = {
+  id: number; community_id: number; creator_id: number; title: string;
+  description: string | null; start_at: string; end_at: string | null;
+  channel_id: number | null; status: string; created_at: string;
+  attending_count: number; interested_count: number; my_rsvp: string | null;
+};
+
+/** GET /communities/:id/events */
+router.get("/communities/:id/events", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  try {
+    const { rows } = await pool.query<CommunityEvent>(
+      `SELECT e.*,
+         COUNT(r.user_id) FILTER (WHERE r.status = 'attending') AS attending_count,
+         COUNT(r.user_id) FILTER (WHERE r.status = 'interested') AS interested_count,
+         MAX(r.status) FILTER (WHERE r.user_id = $2) AS my_rsvp
+       FROM community_events e
+       LEFT JOIN event_rsvps r ON r.event_id = e.id
+       WHERE e.community_id = $1
+       GROUP BY e.id
+       ORDER BY e.start_at ASC`,
+      [id, userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: events list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/events */
+router.post("/communities/:id/events", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { title, description, startAt, endAt, channelId } = req.body ?? {};
+  if (!title || typeof title !== "string" || title.trim().length < 1) {
+    res.status(400).json({ error: "title required" }); return;
+  }
+  if (!startAt || isNaN(Date.parse(startAt))) {
+    res.status(400).json({ error: "valid startAt required" }); return;
+  }
+  try {
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO community_events (community_id, creator_id, title, description, start_at, end_at, channel_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [id, userId, title.trim(), description?.trim() ?? null, new Date(startAt), endAt ? new Date(endAt) : null, channelId ?? null]
+    );
+    // Schedule 1-hour notification (simple in-process timer)
+    const msUntilNotif = new Date(startAt).getTime() - Date.now() - 60 * 60 * 1000;
+    if (msUntilNotif > 0 && msUntilNotif < 24 * 60 * 60 * 1000) {
+      setTimeout(async () => {
+        try {
+          const { rows: attendees } = await pool.query<{ user_id: number }>(
+            `SELECT user_id FROM event_rsvps WHERE event_id = $1 AND status = 'attending'`, [rows[0].id]
+          );
+          for (const a of attendees) {
+            pushToUser(a.user_id, { type: "event-reminder", communityId: id, eventId: rows[0].id, title: title.trim() });
+          }
+        } catch {}
+      }, msUntilNotif);
+    }
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    logger.error({ err }, "communities: event create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** PATCH /communities/:id/events/:eid */
+router.patch("/communities/:id/events/:eid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const eid = Number(String(req.params.eid));
+  if (isNaN(id) || isNaN(eid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { title, description, startAt, endAt, channelId, status } = req.body ?? {};
+  try {
+    const sets: string[] = [];
+    const vals: any[] = [eid, id];
+    if (title && typeof title === "string") { sets.push(`title = $${vals.push(title.trim())}`); }
+    if (description !== undefined) { sets.push(`description = $${vals.push(description?.trim() ?? null)}`); }
+    if (startAt && !isNaN(Date.parse(startAt))) { sets.push(`start_at = $${vals.push(new Date(startAt))}`); }
+    if (endAt !== undefined) { sets.push(`end_at = $${vals.push(endAt ? new Date(endAt) : null)}`); }
+    if (channelId !== undefined) { sets.push(`channel_id = $${vals.push(channelId ?? null)}`); }
+    if (["scheduled", "live", "ended"].includes(status)) {
+      sets.push(`status = $${vals.push(status)}`);
+      if (status === "live") {
+        // Notify all members
+        const { rows: mbs } = await pool.query<{ user_id: number }>(
+          `SELECT user_id FROM community_members WHERE community_id = $1 AND is_banned = false`, [id]
+        );
+        for (const m of mbs) pushToUser(m.user_id, { type: "event-live", communityId: id, eventId: eid });
+      }
+    }
+    if (sets.length === 0) { res.json({ ok: true }); return; }
+    await pool.query(`UPDATE community_events SET ${sets.join(", ")} WHERE id = $1 AND community_id = $2`, vals);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: event update failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** DELETE /communities/:id/events/:eid */
+router.delete("/communities/:id/events/:eid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const eid = Number(String(req.params.eid));
+  if (isNaN(id) || isNaN(eid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    await pool.query(`DELETE FROM community_events WHERE id = $1 AND community_id = $2`, [eid, id]);
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "communities: event delete failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/events/:eid/rsvp */
+router.post("/communities/:id/events/:eid/rsvp", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const eid = Number(String(req.params.eid));
+  if (isNaN(id) || isNaN(eid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  const { status } = req.body ?? {};
+  if (!["attending", "interested", "none"].includes(status)) {
+    res.status(400).json({ error: "status must be attending|interested|none" }); return;
+  }
+  try {
+    // Verify the event belongs to this community (prevents cross-community RSVP)
+    const { rows: evCheck } = await pool.query<{ id: number }>(
+      `SELECT id FROM community_events WHERE id = $1 AND community_id = $2 LIMIT 1`, [eid, id]
+    );
+    if (!evCheck[0]) { res.status(404).json({ error: "Event not found" }); return; }
+    if (status === "none") {
+      await pool.query(`DELETE FROM event_rsvps WHERE event_id = $1 AND user_id = $2`, [eid, userId]);
+    } else {
+      await pool.query(
+        `INSERT INTO event_rsvps (event_id, user_id, status) VALUES ($1, $2, $3)
+         ON CONFLICT (event_id, user_id) DO UPDATE SET status = EXCLUDED.status`,
+        [eid, userId, status]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: event rsvp failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Badges ────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** GET /communities/:id/badges */
+router.get("/communities/:id/badges", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  try {
+    const { rows } = await pool.query(`SELECT * FROM community_badges WHERE community_id = $1 ORDER BY created_at ASC`, [id]);
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: badges list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/badges */
+router.post("/communities/:id/badges", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { name, iconEmoji, description, type, autoTrigger } = req.body ?? {};
+  if (!name || typeof name !== "string") { res.status(400).json({ error: "name required" }); return; }
+  try {
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO community_badges (community_id, name, icon_emoji, description, type, auto_trigger)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [id, name.trim(), iconEmoji ?? "🏅", description?.trim() ?? null, type === "auto" ? "auto" : "manual", autoTrigger ?? null]
+    );
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    logger.error({ err }, "communities: badge create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** DELETE /communities/:id/badges/:bid */
+router.delete("/communities/:id/badges/:bid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const bid = Number(String(req.params.bid));
+  if (isNaN(id) || isNaN(bid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    await pool.query(`DELETE FROM community_badges WHERE id = $1 AND community_id = $2`, [bid, id]);
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "communities: badge delete failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/badges/:bid/award/:uid — manual award */
+router.post("/communities/:id/badges/:bid/award/:uid", requireAuth, async (req, res): Promise<void> => {
+  const actorId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const bid = Number(String(req.params.bid));
+  const uid = Number(String(req.params.uid));
+  if (isNaN(id) || isNaN(bid) || isNaN(uid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, actorId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    // Verify badge belongs to this community (prevents cross-community award)
+    const { rows: badgeCheck } = await pool.query<{ id: number }>(
+      `SELECT id FROM community_badges WHERE id = $1 AND community_id = $2 LIMIT 1`, [bid, id]
+    );
+    if (!badgeCheck[0]) { res.status(404).json({ error: "Badge not found" }); return; }
+    await pool.query(
+      `INSERT INTO member_badges (badge_id, user_id, community_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [bid, uid, id]
+    );
+    pushToUser(uid, { type: "badge-awarded", communityId: id, badgeId: bid });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: badge award failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/members/:uid/badges */
+router.get("/communities/:id/members/:uid/badges", requireAuth, async (req, res): Promise<void> => {
+  const actorId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const uid = Number(String(req.params.uid));
+  if (isNaN(id) || isNaN(uid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, actorId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  try {
+    const { rows } = await pool.query(
+      `SELECT mb.*, cb.name, cb.icon_emoji, cb.description, cb.type
+       FROM member_badges mb
+       JOIN community_badges cb ON cb.id = mb.badge_id
+       WHERE mb.user_id = $1 AND mb.community_id = $2
+       ORDER BY mb.earned_at DESC`,
+      [uid, id]
+    );
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: member badges get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Threads ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** POST /communities/:id/messages/:mid/thread — create thread from message */
+router.post("/communities/:id/messages/:mid/thread", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const mid = Number(String(req.params.mid));
+  if (isNaN(id) || isNaN(mid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  const { title } = req.body ?? {};
+  try {
+    // Verify message belongs to this community and get its channel
+    const { rows: msgRows } = await pool.query<{ channel_id: number; community_id: number }>(
+      `SELECT cm.channel_id, cc.community_id
+       FROM community_messages cm
+       JOIN community_channels cc ON cc.id = cm.channel_id
+       WHERE cm.id = $1 AND cc.community_id = $2 AND cm.is_deleted = false`, [mid, id]
+    );
+    if (!msgRows[0]) { res.status(404).json({ error: "Message not found" }); return; }
+    // Private-channel guard — same rule as posting messages
+    const channelAccess = await assertChannelAccess(id, msgRows[0].channel_id, userId);
+    if (channelAccess.denied) { res.status(channelAccess.status).json({ error: channelAccess.error }); return; }
+    // Only one thread per message
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM community_message_threads WHERE parent_message_id = $1`, [mid]
+    );
+    if (existing[0]) { res.json({ id: existing[0].id }); return; }
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO community_message_threads (parent_message_id, channel_id, community_id, title)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [mid, msgRows[0].channel_id, id, title?.trim() ?? null]
+    );
+    // Notify only channel-authorized recipients (private-channel-aware fanout)
+    const recipients = await getChannelAuthorizedRecipients(id, msgRows[0].channel_id);
+    for (const uid of recipients) pushToUser(uid, { type: "community-thread-created", communityId: id, channelId: msgRows[0].channel_id, threadId: rows[0].id });
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    logger.error({ err }, "communities: thread create failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/channels/:cid/threads */
+router.get("/communities/:id/channels/:cid/threads", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  // Private-channel guard
+  const channelAccess = await assertChannelAccess(id, cid, userId);
+  if (channelAccess.denied) { res.status(channelAccess.status).json({ error: channelAccess.error }); return; }
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.*, u.username, u.display_name,
+         (SELECT COUNT(*) FROM community_thread_messages tm WHERE tm.thread_id = t.id) AS reply_count
+       FROM community_message_threads t
+       JOIN community_messages pm ON pm.id = t.parent_message_id
+       JOIN users u ON u.id = pm.user_id
+       WHERE t.channel_id = $1 AND t.community_id = $2
+       ORDER BY t.last_activity_at DESC LIMIT 30`,
+      [cid, id]
+    );
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, "communities: threads list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** GET /communities/:id/threads/:tid/messages */
+router.get("/communities/:id/threads/:tid/messages", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const tid = Number(String(req.params.tid));
+  if (isNaN(id) || isNaN(tid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  try {
+    // Verify thread belongs to community and get its channel for access check
+    const { rows: tRows } = await pool.query<{ is_closed: boolean; title: string | null; channel_id: number }>(
+      `SELECT is_closed, title, channel_id FROM community_message_threads WHERE id = $1 AND community_id = $2`, [tid, id]
+    );
+    if (!tRows[0]) { res.status(404).json({ error: "Thread not found" }); return; }
+    // Private-channel guard
+    const channelAccess = await assertChannelAccess(id, tRows[0].channel_id, userId);
+    if (channelAccess.denied) { res.status(channelAccess.status).json({ error: channelAccess.error }); return; }
+    const { rows } = await pool.query(
+      `SELECT tm.id, tm.thread_id, tm.content, tm.created_at,
+         u.id AS user_id, u.username, u.display_name, u.avatar_url
+       FROM community_thread_messages tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.thread_id = $1
+       ORDER BY tm.created_at ASC LIMIT 200`,
+      [tid]
+    );
+    res.json({
+      isClosed: tRows[0].is_closed,
+      title: tRows[0].title,
+      messages: rows.map(r => ({ ...r, avatar_url: toPublicImageUrl(r.avatar_url) })),
+    });
+  } catch (err) {
+    logger.error({ err }, "communities: thread messages get failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** POST /communities/:id/threads/:tid/messages */
+router.post("/communities/:id/threads/:tid/messages", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const tid = Number(String(req.params.tid));
+  if (isNaN(id) || isNaN(tid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const membership = await getMembership(id, userId);
+  if (!membership || membership.isBanned) { res.status(403).json({ error: "Not a member" }); return; }
+  const { content } = req.body ?? {};
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    res.status(400).json({ error: "content required" }); return;
+  }
+  if (content.trim().length > 4000) { res.status(400).json({ error: "Message too long" }); return; }
+  try {
+    const { rows: tRows } = await pool.query<{ is_closed: boolean; channel_id: number }>(
+      `SELECT is_closed, channel_id FROM community_message_threads WHERE id = $1 AND community_id = $2`, [tid, id]
+    );
+    if (!tRows[0]) { res.status(404).json({ error: "Thread not found" }); return; }
+    // Private-channel guard
+    const channelAccess = await assertChannelAccess(id, tRows[0].channel_id, userId);
+    if (channelAccess.denied) { res.status(channelAccess.status).json({ error: channelAccess.error }); return; }
+    // Rules-agreement enforcement
+    const agreementErr = await assertRulesAgreed(id, userId);
+    if (agreementErr) { res.status(agreementErr.status).json({ error: agreementErr.error }); return; }
+    if (tRows[0].is_closed && !await isOwnerOrMod(id, userId)) {
+      res.status(403).json({ error: "Thread is closed" }); return;
+    }
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO community_thread_messages (thread_id, user_id, content) VALUES ($1, $2, $3) RETURNING id`,
+      [tid, userId, content.trim()]
+    );
+    await pool.query(`UPDATE community_message_threads SET last_activity_at = now() WHERE id = $1`, [tid]);
+    // Broadcast to channel-authorized recipients only (private-channel-aware fanout)
+    const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable).where(eq(usersTable.id, userId));
+    const payload = {
+      type: "community-thread-message", communityId: id, threadId: tid,
+      channelId: tRows[0].channel_id,
+      message: { id: rows[0].id, threadId: tid, content: content.trim(), createdAt: new Date().toISOString(),
+        userId, username: user?.username, displayName: user?.displayName, avatarUrl: toPublicImageUrl(user?.avatarUrl ?? null) }
+    };
+    const recipients = await getChannelAuthorizedRecipients(id, tRows[0].channel_id);
+    for (const uid of recipients) pushToUser(uid, payload);
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    logger.error({ err }, "communities: thread message post failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/** PATCH /communities/:id/threads/:tid — close/reopen */
+router.patch("/communities/:id/threads/:tid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const tid = Number(String(req.params.tid));
+  if (isNaN(id) || isNaN(tid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { isClosed } = req.body ?? {};
+  try {
+    await pool.query(
+      `UPDATE community_message_threads SET is_closed = $1 WHERE id = $2 AND community_id = $3`,
+      [!!isClosed, tid, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "communities: thread patch failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Auto-close idle threads (runs every hour) ────────────────────────────────
+setInterval(async () => {
+  try {
+    await pool.query(
+      `UPDATE community_message_threads SET is_closed = true
+       WHERE is_closed = false AND last_activity_at < now() - INTERVAL '24 hours'`
+    );
+  } catch {}
+}, 60 * 60 * 1000);
 
 export default router;

@@ -1741,6 +1741,24 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
     if (!isInChannel) setShowChat(false);
   }, [isInChannel]);
 
+  // Always include the local user in the tile list when connected — prevents
+  // a blank stage when the WS join-event arrives late or is missed entirely.
+  const effectiveParticipants = useMemo(() => {
+    if (!isInChannel || !user) return participants;
+    const myId = Number(user.id);
+    const hasMe = participants.some((p) => p.userId === myId);
+    if (hasMe) return participants;
+    return [
+      ...participants,
+      {
+        userId: myId,
+        username: user.username ?? "",
+        displayName: user.displayName ?? user.username ?? "",
+        avatarUrl: user.avatarUrl ?? null,
+      } as VoicePresenceUser,
+    ];
+  }, [participants, isInChannel, user]);
+
   // Build peer lookup map: userId → PeerUiState (for speaking + streams)
   const peerMap = useMemo(() => {
     const m = new Map<number, PeerUiState>();
@@ -1793,9 +1811,9 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
             className={`flex items-center justify-center overflow-auto ${activeScreenShare ? "py-3 flex-shrink-0 border-t border-white/5" : "flex-1"}`}
             style={activeScreenShare ? { maxHeight: 140 } : {}}
           >
-            {participants.length > 0 ? (
+            {effectiveParticipants.length > 0 ? (
               <div className="flex flex-wrap items-center justify-center gap-7 px-8 py-4">
-                {participants.map((p) => {
+                {effectiveParticipants.map((p) => {
                   const peer = peerMap.get(p.userId);
                   const isLocal = p.userId === Number(user?.id ?? -1);
                   const isSpeaking = isLocal ? (localSpeaking && !muted) : (peer?.speaking ?? false);
@@ -4174,13 +4192,18 @@ export default function CommunityHub() {
     }
   }, [activeRoom, community?.id]);
 
-  // Fetch initial voice presence snapshot when community loads
+  // Fetch voice presence snapshot on load AND whenever the active room changes
+  // (covers the case where voice-join fires before the WS listener is ready)
   useEffect(() => {
     if (!community?.id) return;
-    customFetch<VoicePresenceMap>(`/api/communities/${community.id}/voice-presence`)
-      .then((data) => setVoicePresence(data))
-      .catch(() => {});
-  }, [community?.id]);
+    // Small delay so the voice-join API has time to update in-memory presence
+    const t = setTimeout(() => {
+      customFetch<VoicePresenceMap>(`/api/communities/${community.id}/voice-presence`)
+        .then((data) => setVoicePresence(data))
+        .catch(() => {});
+    }, activeRoom ? 600 : 0);
+    return () => clearTimeout(t);
+  }, [community?.id, activeRoom?.kind === "community" ? activeRoom.channelId : null]);
 
   // Listen to real-time voice join/leave events
   useEffect(() => {

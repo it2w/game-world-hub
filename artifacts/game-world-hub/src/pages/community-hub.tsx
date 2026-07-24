@@ -1968,6 +1968,17 @@ function CommunityVoiceStage({ channel, communityId, communityName, participants
                     </>
                   ) : (
                     <>
+                      {/* Stop Streaming */}
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-[10px] text-[13px] text-red-400 hover:bg-red-500/10"
+                        onClick={() => { setShareMenuOpen(false); stopScreenShare(); }}
+                      >
+                        <Monitor className="w-4 h-4 shrink-0" />
+                        <span>Stop Streaming</span>
+                      </button>
+
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "2px 0" }} />
+
                       {/* Change Stream */}
                       <button
                         className="flex items-center gap-3 w-full px-4 py-[10px] text-[13px] text-white/90 hover:bg-white/[0.07]"

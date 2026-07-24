@@ -3109,7 +3109,7 @@ export function DangerZonePanel({ community, onClose }: { community: Community; 
 const CHART_COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e"];
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function InsightsDashboard({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
+export function InsightsDashboard({ communityId, isOwnerOrMod }: { communityId: number; isOwnerOrMod: boolean }) {
   const { t } = useTranslation("communities");
 
   // All hooks must be called unconditionally before any early return.

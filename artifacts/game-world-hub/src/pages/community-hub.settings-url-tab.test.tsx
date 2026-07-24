@@ -553,6 +553,51 @@ describe("ServerSettingsDialog role-change guard (community prop update)", () =>
     expect(getByTestId("settings-content").getAttribute("data-active-tab")).toBe("danger");
   });
 
+  // ── Scenario 18 ────────────────────────────────────────────────────────────
+  //
+  // This is the render-time RoleGuard test:
+  //
+  // Defence-in-depth: even if activeTab state is stale (still "danger") after
+  // the owner loses their role, the RoleGuard *inside* DangerZonePanel must
+  // block the content at render time.  The setActiveTab wrapper (scenario 15)
+  // prevents future state changes, but it cannot retroactively correct already-
+  // committed state.  The RoleGuard provides the second, independent layer.
+  test("RoleGuard hides Delete Community button when activeTab is stale 'danger' after owner is demoted", async () => {
+    // Start as owner with ?tab=danger → activeTab initialises to "danger".
+    setSearchParam("?tab=danger");
+    const { ServerSettingsDialog } = await import("./community-hub");
+
+    const { rerender } = render(
+      <ServerSettingsDialog
+        community={makeCommunity({ isOwner: true, isMod: false })}
+        open={true}
+        onClose={vi.fn()}
+      />
+    );
+
+    // Owner is on the danger tab — Delete Community button must be present.
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeNull();
+
+    // Simulate role downgrade: the parent re-fetches the community and the
+    // viewer is no longer the owner.  activeTab state is NOT reset — it is
+    // still "danger" (stale).
+    act(() => {
+      rerender(
+        <ServerSettingsDialog
+          community={makeCommunity({ isOwner: false, isMod: false })}
+          open={true}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    // Even though activeTab state is still "danger", the RoleGuard inside
+    // DangerZonePanel re-evaluates community.isOwner at render time and must
+    // hide the Delete Community button.  This confirms the render-time guard
+    // works independently of the setActiveTab wrapper.
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
   // ── Scenario 17 ────────────────────────────────────────────────────────────
   test("owner demoted to mod: guard function blocks 'danger' with the post-rerender role values", async () => {
     // Verifies the full contract of the useCallback wrapper after a prop change:

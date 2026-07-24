@@ -663,6 +663,7 @@ describe("ServerSettingsDialog role-change guard (community prop update)", () =>
     setSearchParam("");
     const { ServerSettingsDialog } = await import("./community-hub");
 
+    // Start as a permitted viewer (mod or owner).
     const { rerender } = render(
       <ServerSettingsDialog
         community={makeCommunity({ isOwner: true, isMod: false })}
@@ -693,6 +694,46 @@ describe("ServerSettingsDialog role-change guard (community prop update)", () =>
     // Complementary assertion: the sidebar itself is not hidden — the "Overview"
     // item (rendered via t("settingsOverview")) must still be present.
     expect(screen.queryByText("settingsOverview")).not.toBeNull();
+  });
+
+  // ── Scenario 19 ────────────────────────────────────────────────────────────
+  //
+  // Render-time RoleGuard test for the Insights tab.
+  //
+  // ServerSettingsDialog contains a useEffect that auto-corrects a stale
+  // activeTab when isOwner/isMod changes.  That effect runs inside act(), so
+  // by the time any assertion fires the tab has already been coerced to
+  // "overview" and InsightsDashboard is no longer rendered at all.
+  //
+  // The render-time guard lives inside InsightsDashboard itself:
+  //   if (!isOwnerOrMod) return <RoleGuard allowed={false}>{null}</RoleGuard>
+  //
+  // Testing it through ServerSettingsDialog would conflate the two defences.
+  // Instead we render InsightsDashboard directly, proving the guard fires
+  // correctly independent of any tab-state correction higher up the tree.
+  test("InsightsDashboard RoleGuard shows access-denied placeholder when isOwnerOrMod flips to false mid-session", async () => {
+    const { InsightsDashboard } = await import("./community-hub");
+
+    // Start as a permitted viewer (mod or owner).
+    const { rerender } = render(
+      <InsightsDashboard communityId={1} isOwnerOrMod={true} />
+    );
+
+    // Guard passes — the access-denied placeholder must NOT be present.
+    // (InsightsDashboard returns null when there is no data, so we just
+    // confirm the denial sentinel is absent.)
+    expect(screen.queryByText(/Owner-only settings/i)).toBeNull();
+
+    // Simulate losing mod role: the parent re-renders InsightsDashboard with
+    // isOwnerOrMod=false.  The render-time guard must catch this immediately.
+    act(() => {
+      rerender(<InsightsDashboard communityId={1} isOwnerOrMod={false} />);
+    });
+
+    // The RoleGuard inside InsightsDashboard re-evaluates at render time and
+    // must display the access-denied placeholder, proving the guard works
+    // independently of any tab-state correction in ServerSettingsDialog.
+    expect(screen.queryByText(/Owner-only settings/i)).not.toBeNull();
   });
 
   // ── Scenario 17 ────────────────────────────────────────────────────────────

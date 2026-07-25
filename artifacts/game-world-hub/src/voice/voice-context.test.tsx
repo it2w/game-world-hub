@@ -292,16 +292,18 @@ describe("voice rejoin", () => {
   });
 
   test("by contrast, a transient (non-fatal) error auto-dismisses and offers no Rejoin", async () => {
-    vi.useFakeTimers();
-
     // Make screen share throw (user cancels the browser picker).
     h.setScreenShareReject(new Error("Permission denied"));
 
     const { result } = await mountVoice();
     await act(async () => { await Promise.resolve(); });
 
+    // Join first (real timers) so the LiveKit connection settles.
     await joinParty(result);
     expect(result.current.activeRoom?.room).toBe("party:10");
+
+    // Switch to fake timers only after the connection is established.
+    vi.useFakeTimers();
 
     await act(async () => { await result.current.startScreenShare(); });
     expect(result.current.error).toBe("Screen share was cancelled");

@@ -63,7 +63,8 @@ async function goToLfg(page: Page): Promise<void> {
 
 /**
  * Open the "POST SIGNAL" dialog, fill the form, and submit.
- * Waits for the dialog to close before returning.
+ * After submission the app auto-navigates to the party lobby; this helper
+ * navigates back to /lfg so callers see the new post card.
  */
 async function createPost(page: Page, gameTitle: string): Promise<void> {
   await page.getByRole("button", { name: /post signal/i }).click();
@@ -89,6 +90,10 @@ async function createPost(page: Page, gameTitle: string): Promise<void> {
 
   // Dialog closes after successful submission
   await expect(dialog).not.toBeVisible({ timeout: 12_000 });
+
+  // After posting, the app auto-navigates to the party lobby. Return to the
+  // LFG board so callers can interact with the newly created post card.
+  await goToLfg(page);
 }
 
 /**

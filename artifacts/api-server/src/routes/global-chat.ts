@@ -773,7 +773,7 @@ function mapGcGif(g: Record<string, any>) {
   return {
     id:         g.id as string,
     url:        (g.images?.fixed_height?.url ?? g.images?.original?.url ?? "") as string,
-    previewUrl: (g.images?.fixed_height_small?.url ?? g.images?.fixed_height?.url ?? "") as string,
+    previewUrl: (g.images?.fixed_height_small?.url || g.images?.fixed_height?.url || "") as string,
   };
 }
 

@@ -1088,11 +1088,11 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
     const isOwner = community.ownerId === userId;
 
-    const { name, position, slowmodeSeconds, isPrivate, type } = req.body ?? {};
+    const { name, position, slowmodeSeconds, isPrivate, type, iconEmoji } = req.body ?? {};
 
     // Structural fields (rename, reorder, privacy toggle, type change) are owner-only.
     // Mods with can_manage_channels may only adjust slowmodeSeconds.
-    if (!isOwner && (name !== undefined || position !== undefined || isPrivate !== undefined || type !== undefined)) {
+    if (!isOwner && (name !== undefined || position !== undefined || isPrivate !== undefined || type !== undefined || iconEmoji !== undefined)) {
       res.status(403).json({ error: "Only the community owner can rename, reorder, or change channel type/privacy" });
       return;
     }
@@ -1104,6 +1104,8 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
     if (typeof isPrivate === "boolean") (updates as any).isPrivate = isPrivate;
     const validTypes = ["text", "voice", "announcement", "stage", "lfg", "clips", "coaching", "forum"];
     if (typeof type === "string" && validTypes.includes(type)) (updates as any).type = type;
+    if (iconEmoji === null) (updates as any).iconEmoji = null;
+    else if (typeof iconEmoji === "string" && iconEmoji.trim()) (updates as any).iconEmoji = iconEmoji.trim().slice(0, 8);
 
     const [updated] = await db.update(communityChannelsTable).set(updates).where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id))).returning();
     if (!updated) { res.status(404).json({ error: "Channel not found" }); return; }

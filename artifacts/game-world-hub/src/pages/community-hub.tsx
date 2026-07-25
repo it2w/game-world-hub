@@ -3486,7 +3486,7 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
   const qc = useQueryClient();
   const [addForm, setAddForm] = useState<{ name: string; type: string } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<{ name: string; type: string; isPrivate: boolean }>({ name: "", type: "text", isPrivate: false });
+  const [editForm, setEditForm] = useState<{ name: string; type: string; isPrivate: boolean; iconEmoji: string }>({ name: "", type: "text", isPrivate: false, iconEmoji: "" });
 
   const addChannel = useMutation({
     mutationFn: () => customFetch(`/api/communities/${communityId}/channels`, {
@@ -3499,7 +3499,12 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
   const updateChannel = useMutation({
     mutationFn: (cid: number) => customFetch(`/api/communities/${communityId}/channels/${cid}`, {
       method: "PATCH",
-      body: JSON.stringify({ name: editForm.name.trim(), type: editForm.type, isPrivate: editForm.isPrivate }),
+      body: JSON.stringify({
+        name: editForm.name.trim(),
+        type: editForm.type,
+        isPrivate: editForm.isPrivate,
+        iconEmoji: editForm.iconEmoji.trim() || null,
+      }),
     }),
     onSuccess: () => { toast({ title: t("channelUpdated") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); setEditingId(null); },
     onError: () => toast({ title: t("channelUpdateFailed"), variant: "destructive" }),
@@ -3513,7 +3518,7 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
 
   const startEdit = (ch: Channel) => {
     setEditingId(ch.id);
-    setEditForm({ name: ch.name, type: ch.type, isPrivate: !!ch.isPrivate });
+    setEditForm({ name: ch.name, type: ch.type, isPrivate: !!ch.isPrivate, iconEmoji: ch.iconEmoji ?? "" });
   };
 
   return (
@@ -3599,6 +3604,38 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
                     <option value="coaching">Coaching Hub</option>
                     <option value="forum">Forum Board</option>
                   </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Smile className="w-3 h-3 text-muted-foreground" />
+                    Custom icon emoji
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-md border border-border bg-background flex items-center justify-center text-xl flex-shrink-0">
+                      {editForm.iconEmoji ? (
+                        <span>{editForm.iconEmoji}</span>
+                      ) : (
+                        <ChannelIcon channel={{ ...ch, iconEmoji: null }} size={4} className="text-muted-foreground" />
+                      )}
+                    </div>
+                    <Input
+                      value={editForm.iconEmoji}
+                      onChange={e => setEditForm(f => ({ ...f, iconEmoji: e.target.value }))}
+                      maxLength={8}
+                      placeholder="e.g. 🎮 (leave blank for default)"
+                      className="flex-1"
+                    />
+                    {editForm.iconEmoji && (
+                      <button
+                        onClick={() => setEditForm(f => ({ ...f, iconEmoji: "" }))}
+                        className="text-muted-foreground hover:text-foreground p-1.5 rounded flex-shrink-0"
+                        title="Clear emoji"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Paste or type an emoji to replace the default channel type icon. Clear to restore the default.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input

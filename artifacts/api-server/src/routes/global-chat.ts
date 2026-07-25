@@ -751,31 +751,62 @@ router.get("/global-chat/pinned", requireAuth, async (req, res): Promise<void> =
   });
 });
 
+// ── Giphy helpers ──────────────────────────────────────────────────────────────
+const GIPHY_BASE_URL = "https://api.giphy.com/v1/gifs";
+const GC_PRO_LIMIT  = 100;
+const GC_FREE_LIMIT = 30;
+
+async function gcResolveIsPro(userId: number): Promise<boolean> {
+  try {
+    const { rows } = await pool.query<{ is_pro: boolean; pro_expires_at: Date | null }>(
+      `SELECT is_pro, pro_expires_at FROM users WHERE id = $1 LIMIT 1`,
+      [userId],
+    );
+    const row = rows[0];
+    if (!row?.is_pro) return false;
+    if (row.pro_expires_at && row.pro_expires_at < new Date()) return false;
+    return true;
+  } catch { return false; }
+}
+
+function mapGcGif(g: Record<string, any>) {
+  return {
+    id:         g.id as string,
+    url:        (g.images?.fixed_height?.url ?? g.images?.original?.url ?? "") as string,
+    previewUrl: (g.images?.fixed_height_small?.url ?? g.images?.fixed_height?.url ?? "") as string,
+  };
+}
+
+// ── GET /global-chat/gif-trending ──────────────────────────────────────────────
+router.get("/global-chat/gif-trending", requireAuth, async (req, res): Promise<void> => {
+  if (!GIPHY_KEY) { res.json({ gifs: [], isPro: false }); return; }
+  try {
+    const isPro = await gcResolveIsPro(req.auth!.userId);
+    const limit = isPro ? GC_PRO_LIMIT : GC_FREE_LIMIT;
+    const url = `${GIPHY_BASE_URL}/trending?api_key=${GIPHY_KEY}&limit=${limit}&rating=pg-13`;
+    const r = await fetch(url);
+    const json = await r.json() as { data?: Record<string, any>[] };
+    res.json({ gifs: (json.data ?? []).map(mapGcGif).filter((g: any) => g.url), isPro });
+  } catch (err) {
+    logger.error({ err }, "global-chat: gif-trending failed");
+    res.json({ gifs: [], isPro: false });
+  }
+});
+
 // ── GET /global-chat/gif-search — Giphy proxy ─────────────────────────────────
 router.get("/global-chat/gif-search", requireAuth, async (req, res): Promise<void> => {
   const q = String(req.query.q ?? "").trim().slice(0, 100);
-  if (!q || !GIPHY_KEY) { res.json([]); return; }
+  if (!q || !GIPHY_KEY) { res.json({ gifs: [], isPro: false }); return; }
   try {
-    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=15&rating=g`;
+    const isPro = await gcResolveIsPro(req.auth!.userId);
+    const limit = isPro ? GC_PRO_LIMIT : GC_FREE_LIMIT;
+    const url = `${GIPHY_BASE_URL}/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=${limit}&rating=pg-13`;
     const r = await fetch(url);
-    const json = await r.json() as {
-      data: Array<{
-        id: string;
-        images: {
-          fixed_height:       { url: string; width: string; height: string };
-          fixed_height_small: { url: string };
-        };
-      }>;
-    };
-    const gifs = (json.data ?? []).map(g => ({
-      id:         g.id,
-      url:        g.images.fixed_height?.url ?? "",
-      previewUrl: g.images.fixed_height_small?.url || g.images.fixed_height?.url || "",
-    })).filter(g => g.url);
-    res.json(gifs);
+    const json = await r.json() as { data?: Record<string, any>[] };
+    res.json({ gifs: (json.data ?? []).map(mapGcGif).filter((g: any) => g.url), isPro });
   } catch (err) {
     logger.error({ err }, "global-chat: gif-search failed");
-    res.json([]);
+    res.json({ gifs: [], isPro: false });
   }
 });
 

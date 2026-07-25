@@ -332,19 +332,26 @@ function PinnedBanner({
 }
 
 // ── GIF Picker ────────────────────────────────────────────────────────────────
+interface GifApiResult { gifs: GifResult[]; isPro?: boolean; }
+
 function GifPicker({
-  onSelect, onClose, t,
+  onSelect, onClose, t, isPro = false,
 }: {
   onSelect: (url: string) => void;
-  onClose: () => void;
-  t: (k: string) => string;
+  onClose:  () => void;
+  t:        (k: string) => string;
+  isPro?:   boolean;
 }) {
-  const [query,   setQuery]   = useState("");
-  const [results, setResults] = useState<GifResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const ref     = useRef<HTMLDivElement>(null);
+  const [query,          setQuery]          = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [trending,       setTrending]       = useState<GifResult[]>([]);
+  const [searchResults,  setSearchResults]  = useState<GifResult[]>([]);
+  const [loadingTrend,   setLoadingTrend]   = useState(true);
+  const [loadingSearch,  setLoadingSearch]  = useState(false);
+  const ref      = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* close on outside click */
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -353,24 +360,45 @@ function GifPicker({
     return () => document.removeEventListener("mousedown", h);
   }, [onClose]);
 
+  /* load trending once on mount */
+  useEffect(() => {
+    setLoadingTrend(true);
+    customFetch("/api/global-chat/gif-trending")
+      .then((d: unknown) => {
+        const data = d as GifApiResult;
+        setTrending(Array.isArray(data?.gifs) ? data.gifs : []);
+      })
+      .catch(() => setTrending([]))
+      .finally(() => setLoadingTrend(false));
+  }, []);
+
+  /* debounce search */
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!query.trim()) { setResults([]); return; }
-    timerRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const data = await customFetch(
-          `/api/global-chat/gif-search?q=${encodeURIComponent(query)}`,
-        ) as GifResult[];
-        setResults(Array.isArray(data) ? data : []);
-      } catch { setResults([]); }
-      setLoading(false);
-    }, 400);
+    timerRef.current = setTimeout(() => setDebouncedQuery(query.trim()), 400);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [query]);
 
+  useEffect(() => {
+    if (!debouncedQuery) { setSearchResults([]); return; }
+    setLoadingSearch(true);
+    customFetch(`/api/global-chat/gif-search?q=${encodeURIComponent(debouncedQuery)}`)
+      .then((d: unknown) => {
+        const data = d as GifApiResult;
+        setSearchResults(Array.isArray(data?.gifs) ? data.gifs : []);
+      })
+      .catch(() => setSearchResults([]))
+      .finally(() => setLoadingSearch(false));
+  }, [debouncedQuery]);
+
+  const gifs    = debouncedQuery ? searchResults : trending;
+  const loading = debouncedQuery ? loadingSearch : loadingTrend;
+  const cols    = isPro ? 4 : 3;
+  const pickerW = isPro ? 520 : 400;
+
   return (
-    <div ref={ref} className="gc-gif-picker">
+    <div ref={ref} className="gc-gif-picker" style={{ width: pickerW }}>
+      {/* header */}
       <div className="gc-gif-search-row">
         <Search className="w-3.5 h-3.5 shrink-0 opacity-50" />
         <input
@@ -380,15 +408,23 @@ function GifPicker({
           onChange={e => setQuery(e.target.value)}
           autoFocus
         />
+        {isPro && (
+          <span className="gc-gif-pro-badge">PRO</span>
+        )}
       </div>
-      {loading && (
+
+      {/* grid */}
+      {loading ? (
         <div className="gc-gif-loading">
           <span className="animate-pulse">…</span>
         </div>
-      )}
-      {results.length > 0 && (
-        <div className="gc-gif-grid">
-          {results.map(g => (
+      ) : gifs.length === 0 ? (
+        <div className="gc-gif-empty">
+          {debouncedQuery ? t("chat.gifEmpty") : "…"}
+        </div>
+      ) : (
+        <div className="gc-gif-grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+          {gifs.map(g => (
             <img
               key={g.id}
               src={g.previewUrl}
@@ -399,9 +435,14 @@ function GifPicker({
           ))}
         </div>
       )}
-      {!loading && results.length === 0 && query.trim() && (
-        <div className="gc-gif-empty">{t("chat.gifEmpty")}</div>
-      )}
+
+      {/* footer */}
+      <div className="gc-gif-footer">
+        {!isPro && (
+          <span className="gc-gif-upgrade">Upgrade to Pro for 100+ GIFs</span>
+        )}
+        <span className="gc-gif-powered">Powered by GIPHY</span>
+      </div>
     </div>
   );
 }
@@ -1536,6 +1577,7 @@ export function GlobalChat({ me }: { me: any }) {
                   onSelect={sendGif}
                   onClose={() => setShowGif(false)}
                   t={t}
+                  isPro={isPro}
                 />
               )}
             </div>

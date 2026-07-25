@@ -26,7 +26,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Radar, Gamepad2, Monitor, Mic, MicOff, Plus, Users, Trophy, Check, Clock, Search, Trash2, X, Lock, UserPlus, Zap, Globe } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TierPip } from "@/components/tier-badge";
@@ -48,6 +48,8 @@ type CreateLfgForm = {
 export default function Lfg() {
   const { t } = useTranslation("lfg");
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const [autoPartyPending, setAutoPartyPending] = useState(false);
 
   const createLfgSchema = useMemo(
     () =>
@@ -229,6 +231,33 @@ export default function Lfg() {
           setOpen(false);
           form.reset();
           invalidate();
+          // Auto-create a party lobby so the poster can wait for squadmates
+          const squadSize = Math.min(Math.max(data.neededPlayers + 1, 2), 20);
+          const rawName = `LFG • ${data.game}`;
+          const partyName = rawName.length > 50 ? rawName.slice(0, 50) : rawName;
+          setAutoPartyPending(true);
+          toast({ title: t("autoParty.creating") || "Creating your party lobby…" });
+          createParty.mutate(
+            {
+              data: {
+                name: partyName,
+                game: data.game || undefined,
+                platform: data.platform || undefined,
+                maxSize: squadSize,
+                isPublic: true,
+              },
+            },
+            {
+              onSuccess: (newParty) => {
+                setAutoPartyPending(false);
+                queryClient.invalidateQueries({ queryKey: getListPartiesQueryKey() });
+                navigate(`/parties/${newParty.id}?fromLfg=1`);
+              },
+              onError: () => {
+                setAutoPartyPending(false);
+              },
+            },
+          );
         },
       },
     );

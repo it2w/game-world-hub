@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { 
   useGetParty, 
   useJoinParty, 
@@ -21,7 +21,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { useVoice } from "@/voice/voice-context";
 import { useTranslation } from "react-i18next";
-import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff, Search } from "lucide-react";
+import { Users, Gamepad2, Monitor, ShieldAlert, LogOut, Trash2, Shield, UserPlus, Plus, Mic, PhoneOff, Search, Radar, Copy, CheckCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Link } from "wouter";
 import {
@@ -40,9 +40,19 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   const { t } = useTranslation("parties");
   const partyId = parseInt(params.partyId);
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const fromLfg = new URLSearchParams(search).get("fromLfg") === "1";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [inviteQuery, setInviteQuery] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const copyLobbyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   // ── Custom confirm dialog state ──
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -140,8 +150,56 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
   const isLeader = party.leader.id === me?.id;
   const isFull = party.members.length >= party.maxSize;
 
+  const openSlots = party ? party.maxSize - party.members.length : 0;
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+
+      {/* ── LFG Lobby Banner ─────────────────────────────────────────────────── */}
+      {fromLfg && openSlots > 0 && (
+        <div className="relative overflow-hidden border border-primary/40 bg-primary/5">
+          {/* animated background pulse */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent animate-pulse pointer-events-none" />
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <Radar className="w-5 h-5 text-primary animate-spin" style={{ animationDuration: "4s" }} />
+              </div>
+              <div className="min-w-0">
+                <div className="font-mono text-sm font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                  LFG Lobby Active
+                  <span className="inline-flex h-2 w-2 rounded-full bg-primary animate-ping" />
+                </div>
+                <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                  {openSlots} slot{openSlots !== 1 ? "s" : ""} open — share this link to fill your squad
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={copyLobbyLink}
+              className="shrink-0 flex items-center gap-2 font-mono text-xs px-4 py-2 border transition-all duration-200 bg-primary text-primary-foreground border-primary hover:opacity-90 active:scale-95"
+            >
+              {copied
+                ? <><CheckCheck className="w-3.5 h-3.5" /> Copied!</>
+                : <><Copy className="w-3.5 h-3.5" /> Copy Lobby Link</>}
+            </button>
+          </div>
+          {/* slot progress bar */}
+          <div className="relative z-10 px-4 pb-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Squad fill</span>
+              <span className="font-mono text-[10px] text-primary">{party!.members.length}/{party!.maxSize}</span>
+            </div>
+            <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-700 rounded-full"
+                style={{ width: `${(party!.members.length / party!.maxSize) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Board */}
       <div className="bg-card border border-border p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center relative overflow-hidden">
         <div className="absolute top-0 end-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
@@ -310,12 +368,29 @@ export default function PartyDetail({ params }: { params: { partyId: string } })
           ))}
           {/* Empty slots */}
           {Array.from({ length: party.maxSize - party.members.length }).map((_, i) => (
-            <div key={`empty-${i}`} className="bg-background border border-dashed border-border p-4 flex items-center gap-4 opacity-50">
-              <div className="w-12 h-12 border border-dashed border-border flex items-center justify-center text-muted-foreground">
-                <Plus className="w-4 h-4" />
+            fromLfg ? (
+              <div
+                key={`empty-${i}`}
+                className="relative overflow-hidden bg-background border border-dashed border-primary/30 p-4 flex items-center gap-4"
+                style={{ animationDelay: `${i * 300}ms` }}
+              >
+                <div className="absolute inset-0 bg-primary/3 animate-pulse pointer-events-none" />
+                <div className="relative z-10 w-12 h-12 border border-dashed border-primary/40 flex items-center justify-center text-primary/40">
+                  <Radar className="w-4 h-4 animate-spin" style={{ animationDuration: `${3 + i}s` }} />
+                </div>
+                <div className="relative z-10 flex flex-col gap-0.5">
+                  <span className="font-mono text-sm text-primary/50 tracking-widest">Scanning for operator…</span>
+                  <span className="font-mono text-[10px] text-muted-foreground/50">Slot {i + 1} open</span>
+                </div>
               </div>
-              <div className="font-mono text-sm text-muted-foreground tracking-widest">{t("detail.awaitingOperator")}</div>
-            </div>
+            ) : (
+              <div key={`empty-${i}`} className="bg-background border border-dashed border-border p-4 flex items-center gap-4 opacity-50">
+                <div className="w-12 h-12 border border-dashed border-border flex items-center justify-center text-muted-foreground">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div className="font-mono text-sm text-muted-foreground tracking-widest">{t("detail.awaitingOperator")}</div>
+              </div>
+            )
           ))}
         </div>
       </div>

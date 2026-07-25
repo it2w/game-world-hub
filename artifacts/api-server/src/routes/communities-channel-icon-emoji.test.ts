@@ -583,3 +583,87 @@ describe("PATCH /communities/:id/channels/:cid isPrivate toggle — iconEmoji is
     );
   });
 });
+
+// ─── Concurrent PATCH slowmodeSeconds — last writer wins, no corruption ────────
+
+describe("Concurrent PATCH slowmodeSeconds — final state is consistent", () => {
+  /** Two different slowmode values used by the two concurrent requests. */
+  const SLOW_A = 60;
+  const SLOW_B = 120;
+
+  test("both concurrent PATCH requests succeed (no 500) and final slowmodeSeconds is one of the two values", async () => {
+    // Fire both requests simultaneously and wait for both to settle.
+    const [resA, resB] = await Promise.all([
+      request(
+        "PATCH",
+        `/communities/${communityId}/channels/${emojiChannelId}`,
+        auth(ownerId, ownerUsername),
+        { slowmodeSeconds: SLOW_A },
+      ),
+      request(
+        "PATCH",
+        `/communities/${communityId}/channels/${emojiChannelId}`,
+        auth(ownerId, ownerUsername),
+        { slowmodeSeconds: SLOW_B },
+      ),
+    ]);
+
+    // Both requests must succeed — a concurrent plain UPDATE is always serialised
+    // by Postgres and should never produce a 500.
+    assert.equal(resA.status, 200, `request A: expected 200, got ${resA.status}: ${JSON.stringify(resA.body)}`);
+    assert.equal(resB.status, 200, `request B: expected 200, got ${resB.status}: ${JSON.stringify(resB.body)}`);
+
+    // Each response must carry a valid (non-zero) slowmodeSeconds.
+    const bodyA = resA.body as { slowmodeSeconds: number; iconEmoji: string | null };
+    const bodyB = resB.body as { slowmodeSeconds: number; iconEmoji: string | null };
+
+    assert.ok(
+      bodyA.slowmodeSeconds === SLOW_A || bodyA.slowmodeSeconds === SLOW_B,
+      `response A slowmodeSeconds must be ${SLOW_A} or ${SLOW_B}, got ${bodyA.slowmodeSeconds}`,
+    );
+    assert.ok(
+      bodyB.slowmodeSeconds === SLOW_A || bodyB.slowmodeSeconds === SLOW_B,
+      `response B slowmodeSeconds must be ${SLOW_A} or ${SLOW_B}, got ${bodyB.slowmodeSeconds}`,
+    );
+
+    // iconEmoji must survive in both responses.
+    assert.equal(
+      bodyA.iconEmoji,
+      TEST_EMOJI,
+      `response A: iconEmoji must remain "${TEST_EMOJI}" after concurrent update, got ${JSON.stringify(bodyA.iconEmoji)}`,
+    );
+    assert.equal(
+      bodyB.iconEmoji,
+      TEST_EMOJI,
+      `response B: iconEmoji must remain "${TEST_EMOJI}" after concurrent update, got ${JSON.stringify(bodyB.iconEmoji)}`,
+    );
+  });
+
+  test("GET after concurrent PATCH reflects one of the two slowmodeSeconds values and iconEmoji is intact", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; slowmodeSeconds: number; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must appear in GET response after concurrent update`);
+
+    // The persisted value must be one of the two submitted values — not zero and not
+    // some corrupted intermediate — confirming last-writer-wins with no silent loss.
+    assert.ok(
+      emojiCh.slowmodeSeconds === SLOW_A || emojiCh.slowmodeSeconds === SLOW_B,
+      `final slowmodeSeconds must be ${SLOW_A} or ${SLOW_B}, got ${emojiCh.slowmodeSeconds}`,
+    );
+
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must survive concurrent slowmode updates, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
+});

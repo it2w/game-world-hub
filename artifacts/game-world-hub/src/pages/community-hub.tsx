@@ -1263,8 +1263,7 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
   );
 }
 
-function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
-  const { t } = useTranslation("communities");
+function GifPicker({ onSelect, isPro = false }: { onSelect: (url: string) => void; isPro?: boolean }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1275,15 +1274,15 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
     timerRef.current = setTimeout(() => setDebouncedSearch(val.trim()), 500);
   };
 
-  const { data: trendingData, isLoading: loadingTrending } = useQuery<{ gifs: GifResult[] }>({
-    queryKey: ["gif-trending"],
+  const { data: trendingData, isLoading: loadingTrending } = useQuery<{ gifs: GifResult[]; isPro?: boolean }>({
+    queryKey: ["gif-trending", isPro],
     queryFn: () => customFetch("/api/gif/trending"),
     staleTime: 5 * 60_000,
     enabled: !debouncedSearch,
   });
 
-  const { data: searchData, isLoading: loadingSearch } = useQuery<{ gifs: GifResult[] }>({
-    queryKey: ["gif-search", debouncedSearch],
+  const { data: searchData, isLoading: loadingSearch } = useQuery<{ gifs: GifResult[]; isPro?: boolean }>({
+    queryKey: ["gif-search", debouncedSearch, isPro],
     queryFn: () => customFetch(`/api/gif/search?q=${encodeURIComponent(debouncedSearch)}`),
     staleTime: 60_000,
     enabled: !!debouncedSearch,
@@ -1292,10 +1291,17 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
   const gifs = debouncedSearch ? (searchData?.gifs ?? []) : (trendingData?.gifs ?? []);
   const loading = debouncedSearch ? loadingSearch : loadingTrending;
 
+  // Pro: 4-column wide picker; free: 3-column standard
+  const cols    = isPro ? 4 : 3;
+  const width   = isPro ? 520 : 420;
+  const imgH    = isPro ? 110 : 100;
+  const maxH    = isPro ? 500 : 380;
+
   return (
-    <div className="flex flex-col" style={{ width: 420 }}>
-      <div className="p-2 border-b border-border">
-        <div className="relative">
+    <div className="flex flex-col" style={{ width }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 p-2 border-b border-border">
+        <div className="relative flex-1">
           <Search className="absolute start-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             className="w-full bg-muted/50 rounded-md ps-7 pe-3 py-1.5 text-sm outline-none border border-border focus:border-primary/50 transition-colors placeholder:text-muted-foreground"
@@ -1305,8 +1311,15 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
             autoFocus
           />
         </div>
+        {isPro && (
+          <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 tracking-wide">
+            PRO
+          </span>
+        )}
       </div>
-      <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+
+      {/* Grid */}
+      <div className="overflow-y-auto" style={{ maxHeight: maxH }}>
         {loading ? (
           <div className="flex justify-center items-center py-10">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -1317,7 +1330,7 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
             {debouncedSearch ? "No GIFs found" : "Loading…"}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-1 p-2">
+          <div className={`grid gap-1 p-2`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
             {gifs.map(gif => (
               <button
                 key={gif.id}
@@ -1329,16 +1342,25 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
                   src={gif.preview || gif.url}
                   alt={gif.title}
                   className="w-full object-cover"
-                  style={{ height: 100 }}
+                  style={{ height: imgH }}
                   loading="lazy"
                 />
               </button>
             ))}
           </div>
         )}
-        {!debouncedSearch && !loading && gifs.length > 0 && (
-          <p className="text-center text-[10px] text-muted-foreground pb-1 opacity-60">Powered by GIPHY</p>
-        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
+          {!isPro && !loading && gifs.length > 0 && (
+            <span className="text-[9px] text-muted-foreground/50">
+              Upgrade to Pro for 100+ GIFs &amp; 4-column view
+            </span>
+          )}
+          {!debouncedSearch && !loading && gifs.length > 0 && (
+            <p className={`text-[10px] text-muted-foreground opacity-60 ${!isPro ? "ms-auto" : ""}`}>Powered by GIPHY</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1497,6 +1519,8 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
 }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
+  const { user: _tcpUser } = useAuth() as any;
+  const meIsPro = !!_tcpUser?.isPro;
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [showPins, setShowPins] = useState(false);
@@ -1863,7 +1887,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="top" align="end" className="w-auto p-0 overflow-hidden">
-                  <GifPicker onSelect={sendGif} />
+                  <GifPicker onSelect={sendGif} isPro={meIsPro} />
                 </PopoverContent>
               </Popover>
 

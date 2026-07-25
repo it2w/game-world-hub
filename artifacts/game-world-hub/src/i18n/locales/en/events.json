@@ -1,13 +1,61 @@
 {
   "page": {
     "title": "Events",
-    "subtitle": "Game Nights & Flash Challenges"
+    "subtitle": "Gaming sessions, community events & flash challenges"
   },
   "tabs": {
     "flash": "Flash Events",
+    "scheduled": "Scheduled Events",
     "gameNight": "Game Nights"
   },
+  "filters": {
+    "myEvents": "My Events",
+    "allTypes": "All Types",
+    "filterByGame": "Filter by game…",
+    "clear": "Clear"
+  },
+  "types": {
+    "casual": "Casual",
+    "tournament": "Tournament",
+    "coaching": "Coaching",
+    "community": "Community"
+  },
+  "rsvp": {
+    "going": "Going",
+    "maybe": "Maybe",
+    "notGoing": "Can't Go",
+    "goingCheck": "Going ✓",
+    "yourRsvp": "Your RSVP",
+    "no": "No"
+  },
+  "detail": {
+    "tabInfo": "Info",
+    "tabRoster": "Roster ({{count}})",
+    "tabDiscussion": "Discussion",
+    "recurring": "Recurring",
+    "startsIn": "Starts in",
+    "inCountdown": "in {{time}}",
+    "maxAttendees": "Max {{count}} attendees",
+    "full": "Full",
+    "linkedParty": "🎮 Linked party — Join Now →",
+    "recap": "Event Recap",
+    "attended": "Attended",
+    "ratingsCount": "{{count}} ratings",
+    "rosterEmpty": "No RSVPs yet.",
+    "more": "+{{count}} more"
+  },
+  "discussion": {
+    "title": "Discussion",
+    "empty": "No posts yet — start the conversation!",
+    "placeholder": "Post an update…",
+    "post": "Post"
+  },
+  "rating": {
+    "title": "Rate this Event",
+    "thanks": "Thanks!"
+  },
   "flash": {
+    "tag": "⚡ FLASH",
     "title": "Active Flash Event",
     "xpReward": "{{xp}} XP",
     "expiresIn": "Expires in",
@@ -26,6 +74,62 @@
     "completedBy": "{{count}} players completed",
     "bannerTitle": "FLASH EVENT LIVE",
     "bannerCta": "View Challenge"
+  },
+  "scheduled": {
+    "empty": "No events found"
+  },
+  "calendar": {
+    "more": "+{{count}} more",
+    "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  },
+  "wizard": {
+    "title": "New Event",
+    "step": "Step {{step}} of 3",
+    "next": "Next →",
+    "back": "← Back",
+    "creating": "Creating…",
+    "launch": "Launch Event 🚀",
+    "preview": "Preview",
+    "recurringEvent": "Recurring event",
+    "timezoneLabel": "Your local timezone:",
+    "untitled": "Untitled",
+    "maxPreview": "Max {{count}}",
+    "hostButton": "Host an Event",
+    "recurFreq": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "recurTimes": "# times",
+    "maxPlaceholder": "50",
+    "labels": {
+      "title": "Event Title *",
+      "game": "Game",
+      "type": "Event Type",
+      "description": "Description",
+      "datetime": "Date & Time *",
+      "maxParticipants": "Max Attendees (optional)"
+    },
+    "placeholders": {
+      "title": "Friday Night Valorant",
+      "game": "Valorant, Apex Legends…",
+      "description": "Open for all ranks — bring your A-game"
+    }
+  },
+  "banner": {
+    "started": "🟢 Event Started!",
+    "joinNow": "Join Now →",
+    "viewEvent": "View Event →"
+  },
+  "toasts": {
+    "registered": "Registered! 🎉",
+    "joinFailed": "Failed to join",
+    "rsvpError": "Failed to RSVP",
+    "postError": "Failed to post",
+    "rateError": "Failed to rate",
+    "createdTitle": "Event Created! 🎉",
+    "createdDesc": "Players can now RSVP.",
+    "createError": "Failed to create"
   },
   "gameNight": {
     "title": "Upcoming Game Nights",

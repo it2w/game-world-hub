@@ -20,6 +20,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -30,7 +31,7 @@ import {
   MicOff, Radio, Headphones, VolumeX, MessageSquare, ChevronUp, Shield,
   Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
   Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
-  Star, Flame, UserCheck, Search, RefreshCw,
+  Star, Flame, UserCheck, Search, RefreshCw, Smile, Paperclip,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { SCREEN_PRESETS, SCREEN_QUALITY_ORDER, type ScreenQuality } from "@/voice/quality";
@@ -1155,10 +1156,157 @@ function BannerDialog({ communityId, open, onClose }: { communityId: number; ope
   );
 }
 
+// ── Emoji & GIF pickers ────────────────────────────────────────────────────────
+
+const EMOJI_GROUPS = [
+  { id: "smileys", icon: "😀", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","😊","😇","🥰","😍","🤩","😘","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","😴","😷","🤒","🤕","🤢","🥵","🥶","😵","🤯","😎","🤓","🧐","😕","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👻","👽","🤖","💋","❤️","🔥","✨","💯"] },
+  { id: "people", icon: "👋", emojis: ["👋","🤚","✋","🖖","👌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🤲","🙏","💪","🤝","👶","👦","👧","🧑","👱","👨","👩","🧓","👴","👵","🧙","🧚","🧛","🧜","🧝","💃","🕺","🏃","🚶","🧘","🏋️","🤸","🤼","🤺","⛹️","🤾","🏊","🚴","👮","🕵️","💂"] },
+  { id: "animals", icon: "🐶", emojis: ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🐛","🦋","🐌","🐞","🐜","🕷","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🐘","🦛","🦏","🐪","🦒","🐃","🐄","🐎","🐖","🐏","🐑","🐕","🐩","🐈","🐓","🦃","🦚","🦜","🦢","🐇","🦝","🦨","🦡","🦦","🦥","🐁","🐀","🐿","🦔"] },
+  { id: "food", icon: "🍔", emojis: ["🍕","🍔","🍟","🌭","🍿","🧂","🥓","🥚","🍳","🧇","🥞","🍞","🥐","🧀","🥗","🌮","🌯","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🍤","🍙","🍚","🍘","🍥","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍩","🍪","🍉","🍎","🍐","🍊","🍋","🍌","🍍","🥭","🍓","🫐","🍒","🍑","🥝","🍅","🥑","🥕","🌽","🌶️","🥦","🥜","🍵","☕","🧃","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🧋","🥤","🧊"] },
+  { id: "activities", icon: "⚽", emojis: ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🏓","🏸","🏒","🏑","🥍","🏏","🎯","🎮","🕹️","🎲","♟️","🎭","🎨","🎪","🎬","🎤","🎧","🎼","🎵","🎶","🎻","🎸","🥁","🎺","🎷","🎹","🎠","🎡","🎢","🎫","🎟️","🎗️","🎀","🎁","🎊","🎉","🎈","🎆","🎇","🧨","🏆","🥇","🥈","🥉","🏅","🚀","🌍","🌙","⭐","🌟","💫","⚡","🌈","❄️","☀️","🌊","🌸","🌺","🌻","🌹","🍀","🌿","🍁","🌾","🍄","🌱","🌳","🌴","🌵","🎋","🎍"] },
+  { id: "symbols", icon: "❤️", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","☯️","⚛️","🆔","⚠️","♻️","✅","❌","⭕","🛑","⛔","📛","🚫","💯","‼️","⁉️","❓","❔","❗","❕","🔅","🔆","🔱","⚜️","🔰","▶️","⏸","⏹","⏺","⏭","⏮","⏩","⏪","⏫","⏬","◀️","🔼","🔽","➡️","⬅️","⬆️","⬇️","↕️","↔️","🔀","🔁","🔂","🔄","➕","➖","➗","✖️","💲","©️","®️","™️","🔔","🔕","💬","💭","🗯","💤","🔑","🔒","🔓","⚙️","🔧","🔨","🔗","🧲","🔬","🔭","💡","💻","📱","☎️","📷","📸","📹","📅","📋","📊","📈","📉","💰","💳","💎","🔮","🧩","🎱","🎭","♠️","♥️","♦️","♣️"] },
+];
+
+type GifResult = { id: string; title: string; url: string; preview: string; width: number; height: number };
+
+function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+  const [tab, setTab] = useState(EMOJI_GROUPS[0].id);
+  const active = EMOJI_GROUPS.find(g => g.id === tab) ?? EMOJI_GROUPS[0];
+  return (
+    <div className="flex flex-col w-72" onMouseDown={e => e.preventDefault()}>
+      {/* Category tabs */}
+      <div className="flex gap-0.5 px-2 pt-2 pb-1 border-b border-border">
+        {EMOJI_GROUPS.map(g => (
+          <button
+            key={g.id}
+            className={`flex-1 text-base py-1 rounded transition-colors ${tab === g.id ? "bg-primary/10 text-primary" : "hover:bg-muted/60 text-muted-foreground"}`}
+            onClick={() => setTab(g.id)}
+          >
+            {g.icon}
+          </button>
+        ))}
+      </div>
+      {/* Emoji grid */}
+      <div className="grid grid-cols-8 gap-0.5 p-2 max-h-48 overflow-y-auto">
+        {active.emojis.map(em => (
+          <button
+            key={em}
+            className="text-lg p-1 rounded hover:bg-muted/60 transition-colors leading-none"
+            onClick={() => { onSelect(em); onClose(); }}
+          >
+            {em}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
+  const { t } = useTranslation("communities");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = (val: string) => {
+    setSearch(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedSearch(val.trim()), 500);
+  };
+
+  const { data: trendingData, isLoading: loadingTrending } = useQuery<{ gifs: GifResult[] }>({
+    queryKey: ["gif-trending"],
+    queryFn: () => customFetch("/api/gif/trending"),
+    staleTime: 5 * 60_000,
+    enabled: !debouncedSearch,
+  });
+
+  const { data: searchData, isLoading: loadingSearch } = useQuery<{ gifs: GifResult[] }>({
+    queryKey: ["gif-search", debouncedSearch],
+    queryFn: () => customFetch(`/api/gif/search?q=${encodeURIComponent(debouncedSearch)}`),
+    staleTime: 60_000,
+    enabled: !!debouncedSearch,
+  });
+
+  const gifs = debouncedSearch ? (searchData?.gifs ?? []) : (trendingData?.gifs ?? []);
+  const loading = debouncedSearch ? loadingSearch : loadingTrending;
+
+  return (
+    <div className="flex flex-col" style={{ width: 420 }}>
+      <div className="p-2 border-b border-border">
+        <div className="relative">
+          <Search className="absolute start-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            className="w-full bg-muted/50 rounded-md ps-7 pe-3 py-1.5 text-sm outline-none border border-border focus:border-primary/50 transition-colors placeholder:text-muted-foreground"
+            placeholder="Search GIFs…"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            autoFocus
+          />
+        </div>
+      </div>
+      <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+        {loading ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : gifs.length === 0 ? (
+          <div className="flex flex-col items-center py-10 gap-2 text-muted-foreground text-sm">
+            <span className="text-2xl">🎞️</span>
+            {debouncedSearch ? "No GIFs found" : "Loading…"}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1 p-2">
+            {gifs.map(gif => (
+              <button
+                key={gif.id}
+                className="rounded overflow-hidden hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary/50"
+                onClick={() => onSelect(gif.url)}
+                title={gif.title}
+              >
+                <img
+                  src={gif.preview || gif.url}
+                  alt={gif.title}
+                  className="w-full object-cover"
+                  style={{ height: 100 }}
+                  loading="lazy"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+        {!debouncedSearch && !loading && gifs.length > 0 && (
+          <p className="text-center text-[10px] text-muted-foreground pb-1 opacity-60">Powered by GIPHY</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Message bubble ─────────────────────────────────────────────────────────────
+
+/** Detect if content is a bare image URL (uploaded or GIF) */
+function isImageOnlyMessage(content: string): boolean {
+  const c = content.trim();
+  return /^\/api\/images\/[0-9a-f-]{36}$/i.test(c)
+    || /^https?:\/\/media\d*\.giphy\.com\//i.test(c);
+}
 
 /** Parse message content and render @[RoleName] mentions in role colour. */
 function renderMessageContent(content: string, roles: Role[]) {
+  // Pure image / GIF message — render inline media
+  if (isImageOnlyMessage(content.trim())) {
+    return (
+      <img
+        src={content.trim()}
+        alt="media"
+        className="max-w-xs max-h-52 rounded-lg mt-1 object-contain cursor-pointer"
+        onClick={() => window.open(content.trim(), "_blank")}
+        loading="lazy"
+      />
+    );
+  }
+
   const roleByName = new Map(roles.map(r => [r.name.toLowerCase(), r]));
   // Match @[RoleName] pattern
   const parts = content.split(/(@\[[^\]]+\])/g);
@@ -1266,8 +1414,12 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const [slowmodeLeft, setSlowmodeLeft] = useState(0);
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
+  const [imgUploading, setImgUploading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const imgFileRef = useRef<HTMLInputElement>(null);
 
   // Slowmode countdown tick
   useEffect(() => {
@@ -1379,6 +1531,58 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
     setMentionSearch(null);
     inputRef.current?.focus();
   }, [text]);
+
+  /** Insert emoji at cursor position */
+  const insertEmoji = useCallback((emoji: string) => {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? text.length;
+    const end = input?.selectionEnd ?? text.length;
+    const newText = text.slice(0, start) + emoji + text.slice(end);
+    setText(newText);
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      input?.focus();
+      const pos = start + emoji.length;
+      input?.setSelectionRange(pos, pos);
+    });
+  }, [text]);
+
+  /** Send a GIF URL as a message immediately */
+  const sendGif = useCallback((url: string) => {
+    if (slowmodeLeft > 0) return;
+    setShowGif(false);
+    sendMutation.mutate(url, {
+      onSuccess: () => {
+        if (channel.slowmodeSeconds > 0 && !canMod && !isOwner) setSlowmodeLeft(channel.slowmodeSeconds);
+      },
+    });
+  }, [slowmodeLeft, sendMutation, channel.slowmodeSeconds, canMod, isOwner]);
+
+  /** Upload an image file and send as message */
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (file.size > 8 * 1024 * 1024) { toast({ title: "Image too large (max 8 MB)", variant: "destructive" }); return; }
+    setImgUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = localStorage.getItem("gwh_token");
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json() as { objectPath: string };
+      const url = `/api${data.objectPath}`;
+      sendMutation.mutate(url, {
+        onSuccess: () => {
+          if (channel.slowmodeSeconds > 0 && !canMod && !isOwner) setSlowmodeLeft(channel.slowmodeSeconds);
+        },
+      });
+    } catch {
+      toast({ title: "Failed to upload image", variant: "destructive" });
+    } finally { setImgUploading(false); }
+  }, [sendMutation, toast, channel.slowmodeSeconds, canMod, isOwner]);
 
   const filteredMentions = mentionSearch !== null
     ? mentionableRoles.filter(r => r.name.toLowerCase().includes(mentionSearch))
@@ -1506,10 +1710,31 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
                 <span>Slow mode — wait {slowmodeLeft}s before sending</span>
               </div>
             )}
-            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border border-border focus-within:border-primary/50 transition-colors">
+            {/* Hidden file input for image upload */}
+            <input
+              ref={imgFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageUpload(f); e.target.value = ""; } }}
+            />
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg px-2 py-2 border border-border focus-within:border-primary/50 transition-colors">
+              {/* Attachment button */}
+              <button
+                onClick={() => imgFileRef.current?.click()}
+                disabled={imgUploading || slowmodeLeft > 0}
+                className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors disabled:opacity-40 flex-shrink-0"
+                title="Attach image"
+              >
+                {imgUploading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Paperclip className="w-4 h-4" />}
+              </button>
+
+              {/* Text input */}
               <input
                 ref={inputRef}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50 min-w-0 px-1"
                 placeholder={slowmodeLeft > 0 ? `Slow mode — ${slowmodeLeft}s remaining` : t("typeMessage", { channel: channel.name })}
                 value={text}
                 onChange={handleTextChange}
@@ -1520,7 +1745,43 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
                 maxLength={4000}
                 disabled={slowmodeLeft > 0}
               />
-              <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending || slowmodeLeft > 0} className="text-primary disabled:text-muted-foreground">
+
+              {/* GIF picker */}
+              <Popover open={showGif} onOpenChange={setShowGif}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-bold tracking-wide flex-shrink-0 transition-colors ${showGif ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}
+                    title="GIF"
+                  >
+                    GIF
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-auto p-0 overflow-hidden">
+                  <GifPicker onSelect={sendGif} />
+                </PopoverContent>
+              </Popover>
+
+              {/* Emoji picker */}
+              <Popover open={showEmoji} onOpenChange={setShowEmoji}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={`p-1 rounded transition-colors flex-shrink-0 ${showEmoji ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    title="Emoji"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-auto p-0 overflow-hidden">
+                  <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />
+                </PopoverContent>
+              </Popover>
+
+              {/* Send */}
+              <button
+                onClick={handleSend}
+                disabled={!text.trim() || sendMutation.isPending || slowmodeLeft > 0}
+                className="text-primary disabled:text-muted-foreground p-1 flex-shrink-0"
+              >
                 <Send className="w-4 h-4" />
               </button>
             </div>
@@ -2676,7 +2937,7 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
           {m.displayName}
         </span>
         {m.userId === ownerId && <Crown className="w-2.5 h-2.5 text-yellow-400 flex-shrink-0" />}
-        {isOwner && m.userId !== ownerId && (
+        {isOwner && (assignableRoles.length > 0 || m.userId !== ownerId) && (
           <DropdownMenu open={assigningUserId === m.userId} onOpenChange={o => setAssigningUserId(o ? m.userId : null)}>
             <DropdownMenuTrigger asChild>
               <button className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground p-0.5">
@@ -2704,15 +2965,19 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
                       </DropdownMenuItem>
                     );
                   })}
-                  <div className="border-t border-border my-1" />
+                  {m.userId !== ownerId && <div className="border-t border-border my-1" />}
                 </>
               )}
-              <DropdownMenuItem onClick={() => kickMutation.mutate(m.userId)} className="text-destructive">
-                <UserMinus className="w-3 h-3 me-2" />{t("kick")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => banMutation.mutate(m.userId)} className="text-destructive">
-                <Ban className="w-3 h-3 me-2" />{t("ban")}
-              </DropdownMenuItem>
+              {m.userId !== ownerId && (
+                <>
+                  <DropdownMenuItem onClick={() => kickMutation.mutate(m.userId)} className="text-destructive">
+                    <UserMinus className="w-3 h-3 me-2" />{t("kick")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => banMutation.mutate(m.userId)} className="text-destructive">
+                    <Ban className="w-3 h-3 me-2" />{t("ban")}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

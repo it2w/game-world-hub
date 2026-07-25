@@ -156,6 +156,7 @@ function RsvpButtons({
   eventId, current, counts, onChange,
 }: { eventId: number; current: string | null; counts: RsvpCounts; onChange: (counts: RsvpCounts, status: string | null) => void }) {
   const { toast } = useToast();
+  const { t } = useTranslation("events");
   const [busy, setBusy] = useState(false);
 
   const rsvp = async (status: "going" | "maybe" | "not_going") => {
@@ -172,16 +173,16 @@ function RsvpButtons({
         onChange(data.rsvpCounts, status);
       }
     } catch (e: any) {
-      toast({ title: e?.data?.error ?? "Failed to RSVP", variant: "destructive" });
+      toast({ title: e?.data?.error ?? t("toasts.rsvpError"), variant: "destructive" });
     } finally {
       setBusy(false);
     }
   };
 
   const BTN = [
-    { key: "going"    as const, label: "Going",    Icon: CheckCircle2,  on: "#22C55E", off: "#333" },
-    { key: "maybe"    as const, label: "Maybe",    Icon: HelpCircle,    on: "#F97316", off: "#333" },
-    { key: "not_going"as const, label: "Can't Go", Icon: MinusCircle,   on: "#EF4444", off: "#333" },
+    { key: "going"    as const, label: t("rsvp.going"),    Icon: CheckCircle2,  on: "#22C55E", off: "#333" },
+    { key: "maybe"    as const, label: t("rsvp.maybe"),    Icon: HelpCircle,    on: "#F97316", off: "#333" },
+    { key: "not_going"as const, label: t("rsvp.notGoing"), Icon: MinusCircle,   on: "#EF4444", off: "#333" },
   ];
 
   return (
@@ -212,6 +213,7 @@ function RsvpButtons({
 // ── DiscussionThread ──────────────────────────────────────────────────────────
 function DiscussionThread({ eventId }: { eventId: number }) {
   const { toast } = useToast();
+  const { t } = useTranslation("events");
   const [body, setBody] = useState("");
   const qc = useQueryClient();
 
@@ -224,17 +226,17 @@ function DiscussionThread({ eventId }: { eventId: number }) {
   const post = useMutation({
     mutationFn: () => customFetch(`/api/events/${eventId}/posts`, { method: "POST", body: JSON.stringify({ body }) }),
     onSuccess: () => { setBody(""); qc.invalidateQueries({ queryKey: ["event-posts", eventId] }); },
-    onError: (e: any) => toast({ title: e?.data?.error ?? "Failed to post", variant: "destructive" }),
+    onError: (e: any) => toast({ title: e?.data?.error ?? t("toasts.postError"), variant: "destructive" }),
   });
 
   return (
     <div className="space-y-3">
       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        <MessageSquare className="w-3 h-3 inline me-1.5" />Discussion
+        <MessageSquare className="w-3 h-3 inline me-1.5" />{t("discussion.title")}
       </p>
       <div className="space-y-2 max-h-48 overflow-y-auto">
         {(posts ?? []).length === 0 ? (
-          <p className="font-mono text-xs text-muted-foreground/60">No posts yet — start the conversation!</p>
+          <p className="font-mono text-xs text-muted-foreground/60">{t("discussion.empty")}</p>
         ) : (
           posts!.map((p) => (
             <div key={p.id} className="border border-border/50 bg-muted/10 p-2.5">
@@ -252,7 +254,7 @@ function DiscussionThread({ eventId }: { eventId: number }) {
       <div className="flex gap-2">
         <Input
           value={body} onChange={(e) => setBody(e.target.value)}
-          placeholder="Post an update…"
+          placeholder={t("discussion.placeholder")}
           className="font-mono text-xs rounded-none bg-background border-border h-8"
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (body.trim()) post.mutate(); } }}
         />
@@ -262,7 +264,7 @@ function DiscussionThread({ eventId }: { eventId: number }) {
           disabled={!body.trim() || post.isPending}
           onClick={() => post.mutate()}
         >
-          Post
+          {t("discussion.post")}
         </Button>
       </div>
     </div>
@@ -272,6 +274,7 @@ function DiscussionThread({ eventId }: { eventId: number }) {
 // ── RatingWidget ──────────────────────────────────────────────────────────────
 function RatingWidget({ eventId, existing }: { eventId: number; existing: number | null }) {
   const { toast } = useToast();
+  const { t } = useTranslation("events");
   const [submitted, setSubmitted] = useState(existing !== null);
   const [hover, setHover] = useState(0);
   const [selected, setSelected] = useState(existing ?? 0);
@@ -280,12 +283,12 @@ function RatingWidget({ eventId, existing }: { eventId: number; existing: number
     mutationFn: (rating: number) =>
       customFetch(`/api/events/${eventId}/rate`, { method: "POST", body: JSON.stringify({ rating }) }),
     onSuccess: (_data, rating) => { setSelected(rating); setSubmitted(true); },
-    onError: (e: any) => toast({ title: e?.data?.error ?? "Failed to rate", variant: "destructive" }),
+    onError: (e: any) => toast({ title: e?.data?.error ?? t("toasts.rateError"), variant: "destructive" }),
   });
 
   return (
     <div className="space-y-1.5">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Rate this Event</p>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{t("rating.title")}</p>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -305,7 +308,7 @@ function RatingWidget({ eventId, existing }: { eventId: number; existing: number
             />
           </button>
         ))}
-        {submitted && <span className="font-mono text-[10px] text-muted-foreground ms-2 self-center">Thanks!</span>}
+        {submitted && <span className="font-mono text-[10px] text-muted-foreground ms-2 self-center">{t("rating.thanks")}</span>}
       </div>
     </div>
   );
@@ -318,6 +321,7 @@ function EventDetailPanel({
   evt: GwhEvent; open: boolean; onClose: () => void;
   onRsvpChange: (counts: RsvpCounts, status: string | null) => void;
 }) {
+  const { t } = useTranslation("events");
   const [tab, setTab] = useState<"info" | "roster" | "discuss">("info");
   const title = locTitle(evt);
   const desc  = locDesc(evt);
@@ -350,7 +354,7 @@ function EventDetailPanel({
               <EventTypeTag type={evt.eventType} />
               {evt.recurringRule && (
                 <span className="font-mono text-[9px] text-muted-foreground border border-border/50 px-1.5 py-0.5 flex items-center gap-1">
-                  <RotateCcw className="w-2.5 h-2.5" />Recurring
+                  <RotateCcw className="w-2.5 h-2.5" />{t("detail.recurring")}
                 </span>
               )}
             </div>
@@ -369,15 +373,15 @@ function EventDetailPanel({
 
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0">
-          {(["info", "roster", "discuss"] as const).map((t) => (
+          {(["info", "roster", "discuss"] as const).map((tabKey) => (
             <button
-              key={t}
+              key={tabKey}
               className={`flex-1 font-mono text-[10px] uppercase tracking-widest py-2 transition-colors border-b-2 -mb-px ${
-                tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                tab === tabKey ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
-              onClick={() => setTab(t)}
+              onClick={() => setTab(tabKey)}
             >
-              {t === "info" ? "Info" : t === "roster" ? `Roster (${evt.rsvpCounts.going})` : "Discussion"}
+              {tabKey === "info" ? t("detail.tabInfo") : tabKey === "roster" ? t("detail.tabRoster", { count: evt.rsvpCounts.going }) : t("detail.tabDiscussion")}
             </button>
           ))}
         </div>
@@ -391,15 +395,15 @@ function EventDetailPanel({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: "#22C55E" }} />
-                    <span className="font-mono text-xs">{evt.rsvpCounts.going} Going</span>
+                    <span className="font-mono text-xs">{evt.rsvpCounts.going} {t("rsvp.going")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: "#F97316" }} />
-                    <span className="font-mono text-xs">{evt.rsvpCounts.maybe} Maybe</span>
+                    <span className="font-mono text-xs">{evt.rsvpCounts.maybe} {t("rsvp.maybe")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: "#EF4444" }} />
-                    <span className="font-mono text-xs">{evt.rsvpCounts.notGoing} Can't Go</span>
+                    <span className="font-mono text-xs">{evt.rsvpCounts.notGoing} {t("rsvp.notGoing")}</span>
                   </div>
                 </div>
               </div>
@@ -412,7 +416,7 @@ function EventDetailPanel({
                     <p className="font-mono text-xs">{fmtDate(evt.scheduledAt)}</p>
                     {remaining > 0 && (
                       <p className="font-mono text-[10px] text-muted-foreground">
-                        Starts in {fmtCountdown(remaining)}
+                        {t("detail.startsIn")} {fmtCountdown(remaining)}
                       </p>
                     )}
                   </div>
@@ -422,9 +426,9 @@ function EventDetailPanel({
                 <div className="flex items-center gap-2">
                   <Users className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <span className="font-mono text-xs">
-                    Max {evt.maxParticipants} attendees
+                    {t("detail.maxAttendees", { count: evt.maxParticipants })}
                     {evt.rsvpCounts.going >= evt.maxParticipants && (
-                      <span className="text-red-400 ms-2">• Full</span>
+                      <span className="text-red-400 ms-2">• {t("detail.full")}</span>
                     )}
                   </span>
                 </div>
@@ -435,7 +439,7 @@ function EventDetailPanel({
               {evt.partyId && (
                 <Link href={`/party/${evt.partyId}`}>
                   <div className="border border-primary/30 bg-primary/5 p-3 hover:bg-primary/10 transition-colors cursor-pointer">
-                    <p className="font-mono text-xs text-primary">🎮 Linked party — Join Now →</p>
+                    <p className="font-mono text-xs text-primary">{t("detail.linkedParty")}</p>
                   </div>
                 </Link>
               )}
@@ -443,7 +447,7 @@ function EventDetailPanel({
               {/* RSVP buttons */}
               {evt.status === "active" && evt.scheduledAt && new Date(evt.scheduledAt) > new Date() && (
                 <div className="space-y-2">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Your RSVP</p>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{t("rsvp.yourRsvp")}</p>
                   <RsvpButtons
                     eventId={evt.id}
                     current={evt.viewerRsvp}
@@ -456,18 +460,18 @@ function EventDetailPanel({
               {/* Recap for completed events */}
               {evt.status === "completed" && (
                 <div className="border border-border/50 bg-muted/10 p-3 space-y-2">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Event Recap</p>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{t("detail.recap")}</p>
                   <div className="flex items-center gap-4">
                     <div className="text-center">
                       <p className="font-mono text-xl font-bold text-green-400">{evt.rsvpCounts.going}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">Attended</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{t("detail.attended")}</p>
                     </div>
                     {evt.ratingAvg && (
                       <div className="text-center">
                         <p className="font-mono text-xl font-bold text-yellow-400">
                           {evt.ratingAvg.toFixed(1)}⭐
                         </p>
-                        <p className="font-mono text-[10px] text-muted-foreground">{evt.ratingCount} ratings</p>
+                        <p className="font-mono text-[10px] text-muted-foreground">{t("detail.ratingsCount", { count: evt.ratingCount })}</p>
                       </div>
                     )}
                   </div>
@@ -482,7 +486,7 @@ function EventDetailPanel({
           {tab === "roster" && (
             <div className="space-y-2">
               {(roster ?? []).length === 0 ? (
-                <p className="font-mono text-xs text-muted-foreground">No RSVPs yet.</p>
+                <p className="font-mono text-xs text-muted-foreground">{t("detail.rosterEmpty")}</p>
               ) : (
                 roster!.map((r) => (
                   <div key={r.id} className="flex items-center gap-2 border border-border/30 p-2">
@@ -501,7 +505,7 @@ function EventDetailPanel({
                         borderColor: r.status === "going" ? "#22C55E40" : r.status === "maybe" ? "#F9731640" : "#EF444440",
                       }}
                     >
-                      {r.status === "going" ? "Going" : r.status === "maybe" ? "Maybe" : "No"}
+                      {r.status === "going" ? t("rsvp.going") : r.status === "maybe" ? t("rsvp.maybe") : t("rsvp.no")}
                     </span>
                   </div>
                 ))
@@ -518,6 +522,7 @@ function EventDetailPanel({
 
 // ── Calendar Month View ───────────────────────────────────────────────────────
 function CalendarMonthView({ events, onEventClick }: { events: GwhEvent[]; onEventClick: (e: GwhEvent) => void }) {
+  const { t } = useTranslation("events");
   const [cursor, setCursor] = useState(() => {
     const d = new Date(); d.setDate(1); return d;
   });
@@ -527,7 +532,7 @@ function CalendarMonthView({ events, onEventClick }: { events: GwhEvent[]; onEve
   const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
-  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const DAYS = t("calendar.days", { returnObjects: true }) as string[];
 
   // Build cell array (42 cells = 6 rows × 7 cols)
   const cells: Array<{ date: Date | null; events: GwhEvent[] }> = [];
@@ -605,7 +610,7 @@ function CalendarMonthView({ events, onEventClick }: { events: GwhEvent[]; onEve
                     })}
                     {cell.events.length > 2 && (
                       <span className="font-mono text-[9px] text-muted-foreground px-1">
-                        +{cell.events.length - 2} more
+                        {t("detail.more", { count: cell.events.length - 2 })}
                       </span>
                     )}
                   </div>
@@ -621,11 +626,12 @@ function CalendarMonthView({ events, onEventClick }: { events: GwhEvent[]; onEve
 
 // ── Calendar Week View ────────────────────────────────────────────────────────
 function CalendarWeekView({ events, onEventClick }: { events: GwhEvent[]; onEventClick: (e: GwhEvent) => void }) {
+  const { t } = useTranslation("events");
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return d;
   });
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
-  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const DAYS = t("calendar.days", { returnObjects: true }) as string[];
   const weekDates = DAYS.map((_, i) => new Date(weekStart.getTime() + i * 86_400_000));
   const today = new Date();
 
@@ -709,6 +715,7 @@ function CalendarWeekView({ events, onEventClick }: { events: GwhEvent[]; onEven
 
 // ── Event Card (list view) ────────────────────────────────────────────────────
 function EventListCard({ evt, onClick }: { evt: GwhEvent; onClick: () => void }) {
+  const { t } = useTranslation("events");
   const title = locTitle(evt);
   const desc  = locDesc(evt);
   const cfg   = eventTypeConfig(evt.eventType);
@@ -727,7 +734,7 @@ function EventListCard({ evt, onClick }: { evt: GwhEvent; onClick: () => void })
               <EventTypeTag type={evt.eventType} />
               {evt.recurringRule && (
                 <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-1">
-                  <RotateCcw className="w-2.5 h-2.5" />Recurring
+                  <RotateCcw className="w-2.5 h-2.5" />{t("detail.recurring")}
                 </span>
               )}
             </div>
@@ -760,7 +767,7 @@ function EventListCard({ evt, onClick }: { evt: GwhEvent; onClick: () => void })
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3 text-muted-foreground" />
                 <span className="font-mono text-[10px] text-muted-foreground">
-                  in {fmtCountdown(remaining)}
+                  {t("detail.inCountdown", { time: fmtCountdown(remaining) })}
                 </span>
               </div>
             )}
@@ -773,7 +780,7 @@ function EventListCard({ evt, onClick }: { evt: GwhEvent; onClick: () => void })
                 borderColor: evt.viewerRsvp === "going" ? "#22C55E40" : evt.viewerRsvp === "maybe" ? "#F9731640" : "#EF444440",
               }}
             >
-              {evt.viewerRsvp === "going" ? "Going ✓" : evt.viewerRsvp === "maybe" ? "Maybe" : "Can't Go"}
+              {evt.viewerRsvp === "going" ? t("rsvp.goingCheck") : evt.viewerRsvp === "maybe" ? t("rsvp.maybe") : t("rsvp.notGoing")}
             </span>
           )}
         </div>
@@ -858,6 +865,7 @@ function FlashEventCard({ evt, onJoin, joining }: { evt: GwhEvent; onJoin: () =>
 // ── Create Event Wizard ───────────────────────────────────────────────────────
 function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
   const { toast } = useToast();
+  const { t } = useTranslation("events");
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
 
@@ -893,10 +901,10 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Event Created! 🎉", description: "Players can now RSVP." });
+      toast({ title: t("toasts.createdTitle"), description: t("toasts.createdDesc") });
       setOpen(false); reset(); onCreated();
     },
-    onError: (e: any) => toast({ title: "Failed to create", description: e?.data?.error, variant: "destructive" }),
+    onError: (e: any) => toast({ title: t("toasts.createError"), description: e?.data?.error, variant: "destructive" }),
   });
 
   const TYPE_OPTS = ["casual", "tournament", "coaching", "community"] as const;
@@ -905,13 +913,13 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
       <DialogTrigger asChild>
         <Button className="font-mono rounded-none text-xs uppercase tracking-widest">
-          <Plus className="w-3.5 h-3.5 me-1.5" />Host an Event
+          <Plus className="w-3.5 h-3.5 me-1.5" />{t("wizard.hostButton")}
         </Button>
       </DialogTrigger>
       <DialogContent className="bg-card border-border rounded-none sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="font-mono uppercase tracking-widest text-sm border-b border-border pb-3">
-            🎮 New Event — Step {step} of 3
+            🎮 {t("wizard.title")} — {t("wizard.step", { step })}
           </DialogTitle>
         </DialogHeader>
 
@@ -925,48 +933,48 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
         {step === 1 && (
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Event Title *</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.title")}</label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)}
                 className="font-mono rounded-none bg-background border-border"
-                placeholder="Friday Night Valorant" />
+                placeholder={t("wizard.placeholders.title")} />
             </div>
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Game</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.game")}</label>
               <Input value={game} onChange={(e) => setGame(e.target.value)}
                 className="font-mono rounded-none bg-background border-border"
-                placeholder="Valorant, Apex Legends…" />
+                placeholder={t("wizard.placeholders.game")} />
             </div>
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Event Type</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.type")}</label>
               <div className="grid grid-cols-4 gap-2">
-                {TYPE_OPTS.map((t) => {
-                  const cfg = EVENT_TYPE_CONFIG[t];
+                {TYPE_OPTS.map((typeKey) => {
+                  const cfg = EVENT_TYPE_CONFIG[typeKey];
                   return (
                     <button
-                      key={t}
-                      onClick={() => setEventType(t === eventType ? "" : t)}
+                      key={typeKey}
+                      onClick={() => setEventType(typeKey === eventType ? "" : typeKey)}
                       className="py-2 font-mono text-[10px] uppercase tracking-widest border transition-all"
                       style={{
-                        borderColor: eventType === t ? cfg.color : "#2a2a2a",
-                        color: eventType === t ? cfg.color : "#666",
-                        background: eventType === t ? cfg.bg : "transparent",
+                        borderColor: eventType === typeKey ? cfg.color : "#2a2a2a",
+                        color: eventType === typeKey ? cfg.color : "#666",
+                        background: eventType === typeKey ? cfg.bg : "transparent",
                       }}
                     >
-                      {t}
+                      {t(`types.${typeKey}` as any)}
                     </button>
                   );
                 })}
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Description</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.description")}</label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)}
                 className="font-mono rounded-none bg-background border-border resize-none" rows={2}
-                placeholder="Open for all ranks — bring your A-game" />
+                placeholder={t("wizard.placeholders.description")} />
             </div>
             <Button className="w-full font-mono rounded-none uppercase tracking-widest"
               disabled={!title.trim()} onClick={() => setStep(2)}>
-              Next →
+              {t("wizard.next")}
             </Button>
           </div>
         )}
@@ -974,12 +982,12 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
         {step === 2 && (
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Date & Time *</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.datetime")}</label>
               <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)}
                 className="font-mono rounded-none bg-background border-border"
                 min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)} />
               <p className="font-mono text-[10px] text-muted-foreground">
-                Your local timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                {t("wizard.timezoneLabel")} {Intl.DateTimeFormat().resolvedOptions().timeZone}
               </p>
             </div>
             <div className="space-y-2">
@@ -988,35 +996,35 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
                   onChange={(e) => setRecurring(e.target.checked)}
                   className="w-3.5 h-3.5 accent-primary" />
                 <label htmlFor="recurring" className="font-mono text-xs cursor-pointer">
-                  <RotateCcw className="w-3 h-3 inline me-1.5" />Recurring event
+                  <RotateCcw className="w-3 h-3 inline me-1.5" />{t("wizard.recurringEvent")}
                 </label>
               </div>
               {recurring && (
                 <div className="flex gap-2 ps-5">
                   <select value={recurFreq} onChange={(e) => setRecurFreq(e.target.value as any)}
                     className="font-mono text-xs bg-background border border-border px-2 py-1 flex-1">
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
+                    <option value="daily">{t("wizard.recurFreq.daily")}</option>
+                    <option value="weekly">{t("wizard.recurFreq.weekly")}</option>
+                    <option value="monthly">{t("wizard.recurFreq.monthly")}</option>
                   </select>
                   <Input type="number" min={1} max={24} value={recurCount}
                     onChange={(e) => setRecurCount(e.target.value)}
                     className="font-mono rounded-none bg-background border-border w-20 text-xs"
-                    placeholder="# times" />
+                    placeholder={t("wizard.recurTimes")} />
                 </div>
               )}
             </div>
             <div className="space-y-1.5">
-              <label className="font-mono text-xs uppercase text-muted-foreground">Max Attendees (optional)</label>
+              <label className="font-mono text-xs uppercase text-muted-foreground">{t("wizard.labels.maxParticipants")}</label>
               <Input type="number" min={2} max={500} value={maxParticipants}
                 onChange={(e) => setMaxParticipants(e.target.value)}
-                className="font-mono rounded-none bg-background border-border" placeholder="50" />
+                className="font-mono rounded-none bg-background border-border" placeholder={t("wizard.maxPlaceholder")} />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 font-mono rounded-none uppercase tracking-widest"
-                onClick={() => setStep(1)}>← Back</Button>
+                onClick={() => setStep(1)}>{t("wizard.back")}</Button>
               <Button className="flex-1 font-mono rounded-none uppercase tracking-widest"
-                disabled={!scheduledAt} onClick={() => setStep(3)}>Next →</Button>
+                disabled={!scheduledAt} onClick={() => setStep(3)}>{t("wizard.next")}</Button>
             </div>
           </div>
         )}
@@ -1025,22 +1033,22 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
           <div className="space-y-4 pt-2">
             {/* Preview card */}
             <div className="border border-border/50 bg-muted/10 p-3 space-y-2">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Preview</p>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{t("wizard.preview")}</p>
               <div className="flex items-center gap-2">
                 <EventTypeTag type={eventType || null} />
-                {recurring && <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-1"><RotateCcw className="w-2.5 h-2.5" />Recurring</span>}
+                {recurring && <span className="font-mono text-[9px] text-muted-foreground flex items-center gap-1"><RotateCcw className="w-2.5 h-2.5" />{t("detail.recurring")}</span>}
               </div>
-              <p className="font-mono font-bold text-sm">{title || "Untitled"}</p>
+              <p className="font-mono font-bold text-sm">{title || t("wizard.untitled")}</p>
               {game && <p className="font-mono text-[10px] text-primary"><Gamepad2 className="w-3 h-3 inline me-1" />{game}</p>}
               {scheduledAt && <p className="font-mono text-[10px] text-muted-foreground"><Calendar className="w-3 h-3 inline me-1" />{fmtDate(scheduledAt)}</p>}
-              {maxParticipants && <p className="font-mono text-[10px] text-muted-foreground"><Users className="w-3 h-3 inline me-1" />Max {maxParticipants}</p>}
+              {maxParticipants && <p className="font-mono text-[10px] text-muted-foreground"><Users className="w-3 h-3 inline me-1" />{t("wizard.maxPreview", { count: maxParticipants })}</p>}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 font-mono rounded-none uppercase tracking-widest"
-                onClick={() => setStep(2)}>← Back</Button>
+                onClick={() => setStep(2)}>{t("wizard.back")}</Button>
               <Button className="flex-1 font-mono rounded-none uppercase tracking-widest"
                 disabled={create.isPending} onClick={() => create.mutate()}>
-                {create.isPending ? "Creating…" : "Launch Event 🚀"}
+                {create.isPending ? t("wizard.creating") : t("wizard.launch")}
               </Button>
             </div>
           </div>
@@ -1052,6 +1060,7 @@ function CreateEventWizard({ onCreated }: { onCreated: () => void }) {
 
 // ── Event Start Banner (WS-driven) ────────────────────────────────────────────
 function EventStartBanner() {
+  const { t } = useTranslation("events");
   const [banner, setBanner] = useState<{ title: string; eventId: number; partyId: number | null } | null>(null);
 
   useEffect(() => {
@@ -1070,7 +1079,7 @@ function EventStartBanner() {
     <div className="fixed bottom-4 end-4 z-50 max-w-sm border border-green-500/50 bg-card p-4 shadow-xl shadow-green-500/10 animate-in slide-in-from-bottom-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <p className="font-mono text-[10px] text-green-400 uppercase tracking-widest">🟢 Event Started!</p>
+          <p className="font-mono text-[10px] text-green-400 uppercase tracking-widest">{t("banner.started")}</p>
           <p className="font-mono text-sm font-bold mt-0.5">{banner.title}</p>
         </div>
         <button onClick={() => setBanner(null)} className="text-muted-foreground hover:text-foreground">
@@ -1080,13 +1089,13 @@ function EventStartBanner() {
       {banner.partyId ? (
         <Link href={`/party/${banner.partyId}`}>
           <Button size="sm" className="w-full font-mono rounded-none text-xs uppercase tracking-widest mt-3 bg-green-600 hover:bg-green-500">
-            Join Now →
+            {t("banner.joinNow")}
           </Button>
         </Link>
       ) : (
         <Link href="/events">
           <Button size="sm" variant="outline" className="w-full font-mono rounded-none text-xs uppercase tracking-widest mt-3">
-            View Event →
+            {t("banner.viewEvent")}
           </Button>
         </Link>
       )}
@@ -1150,11 +1159,11 @@ export default function Events() {
     mutationFn: (id: number) => customFetch(`/api/events/${id}/join`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
-      toast({ title: "Registered! 🎉" });
+      toast({ title: t("toasts.registered") });
       setJoiningId(null);
     },
     onError: (e: any) => {
-      toast({ title: e?.data?.error ?? "Failed to join", variant: "destructive" });
+      toast({ title: e?.data?.error ?? t("toasts.joinFailed"), variant: "destructive" });
       setJoiningId(null);
     },
   });
@@ -1192,8 +1201,8 @@ export default function Events() {
       {/* Page header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-mono font-bold text-lg uppercase tracking-widest">Events</h1>
-          <p className="font-mono text-xs text-muted-foreground mt-0.5">Gaming sessions, community events & flash challenges</p>
+          <h1 className="font-mono font-bold text-lg uppercase tracking-widest">{t("page.title")}</h1>
+          <p className="font-mono text-xs text-muted-foreground mt-0.5">{t("page.subtitle")}</p>
         </div>
         <CreateEventWizard onCreated={() => queryClient.invalidateQueries({ queryKey: ["events"] })} />
       </div>
@@ -1210,7 +1219,7 @@ export default function Events() {
             }`}
             onClick={() => setMainTab(k)}
           >
-            {k === "flash" ? <><Zap className="w-3 h-3 inline me-1.5" />Flash Events</> : <><Calendar className="w-3 h-3 inline me-1.5" />Scheduled Events</>}
+            {k === "flash" ? <><Zap className="w-3 h-3 inline me-1.5" />{t("tabs.flash")}</> : <><Calendar className="w-3 h-3 inline me-1.5" />{t("tabs.scheduled")}</>}
           </button>
         ))}
       </div>
@@ -1263,7 +1272,7 @@ export default function Events() {
                 filterMine ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Users className="w-3 h-3 inline me-1.5" />My Events
+              <Users className="w-3 h-3 inline me-1.5" />{t("filters.myEvents")}
             </button>
 
             <select
@@ -1271,8 +1280,8 @@ export default function Events() {
               onChange={(e) => setFilterType(e.target.value)}
               className="font-mono text-xs bg-background border border-border px-2 py-1.5 text-muted-foreground"
             >
-              <option value="">All Types</option>
-              {EVENT_TYPES.map((t) => <option key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</option>)}
+              <option value="">{t("filters.allTypes")}</option>
+              {EVENT_TYPES.map((et) => <option key={et} value={et}>{t(`types.${et}`)}</option>)}
             </select>
 
             <div className="flex items-center gap-1.5 flex-1 max-w-40">
@@ -1280,7 +1289,7 @@ export default function Events() {
               <Input
                 value={filterGame}
                 onChange={(e) => setFilterGame(e.target.value)}
-                placeholder="Filter by game…"
+                placeholder={t("filters.filterByGame")}
                 className="font-mono text-xs rounded-none bg-background border-border h-8"
               />
             </div>
@@ -1290,7 +1299,7 @@ export default function Events() {
                 onClick={() => { setFilterGame(""); setFilterType(""); setFilterMine(false); }}
                 className="font-mono text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
-                <X className="w-3 h-3" />Clear
+                <X className="w-3 h-3" />{t("filters.clear")}
               </button>
             )}
           </div>
@@ -1303,7 +1312,7 @@ export default function Events() {
           ) : scheduledEvents.length === 0 ? (
             <div className="py-16 text-center border border-dashed border-border space-y-2">
               <div className="text-4xl">🎮</div>
-              <p className="font-mono text-sm text-muted-foreground">No events found</p>
+              <p className="font-mono text-sm text-muted-foreground">{t("scheduled.empty")}</p>
               <div className="pt-2">
                 <CreateEventWizard onCreated={() => queryClient.invalidateQueries({ queryKey: ["events"] })} />
               </div>

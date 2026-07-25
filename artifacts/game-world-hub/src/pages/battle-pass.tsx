@@ -272,6 +272,78 @@ function UnlockBanner({ rewards, onDismiss }: {
   );
 }
 
+// ── Obsidian Hero Banner ───────────────────────────────────────────────────────
+
+function BpHeroObsidian({ seasonName, maxLevel }: { seasonName?: string; maxLevel?: number }) {
+  return (
+    <div className="bp-hero-obsidian">
+      <svg className="bp-hero-svg" viewBox="0 0 1000 220" preserveAspectRatio="xMidYMid slice" aria-hidden>
+        <defs>
+          <pattern id="hex-obs" width="60" height="52" patternUnits="userSpaceOnUse">
+            <polygon points="30,2 58,17 58,47 30,62 2,47 2,17"
+              fill="none" stroke="#22C55E" strokeWidth="0.45" opacity="0.18"/>
+          </pattern>
+          <radialGradient id="obs-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#22C55E" stopOpacity="0.22"/>
+            <stop offset="100%" stopColor="#000" stopOpacity="0"/>
+          </radialGradient>
+          <linearGradient id="obs-fade-l" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%"   stopColor="#080808" stopOpacity="1"/>
+            <stop offset="28%"  stopColor="#080808" stopOpacity="0"/>
+          </linearGradient>
+          <linearGradient id="obs-fade-r" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="72%"  stopColor="#080808" stopOpacity="0"/>
+            <stop offset="100%" stopColor="#080808" stopOpacity="1"/>
+          </linearGradient>
+          <filter id="obs-glow-f">
+            <feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <rect width="1000" height="220" fill="url(#hex-obs)"/>
+        <ellipse cx="500" cy="110" rx="300" ry="140" fill="url(#obs-glow)"/>
+        <rect width="220" height="220" fill="url(#obs-fade-l)"/>
+        <rect x="780" width="220" height="220" fill="url(#obs-fade-r)"/>
+        {[0,1,2,3,4].map(i => (
+          <line key={i} x1={-100+i*250} y1="0" x2={100+i*250} y2="220"
+            stroke="#22C55E" strokeWidth="0.5" opacity="0.1"/>
+        ))}
+        <g transform="translate(500,110)" filter="url(#obs-glow-f)">
+          <path d="M0,-78 L48,-48 L48,18 Q48,64 0,86 Q-48,64 -48,18 L-48,-48 Z"
+            fill="none" stroke="#22C55E" strokeWidth="1.4" opacity="0.65"/>
+          <path d="M0,-56 L33,-34 L33,13 Q33,46 0,62 Q-33,46 -33,13 L-33,-34 Z"
+            fill="#22C55E" opacity="0.05"/>
+          <line x1="0" y1="-68" x2="0" y2="74"  stroke="#22C55E" strokeWidth="1" opacity="0.55"/>
+          <line x1="-16" y1="-24" x2="16" y2="-24" stroke="#22C55E" strokeWidth="1" opacity="0.55"/>
+          <rect x="-5" y="-84" width="10" height="10" fill="#22C55E" opacity="0.75" transform="rotate(45,0,-79)"/>
+        </g>
+        <g stroke="#22C55E" strokeWidth="1" opacity="0.45" fill="none">
+          <path d="M18,18 L18,7 L29,7"/><path d="M982,18 L982,7 L971,7"/>
+          <path d="M18,202 L18,213 L29,213"/><path d="M982,202 L982,213 L971,213"/>
+        </g>
+        <g transform="translate(80,110)">
+          <text x="0" y="-24" fontFamily="monospace" fontSize="8" fill="#22C55E" opacity="0.5" textAnchor="middle" letterSpacing="2">SEASON</text>
+          <text x="0" y="-6"  fontFamily="monospace" fontSize="20" fill="#22C55E" fontWeight="900" textAnchor="middle">{seasonName ?? "—"}</text>
+          <rect x="-22" y="2" width="44" height="1" fill="#22C55E" opacity="0.28"/>
+          <text x="0" y="17" fontFamily="monospace" fontSize="7" fill="#555" textAnchor="middle" letterSpacing="1.5">BATTLE PASS</text>
+        </g>
+        <g transform="translate(920,110)">
+          <text x="0" y="-24" fontFamily="monospace" fontSize="8" fill="#22C55E" opacity="0.5" textAnchor="middle" letterSpacing="2">TIERS</text>
+          <text x="0" y="-6"  fontFamily="monospace" fontSize="20" fill="#22C55E" fontWeight="900" textAnchor="middle">{maxLevel ?? "—"}</text>
+          <rect x="-22" y="2" width="44" height="1" fill="#22C55E" opacity="0.28"/>
+          <text x="0" y="17" fontFamily="monospace" fontSize="7" fill="#555" textAnchor="middle" letterSpacing="1.5">REWARDS</text>
+        </g>
+      </svg>
+      <div className="bp-hero-overlay">
+        <span className="bp-hero-eyebrow">⬡ SEASON 1 — BATTLE PASS ⬡</span>
+        <h1 className="bp-hero-title">OBSIDIAN<br/>SEASON</h1>
+        <span className="bp-hero-sub">30 Tiers · Exclusive Rewards · Season Prestige</span>
+      </div>
+      <div className="bp-hero-border-line"/>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BattlePassPage() {
@@ -294,14 +366,8 @@ export default function BattlePassPage() {
 
   return (
     <div className="bp-page">
-      {/* Header */}
-      <div className="bp-header">
-        <div className="bp-title-row">
-          <h1 className="bp-title">{t("title")}</h1>
-          {data && <span className="bp-season-badge">{data.season.name}</span>}
-        </div>
-        <p className="bp-subtitle">{t("subtitle")}</p>
-      </div>
+      {/* Obsidian Hero Banner */}
+      <BpHeroObsidian seasonName={data?.season.name} maxLevel={data?.maxLevel} />
 
       {/* Active XP event banner */}
       {data?.activeXpEvent && <XpEventBanner event={data.activeXpEvent} />}

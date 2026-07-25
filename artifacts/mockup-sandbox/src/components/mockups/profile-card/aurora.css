@@ -1,0 +1,524 @@
+/* ─── AURORA CARD ──────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=Cormorant+Garamond:ital,wght@1,400;1,500;1,600&display=swap');
+
+.aurora-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse 70% 60% at 50% 40%, #041a14, #020d09);
+  padding: 40px;
+}
+
+.aurora-card {
+  width: 420px;
+  background: linear-gradient(160deg, #07120f 0%, #040e0b 50%, #030a08 100%);
+  border: 1px solid rgba(16, 185, 129, 0.12);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  box-shadow:
+    0 0 0 1px rgba(16,185,129,0.04),
+    0 50px 100px rgba(0,0,0,0.9),
+    0 0 100px rgba(16,185,129,0.05),
+    inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+/* ── HEADER ── */
+.aurora-header {
+  position: relative;
+  height: 195px;
+  overflow: hidden;
+}
+
+.aurora-bg {
+  position: absolute;
+  inset: 0;
+  background: #060f0c;
+}
+
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+}
+
+.aurora-orb-1 {
+  width: 200px;
+  height: 200px;
+  background: rgba(5,150,105,0.3);
+  top: -60px;
+  right: -30px;
+  animation: aurora-float 6s ease-in-out infinite;
+}
+
+.aurora-orb-2 {
+  width: 160px;
+  height: 160px;
+  background: rgba(16,185,129,0.15);
+  bottom: -40px;
+  left: 30px;
+  animation: aurora-float 8s ease-in-out infinite reverse;
+}
+
+.aurora-orb-3 {
+  width: 100px;
+  height: 100px;
+  background: rgba(52,211,153,0.12);
+  top: 30px;
+  left: 120px;
+  animation: aurora-float 5s ease-in-out infinite 1s;
+}
+
+@keyframes aurora-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-15px) scale(1.05); }
+}
+
+.aurora-header-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom,
+    rgba(6,15,12,0.1) 0%,
+    rgba(6,15,12,0.5) 60%,
+    rgba(4,14,11,1) 100%
+  );
+}
+
+/* ── CROWN TAG ── */
+.aurora-crown-tag {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 100px;
+  padding: 5px 12px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #fbbf24;
+  z-index: 5;
+  filter: drop-shadow(0 0 12px rgba(251,191,36,0.15));
+}
+
+/* ── BUTTONS ── */
+.aurora-btns {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.aurora-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 15px;
+  border-radius: 100px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.aurora-btn--ghost {
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.07);
+  backdrop-filter: blur(10px);
+}
+.aurora-btn--ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+.aurora-btn--call {
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(16,185,129,0.4);
+}
+.aurora-btn--call:hover { box-shadow: 0 4px 30px rgba(16,185,129,0.6); transform: translateY(-1px); }
+
+/* ── PRESTIGE ── */
+.aurora-prestige {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 3;
+}
+
+.aurora-prestige-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(52,211,153,0.5);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.aurora-prestige-track {
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.aurora-prestige-fill {
+  height: 100%;
+  width: 85%;
+  background: linear-gradient(90deg, #059669, #34d399, #6ee7b7);
+  border-radius: 100px;
+  box-shadow: 0 0 8px rgba(52,211,153,0.6);
+}
+
+/* ── AVATAR ── */
+.aurora-identity {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 0 20px;
+  margin-top: -54px;
+  position: relative;
+  z-index: 5;
+}
+
+.aurora-ava-wrap {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
+}
+
+.aurora-ava-halo {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(from 45deg, #059669, #34d399, #6ee7b7, #34d399, #059669);
+  filter: blur(2px);
+  opacity: 0.7;
+  animation: aurora-spin 5s linear infinite;
+}
+
+@keyframes aurora-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.aurora-ava {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #071510;
+}
+
+.aurora-ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aurora-status-ring {
+  position: absolute;
+  bottom: 0;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #040e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aurora-status-ring::after {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16,185,129,0.9);
+  display: block;
+  animation: aurora-pulse 2s infinite;
+}
+
+@keyframes aurora-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.aurora-info {
+  padding-bottom: 10px;
+}
+
+.aurora-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 27px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.aurora-name-accent {
+  color: #34d399;
+  filter: drop-shadow(0 0 10px rgba(52,211,153,0.4));
+}
+
+.aurora-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.aurora-handle {
+  font-size: 12px;
+  color: rgba(52,211,153,0.4);
+  font-weight: 500;
+}
+
+.aurora-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #34d399;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.2);
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+/* ── BIO ── */
+.aurora-bio {
+  margin: 12px 20px 0;
+  padding: 11px 16px;
+  background: rgba(52,211,153,0.03);
+  border: 1px solid rgba(52,211,153,0.08);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.aurora-bio::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, #34d399, transparent);
+}
+
+.aurora-bio-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  text-align: right;
+  direction: rtl;
+}
+
+/* ── GAME TAGS ── */
+.aurora-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 20px 0;
+}
+
+.aurora-tag {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.35);
+  transition: all 0.2s;
+  cursor: default;
+}
+
+.aurora-tag:hover {
+  background: rgba(52,211,153,0.06);
+  border-color: rgba(52,211,153,0.2);
+  color: rgba(52,211,153,0.7);
+}
+
+.aurora-tag--active {
+  background: rgba(52,211,153,0.07);
+  border-color: rgba(52,211,153,0.22);
+  color: #34d399;
+}
+
+/* ── ACTIVITY ── */
+.aurora-activity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 20px 0;
+  background: rgba(16,185,129,0.04);
+  border: 1px solid rgba(16,185,129,0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.aurora-activity-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.aurora-activity-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aurora-activity-game {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+}
+
+.aurora-activity-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+}
+
+.aurora-activity-kill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.aurora-kill-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f87171;
+  line-height: 1;
+}
+
+.aurora-kill-label {
+  font-size: 8px;
+  color: rgba(248,113,113,0.4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── STATS ── */
+.aurora-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 12px 20px 0;
+}
+
+.aurora-stat {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 10px 4px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.aurora-stat--hi {
+  background: rgba(16,185,129,0.06);
+  border-color: rgba(16,185,129,0.15);
+}
+
+.aurora-stat-n {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.aurora-stat--hi .aurora-stat-n {
+  color: #34d399;
+}
+
+.aurora-stat-l {
+  font-size: 8px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── ACHIEVEMENTS ── */
+.aurora-achievements {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 10px 20px 0;
+}
+
+.aurora-ach {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 8px 4px;
+}
+
+.aurora-ach-icon {
+  font-size: 16px;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.2));
+}
+
+.aurora-ach-label {
+  font-size: 8px;
+  color: rgba(255,255,255,0.2);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ── FOOTER ── */
+.aurora-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 20px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(16,185,129,0.07);
+}
+
+.aurora-footer-left,
+.aurora-footer-mid,
+.aurora-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.22);
+}
+
+.aurora-footer-left svg,
+.aurora-footer-mid svg,
+.aurora-footer-right svg {
+  color: rgba(16,185,129,0.35);
+}

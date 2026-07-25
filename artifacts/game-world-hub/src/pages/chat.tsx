@@ -29,7 +29,10 @@ import {
   Send, Users, Shield, Trash2, X, EyeOff, Eye,
   Pin, PinOff, Search, Smile, Reply, Pencil, MoreHorizontal,
   Phone, PhoneOff, UserPlus, BarChart2, MessageSquare,
+  Paperclip, Loader2,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
 import { PollCard, isPollMessage, parsePollId } from "./chat/PollCard";
 import { ThreadPanel } from "./chat/ThreadPanel";
 import { PollComposer } from "./chat/PollComposer";
@@ -143,6 +146,15 @@ type Message = {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const EMOJI_PALETTE = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎮"];
+
+const EMOJI_GROUPS = [
+  { id: "smileys", icon: "😀", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","😊","😇","🥰","😍","🤩","😘","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","😴","😷","🤒","🤕","🤢","🥵","🥶","😵","🤯","😎","🤓","🧐","😕","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👻","👽","🤖","💋","❤️","🔥","✨","💯"] },
+  { id: "people", icon: "👋", emojis: ["👋","🤚","✋","🖖","👌","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🤲","🙏","💪","🤝","👶","👦","👧","🧑","👱","👨","👩","🧓","👴","👵","🧙","🧚","🧛","🧜","🧝","💃","🕺","🏃","🚶","🧘","🏋️","🤸","🤼","🤺","⛹️","🤾","🏊","🚴","👮","🕵️","💂"] },
+  { id: "animals", icon: "🐶", emojis: ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐔","🐧","🐦","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🐛","🦋","🐌","🐞","🐜","🕷","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🐘","🦛","🦏","🐪","🦒","🐃","🐄","🐎","🐖","🐏","🐑","🐕","🐩","🐈","🐓","🦃","🦚","🦜","🦢","🐇","🦝","🦨","🦡","🦦","🦥","🐁","🐀","🐿","🦔"] },
+  { id: "food", icon: "🍔", emojis: ["🍕","🍔","🍟","🌭","🍿","🧂","🥓","🥚","🍳","🧇","🥞","🍞","🥐","🧀","🥗","🌮","🌯","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🍤","🍙","🍚","🍘","🍥","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍩","🍪","🍉","🍎","🍐","🍊","🍋","🍌","🍍","🥭","🍓","🫐","🍒","🍑","🥝","🍅","🥑","🥕","🌽","🌶️","🥦","🥜","🍵","☕","🧃","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🧋","🥤","🧊"] },
+  { id: "activities", icon: "⚽", emojis: ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🏓","🏸","🏒","🏑","🥍","🏏","🎯","🎮","🕹️","🎲","♟️","🎭","🎨","🎪","🎬","🎤","🎧","🎼","🎵","🎶","🎻","🎸","🥁","🎺","🎷","🎹","🎠","🎡","🎢","🎫","🎟️","🎗️","🎀","🎁","🎊","🎉","🎈","🎆","🎇","🧨","🏆","🥇","🥈","🥉","🏅","🚀","🌍","🌙","⭐","🌟","💫","⚡","🌈","❄️","☀️","🌊","🌸","🌺","🌻","🌹","🍀","🌿","🍁","🌾","🍄","🌱","🌳","🌴","🌵","🎋","🎍"] },
+  { id: "symbols", icon: "❤️", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","☯️","⚛️","🆔","⚠️","♻️","✅","❌","⭕","🛑","⛔","📛","🚫","💯","‼️","⁉️","❓","❔","❗","❕","🔅","🔆","🔱","⚜️","🔰","▶️","⏸","⏹","⏺","⏭","⏮","⏩","⏪","⏫","⏬","◀️","🔼","🔽","➡️","⬅️","⬆️","⬇️","↕️","↔️","🔀","🔁","🔂","🔄","➕","➖","➗","✖️","💲","©️","®️","™️","🔔","🔕","💬","💭","🗯","💤","🔑","🔒","🔓","⚙️","🔧","🔨","🔗","🧲","🔬","🔭","💡","💻","📱","☎️","📷","📸","📹","📅","📋","📊","📈","📉","💰","💳","💎","🔮","🧩","🎱","🎭","♠️","♥️","♦️","♣️"] },
+];
 
 // ─── Markdown renderer ───────────────────────────────────────────────────────
 
@@ -281,9 +293,9 @@ function ReactionBar({
   );
 }
 
-// ─── Emoji picker popover ────────────────────────────────────────────────────
+// ─── Emoji picker (reactions — 8 quick emojis) ───────────────────────────────
 
-function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onClose: () => void }) {
+function ReactionEmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -304,6 +316,123 @@ function EmojiPicker({ onPick, onClose }: { onPick: (emoji: string) => void; onC
           {e}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ─── Full emoji picker for message input ─────────────────────────────────────
+
+function InputEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+  const [tab, setTab] = useState(EMOJI_GROUPS[0].id);
+  const active = EMOJI_GROUPS.find(g => g.id === tab) ?? EMOJI_GROUPS[0];
+  return (
+    <div className="flex flex-col w-72" onMouseDown={e => e.preventDefault()}>
+      <div className="flex gap-0.5 px-2 pt-2 pb-1 border-b border-border">
+        {EMOJI_GROUPS.map(g => (
+          <button
+            key={g.id}
+            className={`flex-1 text-base py-1 rounded transition-colors ${tab === g.id ? "bg-primary/10 text-primary" : "hover:bg-muted/60 text-muted-foreground"}`}
+            onClick={() => setTab(g.id)}
+          >
+            {g.icon}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-8 gap-0.5 p-2 max-h-48 overflow-y-auto">
+        {active.emojis.map(em => (
+          <button
+            key={em}
+            className="text-lg p-1 rounded hover:bg-muted/60 transition-colors leading-none"
+            onClick={() => { onSelect(em); onClose(); }}
+          >
+            {em}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── GIF picker for message input ────────────────────────────────────────────
+
+type GifResult = { id: string; title: string; url: string; preview: string; width: number; height: number };
+
+function ChatGifPicker({ onSelect }: { onSelect: (url: string) => void }) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = (val: string) => {
+    setSearch(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedSearch(val.trim()), 500);
+  };
+
+  const { data: trendingData, isLoading: loadingTrending } = useQuery<{ gifs: GifResult[] }>({
+    queryKey: ["gif-trending"],
+    queryFn: () => customFetch("/api/gif/trending"),
+    staleTime: 5 * 60_000,
+    enabled: !debouncedSearch,
+  });
+
+  const { data: searchData, isLoading: loadingSearch } = useQuery<{ gifs: GifResult[] }>({
+    queryKey: ["gif-search", debouncedSearch],
+    queryFn: () => customFetch(`/api/gif/search?q=${encodeURIComponent(debouncedSearch)}`),
+    staleTime: 60_000,
+    enabled: !!debouncedSearch,
+  });
+
+  const gifs = debouncedSearch ? (searchData?.gifs ?? []) : (trendingData?.gifs ?? []);
+  const loading = debouncedSearch ? loadingSearch : loadingTrending;
+
+  return (
+    <div className="flex flex-col" style={{ width: 420 }}>
+      <div className="p-2 border-b border-border">
+        <div className="relative">
+          <Search className="absolute start-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            className="w-full bg-muted/50 rounded-md ps-7 pe-3 py-1.5 text-sm outline-none border border-border focus:border-primary/50 transition-colors placeholder:text-muted-foreground"
+            placeholder="Search GIFs…"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            autoFocus
+          />
+        </div>
+      </div>
+      <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+        {loading ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : gifs.length === 0 ? (
+          <div className="flex flex-col items-center py-10 gap-2 text-muted-foreground text-sm">
+            <span className="text-2xl">🎞️</span>
+            {debouncedSearch ? "No GIFs found" : "Loading…"}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1 p-2">
+            {gifs.map(gif => (
+              <button
+                key={gif.id}
+                className="rounded overflow-hidden hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary/50"
+                onClick={() => onSelect(gif.url)}
+                title={gif.title}
+              >
+                <img
+                  src={gif.preview || gif.url}
+                  alt={gif.title}
+                  className="w-full object-cover"
+                  style={{ height: 100 }}
+                  loading="lazy"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+        {!debouncedSearch && !loading && gifs.length > 0 && (
+          <p className="text-center text-[10px] text-muted-foreground pb-1 opacity-60">Powered by GIPHY</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -362,6 +491,14 @@ function MessageBubble({
             pollId={parsePollId(msg.content)!}
             myId={myId}
           />
+        ) : /^\/api\/images\/[0-9a-f-]{36}$/i.test(msg.content.trim()) || /^https?:\/\/media\d*\.giphy\.com\//i.test(msg.content.trim()) ? (
+          <img
+            src={msg.content.trim()}
+            alt="media"
+            className="max-w-xs max-h-52 rounded-xl mt-1 object-contain cursor-pointer"
+            onClick={() => window.open(msg.content.trim(), "_blank")}
+            loading="lazy"
+          />
         ) : (
           <p className="text-sm leading-relaxed break-words">
             {renderMarkdown(msg.content)}
@@ -376,7 +513,7 @@ function MessageBubble({
             <button onClick={() => setShowEmoji((s) => !s)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("reactions.addReaction")}>
               <Smile className="w-3.5 h-3.5" />
             </button>
-            {showEmoji && <EmojiPicker onPick={addReaction} onClose={() => setShowEmoji(false)} />}
+            {showEmoji && <ReactionEmojiPicker onPick={addReaction} onClose={() => setShowEmoji(false)} />}
           </div>
           <button onClick={() => onReply(msg)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title={t("msg.reply")}>
             <Reply className="w-3.5 h-3.5" />
@@ -477,6 +614,9 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const [activeThreadMsg, setActiveThreadMsg] = useState<Message | null>(null);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [automodError, setAutomodError] = useState<string | null>(null);
+  const [showInputEmoji, setShowInputEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
+  const [imgUploading, setImgUploading] = useState(false);
 
   // ── Custom confirm dialog (replaces window.confirm) ──
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -492,6 +632,8 @@ export default function Chat({ params }: { params: { conversationId?: string } }
   const inputRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const imgFileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const voice = useVoice();
   const [typingUsers, setTypingUsers] = useState<Map<number, { displayName: string; timer: ReturnType<typeof setTimeout> }>>(new Map());
@@ -567,6 +709,66 @@ export default function Chat({ params }: { params: { conversationId?: string } }
       }
     );
   };
+
+  /** Insert emoji at cursor in the uncontrolled input */
+  const insertEmoji = useCallback((emoji: string) => {
+    const input = inputRef.current;
+    if (!input) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+    setShowInputEmoji(false);
+    requestAnimationFrame(() => {
+      input.focus();
+      const pos = start + emoji.length;
+      input.setSelectionRange(pos, pos);
+    });
+  }, []);
+
+  /** Send a GIF URL immediately as a message */
+  const sendGif = useCallback((url: string) => {
+    if (!conversationId) return;
+    setShowGif(false);
+    sendMessage.mutate(
+      { conversationId, data: { content: url } as any },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
+          invalidateConvs();
+        },
+      }
+    );
+  }, [conversationId, sendMessage, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Upload an image and send its URL as a message */
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (!conversationId) return;
+    if (file.size > 8 * 1024 * 1024) { toast({ title: "Image too large (max 8 MB)", variant: "destructive" }); return; }
+    setImgUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = localStorage.getItem("gwh_token");
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json() as { objectPath: string };
+      sendMessage.mutate(
+        { conversationId, data: { content: `/api${data.objectPath}` } as any },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
+            invalidateConvs();
+          },
+        }
+      );
+    } catch {
+      toast({ title: "Failed to upload image", variant: "destructive" });
+    } finally { setImgUploading(false); }
+  }, [conversationId, sendMessage, queryClient, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = (msgId: number) => {
     if (!conversationId) return;
@@ -1012,14 +1214,33 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   </button>
                 </div>
               )}
+              {/* Hidden file input for image upload */}
+              <input
+                ref={imgFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageUpload(f); e.target.value = ""; } }}
+              />
               <form
                 onSubmit={handleSend}
-                className={`flex items-center gap-2 bg-muted/40 border border-border px-4 py-2.5 transition-shadow focus-within:border-primary/40 ${replyTo ? "rounded-b-2xl rounded-t-none" : "rounded-full"}`}
+                className={`flex items-center gap-1.5 bg-muted/40 border border-border px-2 py-2 transition-shadow focus-within:border-primary/40 ${replyTo ? "rounded-b-2xl rounded-t-none" : "rounded-full"}`}
               >
+                {/* Attachment */}
+                <button
+                  type="button"
+                  onClick={() => imgFileRef.current?.click()}
+                  disabled={imgUploading}
+                  className="shrink-0 p-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 rounded-full hover:bg-muted/60"
+                  title="Attach image"
+                >
+                  {imgUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                </button>
+
                 <input
                   ref={inputRef}
                   placeholder={activeConversation ? t("input.placeholder", { name: getConversationName(activeConversation) }) : t("input.placeholderGeneric")}
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0 px-1"
                   disabled={sendMessage.isPending}
                   onChange={() => {
                     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1027,15 +1248,51 @@ export default function Chat({ params }: { params: { conversationId?: string } }
                   }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e as any); } }}
                 />
+
+                {/* Poll */}
                 <button
                   type="button"
                   onClick={() => setShowPollComposer((s) => !s)}
                   title={t("poll.create")}
-                  className={`shrink-0 transition-colors ${showPollComposer ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                  className={`shrink-0 p-1.5 rounded-full transition-colors hover:bg-muted/60 ${showPollComposer ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <BarChart2 className="w-4 h-4" />
                 </button>
-                <button type="submit" disabled={sendMessage.isPending} className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
+
+                {/* GIF picker */}
+                <Popover open={showGif} onOpenChange={setShowGif}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-bold tracking-wide transition-colors ${showGif ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}
+                      title="GIF"
+                    >
+                      GIF
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="end" className="w-auto p-0 overflow-hidden">
+                    <ChatGifPicker onSelect={sendGif} />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Emoji picker */}
+                <Popover open={showInputEmoji} onOpenChange={setShowInputEmoji}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={`shrink-0 p-1.5 rounded-full transition-colors hover:bg-muted/60 ${showInputEmoji ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Emoji"
+                    >
+                      <Smile className="w-4 h-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="end" className="w-auto p-0 overflow-hidden">
+                    <InputEmojiPicker onSelect={insertEmoji} onClose={() => setShowInputEmoji(false)} />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Send */}
+                <button type="submit" disabled={sendMessage.isPending} className="shrink-0 p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-muted/60 transition-colors disabled:opacity-50">
                   <Send className="w-4 h-4" />
                 </button>
               </form>

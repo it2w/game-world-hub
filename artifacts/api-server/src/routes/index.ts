@@ -44,6 +44,7 @@ import stageRouter from "./stage";
 import communitiesRouter from "./communities";
 import clipsRouter from "./clips";
 import botsRouter, { ensureBotsSchema } from "./bots";
+import gifRouter from "./gif";
 
 const router: IRouter = Router();
 
@@ -118,6 +119,7 @@ router.use(stageRouter);
 router.use(communitiesRouter);
 router.use(clipsRouter);
 router.use(botsRouter);
+router.use(gifRouter);
 
 // Run bots DDL once (additive, safe to re-run)
 ensureBotsSchema().catch(() => {});

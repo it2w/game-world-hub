@@ -52,7 +52,7 @@ const TIER_DEFS: TierDef[] = [
   { level: 23, track: "pro",  rewardType: "frame_color", rewardValue: "#38BDF8",      rewardIcon: "🩵", rewardLabel: { en: "Sky Blue Frame",           ar: "إطار أزرق سماوي"     } },
   { level: 24, track: "pro",  rewardType: "title",       rewardValue: "Warlord",      rewardIcon: "🏷️", rewardLabel: { en: 'Title: "Warlord"',         ar: 'لقب: "أمير الحرب"'   } },
   { level: 25, track: "pro",  rewardType: "xp_boost",   rewardValue: "500",          rewardIcon: "🔥", rewardLabel: { en: "+500 Bonus XP",           ar: "+500 XP إضافية"      } },
-  { level: 26, track: "pro",  rewardType: "frame_color", rewardValue: "#FF00FF",      rewardIcon: "🌈", rewardLabel: { en: "Magenta Frame",            ar: "إطار ماجنتا"         } },
+  { level: 26, track: "pro",  rewardType: "frame_color", rewardValue: "#FF00FF",      rewardIcon: "💜", rewardLabel: { en: "Magenta Frame",            ar: "إطار ماجنتا"         } },
   { level: 27, track: "pro",  rewardType: "title",       rewardValue: "Immortal",     rewardIcon: "🏷️", rewardLabel: { en: 'Title: "Immortal"',        ar: 'لقب: "الخالد"'       } },
   { level: 28, track: "pro",  rewardType: "xp_boost",   rewardValue: "750",          rewardIcon: "💥", rewardLabel: { en: "+750 Bonus XP",           ar: "+750 XP إضافية"      } },
   { level: 29, track: "pro",  rewardType: "frame_color", rewardValue: "#FF4655",      rewardIcon: "❤️‍🔥", rewardLabel: { en: "Valorant Red Frame",      ar: "إطار أحمر فالورانت"  } },

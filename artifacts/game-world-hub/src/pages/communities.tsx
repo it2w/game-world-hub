@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,8 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Globe, Lock, Plus, Users, Zap, Search, Hash } from "lucide-react";
+import { Globe, Lock, Plus, Users, Zap, Search, Hash, ExternalLink, Copy, UserPlus, Settings2, LogOut } from "lucide-react";
 
 interface Community {
   id: number;
@@ -38,11 +46,48 @@ interface Community {
   ownerId: number;
 }
 
-function CommunityCard({ community }: { community: Community }) {
+function CommunityCard({
+  community,
+  currentUserId,
+  isMember,
+}: {
+  community: Community;
+  currentUserId: number | null;
+  isMember: boolean;
+}) {
   const { t } = useTranslation("communities");
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
-  return (
+  const isOwner = currentUserId === community.ownerId;
+
+  const leaveMutation = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${community.id}/leave`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["communities-mine"] });
+      qc.invalidateQueries({ queryKey: ["communities"] });
+      toast({ title: t("leave") + " ✓" });
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: () =>
+      customFetch<{ code: string }>(`/api/communities/${community.id}/member-invite`, { method: "POST" }),
+    onSuccess: (data) => {
+      const url = `${window.location.origin}/join/${data.code}`;
+      navigator.clipboard.writeText(url).then(() => toast({ title: t("inviteCopied") })).catch(() => {});
+    },
+    onError: () => toast({ title: t("error"), variant: "destructive" }),
+  });
+
+  const copyLink = () => {
+    const url = `${window.location.origin}/communities/${community.slug}`;
+    navigator.clipboard.writeText(url).then(() => toast({ title: t("inviteCopied") })).catch(() => {});
+  };
+
+  const cardContent = (
     <div
       className="bg-card border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-all cursor-pointer group"
       onClick={() => navigate(`/communities/${community.slug}`)}
@@ -100,6 +145,58 @@ function CommunityCard({ community }: { community: Community }) {
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{cardContent}</ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        {/* Community name header */}
+        <ContextMenuLabel className="text-xs font-semibold truncate">{community.name}</ContextMenuLabel>
+        <ContextMenuSeparator />
+
+        {/* Navigation */}
+        <ContextMenuItem onClick={() => navigate(`/communities/${community.slug}`)}>
+          <ExternalLink className="w-3.5 h-3.5 me-2 text-muted-foreground" />
+          {t("open")}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={copyLink}>
+          <Copy className="w-3.5 h-3.5 me-2 text-muted-foreground" />
+          {t("copyLink")}
+        </ContextMenuItem>
+
+        {/* Member actions */}
+        {isMember && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => inviteMutation.mutate()}>
+              <UserPlus className="w-3.5 h-3.5 me-2 text-muted-foreground" />
+              {t("invite")}
+            </ContextMenuItem>
+            {isOwner && (
+              <ContextMenuItem onClick={() => navigate(`/communities/${community.slug}?settings=1`)}>
+                <Settings2 className="w-3.5 h-3.5 me-2 text-muted-foreground" />
+                {t("settings")}
+              </ContextMenuItem>
+            )}
+          </>
+        )}
+
+        {/* Leave (members only, not owner) */}
+        {isMember && !isOwner && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onClick={() => leaveMutation.mutate()}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <LogOut className="w-3.5 h-3.5 me-2" />
+              {t("leave")}
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -211,17 +308,22 @@ export default function CommunitiesPage() {
   const [tab, setTab] = useState<"discover" | "mine">("discover");
   const [createOpen, setCreateOpen] = useState(false);
 
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const currentUserId: number | null = (me as { id?: number } | undefined)?.id ?? null;
+
   const { data: all = [], isLoading: loadingAll } = useQuery<Community[]>({
     queryKey: ["communities", search],
     queryFn: () => customFetch(`/api/communities?search=${encodeURIComponent(search)}&limit=50`),
     enabled: tab === "discover",
   });
 
+  // Always fetch "mine" so we know membership state even on the discover tab
   const { data: mine = [], isLoading: loadingMine } = useQuery<Community[]>({
     queryKey: ["communities-mine"],
     queryFn: () => customFetch("/api/communities/mine"),
-    enabled: tab === "mine",
   });
+
+  const memberIds = new Set(mine.map((c) => c.id));
 
   const list = tab === "mine" ? mine : all;
   const loading = tab === "mine" ? loadingMine : loadingAll;
@@ -295,7 +397,12 @@ export default function CommunitiesPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {list.map((c) => (
-              <CommunityCard key={c.id} community={c} />
+              <CommunityCard
+                key={c.id}
+                community={c}
+                currentUserId={currentUserId}
+                isMember={memberIds.has(c.id) || c.ownerId === currentUserId}
+              />
             ))}
           </div>
         )}

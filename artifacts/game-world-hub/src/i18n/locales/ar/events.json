@@ -1,13 +1,61 @@
 {
   "page": {
     "title": "الفعاليات",
-    "subtitle": "ليالي الألعاب والتحديات المفاجئة"
+    "subtitle": "جلسات ألعاب، فعاليات مجتمعية وتحديات مفاجئة"
   },
   "tabs": {
     "flash": "الفعاليات المفاجئة",
+    "scheduled": "الفعاليات المجدولة",
     "gameNight": "ليالي الألعاب"
   },
+  "filters": {
+    "myEvents": "فعالياتي",
+    "allTypes": "جميع الأنواع",
+    "filterByGame": "تصفية حسب اللعبة…",
+    "clear": "مسح"
+  },
+  "types": {
+    "casual": "عشوائي",
+    "tournament": "بطولة",
+    "coaching": "تدريب",
+    "community": "مجتمعي"
+  },
+  "rsvp": {
+    "going": "سأحضر",
+    "maybe": "ربما",
+    "notGoing": "لن أحضر",
+    "goingCheck": "سأحضر ✓",
+    "yourRsvp": "تأكيد حضورك",
+    "no": "لا"
+  },
+  "detail": {
+    "tabInfo": "تفاصيل",
+    "tabRoster": "الحضور ({{count}})",
+    "tabDiscussion": "نقاش",
+    "recurring": "متكرر",
+    "startsIn": "يبدأ خلال",
+    "inCountdown": "خلال {{time}}",
+    "maxAttendees": "أقصى {{count}} حضور",
+    "full": "مكتملة",
+    "linkedParty": "🎮 حفلة مرتبطة — انضم الآن ←",
+    "recap": "ملخص الفعالية",
+    "attended": "حضر",
+    "ratingsCount": "{{count}} تقييم",
+    "rosterEmpty": "لا يوجد تأكيدات حضور بعد.",
+    "more": "+{{count}} أكثر"
+  },
+  "discussion": {
+    "title": "نقاش",
+    "empty": "لا توجد مشاركات — كن أول من يبدأ!",
+    "placeholder": "شارك تحديثاً…",
+    "post": "نشر"
+  },
+  "rating": {
+    "title": "قيّم هذه الفعالية",
+    "thanks": "شكراً!"
+  },
   "flash": {
+    "tag": "⚡ مفاجئة",
     "title": "الفعالية المفاجئة الحالية",
     "xpReward": "{{xp}} XP",
     "expiresIn": "تنتهي خلال",
@@ -26,6 +74,62 @@
     "completedBy": "أنجزه {{count}} لاعب",
     "bannerTitle": "فعالية مفاجئة الآن",
     "bannerCta": "عرض التحدي"
+  },
+  "scheduled": {
+    "empty": "لا توجد فعاليات"
+  },
+  "calendar": {
+    "more": "+{{count}} أكثر",
+    "days": ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"]
+  },
+  "wizard": {
+    "title": "فعالية جديدة",
+    "step": "الخطوة {{step}} من 3",
+    "next": "التالي ←",
+    "back": "→ رجوع",
+    "creating": "جارٍ الإنشاء…",
+    "launch": "أطلق الفعالية 🚀",
+    "preview": "معاينة",
+    "recurringEvent": "فعالية متكررة",
+    "timezoneLabel": "المنطقة الزمنية المحلية:",
+    "untitled": "بدون عنوان",
+    "maxPreview": "أقصى {{count}}",
+    "hostButton": "استضف فعالية",
+    "recurFreq": {
+      "daily": "يومي",
+      "weekly": "أسبوعي",
+      "monthly": "شهري"
+    },
+    "recurTimes": "# مرات",
+    "maxPlaceholder": "50",
+    "labels": {
+      "title": "عنوان الفعالية *",
+      "game": "اللعبة",
+      "type": "نوع الفعالية",
+      "description": "الوصف",
+      "datetime": "التاريخ والوقت *",
+      "maxParticipants": "أقصى حضور (اختياري)"
+    },
+    "placeholders": {
+      "title": "ليلة الجمعة — Valorant",
+      "game": "Valorant, Apex Legends…",
+      "description": "مفتوح لجميع الرانكات — أظهر مهاراتك"
+    }
+  },
+  "banner": {
+    "started": "🟢 بدأت الفعالية!",
+    "joinNow": "انضم الآن ←",
+    "viewEvent": "عرض الفعالية ←"
+  },
+  "toasts": {
+    "registered": "تم التسجيل! 🎉",
+    "joinFailed": "فشل الانضمام",
+    "rsvpError": "فشل تأكيد الحضور",
+    "postError": "فشل النشر",
+    "rateError": "فشل التقييم",
+    "createdTitle": "تم إنشاء الفعالية! 🎉",
+    "createdDesc": "يمكن للاعبين الآن تأكيد حضورهم.",
+    "createError": "فشل الإنشاء"
   },
   "gameNight": {
     "title": "ليالي الألعاب القادمة",

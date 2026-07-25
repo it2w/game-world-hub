@@ -262,6 +262,62 @@ describe("GET /communities/:newSlug after slug rename — iconEmoji survives", (
   });
 });
 
+// ─── PATCH channel type change — iconEmoji is preserved ───────────────────────
+
+describe("PATCH /communities/:id/channels/:cid type change — iconEmoji is preserved", () => {
+  test("PATCH response includes iconEmoji unchanged after type change (text → announcement)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(ownerId, ownerUsername),
+      { type: "announcement" },
+    );
+    assert.equal(status, 200, `expected 200 from PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; type: string; iconEmoji: string | null };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.type,
+      "announcement",
+      `expected channel type to be "announcement", got ${JSON.stringify(channel.type)}`,
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(channel, "iconEmoji"),
+      "iconEmoji key must be present in PATCH response",
+    );
+    assert.equal(
+      channel.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji must remain "${TEST_EMOJI}" after type change, got ${JSON.stringify(channel.iconEmoji)}`,
+    );
+  });
+
+  test("GET /communities/:id after type change still returns correct iconEmoji", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; type: string; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must still appear in community response after type change`);
+    assert.equal(
+      emojiCh.type,
+      "announcement",
+      `channel type should reflect the change, got ${JSON.stringify(emojiCh.type)}`,
+    );
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must survive a type change, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
+});
+
 // ─── PATCH channel rename — iconEmoji is preserved ────────────────────────────
 
 describe("PATCH /communities/:id/channels/:cid rename — iconEmoji is preserved", () => {

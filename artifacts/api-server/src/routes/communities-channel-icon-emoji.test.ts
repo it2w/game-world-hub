@@ -564,6 +564,108 @@ describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
   });
 });
 
+// ─── Mod cannot change name or privacy — owner-only guard ─────────────────────
+
+describe("PATCH /communities/:id/channels/:cid — mod cannot rename or change privacy", () => {
+  let modId = 0;
+  let modUsername = "";
+
+  before(async () => {
+    // Create a mod user
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `guard_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Guard Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId = mod.id;
+    modUsername = mod.username;
+    createdUserIds.push(modId);
+
+    // Join mod to the community
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId })
+      .returning({ id: communityMembersTable.id });
+
+    // Create a role with can_manage_channels and assign it to the mod
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `guard-mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+  });
+
+  test("mod PATCH with { name } returns 403", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { name: "hacked" },
+    );
+    assert.equal(status, 403, `expected 403 when mod tries to rename, got ${status}: ${JSON.stringify(body)}`);
+  });
+
+  test("GET after rejected rename confirms channel name is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; name: string }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.notEqual(
+      plainCh.name,
+      "hacked",
+      `channel name must not be "hacked" after a mod's rejected rename attempt, got ${JSON.stringify(plainCh.name)}`,
+    );
+  });
+
+  test("mod PATCH with { isPrivate: true } returns 403", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { isPrivate: true },
+    );
+    assert.equal(status, 403, `expected 403 when mod tries to change isPrivate, got ${status}: ${JSON.stringify(body)}`);
+  });
+
+  test("GET after rejected privacy change confirms channel privacy is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; isPrivate: boolean }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.equal(
+      plainCh.isPrivate,
+      false,
+      `channel isPrivate must remain false after a mod's rejected privacy change attempt, got ${JSON.stringify(plainCh.isPrivate)}`,
+    );
+  });
+});
+
 // ─── PATCH channel isPrivate toggle — iconEmoji is preserved ──────────────────
 
 describe("PATCH /communities/:id/channels/:cid isPrivate toggle — iconEmoji is preserved", () => {

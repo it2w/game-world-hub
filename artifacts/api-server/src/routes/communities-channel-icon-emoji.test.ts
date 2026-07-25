@@ -377,6 +377,100 @@ describe("PATCH /communities/:id/channels/:cid rename — iconEmoji is preserved
   });
 });
 
+// ─── PATCH slowmodeSeconds by a mod — iconEmoji is not cleared ────────────────
+
+describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
+  let modId = 0;
+  let modUsername = "";
+
+  before(async () => {
+    // Create a mod user
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `iconemoji_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "IconEmoji Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId = mod.id;
+    modUsername = mod.username;
+    createdUserIds.push(modId);
+
+    // Join mod to the community
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId })
+      .returning({ id: communityMembersTable.id });
+
+    // Create a role with can_manage_channels and assign it to the mod
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+  });
+
+  test("mod PATCH of slowmodeSeconds returns iconEmoji unchanged in response", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(modId, modUsername),
+      { slowmodeSeconds: 30 },
+    );
+    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; slowmodeSeconds: number; iconEmoji: string | null };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      30,
+      `expected slowmodeSeconds to be 30, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(channel, "iconEmoji"),
+      "iconEmoji key must be present in PATCH response even after mod-only slowmode update",
+    );
+    assert.equal(
+      channel.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji must remain "${TEST_EMOJI}" after mod slowmode update, got ${JSON.stringify(channel.iconEmoji)}`,
+    );
+  });
+
+  test("GET /communities/:id after mod slowmode update confirms iconEmoji still set", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; slowmodeSeconds: number; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must appear in GET response`);
+    assert.equal(
+      emojiCh.slowmodeSeconds,
+      30,
+      `slowmodeSeconds should reflect the mod's change, got ${JSON.stringify(emojiCh.slowmodeSeconds)}`,
+    );
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must survive a mod slowmode update, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
+});
+
 // ─── PATCH channel isPrivate toggle — iconEmoji is preserved ──────────────────
 
 describe("PATCH /communities/:id/channels/:cid isPrivate toggle — iconEmoji is preserved", () => {

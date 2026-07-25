@@ -805,3 +805,55 @@ describe("Concurrent PATCH slowmodeSeconds — final state is consistent", () =>
     );
   });
 });
+
+// ─── PATCH slowmodeSeconds cap validation — 0–21600 boundary ──────────────────
+
+describe("PATCH slowmodeSeconds cap validation — 0–21600 boundary", () => {
+  test("slowmodeSeconds above 21600 is rejected with 400", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(ownerId, ownerUsername),
+      { slowmodeSeconds: 21601 },
+    );
+    assert.equal(
+      status,
+      400,
+      `expected 400 for slowmodeSeconds > 21600, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("negative slowmodeSeconds is rejected with 400", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(ownerId, ownerUsername),
+      { slowmodeSeconds: -1 },
+    );
+    assert.equal(
+      status,
+      400,
+      `expected 400 for negative slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("slowmodeSeconds of exactly 21600 is accepted with 200", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(ownerId, ownerUsername),
+      { slowmodeSeconds: 21600 },
+    );
+    assert.equal(
+      status,
+      200,
+      `expected 200 for slowmodeSeconds === 21600, got ${status}: ${JSON.stringify(body)}`,
+    );
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(
+      channel.slowmodeSeconds,
+      21600,
+      `expected slowmodeSeconds to be 21600 in response, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
+});

@@ -1100,7 +1100,13 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
     const updates: Partial<typeof communityChannelsTable.$inferInsert> = {};
     if (name && typeof name === "string") updates.name = name.trim().toLowerCase().replace(/\s+/g, "-");
     if (typeof position === "number") updates.position = position;
-    if (typeof slowmodeSeconds === "number") updates.slowmodeSeconds = Math.max(0, Math.min(slowmodeSeconds, 21600));
+    if (typeof slowmodeSeconds === "number") {
+      if (slowmodeSeconds < 0 || slowmodeSeconds > 21600) {
+        res.status(400).json({ error: "slowmodeSeconds must be between 0 and 21600" });
+        return;
+      }
+      updates.slowmodeSeconds = slowmodeSeconds;
+    }
     if (typeof isPrivate === "boolean") (updates as any).isPrivate = isPrivate;
     const validTypes = ["text", "voice", "announcement", "stage", "lfg", "clips", "coaching", "forum"];
     if (typeof type === "string" && validTypes.includes(type)) (updates as any).type = type;

@@ -376,3 +376,59 @@ describe("PATCH /communities/:id/channels/:cid rename — iconEmoji is preserved
     );
   });
 });
+
+// ─── PATCH channel isPrivate toggle — iconEmoji is preserved ──────────────────
+
+describe("PATCH /communities/:id/channels/:cid isPrivate toggle — iconEmoji is preserved", () => {
+  test("PATCH response includes iconEmoji unchanged after toggling isPrivate false → true", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(ownerId, ownerUsername),
+      { isPrivate: true },
+    );
+    assert.equal(status, 200, `expected 200 from PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; isPrivate: boolean; iconEmoji: string | null };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.isPrivate,
+      true,
+      `expected isPrivate to be true after toggle, got ${JSON.stringify(channel.isPrivate)}`,
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(channel, "iconEmoji"),
+      "iconEmoji key must be present in PATCH response",
+    );
+    assert.equal(
+      channel.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji must remain "${TEST_EMOJI}" after isPrivate toggle, got ${JSON.stringify(channel.iconEmoji)}`,
+    );
+  });
+
+  test("GET /communities/:id after isPrivate toggle still returns correct iconEmoji", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; isPrivate: boolean; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must still appear in community response after isPrivate toggle`);
+    assert.equal(
+      emojiCh.isPrivate,
+      true,
+      `isPrivate should reflect the toggle, got ${JSON.stringify(emojiCh.isPrivate)}`,
+    );
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must survive a privacy toggle, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
+});

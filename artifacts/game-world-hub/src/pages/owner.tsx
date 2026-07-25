@@ -14,8 +14,10 @@ import {
   FileText, Zap, MessageSquare, Swords, Megaphone,
   Trophy, Filter, Flag, Lock, Power, SlidersHorizontal, Trash2, Check,
   Download, Layers, Cpu, MemoryStick, Globe, Timer, ArrowUpDown, ServerCrash,
+  Edit2, UserPlus, CalendarClock,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getApiUrl } from "@/lib/api";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -761,6 +763,58 @@ function UsersTab({ session, t, toast, defaultFilter }: {
   const [bulkAction,  setBulkAction]  = useState("suspend");
   const [bulkDays,    setBulkDays]    = useState("30");
   const [bulkRunning, setBulkRunning] = useState(false);
+
+  // ── Create user dialog ────────────────────────────────────────────────────
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ username: "", displayName: "", email: "", password: "" });
+  const [creating, setCreating] = useState(false);
+
+  const submitCreate = async () => {
+    if (!createForm.username || !createForm.displayName || !createForm.password) return;
+    setCreating(true);
+    try {
+      await ownerFetch("owner/users", session.token, {
+        method: "POST", body: JSON.stringify(createForm),
+      });
+      toast({ title: `✓ تم إنشاء الحساب: @${createForm.username}` });
+      setCreateOpen(false);
+      setCreateForm({ username: "", displayName: "", email: "", password: "" });
+      reload();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  };
+
+  // ── Edit user dialog ──────────────────────────────────────────────────────
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [editForm, setEditForm] = useState({ username: "", displayName: "", email: "", bio: "", region: "", newPassword: "" });
+  const [editing, setEditing] = useState(false);
+
+  const openEdit = (u: UserRow) => {
+    setEditUser(u);
+    setEditForm({ username: u.username, displayName: u.displayName, email: u.email ?? "", bio: "", region: "", newPassword: "" });
+  };
+
+  const submitEdit = async () => {
+    if (!editUser) return;
+    setEditing(true);
+    try {
+      const body: Record<string, string> = {};
+      if (editForm.username    !== editUser.username)    body.username    = editForm.username;
+      if (editForm.displayName !== editUser.displayName) body.displayName = editForm.displayName;
+      if (editForm.email       !== (editUser.email ?? "")) body.email      = editForm.email;
+      if (editForm.bio)         body.bio         = editForm.bio;
+      if (editForm.region)      body.region      = editForm.region;
+      if (editForm.newPassword) body.newPassword = editForm.newPassword;
+      await ownerFetch(`owner/users/${editUser.id}`, session.token, {
+        method: "PATCH", body: JSON.stringify(body),
+      });
+      toast({ title: "✓ تم تحديث الحساب" });
+      setEditUser(null);
+      reload();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setEditing(false); }
+  };
+
   const LIMIT = 20;
 
   const load = useCallback(async (q: string, fb: string, off: number, append = false) => {
@@ -861,9 +915,90 @@ function UsersTab({ session, t, toast, defaultFilter }: {
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("users.search")} className="font-mono rounded-none ps-9 text-sm" />
+      {/* ── Create user dialog ──────────────────────────────────────────────── */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-sm rounded-none bg-background border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm uppercase flex items-center gap-2">
+              <UserPlus className="w-4 h-4" /> إنشاء حساب جديد
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {[
+              { key: "username",    label: "اسم المستخدم *",   type: "text",     placeholder: "latters_numbers" },
+              { key: "displayName", label: "الاسم المعروض *",  type: "text",     placeholder: "اسم العرض" },
+              { key: "email",       label: "البريد (اختياري)", type: "email",    placeholder: "user@example.com" },
+              { key: "password",    label: "كلمة المرور *",    type: "password", placeholder: "6 أحرف على الأقل" },
+            ].map(({ key, label, type, placeholder }) => (
+              <div key={key}>
+                <label className="font-mono text-[10px] uppercase text-muted-foreground block mb-1">{label}</label>
+                <Input
+                  type={type} placeholder={placeholder}
+                  value={createForm[key as keyof typeof createForm]}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, [key]: e.target.value }))}
+                  className="font-mono rounded-none text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="rounded-none font-mono text-xs" onClick={() => setCreateOpen(false)}>إلغاء</Button>
+            <Button className="rounded-none font-mono text-xs" onClick={submitCreate}
+              disabled={creating || !createForm.username || !createForm.displayName || !createForm.password}>
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1" /> : <UserPlus className="w-3.5 h-3.5 me-1" />}
+              إنشاء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit user dialog ────────────────────────────────────────────────── */}
+      <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+        <DialogContent className="sm:max-w-sm rounded-none bg-background border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm uppercase flex items-center gap-2">
+              <Edit2 className="w-4 h-4" /> تعديل: @{editUser?.username}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {[
+              { key: "username",    label: "اسم المستخدم",    type: "text",     placeholder: editUser?.username },
+              { key: "displayName", label: "الاسم المعروض",   type: "text",     placeholder: editUser?.displayName },
+              { key: "email",       label: "البريد",          type: "email",    placeholder: editUser?.email ?? "" },
+              { key: "bio",         label: "النبذة",          type: "text",     placeholder: "نبذة قصيرة..." },
+              { key: "region",      label: "المنطقة / الدولة", type: "text",    placeholder: "SA, US, ..." },
+              { key: "newPassword", label: "كلمة مرور جديدة (اختياري)", type: "password", placeholder: "اتركه فارغاً للإبقاء" },
+            ].map(({ key, label, type, placeholder }) => (
+              <div key={key}>
+                <label className="font-mono text-[10px] uppercase text-muted-foreground block mb-1">{label}</label>
+                <Input
+                  type={type} placeholder={placeholder}
+                  value={editForm[key as keyof typeof editForm]}
+                  onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                  className="font-mono rounded-none text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="rounded-none font-mono text-xs" onClick={() => setEditUser(null)}>إلغاء</Button>
+            <Button className="rounded-none font-mono text-xs" onClick={submitEdit} disabled={editing}>
+              {editing ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1" /> : <Check className="w-3.5 h-3.5 me-1" />}
+              حفظ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Search + Create button ───────────────────────────────────────────── */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("users.search")} className="font-mono rounded-none ps-9 text-sm" />
+        </div>
+        <Button size="sm" className="h-9 px-3 rounded-none font-mono text-xs shrink-0" onClick={() => setCreateOpen(true)}>
+          <UserPlus className="w-3.5 h-3.5 me-1" /> إنشاء حساب
+        </Button>
       </div>
 
       {/* Filter chips */}
@@ -961,6 +1096,9 @@ function UsersTab({ session, t, toast, defaultFilter }: {
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-orange-500/50 text-orange-400 hover:bg-orange-500/10" onClick={() => forceLogout(u)} disabled={acting === u.id} title={t("users.forceLogout")}>
                         <Power className="w-3 h-3 me-1" />{t("users.forceLogout")}
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none border-primary/50 text-primary hover:bg-primary/10" onClick={() => openEdit(u)}>
+                        <Edit2 className="w-3 h-3 me-1" />تعديل
                       </Button>
                     </div>
                   </div>
@@ -1805,6 +1943,29 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
   const [addingNote,   setAddingNote]   = useState(false);
   const [deletingNote, setDeletingNote] = useState<number | null>(null);
 
+  // ── Pro extend ───────────────────────────────────────────────────────────
+  const [proExtendDays, setProExtendDays] = useState("30");
+  const [proExactDate,  setProExactDate]  = useState("");
+  const [proMode,       setProMode]       = useState<"extend"|"date">("extend");
+  const [savingPro,     setSavingPro]     = useState(false);
+
+  const applyProChange = async () => {
+    if (!detail) return;
+    setSavingPro(true);
+    try {
+      const body = proMode === "date"
+        ? { expiresAt: new Date(proExactDate).toISOString() }
+        : { addDays: Number(proExtendDays) };
+      await ownerFetch(`owner/users/${user.id}/pro`, session.token, {
+        method: "PATCH", body: JSON.stringify(body),
+      });
+      toast({ title: "✓ تم تعديل الـ Pro" });
+      const d = await ownerFetch<UserDetail>(`owner/users/${user.id}/detail`, session.token);
+      setDetail(d);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setSavingPro(false); }
+  };
+
   useEffect(() => {
     setLoadingDetail(true);
     ownerFetch<UserDetail>(`owner/users/${user.id}/detail`, session.token)
@@ -1890,6 +2051,42 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
                     <div>{fmtDate(detail.proExpiresAt)}</div>
                   </div>
                 )}
+              </div>
+
+              {/* ── Pro management ──────────────────────────────────────── */}
+              <div className="border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 space-y-3">
+                <p className="font-mono text-[10px] uppercase text-yellow-400 flex items-center gap-1.5">
+                  <Crown className="w-3 h-3" /> إدارة Pro
+                </p>
+                {/* Mode toggle */}
+                <div className="flex gap-1.5">
+                  {(["extend", "date"] as const).map((m) => (
+                    <button key={m} onClick={() => setProMode(m)}
+                      className={`font-mono text-[10px] px-2.5 py-1 border rounded-none transition-colors ${proMode === m ? "border-yellow-500/60 bg-yellow-500/10 text-yellow-400" : "border-border text-muted-foreground"}`}>
+                      {m === "extend" ? "تمديد بأيام" : "تاريخ محدد"}
+                    </button>
+                  ))}
+                </div>
+                {proMode === "extend" ? (
+                  <div className="flex items-center gap-2">
+                    <Input type="number" min={1} max={3650} value={proExtendDays}
+                      onChange={(e) => setProExtendDays(e.target.value)}
+                      className="w-20 h-7 text-xs font-mono rounded-none px-2" />
+                    <span className="font-mono text-[10px] text-muted-foreground">يوم</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {detail.isPro && detail.proExpiresAt ? `(ينتهي: ${fmtDate(detail.proExpiresAt)})` : "(غير مفعّل)"}
+                    </span>
+                  </div>
+                ) : (
+                  <Input type="date" value={proExactDate} onChange={(e) => setProExactDate(e.target.value)}
+                    className="h-7 text-xs font-mono rounded-none" />
+                )}
+                <Button size="sm" className="h-7 px-3 font-mono text-xs rounded-none bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30"
+                  onClick={applyProChange}
+                  disabled={savingPro || (proMode === "extend" ? !proExtendDays : !proExactDate)}>
+                  {savingPro ? <Loader2 className="w-3 h-3 animate-spin me-1" /> : <CalendarClock className="w-3 h-3 me-1" />}
+                  {proMode === "extend" ? `تمديد +${proExtendDays} يوم` : "تعيين تاريخ الانتهاء"}
+                </Button>
               </div>
 
               {/* XP bar */}

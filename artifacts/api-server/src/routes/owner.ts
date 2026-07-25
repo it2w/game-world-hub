@@ -560,6 +560,93 @@ router.delete("/owner/users/:id/suspend", requireOwner, async (req, res): Promis
   res.json({ ok: true });
 });
 
+/* ─── Create user ────────────────────────────────────────────────────────── */
+
+router.post("/owner/users", requireOwner, async (req, res): Promise<void> => {
+  const { username, displayName, email, password } = req.body ?? {};
+  if (!username || !displayName || !password) {
+    res.status(400).json({ error: "username, displayName and password are required" }); return;
+  }
+  if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
+    res.status(400).json({ error: "Username must be 3-30 chars: letters, numbers, underscores only" }); return;
+  }
+  if (String(password).length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" }); return;
+  }
+  const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.username, String(username).toLowerCase())).limit(1);
+  if (existing) { res.status(409).json({ error: "Username already taken" }); return; }
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  const [user] = await db.insert(usersTable).values({
+    username: String(username).toLowerCase(),
+    displayName: String(displayName).trim(),
+    email: email ? String(email).trim().toLowerCase() : null,
+    passwordHash,
+  }).returning({ id: usersTable.id, username: usersTable.username });
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "create_user", { targetId: user.id, targetName: user.username });
+  logger.info({ userId: user.id, by: req.owner!.ownerId }, "owner: created user");
+  res.status(201).json({ ok: true, id: user.id, username: user.username });
+});
+
+/* ─── Edit user profile ──────────────────────────────────────────────────── */
+
+router.patch("/owner/users/:id", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { displayName, email, bio, region, username, newPassword } = req.body ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {};
+  if (displayName !== undefined) updates.displayName = String(displayName).trim();
+  if (email !== undefined) updates.email = email ? String(email).trim().toLowerCase() : null;
+  if (bio !== undefined) updates.bio = bio || null;
+  if (region !== undefined) updates.region = region || null;
+  if (username !== undefined) {
+    const uname = String(username).toLowerCase();
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(uname)) {
+      res.status(400).json({ error: "Invalid username format" }); return;
+    }
+    const [taken] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(and(eq(usersTable.username, uname), ne(usersTable.id, userId))).limit(1);
+    if (taken) { res.status(409).json({ error: "Username already taken" }); return; }
+    updates.username = uname;
+  }
+  if (newPassword) {
+    if (String(newPassword).length < 6) { res.status(400).json({ error: "Password too short (min 6)" }); return; }
+    updates.passwordHash = await bcrypt.hash(String(newPassword), 10);
+  }
+  if (!Object.keys(updates).length) { res.status(400).json({ error: "Nothing to update" }); return; }
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "edit_user", { targetId: userId, targetName: user.username, detail: Object.keys(updates).join(", ") });
+  logger.info({ userId, fields: Object.keys(updates), by: req.owner!.ownerId }, "owner: edited user");
+  res.json({ ok: true });
+});
+
+/* ─── Extend / adjust Pro expiry ─────────────────────────────────────────── */
+
+router.patch("/owner/users/:id/pro", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { expiresAt, addDays } = req.body ?? {};
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  let newExpiry: Date;
+  if (expiresAt) {
+    newExpiry = new Date(expiresAt);
+    if (isNaN(newExpiry.getTime())) { res.status(400).json({ error: "Invalid date format" }); return; }
+  } else if (addDays !== undefined) {
+    const base = user.proExpiresAt && user.proExpiresAt > new Date() ? user.proExpiresAt : new Date();
+    newExpiry = new Date(base.getTime() + Number(addDays) * 86_400_000);
+  } else {
+    res.status(400).json({ error: "Provide expiresAt or addDays" }); return;
+  }
+  await db.update(usersTable).set({ isPro: true, proExpiresAt: newExpiry }).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "extend_pro", { targetId: userId, targetName: user.username, detail: newExpiry.toISOString() });
+  logger.info({ userId, newExpiry, by: req.owner!.ownerId }, "owner: adjusted pro expiry");
+  res.json({ ok: true, expiresAt: newExpiry.toISOString() });
+});
+
 /* ─── Admins ─────────────────────────────────────────────────────────────── */
 
 router.get("/owner/admins", requireOwner, async (_req, res): Promise<void> => {

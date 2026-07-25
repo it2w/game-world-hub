@@ -2248,11 +2248,6 @@ router.post("/communities/:id/stickers", requireAuth, async (req, res): Promise<
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
     if (community.ownerId !== userId) { res.status(403).json({ error: "Owner only" }); return; }
 
-    // Enforce max 20 stickers
-    const existing = await db.select({ id: communityStickersTable.id }).from(communityStickersTable)
-      .where(eq(communityStickersTable.communityId, id));
-    if (existing.length >= 20) { res.status(409).json({ error: "Max 20 stickers per community" }); return; }
-
     const { name, data, mimeType } = req.body ?? {};
     if (!name || typeof name !== "string" || name.trim().length === 0 || name.trim().length > 32) {
       res.status(400).json({ error: "name must be 1–32 characters" }); return;
@@ -2263,12 +2258,45 @@ router.post("/communities/:id/stickers", requireAuth, async (req, res): Promise<
     const buf = Buffer.from(data, "base64");
     if (buf.length > 2 * 1024 * 1024) { res.status(413).json({ error: "Sticker must be < 2 MB" }); return; }
 
+    // Store the image first (outside the transaction — safe to orphan if cap check fails)
     const [stored] = await db.insert(storedImagesTable).values({ data: buf, contentType: mime }).returning({ id: storedImagesTable.id });
     const imageKey = `/api/images/${stored.id}`;
-    const position = existing.length;
-    const [sticker] = await db.insert(communityStickersTable).values({
-      communityId: id, name: name.trim(), imageKey, position,
-    }).returning();
+
+    // Enforce max-20 cap atomically using a PostgreSQL advisory lock keyed on the
+    // community id. pg_advisory_xact_lock acquires an exclusive session-level lock
+    // that serialises all concurrent sticker uploads for the same community:
+    // the second concurrent request blocks until the first commits, then re-counts
+    // and sees the updated total — preventing the race condition.
+    const client = await pool.connect();
+    let sticker: Record<string, unknown> | undefined;
+    try {
+      await client.query("BEGIN");
+      // Acquire an exclusive advisory lock scoped to this community.
+      // All sticker uploads for the same community will queue here.
+      await client.query(`SELECT pg_advisory_xact_lock($1)`, [id]);
+      const { rows: countRows } = await client.query<{ cnt: string }>(
+        `SELECT COUNT(*)::text AS cnt FROM community_stickers WHERE community_id = $1`,
+        [id]
+      );
+      const currentCount = parseInt(countRows[0]?.cnt ?? "0", 10);
+      if (currentCount >= 20) {
+        await client.query("ROLLBACK");
+        res.status(409).json({ error: "Max 20 stickers per community" }); return;
+      }
+      const { rows: insertRows } = await client.query<Record<string, unknown>>(
+        `INSERT INTO community_stickers (community_id, name, image_key, position)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [id, name.trim(), imageKey, currentCount]
+      );
+      sticker = insertRows[0];
+      await client.query("COMMIT");
+    } catch (txErr) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
+    }
     res.status(201).json(sticker);
   } catch (err) {
     logger.error({ err }, "communities: sticker upload failed");

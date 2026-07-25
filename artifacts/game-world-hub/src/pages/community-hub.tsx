@@ -1389,6 +1389,33 @@ function parseStickerUrl(content: string): string | null {
   return url;
 }
 
+/** Renders a sticker image with a graceful broken-image fallback placeholder. */
+function StickerImage({ src }: { src: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <div
+        className="rounded-lg mt-1 flex flex-col items-center justify-center bg-muted/40 border border-border/50 text-muted-foreground gap-1"
+        style={{ width: 120, height: 120 }}
+        title="Sticker image unavailable"
+      >
+        <Image className="w-7 h-7 opacity-40" />
+        <span className="text-[10px] opacity-60">Sticker</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt="sticker"
+      className="rounded-lg mt-1 object-contain"
+      style={{ width: 120, height: 120 }}
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 /** Parse message content and render @[RoleName] mentions in role colour. */
 function renderMessageContent(content: string, roles: Role[]) {
   const trimmed = content.trim();
@@ -1396,13 +1423,7 @@ function renderMessageContent(content: string, roles: Role[]) {
   const stickerUrl = parseStickerUrl(trimmed);
   if (stickerUrl) {
     return (
-      <img
-        src={stickerUrl}
-        alt="sticker"
-        className="rounded-lg mt-1 object-contain"
-        style={{ width: 120, height: 120 }}
-        loading="lazy"
-      />
+      <StickerImage src={stickerUrl} />
     );
   }
   // Pure image / GIF message — render inline media

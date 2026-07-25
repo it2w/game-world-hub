@@ -733,7 +733,7 @@ router.patch("/communities/:id", requireAuth, async (req, res): Promise<void> =>
     if (!community) { res.status(404).json({ error: "Not found" }); return; }
     if (community.ownerId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { name, description, gameTag, privacy } = req.body ?? {};
+    const { name, description, gameTag, privacy, slug: rawSlug } = req.body ?? {};
     const updates: Partial<typeof communitiesTable.$inferInsert> = { updatedAt: new Date() };
     if (name && typeof name === "string" && name.trim().length >= 2 && name.trim().length <= 100) {
       updates.name = name.trim();
@@ -741,6 +741,25 @@ router.patch("/communities/:id", requireAuth, async (req, res): Promise<void> =>
     if (description !== undefined) updates.description = description?.trim() || null;
     if (gameTag !== undefined) updates.gameTag = gameTag?.trim() || null;
     if (privacy === "public" || privacy === "invite_only") updates.privacy = privacy;
+
+    if (rawSlug !== undefined) {
+      const candidateSlug = slugify(String(rawSlug ?? ""));
+      if (candidateSlug.length < 2 || candidateSlug.length > 80) {
+        res.status(400).json({ error: "Slug must be 2–80 characters after normalisation" });
+        return;
+      }
+      if (candidateSlug !== community.slug) {
+        const [conflict] = await db
+          .select({ id: communitiesTable.id })
+          .from(communitiesTable)
+          .where(and(eq(communitiesTable.slug, candidateSlug), ne(communitiesTable.id, id)));
+        if (conflict) {
+          res.status(409).json({ error: "Slug is already taken" });
+          return;
+        }
+        updates.slug = candidateSlug;
+      }
+    }
 
     const [updated] = await db.update(communitiesTable).set(updates).where(eq(communitiesTable.id, id)).returning();
     res.json(updated);

@@ -3398,18 +3398,49 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
   const { t } = useTranslation("communities");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const [name, setName] = useState(community.name);
   const [description, setDescription] = useState(community.description ?? "");
+  const [slug, setSlug] = useState(community.slug);
+
+  // Keep local slug in sync when the community prop updates (e.g. after a save)
+  useEffect(() => { setSlug(community.slug); }, [community.slug]);
+
+  const normaliseSlug = (raw: string) =>
+    raw.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 
   const save = useMutation({
     mutationFn: () => customFetch(`/api/communities/${community.id}`, {
-      method: "PATCH", body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined }),
+      method: "PATCH",
+      body: JSON.stringify({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        ...(slug.trim() !== community.slug ? { slug: slug.trim() } : {}),
+      }),
     }),
-    onSuccess: () => { toast({ title: t("settingsSaved") }); qc.invalidateQueries({ queryKey: ["community-slug"] }); },
-    onError: () => toast({ title: t("settingsFailed"), variant: "destructive" }),
+    onSuccess: (updated: any) => {
+      toast({ title: t("settingsSaved") });
+      const newSlug: string = updated?.slug ?? community.slug;
+      // Invalidate the old key then navigate to the new slug URL
+      qc.invalidateQueries({ queryKey: ["community-slug"] });
+      if (newSlug !== community.slug) {
+        navigate(`/communities/${newSlug}`);
+      }
+    },
+    onError: (err: any) => {
+      const msg = err?.message ?? "";
+      if (msg.includes("taken")) {
+        toast({ title: t("slugTaken"), variant: "destructive" });
+      } else {
+        toast({ title: t("settingsFailed"), variant: "destructive" });
+      }
+    },
   });
 
-  const isDirty = name.trim() !== community.name || description !== (community.description ?? "");
+  const isDirty =
+    name.trim() !== community.name ||
+    description !== (community.description ?? "") ||
+    normaliseSlug(slug) !== community.slug;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -3421,10 +3452,24 @@ function OverviewSettingsPanel({ community }: { community: Community }) {
             <Input value={name} onChange={e => setName(e.target.value)} maxLength={100} />
           </div>
           <div className="space-y-1.5">
+            <Label className="text-xs">{t("communityUrl")}</Label>
+            <div className="flex items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-1 focus-within:ring-ring">
+              <span className="ps-3 text-xs text-muted-foreground select-none whitespace-nowrap">/communities/</span>
+              <input
+                className="flex-1 bg-transparent py-1.5 pe-3 text-sm outline-none min-w-0"
+                value={slug}
+                onChange={e => setSlug(normaliseSlug(e.target.value))}
+                maxLength={80}
+                spellCheck={false}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">{t("communityUrlHelp")}</p>
+          </div>
+          <div className="space-y-1.5">
             <Label className="text-xs">{t("description")}</Label>
             <Textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={500} className="resize-none" />
           </div>
-          <Button size="sm" onClick={() => save.mutate()} disabled={!isDirty || !name.trim() || save.isPending}>
+          <Button size="sm" onClick={() => save.mutate()} disabled={!isDirty || !name.trim() || !normaliseSlug(slug) || save.isPending}>
             {save.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}{t("saveChanges")}
           </Button>
         </div>

@@ -1,7 +1,7 @@
 /**
  * Integration tests — Task #201
- * Confirms that GET /global-chat/gif-search returns HTTP 200 + [] under every
- * failure mode: absent/revoked key, network error, non-2xx Giphy response,
+ * Confirms that GET /global-chat/gif-search returns HTTP 200 + { gifs: [], isPro: boolean }
+ * under every failure mode: absent/revoked key, network error, non-2xx Giphy response,
  * rate-limit 429.  Also covers the happy-path shape.
  *
  * Note on GIPHY_KEY module-load constraint
@@ -11,11 +11,11 @@
  * test runner shares the module cache across sequentially-run test files, we
  * cannot unset the env var after the module is already cached.
  *
- * The "absent key" branch (`if (!q || !GIPHY_KEY) { res.json([]); return; }`)
+ * The "absent key" branch (`if (!q || !GIPHY_KEY) { res.json({ gifs: [], isPro: false }); return; }`)
  * is therefore exercised here via the empty-query path (`?q=`), which hits the
  * identical early-return.  The "revoked/bad key" scenario is covered by mocking
  * globalThis.fetch to return a 401, which is what Giphy sends for invalid keys;
- * the catch-all returns [] with no 5xx.
+ * the catch-all returns { gifs: [], isPro: false } with no 5xx.
  */
 
 import { test, before, after, describe } from "node:test";
@@ -122,18 +122,29 @@ after(async () => {
   }
 });
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Assert the body has the { gifs, isPro } envelope and return the gifs array. */
+function assertEnvelope(body: unknown): Array<{ id: string; url: string; previewUrl: string }> {
+  assert.ok(body !== null && typeof body === "object", "body should be an object");
+  const b = body as Record<string, unknown>;
+  assert.ok(Array.isArray(b.gifs), "body.gifs should be an array");
+  assert.ok(typeof b.isPro === "boolean", "body.isPro should be a boolean");
+  return b.gifs as Array<{ id: string; url: string; previewUrl: string }>;
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("GET /global-chat/gif-search — absent / revoked key", () => {
-  test("empty query string returns 200 [] (hits the same early-return as absent GIPHY_KEY)", async () => {
-    // ?q= is empty → the route does: if (!q || !GIPHY_KEY) { res.json([]); return; }
+  test("empty query string returns 200 { gifs: [], isPro } (hits the same early-return as absent GIPHY_KEY)", async () => {
+    // ?q= is empty → the route does: if (!q || !GIPHY_KEY) { res.json({ gifs: [], isPro: false }); return; }
     const res = await get("/global-chat/gif-search?q=");
     assert.equal(res.status, 200, `expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
-    assert.ok(Array.isArray(res.body), "expected an array");
-    assert.equal((res.body as unknown[]).length, 0, "expected empty array for missing query");
+    const gifs = assertEnvelope(res.body);
+    assert.equal(gifs.length, 0, "expected empty gifs array for missing query");
   });
 
-  test("revoked key (Giphy returns 401 JSON) → 200 []", async () => {
+  test("revoked key (Giphy returns 401 JSON) → 200 { gifs: [] }", async () => {
     globalThis.fetch = async () =>
       new Response(
         JSON.stringify({ message: "Invalid authentication credentials." }),
@@ -143,8 +154,8 @@ describe("GET /global-chat/gif-search — absent / revoked key", () => {
     try {
       const res = await get("/global-chat/gif-search?q=cats");
       assert.equal(res.status, 200, `expected 200 got ${res.status}`);
-      assert.ok(Array.isArray(res.body), "body should be an array");
-      assert.equal((res.body as unknown[]).length, 0, "expected empty array for revoked key");
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0, "expected empty gifs for revoked key");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -152,7 +163,7 @@ describe("GET /global-chat/gif-search — absent / revoked key", () => {
 });
 
 describe("GET /global-chat/gif-search — other failure modes", () => {
-  test("network error (fetch throws) → 200 []", async () => {
+  test("network error (fetch throws) → 200 { gifs: [] }", async () => {
     globalThis.fetch = async () => {
       throw new Error("ECONNREFUSED");
     };
@@ -160,14 +171,14 @@ describe("GET /global-chat/gif-search — other failure modes", () => {
     try {
       const res = await get("/global-chat/gif-search?q=dogs");
       assert.equal(res.status, 200, `expected 200, got ${res.status}`);
-      assert.ok(Array.isArray(res.body), "body should be array");
-      assert.equal((res.body as unknown[]).length, 0, "expected [] on network error");
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0, "expected [] on network error");
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test("rate-limit 429 from Giphy → 200 []", async () => {
+  test("rate-limit 429 from Giphy → 200 { gifs: [] }", async () => {
     globalThis.fetch = async () =>
       new Response(
         JSON.stringify({ message: "Too Many Requests" }),
@@ -177,14 +188,14 @@ describe("GET /global-chat/gif-search — other failure modes", () => {
     try {
       const res = await get("/global-chat/gif-search?q=fire");
       assert.equal(res.status, 200, `expected 200, got ${res.status}`);
-      assert.ok(Array.isArray(res.body));
-      assert.equal((res.body as unknown[]).length, 0, "expected [] on rate-limit");
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0, "expected [] on rate-limit");
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test("Giphy 500 → 200 []", async () => {
+  test("Giphy 500 → 200 { gifs: [] }", async () => {
     globalThis.fetch = async () =>
       new Response("Internal Server Error", {
         status: 500,
@@ -194,14 +205,14 @@ describe("GET /global-chat/gif-search — other failure modes", () => {
     try {
       const res = await get("/global-chat/gif-search?q=explosion");
       assert.equal(res.status, 200, `expected 200, got ${res.status}`);
-      assert.ok(Array.isArray(res.body));
-      assert.equal((res.body as unknown[]).length, 0);
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test("Giphy returns malformed JSON → 200 []", async () => {
+  test("Giphy returns malformed JSON → 200 { gifs: [] }", async () => {
     globalThis.fetch = async () =>
       new Response("not-json{{", {
         status: 200,
@@ -211,8 +222,8 @@ describe("GET /global-chat/gif-search — other failure modes", () => {
     try {
       const res = await get("/global-chat/gif-search?q=boom");
       assert.equal(res.status, 200, `expected 200, got ${res.status}`);
-      assert.ok(Array.isArray(res.body));
-      assert.equal((res.body as unknown[]).length, 0);
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -220,7 +231,7 @@ describe("GET /global-chat/gif-search — other failure modes", () => {
 });
 
 describe("GET /global-chat/gif-search — happy path", () => {
-  test("valid Giphy response returns shaped gif objects", async () => {
+  test("valid Giphy response returns { gifs: [...], isPro } envelope with shaped gif objects", async () => {
     const mockGiphyResponse = {
       data: [
         {
@@ -249,9 +260,7 @@ describe("GET /global-chat/gif-search — happy path", () => {
     try {
       const res = await get("/global-chat/gif-search?q=gaming");
       assert.equal(res.status, 200, `expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
-      assert.ok(Array.isArray(res.body), "body should be an array");
-
-      const gifs = res.body as Array<{ id: string; url: string; previewUrl: string }>;
+      const gifs = assertEnvelope(res.body);
       assert.equal(gifs.length, 2, "expected 2 gif results");
 
       for (const gif of gifs) {
@@ -274,7 +283,7 @@ describe("GET /global-chat/gif-search — happy path", () => {
         id: "ghi789",
         images: {
           fixed_height:       { url: "https://media2.giphy.com/media/ghi789/giphy.gif", width: "200", height: "150" },
-          fixed_height_small: { url: "" }, // empty — should fall back
+          fixed_height_small: {}, // url absent (undefined) — triggers ?? fallback
         },
       }],
     };
@@ -288,7 +297,7 @@ describe("GET /global-chat/gif-search — happy path", () => {
     try {
       const res = await get("/global-chat/gif-search?q=fallback");
       assert.equal(res.status, 200);
-      const gifs = res.body as Array<{ id: string; url: string; previewUrl: string }>;
+      const gifs = assertEnvelope(res.body);
       assert.equal(gifs.length, 1);
       assert.equal(gifs[0].previewUrl, "https://media2.giphy.com/media/ghi789/giphy.gif",
         "previewUrl should fall back to fixed_height url when fixed_height_small is empty");
@@ -297,7 +306,7 @@ describe("GET /global-chat/gif-search — happy path", () => {
     }
   });
 
-  test("Giphy response with empty data array returns 200 []", async () => {
+  test("Giphy response with empty data array returns 200 { gifs: [] }", async () => {
     globalThis.fetch = async () =>
       new Response(JSON.stringify({ data: [] }), {
         status:  200,
@@ -307,8 +316,8 @@ describe("GET /global-chat/gif-search — happy path", () => {
     try {
       const res = await get("/global-chat/gif-search?q=nothing");
       assert.equal(res.status, 200);
-      assert.ok(Array.isArray(res.body));
-      assert.equal((res.body as unknown[]).length, 0);
+      const gifs = assertEnvelope(res.body);
+      assert.equal(gifs.length, 0);
     } finally {
       globalThis.fetch = originalFetch;
     }

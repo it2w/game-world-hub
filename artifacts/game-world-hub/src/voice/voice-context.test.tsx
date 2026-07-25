@@ -37,6 +37,8 @@ const h = vi.hoisted(() => {
     setScreenShareEnabled = vi.fn().mockImplementation(async (enabled: boolean) => {
       if (enabled && screenShareReject) throw screenShareReject;
     });
+    // voice-context calls localParticipant.on(ParticipantEvent.IsSpeakingChanged, …)
+    on = vi.fn();
   }
 
   class FakeRoom {
@@ -132,6 +134,10 @@ vi.mock("livekit-client", () => {
     LocalTrackPublished: "localTrackPublished",
     LocalTrackUnpublished: "localTrackUnpublished",
     Disconnected: "disconnected",
+    DataReceived: "dataReceived",
+  };
+  const ParticipantEvent = {
+    IsSpeakingChanged: "isSpeakingChanged",
   };
   const Track = {
     Kind: { Audio: "audio", Video: "video" },
@@ -140,7 +146,7 @@ vi.mock("livekit-client", () => {
   const ConnectionQuality = {
     Excellent: "excellent", Good: "good", Poor: "poor", Lost: "lost", Unknown: "unknown",
   };
-  return { Room: h.FakeRoom, RoomEvent, Track, ConnectionQuality };
+  return { Room: h.FakeRoom, RoomEvent, ParticipantEvent, Track, ConnectionQuality };
 });
 
 vi.mock("./webrtc", () => ({

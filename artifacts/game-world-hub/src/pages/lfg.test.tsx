@@ -136,6 +136,7 @@ vi.mock("wouter", () => ({
   Link: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
+  useLocation: () => ["/lfg", vi.fn()],
 }));
 
 vi.mock("@/hooks/use-toast", () => ({

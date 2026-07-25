@@ -261,3 +261,62 @@ describe("GET /communities/:newSlug after slug rename — iconEmoji survives", (
     assert.equal(emojiCh.iconEmoji, TEST_EMOJI);
   });
 });
+
+// ─── PATCH channel rename — iconEmoji is preserved ────────────────────────────
+
+describe("PATCH /communities/:id/channels/:cid rename — iconEmoji is preserved", () => {
+  const RENAMED_CHANNEL = "gaming-renamed";
+
+  test("PATCH response includes iconEmoji unchanged after channel rename", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(ownerId, ownerUsername),
+      { name: RENAMED_CHANNEL },
+    );
+    assert.equal(status, 200, `expected 200 from PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; name: string; iconEmoji: string | null };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.name,
+      RENAMED_CHANNEL,
+      `expected channel name to be "${RENAMED_CHANNEL}", got ${JSON.stringify(channel.name)}`,
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(channel, "iconEmoji"),
+      "iconEmoji key must be present in PATCH response",
+    );
+    assert.equal(
+      channel.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji must remain "${TEST_EMOJI}" after rename, got ${JSON.stringify(channel.iconEmoji)}`,
+    );
+  });
+
+  test("GET /communities/:id after channel rename still returns correct iconEmoji", async () => {
+    // Use numeric community id since the slug was renamed by the previous describe block
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; name: string; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must still appear in community response after rename`);
+    assert.equal(
+      emojiCh.name,
+      RENAMED_CHANNEL,
+      `channel name should reflect the rename, got ${JSON.stringify(emojiCh.name)}`,
+    );
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must survive a channel rename, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
+});

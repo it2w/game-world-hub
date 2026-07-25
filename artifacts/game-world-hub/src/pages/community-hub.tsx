@@ -32,6 +32,7 @@ import {
   Lock, Megaphone, Hand, Clock, Bell, Mic2, AlertCircle,
   Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
   Star, Flame, UserCheck, Search, RefreshCw, Smile, Paperclip,
+  Film, GraduationCap, ThumbsUp, Tag,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { SCREEN_PRESETS, SCREEN_QUALITY_ORDER, type ScreenQuality } from "@/voice/quality";
@@ -47,7 +48,7 @@ interface Community {
 }
 
 interface Channel {
-  id: number; name: string; type: "text" | "voice" | "announcement" | "stage"; position: number;
+  id: number; name: string; type: "text" | "voice" | "announcement" | "stage" | "lfg" | "clips" | "coaching" | "forum"; position: number;
   slowmodeSeconds: number; isPrivate?: boolean;
 }
 
@@ -57,6 +58,10 @@ function ChannelIcon({ channel, size = 4, className = "" }: { channel: Channel; 
   if (channel.type === "announcement") return <Megaphone className={base} />;
   if (channel.type === "stage") return <Mic2 className={base} />;
   if (channel.type === "voice") return <Volume2 className={base} />;
+  if (channel.type === "lfg") return <Users className={base} />;
+  if (channel.type === "clips") return <Film className={base} />;
+  if (channel.type === "coaching") return <GraduationCap className={base} />;
+  if (channel.type === "forum") return <BookOpen className={base} />;
   return <Hash className={base} />;
 }
 
@@ -3303,6 +3308,10 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
             <option value="voice">{t("voice")}</option>
             <option value="announcement">{t("announcement")}</option>
             <option value="stage">{t("stage")}</option>
+            <option value="lfg">LFG Board</option>
+            <option value="clips">Clip Vault</option>
+            <option value="coaching">Coaching Hub</option>
+            <option value="forum">Forum Board</option>
           </select>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={() => setAddForm(null)}>{t("cancel")}</Button>
@@ -3358,6 +3367,10 @@ export function ChannelsSettingsPanel({ communityId, channels, isOwner }: { comm
                     <option value="voice">Voice</option>
                     <option value="announcement">Announcement</option>
                     <option value="stage">Stage</option>
+                    <option value="lfg">LFG Board</option>
+                    <option value="clips">Clip Vault</option>
+                    <option value="coaching">Coaching Hub</option>
+                    <option value="forum">Forum Board</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -4534,6 +4547,757 @@ export function ServerSettingsDialog({ community, open, onClose }: {
   );
 }
 
+// ── LFG Board Panel ───────────────────────────────────────────────────────────
+
+interface LfgPost {
+  id: number; channel_id: number; user_id: number; game: string;
+  roles_needed: string[]; skill_level: string | null; note: string | null;
+  slots: number; filled_slots: number; expires_at: string; created_at: string;
+  username: string; display_name: string; avatar_url: string | null;
+}
+
+function LfgChannelPanel({ communityId, channel, myUserId, canMod }: {
+  communityId: number; channel: Channel; myUserId: number; canMod: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ game: "", rolesNeeded: "", skillLevel: "", note: "", slots: "1" });
+
+  const { data: posts = [], isLoading } = useQuery<LfgPost[]>({
+    queryKey: ["lfg-posts", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/lfg`),
+    refetchInterval: 30000,
+  });
+
+  const createPost = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/lfg`, {
+      method: "POST",
+      body: JSON.stringify({
+        game: form.game.trim(),
+        rolesNeeded: form.rolesNeeded.split(",").map(r => r.trim()).filter(Boolean),
+        skillLevel: form.skillLevel.trim() || undefined,
+        note: form.note.trim() || undefined,
+        slots: Number(form.slots) || 1,
+      }),
+    }),
+    onSuccess: () => {
+      toast({ title: "LFG post created!" });
+      qc.invalidateQueries({ queryKey: ["lfg-posts", communityId, channel.id] });
+      setCreating(false);
+      setForm({ game: "", rolesNeeded: "", skillLevel: "", note: "", slots: "1" });
+    },
+    onError: () => toast({ title: "Failed to create post", variant: "destructive" }),
+  });
+
+  const joinPost = useMutation({
+    mutationFn: (pid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/lfg/${pid}/join`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Joined! The creator has been notified." });
+      qc.invalidateQueries({ queryKey: ["lfg-posts", communityId, channel.id] });
+    },
+    onError: (e: any) => toast({ title: e?.message ?? "Failed to join", variant: "destructive" }),
+  });
+
+  const deletePost = useMutation({
+    mutationFn: (pid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/lfg/${pid}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lfg-posts", communityId, channel.id] }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const SKILL_LEVELS = ["Any", "Beginner", "Intermediate", "Advanced", "Pro"];
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">LFG Board</span>
+          <span className="text-xs text-muted-foreground">— {posts.length} active</span>
+        </div>
+        <Button size="sm" onClick={() => setCreating(v => !v)} variant={creating ? "outline" : "default"}>
+          <Plus className="w-3.5 h-3.5 me-1.5" />Post LFG
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Create form */}
+        {creating && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">New LFG Post</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Game *</Label>
+                <Input value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} placeholder="e.g. Valorant, CS2, Apex…" maxLength={100} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Roles needed</Label>
+                <Input value={form.rolesNeeded} onChange={e => setForm(f => ({ ...f, rolesNeeded: e.target.value }))} placeholder="Fragger, Support…" maxLength={200} />
+                <p className="text-[10px] text-muted-foreground">Comma-separated</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Skill level</Label>
+                <select value={form.skillLevel} onChange={e => setForm(f => ({ ...f, skillLevel: e.target.value }))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                  <option value="">Any level</option>
+                  {SKILL_LEVELS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Open slots</Label>
+                <Input type="number" min={1} max={20} value={form.slots} onChange={e => setForm(f => ({ ...f, slots: e.target.value }))} className="w-full" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Note</Label>
+                <Textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="Any extra details…" rows={2} maxLength={500} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => createPost.mutate()} disabled={!form.game.trim() || createPost.isPending}>
+                {createPost.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Post
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground">
+            <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="font-medium text-sm">No LFG posts yet</p>
+            <p className="text-xs mt-1">Be the first to look for a group!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {posts.map(post => {
+              const isFull = post.filled_slots >= post.slots;
+              const isOwn = post.user_id === myUserId;
+              const expiresIn = Math.max(0, Math.round((new Date(post.expires_at).getTime() - Date.now()) / 3600000));
+              return (
+                <div key={post.id} className={`rounded-xl border p-4 space-y-3 ${isFull ? "border-muted bg-muted/20 opacity-70" : "border-border bg-card hover:border-primary/30 transition-colors"}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-foreground">{post.game}</span>
+                        {isFull && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full font-mono">FULL</span>}
+                        {post.skill_level && (
+                          <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{post.skill_level}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Avatar name={post.display_name} url={post.avatar_url} size={5} />
+                        <span className="text-xs text-muted-foreground">{post.display_name}</span>
+                        <span className="text-[10px] text-muted-foreground/60">· {expiresIn}h left</span>
+                      </div>
+                    </div>
+                    {(isOwn || canMod) && (
+                      <button onClick={() => deletePost.mutate(post.id)} className="text-muted-foreground hover:text-destructive p-1 rounded flex-shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {post.roles_needed.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {post.roles_needed.map(role => (
+                        <span key={role} className="text-[10px] border border-border rounded px-1.5 py-0.5 text-muted-foreground">{role}</span>
+                      ))}
+                    </div>
+                  )}
+                  {post.note && <p className="text-xs text-foreground/70 leading-relaxed">{post.note}</p>}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground font-mono">{post.filled_slots}/{post.slots} slots filled</span>
+                    {!isOwn && !isFull && (
+                      <Button size="sm" variant="outline" onClick={() => joinPost.mutate(post.id)} disabled={joinPost.isPending} className="h-7 text-xs">
+                        {joinPost.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Join"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Clip Vault Panel ───────────────────────────────────────────────────────────
+
+interface ClipPost {
+  id: number; channel_id: number; user_id: number; title: string;
+  url: string; thumbnail_url: string | null; upvotes: number;
+  weekly_winner: boolean; created_at: string;
+  username: string; display_name: string; avatar_url: string | null;
+  my_vote: boolean;
+}
+
+function ClipVaultPanel({ communityId, channel, myUserId, canMod }: {
+  communityId: number; channel: Channel; myUserId: number; canMod: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ title: "", url: "", thumbnailUrl: "" });
+
+  const { data: clips = [], isLoading } = useQuery<ClipPost[]>({
+    queryKey: ["clip-posts", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/clips`),
+    refetchInterval: 30000,
+  });
+
+  const submitClip = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/clips`, {
+      method: "POST",
+      body: JSON.stringify({ title: form.title.trim(), url: form.url.trim(), thumbnailUrl: form.thumbnailUrl.trim() || undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Clip submitted!" });
+      qc.invalidateQueries({ queryKey: ["clip-posts", communityId, channel.id] });
+      setCreating(false);
+      setForm({ title: "", url: "", thumbnailUrl: "" });
+    },
+    onError: () => toast({ title: "Failed to submit clip", variant: "destructive" }),
+  });
+
+  const voteClip = useMutation({
+    mutationFn: (clipId: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/clips/${clipId}/vote`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clip-posts", communityId, channel.id] }); },
+    onError: () => toast({ title: "Vote failed", variant: "destructive" }),
+  });
+
+  const deleteClip = useMutation({
+    mutationFn: (clipId: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/clips/${clipId}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["clip-posts", communityId, channel.id] }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <Film className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Clip Vault</span>
+          <span className="text-xs text-muted-foreground">— {clips.length} clips</span>
+        </div>
+        <Button size="sm" onClick={() => setCreating(v => !v)} variant={creating ? "outline" : "default"}>
+          <Plus className="w-3.5 h-3.5 me-1.5" />Submit Clip
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {creating && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Submit a Clip</p>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Title *</Label>
+                <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="My insane play" maxLength={200} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Clip URL *</Label>
+                <Input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="https://…" maxLength={1000} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Thumbnail URL</Label>
+                <Input value={form.thumbnailUrl} onChange={e => setForm(f => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="Optional preview image URL" maxLength={1000} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => submitClip.mutate()} disabled={!form.title.trim() || !form.url.trim() || submitClip.isPending}>
+                {submitClip.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Submit
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : clips.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground">
+            <Film className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="font-medium text-sm">No clips yet</p>
+            <p className="text-xs mt-1">Submit the first clip to get the vault going!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {clips.map(clip => (
+              <div key={clip.id} className="rounded-xl border border-border bg-card overflow-hidden group hover:border-primary/30 transition-colors">
+                {/* Thumbnail */}
+                <a href={clip.url} target="_blank" rel="noopener noreferrer" className="block relative">
+                  {clip.thumbnail_url ? (
+                    <img src={clip.thumbnail_url} alt={clip.title} className="w-full h-32 object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-32 bg-muted flex items-center justify-center">
+                      <Film className="w-8 h-8 text-muted-foreground/30" />
+                    </div>
+                  )}
+                  {clip.weekly_winner && (
+                    <div className="absolute top-2 start-2 flex items-center gap-1 bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      <Crown className="w-3 h-3" />Clip of the Week
+                    </div>
+                  )}
+                </a>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="text-sm font-semibold leading-snug line-clamp-2 flex-1">{clip.title}</p>
+                    {(clip.user_id === myUserId || canMod) && (
+                      <button onClick={() => deleteClip.mutate(clip.id)} className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Avatar name={clip.display_name} url={clip.avatar_url} size={5} />
+                      <span className="text-xs text-muted-foreground truncate">{clip.display_name}</span>
+                    </div>
+                    <button
+                      onClick={() => voteClip.mutate(clip.id)}
+                      className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded-full border transition-colors ${
+                        clip.my_vote ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      <ThumbsUp className="w-3 h-3" />{clip.upvotes}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Forum Board Panel ──────────────────────────────────────────────────────────
+
+interface ForumPost {
+  id: number; channel_id: number; user_id: number; title: string; body: string;
+  tags: string[]; is_resolved: boolean; upvotes: number; reply_count: number;
+  created_at: string; username: string; display_name: string; avatar_url: string | null;
+  my_vote: boolean;
+}
+
+interface ForumReply {
+  id: number; post_id: number; body: string; created_at: string;
+  user_id: number; username: string; display_name: string; avatar_url: string | null;
+}
+
+function ForumBoardPanel({ communityId, channel, myUserId, canMod }: {
+  communityId: number; channel: Channel; myUserId: number; canMod: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [sort, setSort] = useState<"new" | "hot" | "top">("new");
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ title: "", body: "", tags: "" });
+  const [openPostId, setOpenPostId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
+
+  const { data: posts = [], isLoading } = useQuery<ForumPost[]>({
+    queryKey: ["forum-posts", communityId, channel.id, sort],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum?sort=${sort}`),
+    refetchInterval: 30000,
+  });
+
+  const { data: replies = [] } = useQuery<ForumReply[]>({
+    queryKey: ["forum-replies", communityId, channel.id, openPostId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum/${openPostId}/replies`),
+    enabled: openPostId !== null,
+    refetchInterval: 10000,
+  });
+
+  const createPost = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: form.title.trim(),
+        body: form.body.trim(),
+        tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Post created!" });
+      qc.invalidateQueries({ queryKey: ["forum-posts", communityId, channel.id] });
+      setCreating(false);
+      setForm({ title: "", body: "", tags: "" });
+    },
+    onError: () => toast({ title: "Failed to post", variant: "destructive" }),
+  });
+
+  const sendReply = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum/${openPostId}/reply`, {
+      method: "POST", body: JSON.stringify({ body: replyText.trim() }),
+    }),
+    onSuccess: () => {
+      setReplyText("");
+      qc.invalidateQueries({ queryKey: ["forum-replies", communityId, channel.id, openPostId] });
+      qc.invalidateQueries({ queryKey: ["forum-posts", communityId, channel.id] });
+    },
+    onError: () => toast({ title: "Failed to reply", variant: "destructive" }),
+  });
+
+  const votePost = useMutation({
+    mutationFn: (pid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum/${pid}/vote`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["forum-posts", communityId, channel.id, sort] }); },
+  });
+
+  const resolvePost = useMutation({
+    mutationFn: (pid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/forum/${pid}/resolve`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["forum-posts", communityId, channel.id] }); },
+    onError: () => toast({ title: "Failed to resolve", variant: "destructive" }),
+  });
+
+  const openPost = posts.find(p => p.id === openPostId) ?? null;
+
+  if (openPost) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="border-b border-border px-4 py-2.5 flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => setOpenPostId(null)} className="text-muted-foreground hover:text-foreground p-1 rounded">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-semibold text-sm flex-1 truncate">{openPost.title}</span>
+          {openPost.is_resolved && <span className="text-[10px] bg-green-500/15 text-green-500 px-2 py-0.5 rounded-full font-semibold">Resolved</span>}
+          {(canMod || openPost.user_id === myUserId) && (
+            <button onClick={() => resolvePost.mutate(openPost.id)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 border border-border rounded">
+              {openPost.is_resolved ? "Unresolve" : "Mark Resolved"}
+            </button>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* OP */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Avatar name={openPost.display_name} url={openPost.avatar_url} size={7} />
+              <div>
+                <p className="text-sm font-semibold">{openPost.display_name}</p>
+                <p className="text-[10px] text-muted-foreground">{new Date(openPost.created_at).toLocaleString()}</p>
+              </div>
+              {openPost.tags.length > 0 && (
+                <div className="ms-auto flex gap-1 flex-wrap">
+                  {openPost.tags.map(tag => (
+                    <span key={tag} className="text-[10px] border border-border text-muted-foreground px-1.5 py-0.5 rounded">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{openPost.body}</p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => votePost.mutate(openPost.id)}
+                className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded-full border transition-colors ${openPost.my_vote ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                <ThumbsUp className="w-3 h-3" />{openPost.upvotes}
+              </button>
+              <span className="text-xs text-muted-foreground">{openPost.reply_count} replies</span>
+            </div>
+          </div>
+          {/* Replies */}
+          {replies.map(reply => (
+            <div key={reply.id} className="flex items-start gap-3 ms-4">
+              <Avatar name={reply.display_name} url={reply.avatar_url} size={7} />
+              <div className="flex-1 bg-muted/30 rounded-xl px-3 py-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-semibold">{reply.display_name}</span>
+                  <span className="text-[10px] text-muted-foreground">{new Date(reply.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <p className="text-sm text-foreground/90 mt-0.5 leading-relaxed">{reply.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Reply input */}
+        <div className="border-t border-border p-3 flex gap-2 flex-shrink-0">
+          <Input
+            placeholder="Write a reply…" value={replyText} onChange={e => setReplyText(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && !e.shiftKey && replyText.trim() && sendReply.mutate()}
+            maxLength={4000}
+          />
+          <Button size="sm" onClick={() => sendReply.mutate()} disabled={!replyText.trim() || sendReply.isPending}>
+            {sendReply.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="border-b border-border px-4 py-3 flex items-center gap-2 flex-shrink-0">
+        <BookOpen className="w-4 h-4 text-primary" />
+        <span className="font-semibold text-sm">Forum Board</span>
+        <div className="flex gap-1 ms-2">
+          {(["new", "hot", "top"] as const).map(s => (
+            <button key={s} onClick={() => setSort(s)}
+              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${sort === s ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="ms-auto">
+          <Button size="sm" onClick={() => setCreating(v => !v)} variant={creating ? "outline" : "default"}>
+            <Plus className="w-3.5 h-3.5 me-1.5" />New Post
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {creating && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">New Post</p>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Title *</Label>
+                <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="What's your question or topic?" maxLength={200} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Body *</Label>
+                <Textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Share details…" rows={4} maxLength={10000} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tags</Label>
+                <Input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="guide, tips, oc… (comma-separated)" maxLength={200} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => createPost.mutate()} disabled={!form.title.trim() || !form.body.trim() || createPost.isPending}>
+                {createPost.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Post
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground">
+            <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="font-medium text-sm">No posts yet</p>
+            <p className="text-xs mt-1">Start the first discussion!</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {posts.map(post => (
+              <div key={post.id} onClick={() => setOpenPostId(post.id)}
+                className="rounded-xl border border-border bg-card p-4 hover:border-primary/30 transition-colors cursor-pointer group">
+                <div className="flex items-start gap-3">
+                  <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <button onClick={e => { e.stopPropagation(); votePost.mutate(post.id); }}
+                      className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-colors ${post.my_vote ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary"}`}>
+                      <ThumbsUp className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-mono">{post.upvotes}</span>
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm group-hover:text-primary transition-colors">{post.title}</span>
+                      {post.is_resolved && <span className="text-[10px] bg-green-500/15 text-green-500 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">✓ Resolved</span>}
+                    </div>
+                    {post.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {post.tags.map(tag => (
+                          <span key={tag} className="text-[10px] border border-border text-muted-foreground px-1.5 py-0.5 rounded">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-foreground/60 mt-1.5 line-clamp-2">{post.body}</p>
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Avatar name={post.display_name} url={post.avatar_url} size={4} />
+                        {post.display_name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{post.reply_count} replies</span>
+                      <span className="text-[10px] text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Coaching Hub Panel ─────────────────────────────────────────────────────────
+
+interface CoachingRequest {
+  id: number; channel_id: number; user_id: number; coach_id: number | null;
+  game: string; rank: string | null; availability: string | null;
+  status: "open" | "accepted" | "completed"; created_at: string;
+  username: string; display_name: string; avatar_url: string | null;
+  coach_username: string | null; coach_display_name: string | null;
+}
+
+function CoachingHubPanel({ communityId, channel, myUserId, canMod }: {
+  communityId: number; channel: Channel; myUserId: number; canMod: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ game: "", rank: "", availability: "" });
+
+  const { data: requests = [], isLoading } = useQuery<CoachingRequest[]>({
+    queryKey: ["coaching-requests", communityId, channel.id],
+    queryFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/coaching`),
+    refetchInterval: 30000,
+  });
+
+  const createRequest = useMutation({
+    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}/coaching`, {
+      method: "POST",
+      body: JSON.stringify({ game: form.game.trim(), rank: form.rank.trim() || undefined, availability: form.availability.trim() || undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Coaching request posted!" });
+      qc.invalidateQueries({ queryKey: ["coaching-requests", communityId, channel.id] });
+      setCreating(false);
+      setForm({ game: "", rank: "", availability: "" });
+    },
+    onError: () => toast({ title: "Failed to post request", variant: "destructive" }),
+  });
+
+  const acceptRequest = useMutation({
+    mutationFn: (rid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/coaching/${rid}/accept`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Session accepted! The player will be notified." });
+      qc.invalidateQueries({ queryKey: ["coaching-requests", communityId, channel.id] });
+    },
+    onError: (e: any) => toast({ title: e?.message ?? "Failed to accept", variant: "destructive" }),
+  });
+
+  const completeRequest = useMutation({
+    mutationFn: (rid: number) => customFetch(`/api/communities/${communityId}/channels/${channel.id}/coaching/${rid}/complete`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Session marked complete!" });
+      qc.invalidateQueries({ queryKey: ["coaching-requests", communityId, channel.id] });
+    },
+    onError: () => toast({ title: "Failed to complete", variant: "destructive" }),
+  });
+
+  const statusColors: Record<string, string> = {
+    open: "bg-blue-500/10 text-blue-500",
+    accepted: "bg-yellow-500/10 text-yellow-500",
+    completed: "bg-green-500/10 text-green-500",
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <GraduationCap className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Coaching Hub</span>
+          <span className="text-xs text-muted-foreground">— {requests.filter(r => r.status === "open").length} open</span>
+        </div>
+        <Button size="sm" onClick={() => setCreating(v => !v)} variant={creating ? "outline" : "default"}>
+          <Plus className="w-3.5 h-3.5 me-1.5" />Request Coaching
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {creating && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Request Coaching</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Game *</Label>
+                <Input value={form.game} onChange={e => setForm(f => ({ ...f, game: e.target.value }))} placeholder="e.g. Valorant, League of Legends…" maxLength={100} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Rank / MMR</Label>
+                <Input value={form.rank} onChange={e => setForm(f => ({ ...f, rank: e.target.value }))} placeholder="e.g. Gold II, 1200 MMR" maxLength={80} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Available times</Label>
+                <Input value={form.availability} onChange={e => setForm(f => ({ ...f, availability: e.target.value }))} placeholder="e.g. Weekends 6–9pm UTC" maxLength={200} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" onClick={() => createRequest.mutate()} disabled={!form.game.trim() || createRequest.isPending}>
+                {createRequest.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" />}Post Request
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : requests.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground">
+            <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="font-medium text-sm">No coaching requests yet</p>
+            <p className="text-xs mt-1">Post a request to find a coach in this community!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {requests.map(req => {
+              const isOwn = req.user_id === myUserId;
+              const isCoach = req.coach_id === myUserId;
+              return (
+                <div key={req.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm">{req.game}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${statusColors[req.status] ?? "bg-muted text-muted-foreground"}`}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Avatar name={req.display_name} url={req.avatar_url} size={5} />
+                        <span className="text-xs text-muted-foreground">{req.display_name}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {req.rank && (
+                    <p className="text-xs text-foreground/70 flex items-center gap-1">
+                      <Trophy className="w-3 h-3 text-yellow-500" />Rank: {req.rank}
+                    </p>
+                  )}
+                  {req.availability && (
+                    <p className="text-xs text-foreground/70 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-muted-foreground" />{req.availability}
+                    </p>
+                  )}
+                  {req.status === "accepted" && req.coach_display_name && (
+                    <p className="text-xs text-yellow-500 font-medium">Coach: {req.coach_display_name}</p>
+                  )}
+                  {/* Actions */}
+                  <div className="flex gap-2 flex-wrap">
+                    {req.status === "open" && !isOwn && (
+                      <Button size="sm" variant="outline" onClick={() => acceptRequest.mutate(req.id)} disabled={acceptRequest.isPending} className="h-7 text-xs">
+                        {acceptRequest.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Accept as Coach"}
+                      </Button>
+                    )}
+                    {req.status === "accepted" && (isCoach || isOwn || canMod) && (
+                      <Button size="sm" variant="outline" onClick={() => completeRequest.mutate(req.id)} disabled={completeRequest.isPending} className="h-7 text-xs text-green-600 border-green-500/30 hover:bg-green-500/10">
+                        {completeRequest.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Mark Complete"}
+                      </Button>
+                    )}
+                    {req.status === "completed" && (
+                      <span className="text-xs text-green-500 flex items-center gap-1">
+                        <Check className="w-3 h-3" />Session completed
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Add channel dialog ─────────────────────────────────────────────────────────
 
 // ── Channel Settings Dialog ────────────────────────────────────────────────────
@@ -4704,7 +5468,7 @@ function AddChannelDialog({ communityId, open, onClose }: { communityId: number;
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [type, setType] = useState<"text" | "voice" | "announcement" | "stage">("text");
+  const [type, setType] = useState<"text" | "voice" | "announcement" | "stage" | "lfg" | "clips" | "coaching" | "forum">("text");
   const [isPrivate, setIsPrivate] = useState(false);
 
   const create = useMutation({
@@ -4721,10 +5485,14 @@ function AddChannelDialog({ communityId, open, onClose }: { communityId: number;
   });
 
   const TYPE_OPTIONS = [
-    { value: "text",         icon: <Hash className="w-4 h-4" />,     label: "Text",         desc: "Send messages and media" },
-    { value: "announcement", icon: <Megaphone className="w-4 h-4" />,label: "Announcement", desc: "Only mods can post" },
-    { value: "voice",        icon: <Volume2 className="w-4 h-4" />,  label: "Voice",        desc: "Voice & video calls" },
-    { value: "stage",        icon: <Mic2 className="w-4 h-4" />,     label: "Stage",        desc: "Speakers & audience" },
+    { value: "text",         icon: <Hash className="w-4 h-4" />,          label: "Text",         desc: "Send messages and media" },
+    { value: "announcement", icon: <Megaphone className="w-4 h-4" />,     label: "Announcement", desc: "Only mods can post" },
+    { value: "voice",        icon: <Volume2 className="w-4 h-4" />,       label: "Voice",        desc: "Voice & video calls" },
+    { value: "stage",        icon: <Mic2 className="w-4 h-4" />,          label: "Stage",        desc: "Speakers & audience" },
+    { value: "lfg",          icon: <Users className="w-4 h-4" />,         label: "LFG Board",    desc: "Looking-for-group cards" },
+    { value: "clips",        icon: <Film className="w-4 h-4" />,          label: "Clip Vault",   desc: "Share & vote on clips" },
+    { value: "coaching",     icon: <GraduationCap className="w-4 h-4" />, label: "Coaching Hub", desc: "Request coaching sessions" },
+    { value: "forum",        icon: <BookOpen className="w-4 h-4" />,      label: "Forum Board",  desc: "Q&A and discussion threads" },
   ] as const;
 
   return (
@@ -4738,7 +5506,7 @@ function AddChannelDialog({ communityId, open, onClose }: { communityId: number;
             <Label>{t("channelName")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("channelName")} maxLength={100} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-0.5">
             {TYPE_OPTIONS.map(opt => (
               <button
                 key={opt.value}
@@ -4824,7 +5592,7 @@ export default function CommunityHub() {
 
   useEffect(() => {
     if (community && !activeChannelId) {
-      const first = community.channels.find((c) => c.type === "text");
+      const first = community.channels.find((c) => !["voice", "stage"].includes(c.type));
       if (first) setActiveChannelId(first.id);
     }
   }, [community, activeChannelId]);
@@ -5065,6 +5833,34 @@ export default function CommunityHub() {
             participants={voicePresence[String(activeChannel.id)] ?? []}
             isOwner={community.isMod ?? community.isOwner}
             myUserId={myUserId}
+          />
+        ) : activeChannel.type === "lfg" ? (
+          <LfgChannelPanel
+            communityId={community.id}
+            channel={activeChannel}
+            myUserId={myUserId}
+            canMod={community.isMod ?? community.isOwner}
+          />
+        ) : activeChannel.type === "clips" ? (
+          <ClipVaultPanel
+            communityId={community.id}
+            channel={activeChannel}
+            myUserId={myUserId}
+            canMod={community.isMod ?? community.isOwner}
+          />
+        ) : activeChannel.type === "forum" ? (
+          <ForumBoardPanel
+            communityId={community.id}
+            channel={activeChannel}
+            myUserId={myUserId}
+            canMod={community.isMod ?? community.isOwner}
+          />
+        ) : activeChannel.type === "coaching" ? (
+          <CoachingHubPanel
+            communityId={community.id}
+            channel={activeChannel}
+            myUserId={myUserId}
+            canMod={community.isMod ?? community.isOwner}
           />
         ) : (
           <CommunityVoiceStage

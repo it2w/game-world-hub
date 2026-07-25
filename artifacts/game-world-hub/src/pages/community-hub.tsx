@@ -33,6 +33,7 @@ import {
   Calendar, Award, Bot, Sparkles, BookOpen, MessageCircle, ChevronLeft,
   Star, Flame, UserCheck, Search, RefreshCw, Smile, Paperclip,
   Film, GraduationCap, ThumbsUp, Tag,
+  Palette, StickyNote,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { SCREEN_PRESETS, SCREEN_QUALITY_ORDER, type ScreenQuality } from "@/voice/quality";
@@ -43,17 +44,26 @@ interface Community {
   id: number; slug: string; name: string; description: string | null;
   gameTag: string | null; privacy: "public" | "invite_only";
   boostLevel: number; memberCount: number; iconKey: string | null;
-  bannerKey: string | null; ownerId: number; isMember: boolean; isOwner: boolean; isMod: boolean;
+  bannerKey: string | null; bannerIsAnimated?: boolean; ownerId: number;
+  isMember: boolean; isOwner: boolean; isMod: boolean;
+  themeColor?: string | null; badgeFrame?: string | null;
   channels: Channel[];
 }
 
 interface Channel {
   id: number; name: string; type: "text" | "voice" | "announcement" | "stage" | "lfg" | "clips" | "coaching" | "forum"; position: number;
-  slowmodeSeconds: number; isPrivate?: boolean;
+  slowmodeSeconds: number; isPrivate?: boolean; iconEmoji?: string | null;
 }
 
-/** Icon for a channel type, with optional lock overlay for private channels */
+interface CommunitySticker {
+  id: number; communityId: number; name: string; imageKey: string; position: number; createdAt: string;
+}
+
+/** Icon for a channel type — shows custom emoji if set, else default type icon */
 function ChannelIcon({ channel, size = 4, className = "" }: { channel: Channel; size?: number; className?: string }) {
+  if (channel.iconEmoji) {
+    return <span className={`flex-shrink-0 leading-none ${className}`} style={{ fontSize: `${size * 4}px`, lineHeight: 1 }}>{channel.iconEmoji}</span>;
+  }
   const base = `w-${size} h-${size} flex-shrink-0 ${className}`;
   if (channel.type === "announcement") return <Megaphone className={base} />;
   if (channel.type === "stage") return <Mic2 className={base} />;
@@ -1119,8 +1129,10 @@ function BannerDialog({ communityId, open, onClose }: { communityId: number; ope
         reader.readAsDataURL(file);
       });
       const base64 = dataUrl.split(",")[1];
+      // Normalise MIME: allow GIFs through, default others to jpeg
+      const mimeType = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) ? file.type : "image/jpeg";
       await customFetch(`/api/communities/${communityId}/banner`, {
-        method: "POST", body: JSON.stringify({ data: base64, mimeType: file.type }),
+        method: "POST", body: JSON.stringify({ data: base64, mimeType }),
       });
       toast({ title: t("bannerUploaded") });
       qc.invalidateQueries({ queryKey: ["community-slug"] });
@@ -1147,7 +1159,7 @@ function BannerDialog({ communityId, open, onClose }: { communityId: number; ope
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">{t("bannerHint")}</p>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
+          <input ref={fileRef} type="file" accept="image/*,image/gif" className="hidden" onChange={e => e.target.files?.[0] && upload(e.target.files[0])} />
           <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="w-full">
             {uploading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Image className="w-4 h-4 me-2" />}
             {t("chooseBanner")}
@@ -1158,6 +1170,50 @@ function BannerDialog({ communityId, open, onClose }: { communityId: number; ope
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Sticker Tray ───────────────────────────────────────────────────────────────
+
+function StickerTray({ communityId, open, onOpenChange, onSelect }: {
+  communityId: number; open: boolean; onOpenChange: (v: boolean) => void;
+  onSelect: (sticker: CommunitySticker) => void;
+}) {
+  const { data: stickers = [] } = useQuery<CommunitySticker[]>({
+    queryKey: ["community-stickers", communityId],
+    queryFn: () => customFetch(`/api/communities/${communityId}/stickers`),
+    staleTime: 60_000,
+  });
+
+  if (stickers.length === 0) return null;
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          className={`p-1 rounded transition-colors flex-shrink-0 ${open ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          title="Stickers"
+        >
+          <StickyNote className="w-4 h-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="w-72 p-2 overflow-hidden">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2 px-1">Stickers</p>
+        <div className="grid grid-cols-4 gap-1 max-h-52 overflow-y-auto">
+          {stickers.map(s => (
+            <button
+              key={s.id}
+              onClick={() => onSelect(s)}
+              className="rounded-lg p-1 hover:bg-muted/60 transition-colors group flex flex-col items-center gap-0.5"
+              title={s.name}
+            >
+              <img src={s.imageKey} alt={s.name} className="w-14 h-14 object-contain rounded" loading="lazy" />
+              <span className="text-[9px] text-muted-foreground truncate w-full text-center">{s.name}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1294,19 +1350,47 @@ function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
 function isImageOnlyMessage(content: string): boolean {
   const c = content.trim();
   return /^\/api\/images\/[0-9a-f-]{36}$/i.test(c)
-    || /^https?:\/\/media\d*\.giphy\.com\//i.test(c);
+    || /^https?:\/\/media\d*\.giphy\.com\//i.test(c)
+    || c.startsWith("__sticker__:");
+}
+
+/** Internal image URL pattern: /api/images/<uuid-or-numeric-id> */
+const INTERNAL_IMAGE_RE = /^\/api\/images\/[0-9a-f-]{8,}$/i;
+
+/** Extract sticker URL from a sticker message — only allows internal /api/images/ paths */
+function parseStickerUrl(content: string): string | null {
+  const c = content.trim();
+  if (!c.startsWith("__sticker__:")) return null;
+  const url = c.slice("__sticker__:".length);
+  // Reject any URL that isn't a server-issued image path (blocks tracking pixels / arbitrary external URLs)
+  if (!INTERNAL_IMAGE_RE.test(url)) return null;
+  return url;
 }
 
 /** Parse message content and render @[RoleName] mentions in role colour. */
 function renderMessageContent(content: string, roles: Role[]) {
-  // Pure image / GIF message — render inline media
-  if (isImageOnlyMessage(content.trim())) {
+  const trimmed = content.trim();
+  // Sticker message — render at 120×120
+  const stickerUrl = parseStickerUrl(trimmed);
+  if (stickerUrl) {
     return (
       <img
-        src={content.trim()}
+        src={stickerUrl}
+        alt="sticker"
+        className="rounded-lg mt-1 object-contain"
+        style={{ width: 120, height: 120 }}
+        loading="lazy"
+      />
+    );
+  }
+  // Pure image / GIF message — render inline media
+  if (isImageOnlyMessage(trimmed)) {
+    return (
+      <img
+        src={trimmed}
         alt="media"
         className="max-w-xs max-h-52 rounded-lg mt-1 object-contain cursor-pointer"
-        onClick={() => window.open(content.trim(), "_blank")}
+        onClick={() => window.open(trimmed, "_blank")}
         loading="lazy"
       />
     );
@@ -1421,6 +1505,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
   const [imgUploading, setImgUploading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1751,6 +1836,22 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
                 disabled={slowmodeLeft > 0}
               />
 
+              {/* Sticker tray */}
+              <StickerTray
+                communityId={communityId}
+                open={showStickers}
+                onOpenChange={setShowStickers}
+                onSelect={(sticker) => {
+                  setShowStickers(false);
+                  if (slowmodeLeft > 0) return;
+                  sendMutation.mutate(`__sticker__:${sticker.imageKey}`, {
+                    onSuccess: () => {
+                      if (channel.slowmodeSeconds > 0 && !canMod && !isOwner) setSlowmodeLeft(channel.slowmodeSeconds);
+                    },
+                  });
+                }}
+              />
+
               {/* GIF picker */}
               <Popover open={showGif} onOpenChange={setShowGif}>
                 <PopoverTrigger asChild>
@@ -1799,7 +1900,7 @@ function TextChannelPanel({ communityId, channel, isOwner, canMod, myUserId, hid
         )}
       </div>
 
-      {/* Thread panel (slides in from right) */}
+      {/* Sticker tray popover — declared so it can be used in JSX above */}
       {activeThreadId != null && !hideThreads && (
         <ThreadPanel
           communityId={communityId}
@@ -2634,9 +2735,24 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
   boostPending: boolean; voicePresence: VoicePresenceMap;
 }) {
   const { t } = useTranslation("communities");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [emojiPickerChannelId, setEmojiPickerChannelId] = useState<number | null>(null);
   const textChannels = community.channels.filter((c) => c.type === "text" || c.type === "announcement");
   const voiceChannels = community.channels.filter((c) => c.type === "voice" || c.type === "stage");
   const isOwnerOrMod = community.isMod ?? community.isOwner;
+
+  const setChannelIcon = async (channelId: number, emoji: string | null) => {
+    try {
+      await customFetch(`/api/communities/${community.id}/channels/${channelId}/icon`, {
+        method: "PATCH", body: JSON.stringify({ iconEmoji: emoji }),
+      });
+      qc.invalidateQueries({ queryKey: ["community-slug", community.slug] });
+      setEmojiPickerChannelId(null);
+    } catch {
+      toast({ title: "Failed to update icon", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="w-60 flex flex-col flex-shrink-0 bg-card border-e border-border/60 overflow-hidden">
@@ -2644,7 +2760,11 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
       <div className="flex-shrink-0 relative">
         {community.bannerKey ? (
           <div className="relative h-24 overflow-hidden">
-            <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover" />
+            <img
+              src={community.bannerKey}
+              alt={community.name}
+              className="w-full h-full object-cover"
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/60" />
             {community.isOwner && (
               <button onClick={onBannerEdit} className="absolute top-2 end-2 bg-black/50 hover:bg-black/70 rounded-md p-1.5 text-white/80 transition-colors backdrop-blur-sm">
@@ -2663,7 +2783,10 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between px-4 h-12 border-b border-border/60 shadow-sm">
+          <div
+            className="flex items-center justify-between px-4 h-12 border-b border-border/60 shadow-sm"
+            style={community.themeColor ? { background: `linear-gradient(135deg, ${community.themeColor}1a 0%, transparent 100%)` } : undefined}
+          >
             <div className="font-bold text-foreground text-[14px] truncate flex-1">{community.name}</div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {community.boostLevel > 0 && (
@@ -2707,16 +2830,45 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
                 <div
                   key={ch.id}
                   className={`flex items-center rounded-md group/ch transition-all duration-100 ${
-                    activeChannelId === ch.id ? "bg-accent/80" : "hover:bg-accent/40"
+                    activeChannelId === ch.id ? "" : "hover:bg-accent/40"
                   }`}
+                  style={activeChannelId === ch.id && community.themeColor
+                    ? { background: `${community.themeColor}2a` }
+                    : activeChannelId === ch.id ? { background: "hsl(var(--accent) / 0.8)" } : undefined}
                 >
+                  {/* Channel icon area — clickable for owner/mod to set custom emoji */}
+                  {isOwnerOrMod ? (
+                    <Popover open={emojiPickerChannelId === ch.id} onOpenChange={v => setEmojiPickerChannelId(v ? ch.id : null)}>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="ps-2 py-[7px] text-muted-foreground/70 hover:text-primary transition-colors"
+                          title="Set channel icon"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <ChannelIcon channel={ch} size={4} className="opacity-80" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="right" align="start" className="w-auto p-0 overflow-hidden">
+                        <div className="p-1 border-b border-border flex justify-between items-center px-2">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Channel Icon</span>
+                          {ch.iconEmoji && (
+                            <button onClick={() => setChannelIcon(ch.id, null)} className="text-[10px] text-muted-foreground hover:text-destructive px-1">Remove</button>
+                          )}
+                        </div>
+                        <EmojiPicker onSelect={emoji => setChannelIcon(ch.id, emoji)} onClose={() => setEmojiPickerChannelId(null)} />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <span className="ps-2 py-[7px] text-muted-foreground/70">
+                      <ChannelIcon channel={ch} size={4} className="opacity-80" />
+                    </span>
+                  )}
                   <button
                     onClick={() => onSelectChannel(ch.id)}
-                    className={`flex-1 flex items-center gap-2 px-2.5 py-[7px] text-[13px] font-medium text-start ${
+                    className={`flex-1 flex items-center gap-1.5 px-1.5 py-[7px] text-[13px] font-medium text-start ${
                       activeChannelId === ch.id ? "text-foreground" : "text-muted-foreground/70 hover:text-foreground"
                     }`}
                   >
-                    <ChannelIcon channel={ch} size={4} className="opacity-80 flex-shrink-0" />
                     <span className="truncate flex-1">{ch.name}</span>
                     {ch.isPrivate && <Lock className="w-2.5 h-2.5 text-muted-foreground/50 flex-shrink-0" />}
                   </button>
@@ -2752,7 +2904,13 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
               {voiceChannels.map((ch) => (
                 ch.type === "stage" ? (
                   /* Stage channel row */
-                  <div key={ch.id} className={`flex items-center rounded-md group/ch transition-all ${activeChannelId === ch.id ? "bg-accent/80" : "hover:bg-accent/40"}`}>
+                  <div
+                    key={ch.id}
+                    className={`flex items-center rounded-md group/ch transition-all ${activeChannelId === ch.id ? "" : "hover:bg-accent/40"}`}
+                    style={activeChannelId === ch.id && community.themeColor
+                      ? { background: `${community.themeColor}2a` }
+                      : activeChannelId === ch.id ? { background: "hsl(var(--accent) / 0.8)" } : undefined}
+                  >
                     <button
                       onClick={() => onSelectChannel(ch.id)}
                       className={`flex-1 flex items-center gap-2 px-2.5 py-[7px] text-[13px] font-medium text-start ${activeChannelId === ch.id ? "text-foreground" : "text-muted-foreground/70 hover:text-foreground"}`}
@@ -4201,9 +4359,241 @@ function EventsSettingsPanel({ communityId, channels }: { communityId: number; c
   );
 }
 
+// ── Appearance Settings Panel ──────────────────────────────────────────────────
+
+const THEME_PRESETS = [
+  { label: "Indigo",    color: "#6366f1" },
+  { label: "Violet",   color: "#8b5cf6" },
+  { label: "Pink",     color: "#ec4899" },
+  { label: "Rose",     color: "#f43f5e" },
+  { label: "Orange",   color: "#f97316" },
+  { label: "Amber",    color: "#f59e0b" },
+  { label: "Emerald",  color: "#10b981" },
+  { label: "Teal",     color: "#14b8a6" },
+  { label: "Cyan",     color: "#06b6d4" },
+  { label: "Sky",      color: "#0ea5e9" },
+  { label: "Blue",     color: "#3b82f6" },
+  { label: "Slate",    color: "#64748b" },
+];
+
+const BADGE_FRAMES = [
+  { id: "none",     label: "None",     style: {} },
+  { id: "circle",   label: "Circle",   style: { borderRadius: "50%", border: "3px solid currentColor" } },
+  { id: "rounded",  label: "Rounded",  style: { borderRadius: "12px", border: "3px solid currentColor" } },
+  { id: "ring",     label: "Ring",     style: { borderRadius: "50%", outline: "3px solid currentColor", outlineOffset: "2px" } },
+  { id: "glow",     label: "Glow",     style: { borderRadius: "50%", boxShadow: "0 0 0 3px currentColor, 0 0 12px 2px currentColor" } },
+  { id: "shield",   label: "Shield",   style: { borderRadius: "50% 50% 40% 40% / 50% 50% 60% 60%", border: "3px solid currentColor" } },
+  { id: "diamond",  label: "Diamond",  style: { transform: "rotate(45deg)", border: "3px solid currentColor" } },
+  { id: "hexagon",  label: "Hexagon",  style: { clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)", border: "none", background: "currentColor" } },
+];
+
+function AppearanceSettingsPanel({ community }: { community: Community }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [customHex, setCustomHex] = useState(community.themeColor ?? "");
+  const [selectedFrame, setSelectedFrame] = useState(community.badgeFrame ?? "none");
+
+  const saveTheme = useMutation({
+    mutationFn: (body: { themeColor?: string | null; badgeFrame?: string | null }) =>
+      customFetch(`/api/communities/${community.id}/theme`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      toast({ title: "Appearance saved" });
+      qc.invalidateQueries({ queryKey: ["community-slug", community.slug] });
+      qc.invalidateQueries({ queryKey: ["communities"] });
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const handleColorSelect = (color: string | null) => {
+    setCustomHex(color ?? "");
+    saveTheme.mutate({ themeColor: color, badgeFrame: selectedFrame === "none" ? null : selectedFrame });
+  };
+
+  const handleHexSubmit = () => {
+    const hex = customHex.trim();
+    if (!hex) { saveTheme.mutate({ themeColor: null, badgeFrame: selectedFrame === "none" ? null : selectedFrame }); return; }
+    if (/^#?[0-9a-fA-F]{6}$/.test(hex)) {
+      const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+      saveTheme.mutate({ themeColor: normalized, badgeFrame: selectedFrame === "none" ? null : selectedFrame });
+    } else {
+      toast({ title: "Invalid hex color (e.g. #6366f1)", variant: "destructive" });
+    }
+  };
+
+  const handleFrameSelect = (frameId: string) => {
+    setSelectedFrame(frameId);
+    // Use the current local hex state (not the stale prop snapshot) so a just-applied
+    // custom color isn't accidentally rolled back when the user then picks a frame.
+    const currentColor = customHex && /^#[0-9a-fA-F]{6}$/.test(customHex)
+      ? customHex
+      : (community.themeColor ?? null);
+    saveTheme.mutate({ themeColor: currentColor, badgeFrame: frameId === "none" ? null : frameId });
+  };
+
+  // Sticker management
+  const { data: stickers = [], isLoading: loadingStickers } = useQuery<CommunitySticker[]>({
+    queryKey: ["community-stickers", community.id],
+    queryFn: () => customFetch(`/api/communities/${community.id}/stickers`),
+  });
+
+  const [stickerUploading, setStickerUploading] = useState(false);
+  const [stickerName, setStickerName] = useState("");
+  const stickerFileRef = useRef<HTMLInputElement>(null);
+
+  const uploadSticker = async (file: File) => {
+    if (!stickerName.trim()) { toast({ title: "Enter a sticker name first", variant: "destructive" }); return; }
+    if (file.size > 2 * 1024 * 1024) { toast({ title: "Sticker must be < 2 MB", variant: "destructive" }); return; }
+    setStickerUploading(true);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>(resolve => { reader.onload = e => resolve(e.target!.result as string); reader.readAsDataURL(file); });
+      const base64 = dataUrl.split(",")[1];
+      const mimeType = ["image/jpeg", "image/png", "image/webp"].includes(file.type) ? file.type : "image/png";
+      await customFetch(`/api/communities/${community.id}/stickers`, {
+        method: "POST", body: JSON.stringify({ name: stickerName.trim(), data: base64, mimeType }),
+      });
+      toast({ title: "Sticker uploaded" });
+      qc.invalidateQueries({ queryKey: ["community-stickers", community.id] });
+      setStickerName("");
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Upload failed", variant: "destructive" });
+    } finally { setStickerUploading(false); }
+  };
+
+  const deleteSticker = useMutation({
+    mutationFn: (sid: number) => customFetch(`/api/communities/${community.id}/stickers/${sid}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-stickers", community.id] }),
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const accentColor = community.themeColor ?? "#6366f1";
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5 space-y-7">
+      {/* Theme Color */}
+      <section className="space-y-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <Palette className="w-3.5 h-3.5" /> Theme Color
+        </p>
+        <div className="grid grid-cols-6 gap-2">
+          {THEME_PRESETS.map(p => (
+            <button
+              key={p.color}
+              onClick={() => handleColorSelect(p.color)}
+              title={p.label}
+              className="w-8 h-8 rounded-full border-2 transition-all hover:scale-110"
+              style={{
+                background: p.color,
+                borderColor: community.themeColor === p.color ? "white" : "transparent",
+                boxShadow: community.themeColor === p.color ? `0 0 0 2px ${p.color}` : "none",
+              }}
+            />
+          ))}
+          {/* Clear */}
+          <button
+            onClick={() => handleColorSelect(null)}
+            title="Default"
+            className="w-8 h-8 rounded-full border-2 border-border bg-muted/40 hover:bg-muted transition-colors text-[10px] font-bold text-muted-foreground"
+          >✕</button>
+        </div>
+        {/* Custom hex input */}
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full border border-border flex-shrink-0" style={{ background: customHex || accentColor }} />
+          <input
+            className="flex-1 h-8 px-3 rounded-md border border-input bg-background text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="#6366f1"
+            value={customHex}
+            onChange={e => setCustomHex(e.target.value)}
+            onBlur={handleHexSubmit}
+            onKeyDown={e => e.key === "Enter" && handleHexSubmit()}
+            maxLength={7}
+            dir="ltr"
+          />
+          <Button size="sm" variant="outline" onClick={handleHexSubmit} disabled={saveTheme.isPending} className="h-8 px-3 text-xs">Apply</Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">Accent color applied to sidebar highlights, role chips, and button accents.</p>
+      </section>
+
+      {/* Badge Frame */}
+      <section className="space-y-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Badge Frame (Discovery Page)</p>
+        <div className="grid grid-cols-4 gap-3">
+          {BADGE_FRAMES.map(f => (
+            <button
+              key={f.id}
+              onClick={() => handleFrameSelect(f.id)}
+              className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-colors ${selectedFrame === f.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/40"}`}
+            >
+              <div
+                className="w-9 h-9 flex items-center justify-center text-sm font-bold overflow-hidden"
+                style={{ ...f.style, color: accentColor }}
+              >
+                {f.id === "diamond" ? (
+                  <span style={{ transform: "rotate(-45deg)", display: "block", fontSize: 13 }}>G</span>
+                ) : (
+                  <span style={{ fontSize: 14 }}>G</span>
+                )}
+              </div>
+              <span className="text-[10px] text-muted-foreground">{f.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Sticker Pack */}
+      <section className="space-y-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <StickyNote className="w-3.5 h-3.5" /> Sticker Pack ({stickers.length}/20)
+        </p>
+        {/* Upload new sticker */}
+        {stickers.length < 20 && (
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1 h-8 px-3 rounded-md border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              placeholder="Sticker name (max 32 chars)"
+              value={stickerName}
+              onChange={e => setStickerName(e.target.value)}
+              maxLength={32}
+            />
+            <input
+              ref={stickerFileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) { uploadSticker(f); e.target.value = ""; } }}
+            />
+            <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-shrink-0" disabled={stickerUploading || !stickerName.trim()} onClick={() => stickerFileRef.current?.click()}>
+              {stickerUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              Upload
+            </Button>
+          </div>
+        )}
+        {loadingStickers ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+        ) : stickers.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No stickers yet. Upload up to 20.</p>
+        ) : (
+          <div className="grid grid-cols-4 gap-2">
+            {stickers.map(s => (
+              <div key={s.id} className="group relative rounded-lg border border-border p-1.5 flex flex-col items-center gap-1">
+                <img src={s.imageKey} alt={s.name} className="w-14 h-14 object-contain rounded" />
+                <span className="text-[10px] text-muted-foreground truncate w-full text-center">{s.name}</span>
+                <button
+                  onClick={() => deleteSticker.mutate(s.id)}
+                  className="absolute -top-1.5 -end-1.5 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground">PNG/JPEG/WebP only. Members send stickers via the sticker button in chat.</p>
+      </section>
+    </div>
+  );
+}
+
 // ── ServerSettingsDialog ───────────────────────────────────────────────────────
 
-export type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "bots" | "danger";
+export type SettingsTab = "overview" | "roles" | "channels" | "automod" | "welcome" | "events" | "badges" | "insights" | "invites" | "bots" | "appearance" | "danger";
 
 /** Metadata for each settings tab — id plus optional visibility flags.
  *  Exported so tests can assert against the real config without duplication. */
@@ -4222,6 +4612,7 @@ export const SETTINGS_NAV_META: ReadonlyArray<{
   { id: "insights", ownerOrModOnly: true },
   { id: "invites" },
   { id: "bots", ownerOnly: true },
+  { id: "appearance", ownerOnly: true },
   { id: "danger", ownerOnly: true },
 ];
 
@@ -4381,30 +4772,32 @@ export function ServerSettingsDialog({ community, open, onClose }: {
 
   // Map module-level metadata to labelled, icon-enriched items for rendering
   const ICON_MAP: Record<SettingsTab, React.ReactNode> = {
-    overview:  <Settings className="w-4 h-4" />,
-    roles:     <Shield className="w-4 h-4" />,
-    channels:  <Hash className="w-4 h-4" />,
-    automod:   <Bot className="w-4 h-4" />,
-    welcome:   <Sparkles className="w-4 h-4" />,
-    events:    <Calendar className="w-4 h-4" />,
-    badges:    <Award className="w-4 h-4" />,
-    insights:  <BarChart3 className="w-4 h-4" />,
-    invites:   <Link2 className="w-4 h-4" />,
-    bots:      <Bot className="w-4 h-4" />,
-    danger:    <AlertCircle className="w-4 h-4" />,
+    overview:    <Settings className="w-4 h-4" />,
+    roles:       <Shield className="w-4 h-4" />,
+    channels:    <Hash className="w-4 h-4" />,
+    automod:     <Bot className="w-4 h-4" />,
+    welcome:     <Sparkles className="w-4 h-4" />,
+    events:      <Calendar className="w-4 h-4" />,
+    badges:      <Award className="w-4 h-4" />,
+    insights:    <BarChart3 className="w-4 h-4" />,
+    invites:     <Link2 className="w-4 h-4" />,
+    bots:        <Bot className="w-4 h-4" />,
+    appearance:  <Palette className="w-4 h-4" />,
+    danger:      <AlertCircle className="w-4 h-4" />,
   };
   const LABEL_MAP: Record<SettingsTab, string> = {
-    overview: t("settingsOverview"),
-    roles:    t("roles"),
-    channels: t("channels"),
-    automod:  t("automod"),
-    welcome:  t("welcomeAndRules"),
-    events:   t("events"),
-    badges:   t("badges"),
-    insights: t("insights"),
-    invites:  t("invites"),
-    bots:     t("bots"),
-    danger:   t("dangerZone"),
+    overview:   t("settingsOverview"),
+    roles:      t("roles"),
+    channels:   t("channels"),
+    automod:    t("automod"),
+    welcome:    t("welcomeAndRules"),
+    events:     t("events"),
+    badges:     t("badges"),
+    insights:   t("insights"),
+    invites:    t("invites"),
+    bots:       t("bots"),
+    appearance: "Appearance",
+    danger:     t("dangerZone"),
   };
 
   const NAV_ITEMS = SETTINGS_NAV_META
@@ -4537,6 +4930,8 @@ export function ServerSettingsDialog({ community, open, onClose }: {
             <InviteSettingsPanel communityId={community.id} isOwnerOrMod={true} />
           ) : safeTab === "bots" && community.isOwner ? (
             <BotsPanel communityId={community.id} />
+          ) : safeTab === "appearance" && community.isOwner ? (
+            <AppearanceSettingsPanel community={community} />
           ) : safeTab === "danger" && community.isOwner ? (
             <DangerZonePanel community={community} onClose={onClose} />
           ) : null}
@@ -5745,8 +6140,13 @@ export default function CommunityHub() {
     );
   }
 
+  const accentColor = community.themeColor ?? "#6366f1";
+
   return (
-    <div className="flex flex-1 h-full overflow-hidden">
+    <div
+      className="flex flex-1 h-full overflow-hidden"
+      style={{ "--community-accent": accentColor, "--community-accent-15": `${accentColor}26`, "--community-accent-30": `${accentColor}4d` } as React.CSSProperties}
+    >
       {/* Channel sidebar */}
       <ChannelSidebar
         community={community}
@@ -5768,7 +6168,16 @@ export default function CommunityHub() {
         {/* Banner (full-width in main area) */}
         {community.bannerKey && (
           <div className="relative h-24 overflow-hidden flex-shrink-0">
-            <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover" />
+            {community.bannerIsAnimated ? (
+              <img
+                src={community.bannerKey}
+                alt={community.name}
+                className="w-full h-full object-cover"
+                style={{ imageRendering: "auto" }}
+              />
+            ) : (
+              <img src={community.bannerKey} alt={community.name} className="w-full h-full object-cover" />
+            )}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/60" />
           </div>
         )}

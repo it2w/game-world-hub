@@ -44,6 +44,51 @@ interface Community {
   iconKey: string | null;
   bannerKey: string | null;
   ownerId: number;
+  themeColor?: string | null;
+  badgeFrame?: string | null;
+}
+
+const BADGE_FRAME_STYLES: Record<string, React.CSSProperties> = {
+  circle:  { borderRadius: "50%", border: "3px solid currentColor" },
+  rounded: { borderRadius: "12px", border: "3px solid currentColor" },
+  ring:    { borderRadius: "50%", outline: "3px solid currentColor", outlineOffset: "2px" },
+  glow:    { borderRadius: "50%", boxShadow: "0 0 0 3px currentColor, 0 0 12px 2px currentColor" },
+  shield:  { borderRadius: "50% 50% 40% 40% / 50% 50% 60% 60%", border: "3px solid currentColor" },
+  diamond: { transform: "rotate(45deg)", border: "3px solid currentColor" },
+  hexagon: { clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)" },
+};
+
+function BadgeFramedIcon({ community }: { community: Community }) {
+  const accent = community.themeColor ?? "#6366f1";
+  const frameStyle = community.badgeFrame && community.badgeFrame !== "none"
+    ? BADGE_FRAME_STYLES[community.badgeFrame] ?? {}
+    : {};
+  const isRotated = community.badgeFrame === "diamond";
+
+  return (
+    <div
+      className="w-11 h-11 flex items-center justify-center text-primary font-bold text-base flex-shrink-0 overflow-hidden transition-all"
+      style={{
+        ...frameStyle,
+        color: accent,
+        background: community.iconKey ? undefined : `${accent}1a`,
+        border: frameStyle.border as string | undefined,
+      }}
+    >
+      {community.iconKey ? (
+        <img
+          src={community.iconKey}
+          alt={community.name}
+          className="w-full h-full object-cover"
+          style={isRotated ? { transform: "rotate(-45deg)" } : {}}
+        />
+      ) : (
+        <span style={isRotated ? { transform: "rotate(-45deg)", display: "block" } : {}}>
+          {community.name.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function CommunityCard({
@@ -103,14 +148,8 @@ function CommunityCard({
 
       <div className="p-4">
         <div className="flex items-start gap-3">
-          {/* Icon */}
-          <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0 border border-primary/20 group-hover:border-primary/50 transition-colors">
-            {community.iconKey ? (
-              <img src={community.iconKey} alt={community.name} className="w-full h-full object-cover rounded-lg" />
-            ) : (
-              community.name.charAt(0).toUpperCase()
-            )}
-          </div>
+          {/* Icon with optional badge frame */}
+          <BadgeFramedIcon community={community} />
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">

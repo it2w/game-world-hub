@@ -49,6 +49,7 @@ import {
   communityMemberRolesTable,
   communityBoostsTable,
   communityModLogTable,
+  communityStickersTable,
   storedImagesTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
@@ -268,6 +269,21 @@ export async function ensureCommunityPremiumTables(): Promise<void> {
       availability TEXT,
       status VARCHAR(20) NOT NULL DEFAULT 'open',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    -- ── Visual Customization ───────────────────────────────────────────────────
+    ALTER TABLE communities ADD COLUMN IF NOT EXISTS theme_color    VARCHAR(7);
+    ALTER TABLE communities ADD COLUMN IF NOT EXISTS badge_frame    VARCHAR(32);
+    ALTER TABLE communities ADD COLUMN IF NOT EXISTS banner_is_animated BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE community_channels ADD COLUMN IF NOT EXISTS icon_emoji VARCHAR(8);
+
+    CREATE TABLE IF NOT EXISTS community_stickers (
+      id           SERIAL PRIMARY KEY,
+      community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+      name         VARCHAR(32) NOT NULL,
+      image_key    TEXT NOT NULL,
+      position     INTEGER NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
   logger.info("communities: premium tables ensured");
@@ -2106,6 +2122,151 @@ router.get("/communities/:id/leaderboard", requireAuth, async (req, res): Promis
   }
 });
 
+// ─── Theme & Badge Frame ──────────────────────────────────────────────────────
+
+router.patch("/communities/:id/theme", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Owner only" }); return; }
+
+    const { themeColor, badgeFrame } = req.body ?? {};
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (themeColor !== undefined) {
+      if (themeColor === null) {
+        updates.themeColor = null;
+      } else if (typeof themeColor === "string" && /^#[0-9a-fA-F]{6}$/.test(themeColor)) {
+        updates.themeColor = themeColor;
+      } else {
+        res.status(400).json({ error: "themeColor must be a 7-char hex string like #6366f1 or null" }); return;
+      }
+    }
+    if (badgeFrame !== undefined) {
+      const VALID_FRAMES = ["none", "circle", "rounded", "hexagon", "star", "diamond", "shield", "ring", "glow"];
+      if (badgeFrame === null || VALID_FRAMES.includes(badgeFrame)) {
+        updates.badgeFrame = badgeFrame ?? null;
+      } else {
+        res.status(400).json({ error: "Invalid badgeFrame value" }); return;
+      }
+    }
+
+    const [updated] = await db.update(communitiesTable).set(updates as any).where(eq(communitiesTable.id, id)).returning();
+    res.json({ themeColor: updated.themeColor, badgeFrame: updated.badgeFrame });
+  } catch (err) {
+    logger.error({ err }, "communities: theme update failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Channel Icon Emoji ───────────────────────────────────────────────────────
+
+router.patch("/communities/:id/channels/:cid/icon", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const cid = Number(String(req.params.cid));
+  if (isNaN(id) || isNaN(cid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    if (!await isOwnerOrMod(id, userId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [channel] = await db.select().from(communityChannelsTable)
+      .where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id)));
+    if (!channel) { res.status(404).json({ error: "Channel not found" }); return; }
+
+    const { iconEmoji } = req.body ?? {};
+    const emoji = iconEmoji === null ? null : (typeof iconEmoji === "string" && iconEmoji.trim() ? iconEmoji.trim().slice(0, 8) : undefined);
+    if (emoji === undefined) { res.status(400).json({ error: "iconEmoji required (string or null)" }); return; }
+
+    await db.update(communityChannelsTable).set({ iconEmoji: emoji } as any).where(eq(communityChannelsTable.id, cid));
+    res.json({ ok: true, iconEmoji: emoji });
+  } catch (err) {
+    logger.error({ err }, "communities: channel icon update failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── Community Stickers ───────────────────────────────────────────────────────
+
+router.get("/communities/:id/stickers", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    // Verify the requesting user can see this community (member, or public community)
+    const [community] = await db.select({ id: communitiesTable.id, privacy: communitiesTable.privacy })
+      .from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.privacy !== "public") {
+      const membership = await getMembership(id, userId);
+      if (!membership || membership.isBanned) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
+    const stickers = await db.select().from(communityStickersTable)
+      .where(eq(communityStickersTable.communityId, id))
+      .orderBy(asc(communityStickersTable.position), asc(communityStickersTable.createdAt));
+    res.json(stickers);
+  } catch (err) {
+    logger.error({ err }, "communities: stickers list failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/communities/:id/stickers", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Owner only" }); return; }
+
+    // Enforce max 20 stickers
+    const existing = await db.select({ id: communityStickersTable.id }).from(communityStickersTable)
+      .where(eq(communityStickersTable.communityId, id));
+    if (existing.length >= 20) { res.status(409).json({ error: "Max 20 stickers per community" }); return; }
+
+    const { name, data, mimeType } = req.body ?? {};
+    if (!name || typeof name !== "string" || name.trim().length === 0 || name.trim().length > 32) {
+      res.status(400).json({ error: "name must be 1–32 characters" }); return;
+    }
+    if (!data || typeof data !== "string") { res.status(400).json({ error: "data (base64) required" }); return; }
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp"];
+    const mime = allowedMimes.includes(mimeType) ? mimeType : "image/png";
+    const buf = Buffer.from(data, "base64");
+    if (buf.length > 2 * 1024 * 1024) { res.status(413).json({ error: "Sticker must be < 2 MB" }); return; }
+
+    const [stored] = await db.insert(storedImagesTable).values({ data: buf, contentType: mime }).returning({ id: storedImagesTable.id });
+    const imageKey = `/api/images/${stored.id}`;
+    const position = existing.length;
+    const [sticker] = await db.insert(communityStickersTable).values({
+      communityId: id, name: name.trim(), imageKey, position,
+    }).returning();
+    res.status(201).json(sticker);
+  } catch (err) {
+    logger.error({ err }, "communities: sticker upload failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.delete("/communities/:id/stickers/:sid", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.auth!.userId;
+  const id = Number(String(req.params.id));
+  const sid = Number(String(req.params.sid));
+  if (isNaN(id) || isNaN(sid)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [community] = await db.select().from(communitiesTable).where(eq(communitiesTable.id, id));
+    if (!community) { res.status(404).json({ error: "Not found" }); return; }
+    if (community.ownerId !== userId) { res.status(403).json({ error: "Owner only" }); return; }
+    await db.delete(communityStickersTable)
+      .where(and(eq(communityStickersTable.id, sid), eq(communityStickersTable.communityId, id)));
+    res.status(204).end();
+  } catch (err) {
+    logger.error({ err }, "communities: sticker delete failed");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 // ─── Banner Image ─────────────────────────────────────────────────────────────
 
 router.post("/communities/:id/banner", requireAuth, async (req, res): Promise<void> => {
@@ -2126,8 +2287,9 @@ router.post("/communities/:id/banner", requireAuth, async (req, res): Promise<vo
 
     const [stored] = await db.insert(storedImagesTable).values({ data: buf, contentType: mime }).returning({ id: storedImagesTable.id });
     const imageKey = `/api/images/${stored.id}`;
-    await db.update(communitiesTable).set({ bannerKey: imageKey }).where(eq(communitiesTable.id, id));
-    res.json({ bannerUrl: imageKey });
+    const isAnimated = mime === "image/gif";
+    await db.update(communitiesTable).set({ bannerKey: imageKey, bannerIsAnimated: isAnimated } as any).where(eq(communitiesTable.id, id));
+    res.json({ bannerUrl: imageKey, bannerIsAnimated: isAnimated });
   } catch (err) {
     logger.error({ err }, "communities: banner upload failed");
     res.status(500).json({ error: "Internal error" });

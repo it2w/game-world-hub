@@ -16,19 +16,22 @@ import { usersTable } from "./users";
 // ─── Communities ──────────────────────────────────────────────────────────────
 
 export const communitiesTable = pgTable("communities", {
-  id:          serial("id").primaryKey(),
-  ownerId:     integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  name:        varchar("name",        { length: 100 }).notNull(),
-  slug:        varchar("slug",        { length: 80  }).notNull().unique(),
-  description: text("description"),
-  iconKey:     varchar("icon_key",    { length: 500 }),
-  bannerKey:   varchar("banner_key",  { length: 500 }),
-  gameTag:     varchar("game_tag",    { length: 80  }),
-  privacy:     varchar("privacy",     { length: 20  }).notNull().default("public"),
-  boostLevel:  integer("boost_level").notNull().default(0),
-  memberCount: integer("member_count").notNull().default(1),
-  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  id:               serial("id").primaryKey(),
+  ownerId:          integer("owner_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  name:             varchar("name",        { length: 100 }).notNull(),
+  slug:             varchar("slug",        { length: 80  }).notNull().unique(),
+  description:      text("description"),
+  iconKey:          varchar("icon_key",    { length: 500 }),
+  bannerKey:        varchar("banner_key",  { length: 500 }),
+  bannerIsAnimated: boolean("banner_is_animated").notNull().default(false),
+  gameTag:          varchar("game_tag",    { length: 80  }),
+  privacy:          varchar("privacy",     { length: 20  }).notNull().default("public"),
+  boostLevel:       integer("boost_level").notNull().default(0),
+  memberCount:      integer("member_count").notNull().default(1),
+  themeColor:       varchar("theme_color", { length: 7  }),
+  badgeFrame:       varchar("badge_frame", { length: 32 }),
+  createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type Community = typeof communitiesTable.$inferSelect;
@@ -38,12 +41,13 @@ export type Community = typeof communitiesTable.$inferSelect;
 export const communityChannelsTable = pgTable("community_channels", {
   id:              serial("id").primaryKey(),
   communityId:     integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
-  name:            varchar("name",  { length: 100 }).notNull(),
-  type:            varchar("type",  { length: 20  }).notNull().default("text"), // "text" | "voice" | "announcement" | "stage"
+  name:            varchar("name",       { length: 100 }).notNull(),
+  type:            varchar("type",       { length: 20  }).notNull().default("text"), // "text" | "voice" | "announcement" | "stage"
   position:        integer("position").notNull().default(0),
   slowmodeSeconds: integer("slowmode_seconds").notNull().default(0),
   isArchived:      boolean("is_archived").notNull().default(false),
   isPrivate:       boolean("is_private").notNull().default(false),
+  iconEmoji:       varchar("icon_emoji", { length: 8   }),
   createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -232,6 +236,19 @@ export const communityBotsTable = pgTable("community_bots", {
 }));
 
 export type CommunityBot = typeof communityBotsTable.$inferSelect;
+
+// ─── Community Stickers ───────────────────────────────────────────────────────
+
+export const communityStickersTable = pgTable("community_stickers", {
+  id:          serial("id").primaryKey(),
+  communityId: integer("community_id").notNull().references(() => communitiesTable.id, { onDelete: "cascade" }),
+  name:        varchar("name",      { length: 32 }).notNull(),
+  imageKey:    text("image_key").notNull(),
+  position:    integer("position").notNull().default(0),
+  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CommunitySticker = typeof communityStickersTable.$inferSelect;
 
 // ─── Moderation log ───────────────────────────────────────────────────────────
 

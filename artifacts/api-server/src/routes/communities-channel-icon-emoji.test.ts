@@ -22,8 +22,10 @@ import {
   communitiesTable,
   communityMembersTable,
   communityChannelsTable,
+  communityRolesTable,
+  communityMemberRolesTable,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { signToken } from "../middlewares/auth";
 import { ensureCommunityPremiumTables } from "./communities";
 import app from "../app";

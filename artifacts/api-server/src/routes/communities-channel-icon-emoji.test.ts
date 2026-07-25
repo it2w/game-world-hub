@@ -526,6 +526,42 @@ describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
       `iconEmoji "${TEST_EMOJI}" must not be cleared when mod sends iconEmoji:null alongside slowmodeSeconds, got ${JSON.stringify(emojiCh.iconEmoji)}`,
     );
   });
+
+  test("slowmodeSeconds=99999 is clamped to 21600 (the maximum)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(modId, modUsername),
+      { slowmodeSeconds: 99999 },
+    );
+    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      21600,
+      `expected slowmodeSeconds to be clamped to 21600, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
+
+  test("slowmodeSeconds=-1 is clamped to 0 (the minimum)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(modId, modUsername),
+      { slowmodeSeconds: -1 },
+    );
+    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      0,
+      `expected slowmodeSeconds to be clamped to 0, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
 });
 
 // ─── PATCH channel isPrivate toggle — iconEmoji is preserved ──────────────────

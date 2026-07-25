@@ -1457,11 +1457,11 @@ function MessageRow({ msg, canDelete, canPin, onDelete, onPin, onStartThread, th
           </span>
           {roleBadge && badgeAbbrev && (
             <span
-              className="inline-flex items-center text-[9px] font-bold px-1.5 py-px rounded-full leading-none flex-shrink-0 select-none"
+              className="inline-flex items-center text-[9px] font-bold px-1.5 py-px rounded-full leading-none flex-shrink-0 select-none transition-colors"
               style={{
-                backgroundColor: `${roleBadge.color}25`,
-                color: roleBadge.color,
-                border: `1px solid ${roleBadge.color}50`,
+                backgroundColor: "var(--community-accent-15, " + roleBadge.color + "25)",
+                color: "var(--community-accent, " + roleBadge.color + ")",
+                border: "1px solid var(--community-accent-30, " + roleBadge.color + "50)",
               }}
               title={roleBadge.name}
             >
@@ -2979,7 +2979,7 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
 
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-border/40 p-2 space-y-0.5">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-primary/70 hover:text-primary hover:bg-primary/10 h-8 rounded-md" onClick={onInvite}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] h-8 rounded-md transition-colors" style={{ color: "var(--community-accent)" }} onClick={onInvite}>
           <Link2 className="w-3.5 h-3.5 me-2 opacity-80" />{t("inviteLinks")}
         </Button>
         {community.isOwner && (
@@ -2987,7 +2987,7 @@ function ChannelSidebar({ community, activeChannelId, onSelectChannel, onAddChan
             <Settings className="w-3.5 h-3.5 me-2 opacity-80" />Server Settings
           </Button>
         )}
-        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-yellow-500/80 hover:text-yellow-400 hover:bg-yellow-400/10 h-8 rounded-md" onClick={onBoost} disabled={boostPending}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] h-8 rounded-md transition-colors" style={{ color: "var(--community-accent)" }} onClick={onBoost} disabled={boostPending}>
           <Zap className="w-3.5 h-3.5 me-2 opacity-80" />{t("boost")}
         </Button>
         <Button variant="ghost" size="sm" className="w-full justify-start text-[12px] text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 h-8 rounded-md" onClick={onLeave}>
@@ -3199,8 +3199,8 @@ function MembersPanel({ communityId, ownerId, isOwner }: {
               {memberGroups.groups.map(({ role, members: gMembers }) => (
                 <div key={role.id}>
                   <div className="flex items-center gap-1.5 px-2 py-1 mt-1">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: role.color }} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest truncate" style={{ color: role.color }}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 transition-colors" style={{ background: role.color }} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest truncate transition-colors" style={{ color: "var(--community-accent)" }}>
                       {role.name} — {gMembers.length}
                     </span>
                   </div>

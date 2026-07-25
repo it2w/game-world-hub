@@ -35,11 +35,11 @@ export const modules: ModuleMap = {
   "./components/mockups/profile-variants/SplitPanel.tsx": () => import("../components/mockups/profile-variants/SplitPanel.tsx"),
   "./components/mockups/set-status/Current.tsx": () => import("../components/mockups/set-status/Current.tsx"),
   "./components/mockups/set-status/Profile.tsx": () => import("../components/mockups/set-status/Profile.tsx"),
+  "./components/mockups/voice-panel/Apex.tsx": () => import("../components/mockups/voice-panel/Apex.tsx"),
+  "./components/mockups/voice-panel/Grid.tsx": () => import("../components/mockups/voice-panel/Grid.tsx"),
+  "./components/mockups/voice-panel/Halo.tsx": () => import("../components/mockups/voice-panel/Halo.tsx"),
   "./components/mockups/rank-designs/Design1.tsx": () => import("../components/mockups/rank-designs/Design1.tsx"),
   "./components/mockups/rank-designs/Design2.tsx": () => import("../components/mockups/rank-designs/Design2.tsx"),
   "./components/mockups/rank-designs/Design3.tsx": () => import("../components/mockups/rank-designs/Design3.tsx"),
-  "./components/mockups/rank-designs/Design4.tsx": () => import("../components/mockups/rank-designs/Design4.tsx"),
-  "./components/mockups/voice-panel/Apex.tsx": () => import("../components/mockups/voice-panel/Apex.tsx"),
-  "./components/mockups/voice-panel/Grid.tsx": () => import("../components/mockups/voice-panel/Grid.tsx"),
-  "./components/mockups/voice-panel/Halo.tsx": () => import("../components/mockups/voice-panel/Halo.tsx")
+  "./components/mockups/rank-designs/Design4.tsx": () => import("../components/mockups/rank-designs/Design4.tsx")
 };

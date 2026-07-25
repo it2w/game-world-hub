@@ -471,6 +471,61 @@ describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
       `iconEmoji "${TEST_EMOJI}" must survive a mod slowmode update, got ${JSON.stringify(emojiCh.iconEmoji)}`,
     );
   });
+
+  test("mod PATCH with slowmodeSeconds AND iconEmoji:null — iconEmoji is still preserved in response", async () => {
+    // A mod sends both slowmodeSeconds and iconEmoji:null in the same body.
+    // The handler only allows mods to touch slowmodeSeconds, so the null for
+    // iconEmoji must be silently ignored and the original emoji must survive.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(modId, modUsername),
+      { slowmodeSeconds: 10, iconEmoji: null },
+    );
+    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+
+    const channel = body as { id: number; slowmodeSeconds: number; iconEmoji: string | null };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      10,
+      `expected slowmodeSeconds to be updated to 10, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(channel, "iconEmoji"),
+      "iconEmoji key must be present in PATCH response",
+    );
+    assert.equal(
+      channel.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji must remain "${TEST_EMOJI}" even when mod sends iconEmoji:null, got ${JSON.stringify(channel.iconEmoji)}`,
+    );
+  });
+
+  test("GET /communities/:id after mod sends iconEmoji:null confirms emoji still persisted", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; slowmodeSeconds: number; iconEmoji: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const emojiCh = community.channels.find(c => c.id === emojiChannelId);
+    assert.ok(emojiCh, `channel ${emojiChannelId} must appear in GET response`);
+    assert.equal(
+      emojiCh.slowmodeSeconds,
+      10,
+      `slowmodeSeconds should reflect the second mod update (10s), got ${JSON.stringify(emojiCh.slowmodeSeconds)}`,
+    );
+    assert.equal(
+      emojiCh.iconEmoji,
+      TEST_EMOJI,
+      `iconEmoji "${TEST_EMOJI}" must not be cleared when mod sends iconEmoji:null alongside slowmodeSeconds, got ${JSON.stringify(emojiCh.iconEmoji)}`,
+    );
+  });
 });
 
 // ─── PATCH channel isPrivate toggle — iconEmoji is preserved ──────────────────

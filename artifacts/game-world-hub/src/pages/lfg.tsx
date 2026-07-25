@@ -251,7 +251,7 @@ export default function Lfg() {
               onSuccess: (newParty) => {
                 setAutoPartyPending(false);
                 queryClient.invalidateQueries({ queryKey: getListPartiesQueryKey() });
-                navigate(`/parties/${newParty.id}?fromLfg=1`);
+                navigate(`/party/${newParty.id}?fromLfg=1`);
               },
               onError: () => {
                 setAutoPartyPending(false);

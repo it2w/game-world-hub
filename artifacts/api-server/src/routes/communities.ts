@@ -1103,6 +1103,10 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
     if (name && typeof name === "string") updates.name = name.trim().toLowerCase().replace(/\s+/g, "-");
     if (typeof position === "number") updates.position = position;
     if (typeof slowmodeSeconds === "number") {
+      if (!Number.isInteger(slowmodeSeconds)) {
+        res.status(400).json({ error: "slowmodeSeconds must be an integer" });
+        return;
+      }
       if (slowmodeSeconds < 0 || slowmodeSeconds > 21600) {
         res.status(400).json({ error: "slowmodeSeconds must be between 0 and 21600" });
         return;

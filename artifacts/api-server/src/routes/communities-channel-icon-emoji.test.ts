@@ -560,6 +560,113 @@ describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
   });
 });
 
+// ─── slowmodeSeconds integer validation ───────────────────────────────────────
+
+describe("PATCH slowmodeSeconds — integer validation", () => {
+  let modId2 = 0;
+  let modUsername2 = "";
+
+  before(async () => {
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `intval_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "IntVal Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId2 = mod.id;
+    modUsername2 = mod.username;
+    createdUserIds.push(modId2);
+
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId2 })
+      .returning({ id: communityMembersTable.id });
+
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `intval-mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+  });
+
+  test("PATCH with slowmodeSeconds: 21600.5 (float above cap) is rejected with 400", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId2, modUsername2),
+      { slowmodeSeconds: 21600.5 },
+    );
+    assert.equal(
+      status,
+      400,
+      `expected 400 for float slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("PATCH with slowmodeSeconds: 0.5 (non-integer within range) is rejected with 400", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId2, modUsername2),
+      { slowmodeSeconds: 0.5 },
+    );
+    assert.equal(
+      status,
+      400,
+      `expected 400 for non-integer slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("PATCH with slowmodeSeconds: 0 (zero, disable slowmode) is accepted with 200", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId2, modUsername2),
+      { slowmodeSeconds: 0 },
+    );
+    assert.equal(
+      status,
+      200,
+      `expected 200 for slowmodeSeconds=0, got ${status}: ${JSON.stringify(body)}`,
+    );
+    const channel = body as { slowmodeSeconds: number };
+    assert.equal(
+      channel.slowmodeSeconds,
+      0,
+      `expected slowmodeSeconds 0 to be stored, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
+
+  test("PATCH with slowmodeSeconds: 60 (valid integer) is accepted with 200", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId2, modUsername2),
+      { slowmodeSeconds: 60 },
+    );
+    assert.equal(
+      status,
+      200,
+      `expected 200 for valid integer slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+    const channel = body as { slowmodeSeconds: number };
+    assert.equal(
+      channel.slowmodeSeconds,
+      60,
+      `expected slowmodeSeconds 60, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
+});
+
 // ─── Mod cannot change name or privacy — owner-only guard ─────────────────────
 
 describe("PATCH /communities/:id/channels/:cid — mod cannot rename or change privacy", () => {

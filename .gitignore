@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Database exports and dumps — must never be committed (may contain PII, password hashes, TOTP secrets)
+*.sql
+migration_db_export.sql

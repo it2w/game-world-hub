@@ -1083,6 +1083,65 @@ describe("PATCH /communities/:id/channels/:cid — mod cannot change channel typ
       `channel type must not be "voice" after a mod's rejected type+slowmodeSeconds change, got ${JSON.stringify(plainCh.type)}`,
     );
   });
+
+  // ── type: null edge case ───────────────────────────────────────────────────
+  // The owner-only guard checks `type !== undefined`, which is TRUE when type
+  // is null (null !== undefined). Sending { type: null } must therefore be
+  // rejected with 403 — the same as sending a real type string — so that a
+  // future refactor cannot accidentally bypass the guard via this null path.
+
+  test("mod PATCH with { type: null } returns 403 (null is not undefined, guard must trigger)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { type: null },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends type:null, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after mod sends { type: null } confirms channel type is unchanged", async () => {
+    // Fetch the original channel type to compare against.
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; type: string | null }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+
+    // The channel type must remain a non-null string — it must not have been
+    // cleared to null even though the request body contained type:null.
+    assert.ok(
+      typeof plainCh.type === "string" && plainCh.type.length > 0,
+      `channel type must remain a non-empty string after mod's { type:null } attempt, got ${JSON.stringify(plainCh.type)}`,
+    );
+  });
+
+  test("mod PATCH with { type: null, slowmodeSeconds: 5 } returns 403 (type:null still triggers owner-only guard)", async () => {
+    // Combining type:null with a mod-allowed field (slowmodeSeconds) must not
+    // succeed — the owner-only check fires before the update is applied.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { type: null, slowmodeSeconds: 5 },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends type:null alongside slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
 });
 
 // ─── Owner slowmode clamping — same cap enforced for owners ───────────────────

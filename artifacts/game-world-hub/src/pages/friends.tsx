@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { StyledDisplayName } from "@/components/styled-display-name";
 import { useTranslation } from "react-i18next";
 import {
   useListFriends,
@@ -257,7 +258,7 @@ export default function Friends() {
                         {/* info — centered */}
                         <div className="px-2 pb-3 text-center">
                           <div className="flex items-center justify-center gap-1 min-w-0">
-                            <span className="font-bold text-sm truncate leading-tight">{f.displayName}</span>
+                            <StyledDisplayName displayName={f.displayName} style={(f as any).displayNameStyle ?? null} className="font-bold text-sm truncate leading-tight" />
                             {f.isPro && <ProBadge size="icon" />}
                           </div>
                           <div className="text-[10px] text-muted-foreground font-mono truncate">@{f.username}</div>
@@ -372,7 +373,7 @@ export default function Friends() {
                     {req.from.displayName.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm">{req.from.displayName}</div>
+                    <div className="font-bold text-sm"><StyledDisplayName displayName={req.from.displayName} style={(req.from as any).displayNameStyle ?? null} /></div>
                     <div className="text-[11px] text-muted-foreground font-mono mt-0.5">@{req.from.username}</div>
                     <div className="text-[10px] text-muted-foreground font-mono mt-1 uppercase tracking-wide">
                       {t("requests.wantsToConnect")}
@@ -435,7 +436,7 @@ export default function Friends() {
                         {user.displayName.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm">{user.displayName}</div>
+                        <div className="font-bold text-sm"><StyledDisplayName displayName={user.displayName} style={(user as any).displayNameStyle ?? null} /></div>
                         <div className="text-[11px] text-muted-foreground font-mono">@{user.username}</div>
                       </div>
                       <button

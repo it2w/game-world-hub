@@ -16,6 +16,10 @@ function safeUser(
 ) {
   const now = new Date();
   const proActive = u.isPro && (!u.proExpiresAt || u.proExpiresAt > now);
+  let displayNameStyle: { font?: string | null; color?: string | null; effect?: string | null } | null = null;
+  if (u.displayNameStyle) {
+    try { displayNameStyle = JSON.parse(u.displayNameStyle as string); } catch { /* ignore */ }
+  }
   return {
     id: u.id,
     username: u.username,
@@ -34,6 +38,7 @@ function safeUser(
     xpForNext: progress?.xpForNext ?? null,
     profileFrameColor: u.profileFrameColor ?? null,
     profileBgUrl: u.profileBgUrl ?? null,
+    displayNameStyle,
   };
 }
 

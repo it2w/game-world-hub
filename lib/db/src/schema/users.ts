@@ -40,6 +40,8 @@ export const usersTable = pgTable("users", {
   // Pro profile customization (Pro users only).
   profileFrameColor: text("profile_frame_color"), // e.g. "#ff00cc" or "gold"
   profileBgUrl: text("profile_bg_url"),           // animated GIF / video URL for profile background
+  // Pro display-name styling: JSON string – { font?, color?, effect? }
+  displayNameStyle: text("display_name_style"),
   // Admin flag. Bootstrapped via ADMIN_USERNAMES env var; can also be promoted from the admin dashboard.
   isAdmin: boolean("is_admin").notNull().default(false),
   // Friend-online notification opt-in: comma-separated friend user IDs to watch, or "*" for all.

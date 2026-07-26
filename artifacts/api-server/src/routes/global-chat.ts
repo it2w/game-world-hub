@@ -14,6 +14,11 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+function parseStyle(raw: string | null | undefined): object | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as object; } catch { return null; }
+}
+
 // ── Rate limit ─────────────────────────────────────────────────────────────────
 const lastSent = new Map<number, number>();
 
@@ -311,10 +316,10 @@ router.get("/global-chat/preview", async (_req, res): Promise<void> => {
     const { rows } = await pool.query<{
       id: number; content: string; message_type: string;
       metadata: Record<string, unknown> | null; created_at: string;
-      display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
+      display_name: string; username: string; avatar_url: string | null; is_pro: boolean; display_name_style: string | null;
     }>(`
       SELECT g.id, g.content, g.message_type, g.metadata, g.created_at,
-             u.display_name, u.username, u.avatar_url, u.is_pro
+             u.display_name, u.username, u.avatar_url, u.is_pro, u.display_name_style
       FROM global_chat_messages g
       JOIN users u ON u.id = g.user_id
       WHERE g.channel = 'general'
@@ -329,10 +334,11 @@ router.get("/global-chat/preview", async (_req, res): Promise<void> => {
       metadata:    r.metadata ?? {},
       createdAt:   r.created_at,
       author: {
-        displayName: r.display_name,
-        username:    r.username,
-        avatarUrl:   toPublicImageUrl(r.avatar_url),
-        isPro:       r.is_pro,
+        displayName:      r.display_name,
+        username:         r.username,
+        avatarUrl:        toPublicImageUrl(r.avatar_url),
+        isPro:            r.is_pro,
+        displayNameStyle: parseStyle(r.display_name_style),
       },
     }));
     _previewCache = { data, ts: now };
@@ -361,12 +367,12 @@ router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void>
   const { rows } = await pool.query<{
     id: number; user_id: number; content: string; message_type: string;
     metadata: Record<string, unknown> | null; created_at: string; edited_at: string | null; channel: string;
-    display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
+    display_name: string; username: string; avatar_url: string | null; is_pro: boolean; display_name_style: string | null;
     reply_to_id: number | null;
     reply_content: string | null; reply_author: string | null;
   }>(`
     SELECT g.id, g.user_id, g.content, g.message_type, g.metadata, g.created_at, g.edited_at, g.channel,
-           u.display_name, u.username, u.avatar_url, u.is_pro,
+           u.display_name, u.username, u.avatar_url, u.is_pro, u.display_name_style,
            g.reply_to_id,
            rg.content       AS reply_content,
            ru.display_name  AS reply_author
@@ -398,11 +404,12 @@ router.get("/global-chat/messages", requireAuth, async (req, res): Promise<void>
         ? { id: r.reply_to_id, content: r.reply_content ?? "", authorName: r.reply_author ?? "" }
         : null,
       author: {
-        id:          r.user_id,
-        displayName: r.display_name,
-        username:    r.username,
-        avatarUrl:   toPublicImageUrl(r.avatar_url),
-        isPro:       r.is_pro,
+        id:               r.user_id,
+        displayName:      r.display_name,
+        username:         r.username,
+        avatarUrl:        toPublicImageUrl(r.avatar_url),
+        isPro:            r.is_pro,
+        displayNameStyle: parseStyle(r.display_name_style),
       },
     })),
   );
@@ -433,8 +440,8 @@ router.post("/global-chat/messages", requireAuth, async (req, res): Promise<void
   }
 
   const { rows: ur } = await pool.query<{
-    display_name: string; username: string; avatar_url: string | null; is_pro: boolean;
-  }>(`SELECT display_name, username, avatar_url, is_pro FROM users WHERE id = $1`, [userId]);
+    display_name: string; username: string; avatar_url: string | null; is_pro: boolean; display_name_style: string | null;
+  }>(`SELECT display_name, username, avatar_url, is_pro, display_name_style FROM users WHERE id = $1`, [userId]);
   if (!ur[0]) { res.status(404).json({ error: "User not found" }); return; }
   const user = ur[0];
 
@@ -492,9 +499,12 @@ router.post("/global-chat/messages", requireAuth, async (req, res): Promise<void
     metadata: safeMeta, createdAt: row.created_at,
     reactions: [], replyTo,
     author: {
-      id: userId, displayName: user.display_name,
-      username: user.username, avatarUrl: toPublicImageUrl(user.avatar_url),
-      isPro: user.is_pro,
+      id:               userId,
+      displayName:      user.display_name,
+      username:         user.username,
+      avatarUrl:        toPublicImageUrl(user.avatar_url),
+      isPro:            user.is_pro,
+      displayNameStyle: parseStyle(user.display_name_style),
     },
   };
 

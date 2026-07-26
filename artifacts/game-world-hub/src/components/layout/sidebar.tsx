@@ -22,6 +22,7 @@ import { AnimatedLogo } from "@/components/animated-logo";
 import { ProBadge } from "@/components/pro-badge";
 import { Shield } from "lucide-react";
 import { PrestigeBadge } from "@/components/prestige-badge";
+import { StyledDisplayName } from "@/components/styled-display-name";
 import { useQuery } from "@tanstack/react-query";
 
 interface ProHuntSummary {
@@ -302,7 +303,7 @@ export function AppSidebar() {
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold leading-none text-foreground">{user.displayName}</span>
+                  <StyledDisplayName displayName={user.displayName} style={(user as any).displayNameStyle} className="text-sm font-bold leading-none text-foreground" />
                   {user.isPro && <ProBadge size="icon" />}
                   <PrestigeBadge level={(user as any).prestigeLevel ?? 0} size="xs" />
                 </div>

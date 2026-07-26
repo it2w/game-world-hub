@@ -115,6 +115,11 @@ async function isTotpCodeValid(code: string, secret: string): Promise<boolean> {
   }
 }
 
+function parseDisplayNameStyle(raw: string | null | undefined): object | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as object; } catch { return null; }
+}
+
 function safeUser(
   u: typeof usersTable.$inferSelect,
   progress?: Awaited<ReturnType<typeof getUserProgress>>,
@@ -142,6 +147,7 @@ function safeUser(
     proExpiresAt: u.proExpiresAt?.toISOString() ?? null,
     profileFrameColor: u.profileFrameColor ?? null,
     profileBgUrl: u.profileBgUrl ?? null,
+    displayNameStyle: parseDisplayNameStyle(u.displayNameStyle),
     isAdmin: u.isAdmin,
     createdAt: u.createdAt.toISOString(),
     tier: progress?.tier ?? null,

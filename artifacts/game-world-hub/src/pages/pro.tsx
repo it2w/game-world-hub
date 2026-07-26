@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,15 +11,14 @@ import {
 import {
   Crown, Palette, Bot, Gift, Mic,
   Lock, Unlock, Save, X, Loader2,
-  Upload, Trash2, Ticket, CheckCircle2,
-  Sparkles,
+  Ticket, CheckCircle2,
+  Sparkles, Type,
 } from "lucide-react";
+import { StyledDisplayName, GRADIENT_PRESETS, type DisplayNameStyle } from "@/components/styled-display-name";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useImageUpload } from "@/hooks/use-image-upload";
-import { displayImageUrl } from "@/lib/image-url";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -132,26 +131,9 @@ function ProProfileCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave
   const { t } = useTranslation("pro");
   const { toast } = useToast();
   const [frameColor, setFrameColor] = useState<string>(me?.profileFrameColor ?? "");
-  const [bgUrl, setBgUrl] = useState<string>(me?.profileBgUrl ?? "");
   const [saving, setSaving] = useState(false);
-  const bgFileRef = useRef<HTMLInputElement>(null);
-  const { upload, isUploading } = useImageUpload();
 
   const PRESET_COLORS = ["#EC4899","#F97316","#22C55E","#EF4444","#06B6D4","#A855F7","#FFD700"];
-
-  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const path = await upload(file);
-      setBgUrl(path);
-      toast({ title: t("profile.uploadSuccess") });
-    } catch (err: any) {
-      toast({ title: err?.message ?? t("profile.uploadFail"), variant: "destructive" });
-    } finally {
-      if (bgFileRef.current) bgFileRef.current.value = "";
-    }
-  };
 
   const handleSave = async () => {
     if (!isPro) return;
@@ -159,7 +141,7 @@ function ProProfileCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave
     try {
       await customFetch(`/api/users/${me.id}/profile`, {
         method: "PATCH",
-        body: JSON.stringify({ profileFrameColor: frameColor || null, profileBgUrl: bgUrl || null }),
+        body: JSON.stringify({ profileFrameColor: frameColor || null }),
         headers: { "Content-Type": "application/json" },
       });
       toast({ title: t("profile.saveSuccess") });
@@ -197,38 +179,155 @@ function ProProfileCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">{t("profile.background")}</label>
-        <input ref={bgFileRef} type="file" accept="image/*,image/gif,video/webm,video/mp4" className="hidden" onChange={handleBgUpload} />
-        <div className="flex gap-2">
-          <Input
-            value={bgUrl}
-            onChange={(e) => setBgUrl(e.target.value)}
-            placeholder={t("profile.bgPlaceholder")}
-            className="font-mono rounded-none border-border bg-background text-xs flex-1"
-          />
-          <Button type="button" variant="outline" size="sm" className="font-mono rounded-none shrink-0 gap-1" onClick={() => bgFileRef.current?.click()} disabled={isUploading}>
-            <Upload className="w-3 h-3" />{isUploading ? t("profile.uploading") : t("profile.upload")}
-          </Button>
-          {bgUrl && (
-            <Button type="button" variant="ghost" size="sm" className="font-mono rounded-none text-muted-foreground px-2 shrink-0" onClick={() => setBgUrl("")}>
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          )}
-        </div>
-        {bgUrl && (
-          <div className="relative h-24 border border-border overflow-hidden bg-muted">
-            <img src={displayImageUrl(bgUrl) ?? bgUrl} alt={t("profile.preview")} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
-            <span className="absolute bottom-1 end-1 font-mono text-[10px] bg-black/60 text-white px-1">{t("profile.preview")}</span>
-          </div>
-        )}
-      </div>
-
-      <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving || isUploading || !isPro}>
+      <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving || !isPro}>
         {saving
           ? <><Loader2 className="w-4 h-4 animate-spin me-1" />{t("profile.saving")}</>
           : t("profile.save")}
       </Button>
+    </div>
+  );
+}
+
+// ── Display Name Style ─────────────────────────────────────────────────────────
+
+const FONT_OPTIONS: { value: DisplayNameStyle["font"]; label: string }[] = [
+  { value: null,      label: "Default" },
+  { value: "bold",    label: "Bold" },
+  { value: "italic",  label: "Italic" },
+  { value: "mono",    label: "Mono" },
+  { value: "serif",   label: "Serif" },
+  { value: "cursive", label: "Cursive" },
+];
+
+const EFFECT_OPTIONS: { value: DisplayNameStyle["effect"]; label: string }[] = [
+  { value: null,      label: "None" },
+  { value: "glow",    label: "✨ Glow" },
+  { value: "shadow",  label: "🖤 Shadow" },
+  { value: "shimmer", label: "🌈 Shimmer" },
+];
+
+const SOLID_COLORS = ["#EC4899","#F97316","#22C55E","#EF4444","#06B6D4","#A855F7","#FFD700","#FFFFFF"];
+
+function DisplayNameStyleCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave: () => void }) {
+  const { toast } = useToast();
+  const existing: DisplayNameStyle = me?.displayNameStyle ?? {};
+  const [font,   setFont]   = useState<DisplayNameStyle["font"]>(existing.font ?? null);
+  const [color,  setColor]  = useState<string>(existing.color ?? "");
+  const [effect, setEffect] = useState<DisplayNameStyle["effect"]>(existing.effect ?? null);
+  const [saving, setSaving] = useState(false);
+
+  const currentStyle: DisplayNameStyle = { font, color: color || null, effect };
+
+  const handleSave = async () => {
+    if (!isPro) return;
+    setSaving(true);
+    try {
+      await customFetch(`/api/users/${me.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({ displayNameStyle: currentStyle }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: "✓ Display name style saved" });
+      onSave();
+    } catch {
+      toast({ title: "Save failed", variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const handleClear = async () => {
+    if (!isPro) return;
+    setSaving(true);
+    try {
+      await customFetch(`/api/users/${me.id}/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({ displayNameStyle: null }),
+        headers: { "Content-Type": "application/json" },
+      });
+      setFont(null); setColor(""); setEffect(null);
+      toast({ title: "✓ Style cleared" });
+      onSave();
+    } catch {
+      toast({ title: "Clear failed", variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className={`bg-card border p-6 space-y-5 relative ${isPro ? "border-primary/30" : "border-border opacity-70"}`}>
+      {!isPro && <ProLock />}
+      <SectionHeader icon={Type} title="Display Name Style" />
+
+      {/* Live preview */}
+      <div className="border border-primary/20 bg-background px-4 py-3 flex items-center gap-2 min-h-[46px]">
+        <span className="font-mono text-[10px] uppercase text-muted-foreground shrink-0">Preview →</span>
+        <span className="isolate text-base font-semibold">
+          <StyledDisplayName
+            displayName={me?.displayName ?? "Your Name"}
+            style={currentStyle}
+          />
+        </span>
+      </div>
+
+      {/* Font */}
+      <div className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Font</label>
+        <div className="flex flex-wrap gap-1.5">
+          {FONT_OPTIONS.map((f) => (
+            <button key={String(f.value)} onClick={() => setFont(f.value)}
+              className={`font-mono text-xs px-2.5 py-1 border rounded-none transition-colors ${font === f.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Color */}
+      <div className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Color</label>
+        {/* Solid presets */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {SOLID_COLORS.map((c) => (
+            <button key={c} onClick={() => setColor(c)}
+              className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${color === c ? "border-foreground scale-110" : "border-transparent"}`}
+              style={{ background: c }} />
+          ))}
+          <input type="color" value={color.startsWith("#") ? color : "#a855f7"} onChange={(e) => setColor(e.target.value)}
+            className="w-7 h-7 rounded-full border-2 border-border cursor-pointer bg-transparent p-0 appearance-none" title="Custom color" />
+          {color && !color.startsWith("gradient:") &&
+            <button onClick={() => setColor("")} className="font-mono text-[10px] text-muted-foreground hover:text-foreground">✕ clear</button>}
+        </div>
+        {/* Gradient presets */}
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {Object.entries(GRADIENT_PRESETS).map(([key, { label, css }]) => (
+            <button key={key} onClick={() => setColor(`gradient:${key}`)}
+              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${color === `gradient:${key}` ? "border-foreground" : "border-border"}`}
+              style={{ background: css, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Effect */}
+      <div className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Effect</label>
+        <div className="flex flex-wrap gap-1.5">
+          {EFFECT_OPTIONS.map((ef) => (
+            <button key={String(ef.value)} onClick={() => setEffect(ef.value)}
+              className={`font-mono text-xs px-2.5 py-1 border rounded-none transition-colors ${effect === ef.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+              {ef.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving || !isPro}>
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin me-1" />Saving…</> : "Save Style"}
+        </Button>
+        <Button variant="outline" className="font-mono rounded-none" onClick={handleClear} disabled={saving || !isPro}>
+          Clear Style
+        </Button>
+      </div>
     </div>
   );
 }
@@ -581,6 +680,7 @@ export default function ProPage() {
 
       <div className="space-y-4">
         <ProProfileCard me={me} isPro={isPro} onSave={refreshMe} />
+        <DisplayNameStyleCard me={me} isPro={isPro} onSave={refreshMe} />
         <VoiceRoomCard isPro={isPro} />
         <LfgBotCard isPro={isPro} />
         <GiftProCard me={me} isPro={isPro} />

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { displayImageUrl } from "@/lib/image-url";
 import { PrestigeBadge } from "@/components/prestige-badge";
+import { StyledDisplayName } from "@/components/styled-display-name";
 
 const LIBRARY_PLATFORM_COLORS: Record<string, string> = {
   steam: "#66c0f4",
@@ -710,7 +711,7 @@ export default function Profile() {
           <div className="flex-1 min-w-0 pb-1">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold font-mono tracking-tighter uppercase leading-tight">
-                {user.displayName}
+                <StyledDisplayName displayName={user.displayName} style={(user as any).displayNameStyle} />
               </h1>
               {user.isPro && <ProBadge size="icon" className="w-5 h-5" />}
               <PrestigeBadge level={(user as any).prestigeLevel ?? 0} />

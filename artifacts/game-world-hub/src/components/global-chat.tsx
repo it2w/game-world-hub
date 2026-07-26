@@ -17,6 +17,7 @@ import {
   ChevronUp, ImageIcon, ArrowLeftRight, Pencil, Check, Trash2,
 } from "lucide-react";
 import { ProBadge } from "@/components/pro-badge";
+import { StyledDisplayName } from "@/components/styled-display-name";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface ChatAuthor {
@@ -25,6 +26,7 @@ interface ChatAuthor {
   username: string;
   avatarUrl: string | null;
   isPro: boolean;
+  displayNameStyle?: { font?: string | null; color?: string | null; effect?: string | null } | null;
 }
 interface ReactionCount {
   emoji: string;
@@ -475,10 +477,14 @@ function MessageRow({
   const [hovered, setHovered] = useState(false);
   const isMe      = msg.author.id === meId;
   const isEditing = editingId === msg.id;
-  const nameColor = msg.metadata.nameColor ?? (msg.author.isPro ? "#FFD700" : undefined);
+  const metaNameColor = msg.metadata.nameColor as string | undefined;
   const textColor = msg.metadata.textColor ?? undefined;
   const badge     = msg.metadata.badge;
   const animated  = msg.metadata.nameAnimation;
+  // displayNameStyle takes priority over Pro gold; explicit meta nameColor overrides everything
+  const effectiveNameStyle = animated ? null
+    : metaNameColor ? { color: metaNameColor } as import("./styled-display-name").DisplayNameStyle
+    : (msg.author.displayNameStyle ?? (msg.author.isPro ? { color: "#FFD700" } as import("./styled-display-name").DisplayNameStyle : null));
   const bgColor   = msg.metadata.msgBgColor;
   // Edit window: Pro only, own msg, within 5 minutes
   const canEdit   = isMe && isPro && msg.messageType === "text"
@@ -521,13 +527,12 @@ function MessageRow({
         {/* Name row */}
         <div className="gc-msg-meta">
           {badge && <span className="gc-badge-tag">[{badge}]</span>}
-          <span
+          <StyledDisplayName
+            displayName={msg.author.displayName}
+            style={effectiveNameStyle}
             className={`gc-msg-name${!isMe ? " gc-msg-name--clickable" : ""}${animated ? " gc-name--animated" : ""}`}
-            style={nameColor && !animated ? { color: nameColor } : undefined}
             onClick={!isMe ? handleAvatarClick : undefined}
-          >
-            {msg.author.displayName}
-          </span>
+          />
           {msg.author.isPro && <ProBadge size="icon" className="w-4 h-4" />}
           <span className="gc-msg-time">{timeAgo(msg.createdAt)}</span>
 
@@ -835,7 +840,7 @@ function ChatUserCard({
       </div>
       <div className="gc-uc-info">
         <div className="gc-uc-name">
-          {author.displayName}
+          <StyledDisplayName displayName={author.displayName} style={author.displayNameStyle ?? null} />
           {author.isPro && <ProBadge size="icon" className="w-3.5 h-3.5" />}
         </div>
         <div className="gc-uc-username">@{author.username}</div>

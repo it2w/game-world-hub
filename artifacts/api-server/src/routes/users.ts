@@ -51,11 +51,17 @@ const MATCH_CACHE_TTL_MS = 30_000;
 // Ensure spotlight_opt_out column exists — added after initial schema creation.
 // Runs at module load so tests (which import app directly without index.ts) also
 // benefit from the idempotent ADD COLUMN IF NOT EXISTS guard.
+pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name_style TEXT`).catch(() => {});
 pool
   .query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS spotlight_opt_out BOOLEAN NOT NULL DEFAULT false`)
   .catch(err => logger.error({ err }, "users: failed to ensure spotlight_opt_out column"));
 
 const MAX_PROFILE_PHOTOS = 12;
+
+function parseDisplayNameStyle(raw: string | null | undefined): object | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as object; } catch { return null; }
+}
 
 function safeUser(
   u: typeof usersTable.$inferSelect,
@@ -84,6 +90,7 @@ function safeUser(
     xpForNext: progress?.xpForNext ?? null,
     profileFrameColor: u.profileFrameColor ?? null,
     profileBgUrl: u.profileBgUrl ?? null,
+    displayNameStyle: parseDisplayNameStyle(u.displayNameStyle),
     usernameChangedAt: u.usernameChangedAt ? u.usernameChangedAt.toISOString() : null,
     prestigeLevel: u.prestigeLevel ?? 0,
     spotlightOptOut: u.spotlightOptOut,
@@ -394,7 +401,7 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
   if (typeof updates.bannerUrl === "string" && (updates.bannerUrl as string).length > 0) {
     updates.bannerUrl = await normalizeStoredImagePath(userId, updates.bannerUrl as string);
   }
-  // Pro-only: profile frame color and background URL
+  // Pro-only: profile frame color, background URL, and display name style
   const [currentUser] = await db.select({
     isPro: usersTable.isPro,
     proExpiresAt: usersTable.proExpiresAt,
@@ -405,6 +412,15 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
   if (proActive) {
     if (typeof req.body.profileFrameColor === "string") updates.profileFrameColor = req.body.profileFrameColor;
     if (typeof req.body.profileBgUrl === "string") updates.profileBgUrl = req.body.profileBgUrl;
+    if (req.body.displayNameStyle !== undefined) {
+      const s = req.body.displayNameStyle;
+      if (s === null) {
+        updates.displayNameStyle = null;
+      } else if (typeof s === "object") {
+        const allowed = { font: s.font ?? null, color: s.color ?? null, effect: s.effect ?? null };
+        updates.displayNameStyle = JSON.stringify(allowed);
+      }
+    }
   }
 
   // Username change: validate format, uniqueness, and 30-day cooldown
@@ -432,6 +448,11 @@ router.patch("/users/:userId/profile", requireAuth, async (req, res): Promise<vo
       return;
     }
     updates.usernameChangedAt = now;
+  }
+
+  if (!Object.keys(updates).length) {
+    res.status(400).json({ error: "Nothing to update" });
+    return;
   }
 
   const [user] = await db.update(usersTable)

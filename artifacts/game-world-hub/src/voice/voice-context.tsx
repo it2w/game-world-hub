@@ -1526,8 +1526,11 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     const room = livekitRef.current;
     if (!room || !activeRoomRef.current) return;
     const preset = SCREEN_PRESETS[screenQualityRef.current];
+
+    // Capture new source first — if user cancels, current share keeps running.
+    let newStream: MediaStream;
     try {
-      const newStream = await navigator.mediaDevices.getDisplayMedia({
+      newStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           width:     { ideal: preset.width },
           height:    { ideal: preset.height },
@@ -1535,69 +1538,86 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         },
         audio: true,
       });
-
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      if (!newVideoTrack) { newStream.getTracks().forEach((t) => t.stop()); return; }
-      const newAudioTrack = newStream.getAudioTracks()[0] ?? null;
-      newVideoTrack.contentHint = "detail";
-
-      // ── Video track swap ────────────────────────────────────────────────────
-      // Strategy:
-      //   1. Advance the generation FIRST — this makes the "ended" listener on
-      //      the old track an instant no-op (it checks its captured generation).
-      //   2. replaceTrack() — keeps the publication alive on the SFU; viewers
-      //      receive new frames through the same MediaStream / RTCRtpReceiver.
-      //   3. stop() the old raw track — safe now; ended listener is silenced.
-      //   4. Attach a fresh "ended" listener for the new track's generation.
-      const videoPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-      if (videoPub?.track) {
-        const oldVideoTrack = screenTrackRef.current;
-
-        // Step 1: advance generation → old "ended" listener becomes a no-op.
-        const newGen = ++screenShareGenerationRef.current;
-
-        // Step 2: wire new track into the live publication.
-        // replaceTrack() lives on LocalVideoTrack (.track), NOT on LocalTrackPublication.
-        screenTrackRef.current = newVideoTrack;
-        await (videoPub.track as import("livekit-client").LocalVideoTrack).replaceTrack(newVideoTrack);
-
-        // Step 3: now safe to stop the old track.
-        oldVideoTrack?.stop();
-
-        // Step 4: "ended" listener for the browser's native Stop-sharing button.
-        newVideoTrack.addEventListener("ended", () => {
-          if (screenShareGenerationRef.current !== newGen) return; // superseded
-          const r = livekitRef.current;
-          if (r && screenTrackRef.current) {
-            void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
-            screenTrackRef.current = null;
-          }
-          if (r && screenAudioTrackRef.current) {
-            void r.localParticipant.unpublishTrack(screenAudioTrackRef.current, true);
-            screenAudioTrackRef.current = null;
-          }
-        });
-
-        // Step 5: update local preview so the sharer sees the new source.
-        setLocalScreenStream(new MediaStream([newVideoTrack]));
-      }
-
-      // ── Audio track swap ────────────────────────────────────────────────────
-      const audioPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
-      if (newAudioTrack && audioPub?.track) {
-        const oldAudioTrack = screenAudioTrackRef.current;
-        screenAudioTrackRef.current = newAudioTrack;
-        await (audioPub.track as import("livekit-client").LocalAudioTrack).replaceTrack(newAudioTrack);
-        oldAudioTrack?.stop(); // stop after replace, not before
-      } else if (!newAudioTrack && audioPub?.track) {
-        // New capture didn't grant audio — unpublish the old audio publication.
-        const oldAudioTrack = screenAudioTrackRef.current;
-        screenAudioTrackRef.current = null;
-        if (oldAudioTrack) void room.localParticipant.unpublishTrack(oldAudioTrack, true);
-      }
     } catch {
       // User dismissed the picker — keep the current share running.
+      return;
     }
+
+    const newVideoTrack = newStream.getVideoTracks()[0];
+    if (!newVideoTrack) { newStream.getTracks().forEach((t) => t.stop()); return; }
+    const newAudioTrack = newStream.getAudioTracks()[0] ?? null;
+    newVideoTrack.contentHint = "detail";
+
+    // ── Advance generation FIRST so old "ended" listeners become no-ops ────────
+    const newGen = ++screenShareGenerationRef.current;
+
+    // ── Unpublish old video ────────────────────────────────────────────────────
+    const oldVideoTrack = screenTrackRef.current;
+    if (oldVideoTrack) {
+      oldVideoTrack.stop(); // triggers ended → no-op because generation advanced
+      void room.localParticipant.unpublishTrack(oldVideoTrack, false);
+      screenTrackRef.current = null;
+    }
+
+    // ── Unpublish old audio ────────────────────────────────────────────────────
+    const oldAudioTrack = screenAudioTrackRef.current;
+    if (oldAudioTrack) {
+      oldAudioTrack.stop();
+      void room.localParticipant.unpublishTrack(oldAudioTrack, false);
+      screenAudioTrackRef.current = null;
+    }
+
+    // ── Publish new video ──────────────────────────────────────────────────────
+    screenTrackRef.current = newVideoTrack;
+    try {
+      await room.localParticipant.publishTrack(newVideoTrack, {
+        source: Track.Source.ScreenShare,
+        videoCodec: "vp9" as VideoCodec,
+        simulcast: false,
+        screenShareSimulcastLayers: [],
+        screenShareEncoding: {
+          maxBitrate:   preset.maxBitrate,
+          maxFramerate: preset.frameRate,
+          priority:     "high",
+        },
+      } as TrackPublishOptions);
+    } catch {
+      // Publish failed — abort and stop the new tracks.
+      newVideoTrack.stop();
+      newAudioTrack?.stop();
+      screenTrackRef.current = null;
+      return;
+    }
+
+    // ── Publish new audio (optional) ──────────────────────────────────────────
+    if (newAudioTrack) {
+      screenAudioTrackRef.current = newAudioTrack;
+      try {
+        await room.localParticipant.publishTrack(newAudioTrack, {
+          source: Track.Source.ScreenShareAudio,
+        });
+      } catch {
+        // Audio publish failed — not fatal; share continues without audio.
+        screenAudioTrackRef.current = null;
+      }
+    }
+
+    // ── "ended" listener for the browser's native Stop-sharing button ──────────
+    newVideoTrack.addEventListener("ended", () => {
+      if (screenShareGenerationRef.current !== newGen) return; // superseded
+      const r = livekitRef.current;
+      if (r && screenTrackRef.current) {
+        void r.localParticipant.unpublishTrack(screenTrackRef.current, true);
+        screenTrackRef.current = null;
+      }
+      if (r && screenAudioTrackRef.current) {
+        void r.localParticipant.unpublishTrack(screenAudioTrackRef.current, true);
+        screenAudioTrackRef.current = null;
+      }
+    });
+
+    // ── Update local preview so the sharer sees the new source ────────────────
+    setLocalScreenStream(new MediaStream([newVideoTrack]));
   }, []);
 
   /**

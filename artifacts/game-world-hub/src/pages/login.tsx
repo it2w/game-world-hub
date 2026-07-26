@@ -13,6 +13,7 @@ import {
   useConfirmPasswordReset,
 } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
+import { Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatedLogo } from "@/components/animated-logo";
@@ -151,6 +152,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+
+      {/* Back to home */}
+      <Link
+        href="/"
+        className="absolute top-5 start-5 z-20 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors border border-border hover:border-primary/50 px-3 py-2 bg-card/80 backdrop-blur-sm"
+      >
+        <Home className="w-3.5 h-3.5" />
+        الصفحة الرئيسية
+      </Link>
 
       <div className="w-full max-w-md bg-card border border-border p-8 relative z-10">
         <div className="flex flex-col items-center mb-8">

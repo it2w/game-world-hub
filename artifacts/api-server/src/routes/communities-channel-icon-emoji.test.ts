@@ -1253,6 +1253,108 @@ describe("PATCH /communities/:id/channels/:cid — mod cannot bypass position gu
   });
 });
 
+// ─── Mod cannot bypass isPrivate guard via null — null-bypass path ────────────
+//
+// The owner-only guard checks `isPrivate !== undefined`. When a client sends
+// `{ isPrivate: null }`, null !== undefined evaluates to true, so the guard
+// fires and the request must be rejected with 403. Without an explicit test,
+// a future refactor could change the check to `typeof isPrivate === "boolean"`
+// (which would silently stop blocking null) and no test would catch the
+// regression.
+
+describe("PATCH /communities/:id/channels/:cid — mod cannot bypass isPrivate guard with null", () => {
+  let modId = 0;
+  let modUsername = "";
+
+  before(async () => {
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `isprivate_null_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "IsPrivate Null Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId = mod.id;
+    modUsername = mod.username;
+    createdUserIds.push(modId);
+
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId })
+      .returning({ id: communityMembersTable.id });
+
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `isprivate-null-mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+  });
+
+  test("mod PATCH with { isPrivate: null } returns 403 (null !== undefined, guard must trigger)", async () => {
+    // isPrivate: null passes the `isPrivate !== undefined` check (null !== undefined
+    // is true), so the owner-only guard must fire and reject the request.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { isPrivate: null },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends isPrivate:null, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after mod sends { isPrivate: null } confirms isPrivate is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; isPrivate: boolean }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+
+    // The channel must still have its original isPrivate value (false).
+    // If the null bypass had succeeded, isPrivate would have been set to null / false
+    // by the DB coercion — but the request should never have reached the UPDATE.
+    assert.equal(
+      plainCh.isPrivate,
+      false,
+      `isPrivate must remain false after mod's { isPrivate: null } attempt, got ${JSON.stringify(plainCh.isPrivate)}`,
+    );
+  });
+
+  test("mod PATCH with { isPrivate: null, slowmodeSeconds: 5 } also returns 403 (null still triggers guard)", async () => {
+    // Combining isPrivate:null with a mod-allowed field (slowmodeSeconds) must not
+    // succeed — the owner-only check fires before any update is applied.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { isPrivate: null, slowmodeSeconds: 5 },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends isPrivate:null alongside slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+});
+
 // ─── Owner slowmode clamping — same cap enforced for owners ───────────────────
 
 describe("PATCH slowmodeSeconds by owner — cap is enforced the same as for mods", () => {

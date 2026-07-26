@@ -1144,6 +1144,115 @@ describe("PATCH /communities/:id/channels/:cid — mod cannot change channel typ
   });
 });
 
+// ─── Mod cannot bypass position guard by sending position: null ───────────────
+//
+// The owner-only guard checks `position !== undefined`. Because `null !== undefined`
+// evaluates to true, sending { position: null } must be rejected with 403 — the
+// same as sending a real number. This test locks that edge case so a future
+// refactor cannot accidentally weaken the guard via the null path.
+
+describe("PATCH /communities/:id/channels/:cid — mod cannot bypass position guard with position: null", () => {
+  let modId = 0;
+  let modUsername = "";
+
+  /** Channel position recorded before the mod's attempt, used to confirm no change occurred. */
+  let originalPosition = -1;
+
+  before(async () => {
+    // Create a mod user
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `pos_null_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Pos Null Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId = mod.id;
+    modUsername = mod.username;
+    createdUserIds.push(modId);
+
+    // Join mod to the community
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId })
+      .returning({ id: communityMembersTable.id });
+
+    // Create a role with can_manage_channels and assign it to the mod
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `pos-null-mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+
+    // Record the current position of the plain channel so the GET assertion can
+    // confirm it was not changed by the rejected PATCH.
+    const { rows } = await pool.query<{ position: number }>(
+      `SELECT position FROM community_channels WHERE id = $1 LIMIT 1`,
+      [plainChannelId],
+    );
+    originalPosition = rows[0]?.position ?? -1;
+  });
+
+  test("mod PATCH with { position: null } returns 403 (null is not undefined, owner-only guard must trigger)", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { position: null },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends position:null, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after mod sends { position: null } confirms channel position is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; position: number }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.equal(
+      plainCh.position,
+      originalPosition,
+      `channel position must remain ${originalPosition} after mod's rejected { position:null } attempt, got ${JSON.stringify(plainCh.position)}`,
+    );
+  });
+
+  test("mod PATCH with { position: null, slowmodeSeconds: 5 } returns 403 (null position still triggers owner-only guard)", async () => {
+    // Even though slowmodeSeconds is a field mods are allowed to set, the
+    // presence of position (even as null) in the same payload must trigger the
+    // owner-only guard before any update is applied.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { position: null, slowmodeSeconds: 5 },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends position:null alongside slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+});
+
 // ─── Owner slowmode clamping — same cap enforced for owners ───────────────────
 
 describe("PATCH slowmodeSeconds by owner — cap is enforced the same as for mods", () => {

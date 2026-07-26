@@ -1107,11 +1107,7 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
         res.status(400).json({ error: "slowmodeSeconds must be an integer" });
         return;
       }
-      if (slowmodeSeconds < 0 || slowmodeSeconds > 21600) {
-        res.status(400).json({ error: "slowmodeSeconds must be between 0 and 21600" });
-        return;
-      }
-      updates.slowmodeSeconds = slowmodeSeconds;
+      updates.slowmodeSeconds = Math.max(0, Math.min(21600, slowmodeSeconds));
     }
     if (typeof isPrivate === "boolean") (updates as any).isPrivate = isPrivate;
     const validTypes = ["text", "voice", "announcement", "stage", "lfg", "clips", "coaching", "forum"];

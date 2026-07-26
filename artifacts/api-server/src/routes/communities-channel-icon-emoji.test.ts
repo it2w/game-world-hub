@@ -912,7 +912,7 @@ describe("Concurrent PATCH slowmodeSeconds — final state is consistent", () =>
 // ─── PATCH slowmodeSeconds cap validation — 0–21600 boundary ──────────────────
 
 describe("PATCH slowmodeSeconds cap validation — 0–21600 boundary", () => {
-  test("slowmodeSeconds above 21600 is rejected with 400", async () => {
+  test("slowmodeSeconds above 21600 is clamped to 21600", async () => {
     const { status, body } = await request(
       "PATCH",
       `/communities/${communityId}/channels/${plainChannelId}`,
@@ -921,12 +921,18 @@ describe("PATCH slowmodeSeconds cap validation — 0–21600 boundary", () => {
     );
     assert.equal(
       status,
-      400,
-      `expected 400 for slowmodeSeconds > 21600, got ${status}: ${JSON.stringify(body)}`,
+      200,
+      `expected 200 for slowmodeSeconds > 21600 (clamped), got ${status}: ${JSON.stringify(body)}`,
+    );
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(
+      channel.slowmodeSeconds,
+      21600,
+      `expected slowmodeSeconds to be clamped to 21600, got ${JSON.stringify(channel.slowmodeSeconds)}`,
     );
   });
 
-  test("negative slowmodeSeconds is rejected with 400", async () => {
+  test("negative slowmodeSeconds is clamped to 0", async () => {
     const { status, body } = await request(
       "PATCH",
       `/communities/${communityId}/channels/${plainChannelId}`,
@@ -935,8 +941,14 @@ describe("PATCH slowmodeSeconds cap validation — 0–21600 boundary", () => {
     );
     assert.equal(
       status,
-      400,
-      `expected 400 for negative slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+      200,
+      `expected 200 for negative slowmodeSeconds (clamped), got ${status}: ${JSON.stringify(body)}`,
+    );
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(
+      channel.slowmodeSeconds,
+      0,
+      `expected slowmodeSeconds to be clamped to 0, got ${JSON.stringify(channel.slowmodeSeconds)}`,
     );
   });
 
@@ -1069,6 +1081,54 @@ describe("PATCH /communities/:id/channels/:cid — mod cannot change channel typ
       plainCh.type,
       "voice",
       `channel type must not be "voice" after a mod's rejected type+slowmodeSeconds change, got ${JSON.stringify(plainCh.type)}`,
+    );
+  });
+});
+
+// ─── Owner slowmode clamping — same cap enforced for owners ───────────────────
+
+describe("PATCH slowmodeSeconds by owner — cap is enforced the same as for mods", () => {
+  test("owner PATCH with slowmodeSeconds=99999 is clamped to 21600", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(ownerId, ownerUsername),
+      { slowmodeSeconds: 99999 },
+    );
+    assert.equal(
+      status,
+      200,
+      `expected 200 from owner PATCH with out-of-range slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      21600,
+      `expected slowmodeSeconds to be clamped to 21600, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    );
+  });
+
+  test("owner PATCH with slowmodeSeconds=-5 is clamped to 0", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${emojiChannelId}`,
+      auth(ownerId, ownerUsername),
+      { slowmodeSeconds: -5 },
+    );
+    assert.equal(
+      status,
+      200,
+      `expected 200 from owner PATCH with negative slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+
+    const channel = body as { id: number; slowmodeSeconds: number };
+    assert.equal(channel.id, emojiChannelId, "response channel id must match");
+    assert.equal(
+      channel.slowmodeSeconds,
+      0,
+      `expected slowmodeSeconds to be clamped to 0, got ${JSON.stringify(channel.slowmodeSeconds)}`,
     );
   });
 });

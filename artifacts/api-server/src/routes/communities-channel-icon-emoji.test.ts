@@ -1355,6 +1355,44 @@ describe("PATCH /communities/:id/channels/:cid — mod cannot bypass isPrivate g
   });
 });
 
+// ─── Unauthenticated PATCH channel type — rejected immediately ────────────────
+
+describe("PATCH /communities/:id/channels/:cid — unauthenticated request is rejected immediately", () => {
+  test("PATCH with no Authorization header and { type: 'announcement' } returns 401", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      {}, // no auth header
+      { type: "announcement" },
+    );
+    assert.equal(
+      status,
+      401,
+      `expected 401 for unauthenticated PATCH channel type change, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after rejected unauthenticated type change confirms channel type is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; type: string }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.notEqual(
+      plainCh.type,
+      "announcement",
+      `channel type must not be "announcement" after an unauthenticated PATCH was rejected, got ${JSON.stringify(plainCh.type)}`,
+    );
+  });
+});
+
 // ─── Owner slowmode clamping — same cap enforced for owners ───────────────────
 
 describe("PATCH slowmodeSeconds by owner — cap is enforced the same as for mods", () => {

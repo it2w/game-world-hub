@@ -9,6 +9,16 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Wait for the frontend to be reachable before running any test.
+  // `tail -f /dev/null` never exits early; reuseExistingServer=true means
+  // Playwright skips starting it entirely when the URL already responds with
+  // a 2xx status (Vite root returns 200).
+  webServer: {
+    command: "tail -f /dev/null",
+    url: BASE_URL,
+    reuseExistingServer: true,
+    timeout: 60_000,
+  },
   fullyParallel: false, // LFG tests share DB state; run serially
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

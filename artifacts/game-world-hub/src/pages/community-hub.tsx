@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, ApiError } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useVoice, PeerUiState } from "@/voice/voice-context";
 import { acquireInlineStage } from "@/voice/inline-stage-store";
@@ -5837,13 +5837,16 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
   const [name, setName] = useState(channel.name);
   const [slowmode, setSlowmode] = useState(channel.slowmodeSeconds);
   const [isPrivate, setIsPrivate] = useState(!!channel.isPrivate);
+  const [slowmodeError, setSlowmodeError] = useState<string | null>(null);
   const { t } = useTranslation("communities");
   const SLOWMODE_OPTIONS = [0, 5, 30, 60, 300, 3600];
+  const SLOWMODE_MAX = 21600;
 
   useEffect(() => {
     setName(channel.name);
     setSlowmode(channel.slowmodeSeconds);
     setIsPrivate(!!channel.isPrivate);
+    setSlowmodeError(null);
   }, [channel.id, channel.name, channel.slowmodeSeconds, channel.isPrivate]);
 
   const { data: channelPerms = [] } = useQuery<{ role_id: number; allow: Record<string, boolean>; deny: Record<string, boolean> }[]>({
@@ -5853,16 +5856,35 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
   });
 
   const save = useMutation({
-    mutationFn: () => customFetch(`/api/communities/${communityId}/channels/${channel.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ name, slowmodeSeconds: slowmode, isPrivate }),
-    }),
+    mutationFn: () => {
+      if (slowmode < 0 || slowmode > SLOWMODE_MAX) {
+        return Promise.reject(new Error(`Slowmode must be between 0 and ${SLOWMODE_MAX / 3600} hours`));
+      }
+      return customFetch(`/api/communities/${communityId}/channels/${channel.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name, slowmodeSeconds: slowmode, isPrivate }),
+      });
+    },
     onSuccess: () => {
+      setSlowmodeError(null);
       toast({ title: t("channelUpdated") });
       qc.invalidateQueries({ queryKey: ["community-slug"] });
       onClose();
     },
-    onError: () => toast({ title: t("channelUpdateFailed"), variant: "destructive" }),
+    onError: (err: unknown) => {
+      if (err instanceof ApiError && err.status === 400) {
+        const apiError = (err.data as { error?: string } | null)?.error;
+        if (apiError && /slowmode/i.test(apiError)) {
+          setSlowmodeError(apiError);
+          return;
+        }
+      }
+      if (err instanceof Error && /slowmode/i.test(err.message)) {
+        setSlowmodeError(err.message);
+        return;
+      }
+      toast({ title: t("channelUpdateFailed"), variant: "destructive" });
+    },
   });
 
   const savePermission = useMutation({
@@ -5902,12 +5924,15 @@ function ChannelSettingsDialog({ communityId, channel, open, onClose }: {
               </div>
               <Slider
                 value={[Math.max(0, SLOWMODE_OPTIONS.indexOf(slowmode))]}
-                onValueChange={([i]) => setSlowmode(SLOWMODE_OPTIONS[i] ?? 0)}
+                onValueChange={([i]) => { setSlowmode(SLOWMODE_OPTIONS[i] ?? 0); setSlowmodeError(null); }}
                 min={0} max={SLOWMODE_OPTIONS.length - 1} step={1}
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
                 {SLOWMODE_OPTIONS.map(s => <span key={s}>{slowmodeLabel(s)}</span>)}
               </div>
+              {slowmodeError && (
+                <p className="text-xs text-destructive mt-1">{slowmodeError}</p>
+              )}
             </div>
           )}
           {/* Private toggle */}

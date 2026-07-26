@@ -527,39 +527,35 @@ describe("PATCH slowmodeSeconds by a mod — iconEmoji is not cleared", () => {
     );
   });
 
-  test("slowmodeSeconds=99999 is clamped to 21600 (the maximum)", async () => {
+  test("slowmodeSeconds=99999 is rejected with 400 (exceeds the maximum of 21600)", async () => {
     const { status, body } = await request(
       "PATCH",
       `/communities/${communityId}/channels/${emojiChannelId}`,
       auth(modId, modUsername),
       { slowmodeSeconds: 99999 },
     );
-    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+    assert.equal(status, 400, `expected 400 from mod PATCH with out-of-range slowmode, got ${status}: ${JSON.stringify(body)}`);
 
-    const channel = body as { id: number; slowmodeSeconds: number };
-    assert.equal(channel.id, emojiChannelId, "response channel id must match");
-    assert.equal(
-      channel.slowmodeSeconds,
-      21600,
-      `expected slowmodeSeconds to be clamped to 21600, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    const err = body as { error?: string };
+    assert.ok(
+      typeof err.error === "string" && /slowmode/i.test(err.error),
+      `expected an error message mentioning slowmode, got ${JSON.stringify(err)}`,
     );
   });
 
-  test("slowmodeSeconds=-1 is clamped to 0 (the minimum)", async () => {
+  test("slowmodeSeconds=-1 is rejected with 400 (below the minimum of 0)", async () => {
     const { status, body } = await request(
       "PATCH",
       `/communities/${communityId}/channels/${emojiChannelId}`,
       auth(modId, modUsername),
       { slowmodeSeconds: -1 },
     );
-    assert.equal(status, 200, `expected 200 from mod PATCH, got ${status}: ${JSON.stringify(body)}`);
+    assert.equal(status, 400, `expected 400 from mod PATCH with out-of-range slowmode, got ${status}: ${JSON.stringify(body)}`);
 
-    const channel = body as { id: number; slowmodeSeconds: number };
-    assert.equal(channel.id, emojiChannelId, "response channel id must match");
-    assert.equal(
-      channel.slowmodeSeconds,
-      0,
-      `expected slowmodeSeconds to be clamped to 0, got ${JSON.stringify(channel.slowmodeSeconds)}`,
+    const err = body as { error?: string };
+    assert.ok(
+      typeof err.error === "string" && /slowmode/i.test(err.error),
+      `expected an error message mentioning slowmode, got ${JSON.stringify(err)}`,
     );
   });
 });

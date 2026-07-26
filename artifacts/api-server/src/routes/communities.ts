@@ -1090,9 +1090,11 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
 
     const { name, position, slowmodeSeconds, isPrivate, type, iconEmoji } = req.body ?? {};
 
-    // Structural fields (rename, reorder, privacy toggle, type change) are owner-only.
+    // Structural fields (rename, reorder, privacy toggle, type change, iconEmoji) are owner-only.
     // Mods with can_manage_channels may only adjust slowmodeSeconds.
-    if (!isOwner && (name !== undefined || position !== undefined || isPrivate !== undefined || type !== undefined || iconEmoji !== undefined)) {
+    // Note: iconEmoji=null sent by a non-owner is silently ignored (not a 403) so that
+    // clients which always include the field don't get blocked when updating slowmodeSeconds.
+    if (!isOwner && (name !== undefined || position !== undefined || isPrivate !== undefined || type !== undefined || (iconEmoji !== undefined && iconEmoji !== null))) {
       res.status(403).json({ error: "Only the community owner can rename, reorder, or change channel type/privacy" });
       return;
     }
@@ -1110,8 +1112,11 @@ router.patch("/communities/:id/channels/:cid", requireAuth, async (req, res): Pr
     if (typeof isPrivate === "boolean") (updates as any).isPrivate = isPrivate;
     const validTypes = ["text", "voice", "announcement", "stage", "lfg", "clips", "coaching", "forum"];
     if (typeof type === "string" && validTypes.includes(type)) (updates as any).type = type;
-    if (iconEmoji === null) (updates as any).iconEmoji = null;
-    else if (typeof iconEmoji === "string" && iconEmoji.trim()) (updates as any).iconEmoji = iconEmoji.trim().slice(0, 8);
+    // iconEmoji changes are only applied for the owner; non-owners have this field silently ignored
+    if (isOwner) {
+      if (iconEmoji === null) (updates as any).iconEmoji = null;
+      else if (typeof iconEmoji === "string" && iconEmoji.trim()) (updates as any).iconEmoji = iconEmoji.trim().slice(0, 8);
+    }
 
     const [updated] = await db.update(communityChannelsTable).set(updates).where(and(eq(communityChannelsTable.id, cid), eq(communityChannelsTable.communityId, id))).returning();
     if (!updated) { res.status(404).json({ error: "Channel not found" }); return; }

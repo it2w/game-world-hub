@@ -512,12 +512,18 @@ export default function Profile() {
       toast({ title: t("toasts.noLaunchTitle"), description: t("toasts.noLaunchDesc", { name }) });
       return;
     }
-    // Protocol deep-link: opens the platform client if installed on the device.
-    window.location.href = launchUri;
+
+    // Show feedback immediately before any navigation attempt.
     toast({ title: t("toasts.launchingTitle", { name }), description: t("toasts.launchingDesc") });
-    // Reflect the launch as our active presence ("ACTIVE PROCESS").
+
+    // Mark the game as active presence.
+    // If the user is offline, flip them online so the server doesn't discard
+    // currentGame (the server clears it for offline users).
+    const statusPayload: { currentGame: string; status?: "online" } = { currentGame: name };
+    if (me?.status === "offline") statusPayload.status = "online";
+
     updateStatus.mutate(
-      { data: { currentGame: name } },
+      { data: statusPayload },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -525,6 +531,20 @@ export default function Profile() {
         },
       },
     );
+
+    // Launch via a hidden anchor click — more reliable than window.location.href
+    // for custom protocol URLs (steam://, battlenet://, etc.) across browsers
+    // and sandboxed iframe environments.
+    try {
+      const a = document.createElement("a");
+      a.href = launchUri;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      try { window.open(launchUri, "_self"); } catch { /* silent */ }
+    }
   };
 
   const sendRequest = useSendFriendRequest();

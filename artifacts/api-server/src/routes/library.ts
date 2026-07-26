@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, gameAccountsTable, linkedGamesTable, usersTable } from "@workspace/db";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, signSteamLinkToken, verifySteamLinkToken } from "../middlewares/auth";
 import {
   resolveSteamId,
   fetchOwnedGames,
   steamLaunchUri,
+  buildSteamOpenIdUrl,
+  verifySteamOpenId,
   SteamConfigError,
   SteamResolveError,
 } from "../lib/steam";
@@ -102,29 +104,50 @@ router.get("/users/:userId/library", requireAuth, async (req, res): Promise<void
   res.json(rows.map(safeGame));
 });
 
-// POST /game-accounts/steam — link Steam and import the owned-games library
-router.post("/game-accounts/steam", requireAuth, async (req, res): Promise<void> => {
+// GET /game-accounts/steam/auth-url — build Steam OpenID redirect URL (requires JWT auth)
+// The client passes its own origin as ?base= so the callback URL is correct in
+// both development and production without the server needing to know its own URL.
+router.get("/game-accounts/steam/auth-url", requireAuth, (req, res): void => {
   const myId = req.auth!.userId;
-  const input = typeof req.body?.input === "string" ? req.body.input : "";
-  if (!input.trim()) {
-    res.status(400).json({ error: "Enter your Steam profile URL or ID" });
+  const rawBase = typeof req.query.base === "string" ? req.query.base.trim() : "";
+  // Accept any https:// origin; fall back to REPLIT_DEV_DOMAIN env var.
+  const base =
+    rawBase.startsWith("https://") || rawBase.startsWith("http://localhost")
+      ? rawBase
+      : `https://${process.env.REPLIT_DEV_DOMAIN ?? "localhost"}`;
+
+  const state = signSteamLinkToken(myId);
+  const returnTo = `${base}/api/game-accounts/steam/callback?state=${encodeURIComponent(state)}`;
+  const url = buildSteamOpenIdUrl(returnTo);
+  res.json({ url });
+});
+
+// GET /game-accounts/steam/callback — Steam OpenID back-redirect (no auth header — browser redirect)
+// Steam sends the user's browser here after login. We verify the assertion
+// back-channel, link the account, then redirect back to /library.
+router.get("/game-accounts/steam/callback", async (req, res): Promise<void> => {
+  // Collect all query params as plain strings.
+  const query: Record<string, string> = {};
+  for (const [k, v] of Object.entries(req.query)) {
+    if (typeof v === "string") query[k] = v;
+  }
+
+  // Decode & verify the state token to find which GWH user is linking.
+  const state = query.state ?? "";
+  let userId: number;
+  try {
+    userId = verifySteamLinkToken(state);
+  } catch {
+    res.redirect("/library?steam_error=invalid_state");
     return;
   }
 
   try {
-    const steamId = await resolveSteamId(input);
-    const imported = await importSteamLibrary(myId, steamId);
-    res.status(201).json({ steamId, imported });
-  } catch (err) {
-    if (err instanceof SteamConfigError) {
-      res.status(503).json({ error: "Steam integration is not configured yet" });
-      return;
-    }
-    if (err instanceof SteamResolveError) {
-      res.status(400).json({ error: err.message });
-      return;
-    }
-    throw err;
+    const steamId = await verifySteamOpenId(query);
+    await importSteamLibrary(userId, steamId);
+    res.redirect("/library?steam_linked=1");
+  } catch {
+    res.redirect("/library?steam_error=verification_failed");
   }
 });
 

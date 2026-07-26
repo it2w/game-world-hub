@@ -12,7 +12,7 @@ import {
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers, Zap, Flame, Star, Award, Calendar, Hash } from "lucide-react";
+import { Gamepad2, Users, MessageSquare, Library, Settings, LogOut, Search, Activity, Bell, Radar, Trophy, Crown, BarChart2, Swords, Mic, Layers, Zap, Flame, Star, Award, Calendar, Hash, Radio } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isRtl } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -308,6 +308,12 @@ export function AppSidebar() {
                   <PrestigeBadge level={(user as any).prestigeLevel ?? 0} size="xs" />
                 </div>
                 <span className="text-xs text-muted-foreground font-mono leading-none mt-1">@{user.username}</span>
+                {user.currentGame && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-primary leading-none mt-1 truncate max-w-[130px]">
+                    <Radio className="w-2.5 h-2.5 animate-pulse shrink-0" />
+                    {user.currentGame}
+                  </span>
+                )}
               </div>
             </Link>
             <Button variant="ghost" size="icon" onClick={logout} className="text-muted-foreground hover:text-destructive" title={t("sidebar.signOut")} aria-label={t("sidebar.signOut")}>

@@ -33,10 +33,9 @@
     "unlink": "إلغاء الربط",
     "linked": "مرتبط ✓",
     "viewProfile": "عرض الملف الشخصي",
-    "prompt": "الصق رابط ملفك الشخصي على Steam أو معرّفك. يجب أن تكون تفاصيل ألعابك عامة.",
-    "inputPlaceholder": "steamcommunity.com/id/yourname",
-    "importing": "...",
-    "import": "استيراد"
+    "prompt": "سجّل الدخول عبر Steam للتحقق من ملكيتك واستيراد مكتبتك تلقائيًا.",
+    "signIn": "تسجيل الدخول عبر Steam",
+    "signingIn": "جارٍ التحويل…"
   },
   "other": {
     "title": "حسابات أخرى",
@@ -58,6 +57,7 @@
   },
   "toasts": {
     "steamLinked": "تم ربط Steam",
+    "steamLinkedDesc": "تم استيراد مكتبتك.",
     "steamImported_zero": "لم يتم استيراد أي لعبة.",
     "steamImported_one": "تم استيراد لعبة واحدة.",
     "steamImported_two": "تم استيراد لعبتين.",
@@ -65,7 +65,8 @@
     "steamImported_many": "تم استيراد {{count}} لعبة.",
     "steamImported_other": "تم استيراد {{count}} لعبة.",
     "steamLinkFailed": "فشل ربط Steam",
-    "steamLinkFailedDefault": "تعذّر ربط Steam. تحقق من رابط الملف الشخصي ومن أنه عام.",
+    "steamLinkFailedDefault": "تعذّر بدء تسجيل الدخول عبر Steam. حاول مجددًا.",
+    "steamVerificationFailed": "تعذّر التحقق من تسجيل الدخول عبر Steam. حاول مجددًا.",
     "steamSynced": "تمت مزامنة Steam",
     "steamSyncedDescription_zero": "لا توجد ألعاب في مكتبتك.",
     "steamSyncedDescription_one": "لعبة واحدة في مكتبتك.",

@@ -44,6 +44,22 @@ export function verifyToken(token: string): AuthPayload {
   return { userId: payload.userId, username: payload.username, iat: payload.iat };
 }
 
+// ── Steam OpenID link tokens ──────────────────────────────────────────────────
+// Short-lived tokens encoding a userId so the Steam OpenID callback can
+// identify which GWH account to link without an open session cookie.
+
+export function signSteamLinkToken(userId: number): string {
+  return jwt.sign({ userId, purpose: "steam-link" }, JWT_SECRET, { expiresIn: "10m" });
+}
+
+export function verifySteamLinkToken(token: string): number {
+  const payload = jwt.verify(token, JWT_SECRET) as { userId?: unknown; purpose?: unknown };
+  if (payload.purpose !== "steam-link" || typeof payload.userId !== "number") {
+    throw new Error("Invalid steam-link token");
+  }
+  return payload.userId;
+}
+
 // ── Two-factor login challenge tokens ────────────────────────────────────────
 // Short-lived tokens issued after a correct password when 2FA is enabled.
 // They are NOT session tokens: requireAuth rejects them (different shape/purpose).

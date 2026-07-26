@@ -33,10 +33,9 @@
     "unlink": "Unlink",
     "linked": "Linked ✓",
     "viewProfile": "view profile",
-    "prompt": "Paste your Steam profile URL or ID. Your game details must be public.",
-    "inputPlaceholder": "steamcommunity.com/id/yourname",
-    "importing": "...",
-    "import": "IMPORT"
+    "prompt": "Sign in with Steam to verify ownership and import your library automatically.",
+    "signIn": "Sign in through Steam",
+    "signingIn": "Redirecting…"
   },
   "other": {
     "title": "Other Accounts",
@@ -54,10 +53,12 @@
   },
   "toasts": {
     "steamLinked": "Steam linked",
+    "steamLinkedDesc": "Your library has been imported.",
     "steamImported_one": "Imported {{count}} game.",
     "steamImported_other": "Imported {{count}} games.",
     "steamLinkFailed": "Steam link failed",
-    "steamLinkFailedDefault": "Couldn't link Steam. Check the profile URL and that it's public.",
+    "steamLinkFailedDefault": "Couldn't start Steam login. Please try again.",
+    "steamVerificationFailed": "Steam login could not be verified. Please try again.",
     "steamSynced": "Steam synced",
     "steamSyncedDescription_one": "{{count}} game in your library.",
     "steamSyncedDescription_other": "{{count}} games in your library.",

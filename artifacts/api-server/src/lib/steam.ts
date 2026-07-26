@@ -4,6 +4,62 @@
 export class SteamConfigError extends Error {}
 export class SteamResolveError extends Error {}
 
+// ─── Steam OpenID 2.0 ─────────────────────────────────────────────────────────
+// Proves the linking user actually owns the Steam account (instead of any user
+// being able to paste any arbitrary Steam ID).
+
+const STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login";
+const STEAM_CLAIMED_ID_RE = /^https?:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/;
+
+/**
+ * Build the URL to send the browser to for Steam OpenID login.
+ * @param returnTo  Full callback URL (including signed state token).
+ */
+export function buildSteamOpenIdUrl(returnTo: string): string {
+  const params = new URLSearchParams({
+    "openid.ns": "http://specs.openid.net/auth/2.0",
+    "openid.mode": "checkid_setup",
+    "openid.return_to": returnTo,
+    "openid.realm": new URL(returnTo).origin + "/",
+    "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+    "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+  });
+  return `${STEAM_OPENID_ENDPOINT}?${params.toString()}`;
+}
+
+/**
+ * Verify a Steam OpenID callback via back-channel check.
+ * Returns the verified SteamID64 on success; throws SteamResolveError otherwise.
+ * @param query  All query params from the callback URL (including our `state` param).
+ */
+export async function verifySteamOpenId(query: Record<string, string>): Promise<string> {
+  // Re-send all openid.* params back to Steam with mode=check_authentication.
+  // Strip our own state param — Steam never sent it, so it mustn't appear.
+  const verifyParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    if (k === "state") continue;
+    verifyParams.append(k, v);
+  }
+  verifyParams.set("openid.mode", "check_authentication");
+
+  const resp = await fetch(STEAM_OPENID_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: verifyParams.toString(),
+  });
+  if (!resp.ok) throw new SteamResolveError("Could not reach Steam for verification");
+
+  const text = await resp.text();
+  if (!text.includes("is_valid:true")) {
+    throw new SteamResolveError("Steam login verification failed — please try again");
+  }
+
+  const claimedId = query["openid.claimed_id"] ?? "";
+  const m = claimedId.match(STEAM_CLAIMED_ID_RE);
+  if (!m) throw new SteamResolveError("Unexpected Steam identity format");
+  return m[1]; // verified SteamID64
+}
+
 const STEAM_ID_RE = /^\d{17}$/;
 
 export interface SteamOwnedGame {

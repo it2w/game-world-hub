@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useGetMe,
   useGetLibrary,
   useGetGameAccounts,
-  useLinkSteam,
   useSyncSteam,
   useLinkGameAccount,
   useUnlinkGameAccount,
@@ -83,14 +82,13 @@ export default function LibraryPage() {
     query: { enabled: !!myId, queryKey: getGetGameAccountsQueryKey(myId) },
   });
 
-  const linkSteam = useLinkSteam();
   const syncSteam = useSyncSteam();
   const linkAccount = useLinkGameAccount();
   const unlinkAccount = useUnlinkGameAccount();
   const addGame = useAddLibraryGame();
   const removeGame = useRemoveLibraryGame();
 
-  const [steamInput, setSteamInput] = useState("");
+  const [steamLinking, setSteamLinking] = useState(false);
   const [manualPlatform, setManualPlatform] = useState("epic");
   const [manualHandle, setManualHandle] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -102,24 +100,41 @@ export default function LibraryPage() {
     queryClient.invalidateQueries({ queryKey: getGetGameAccountsQueryKey(myId) });
   };
 
+  // Detect Steam OpenID callback params on page load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("steam_linked") === "1") {
+      toast({ title: t("toasts.steamLinked"), description: t("toasts.steamLinkedDesc") });
+      queryClient.invalidateQueries();
+      window.history.replaceState({}, "", "/library");
+    } else if (params.get("steam_error")) {
+      const errKey = params.get("steam_error");
+      const desc = errKey === "invalid_state"
+        ? t("toasts.steamLinkFailedDefault")
+        : t("toasts.steamVerificationFailed");
+      toast({ title: t("toasts.steamLinkFailed"), description: desc, variant: "destructive" });
+      window.history.replaceState({}, "", "/library");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const steamAccount = accounts?.find((a) => a.platform === "steam");
 
-  const handleLinkSteam = () => {
-    if (!steamInput.trim()) return;
-    linkSteam.mutate(
-      { data: { input: steamInput.trim() } },
-      {
-        onSuccess: (res) => {
-          toast({ title: t("toasts.steamLinked"), description: t("toasts.steamImported", { count: res.imported }) });
-          setSteamInput("");
-          refresh();
-        },
-        onError: (e: any) => {
-          const msg = e?.response?.data?.error || e?.data?.error || t("toasts.steamLinkFailedDefault");
-          toast({ title: t("toasts.steamLinkFailed"), description: msg, variant: "destructive" });
-        },
-      }
-    );
+  const handleLinkSteam = async () => {
+    setSteamLinking(true);
+    try {
+      const token = localStorage.getItem("gwh_token");
+      const base = window.location.origin;
+      const resp = await fetch(`/api/game-accounts/steam/auth-url?base=${encodeURIComponent(base)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) throw new Error("auth-url failed");
+      const { url } = (await resp.json()) as { url: string };
+      window.location.href = url;
+    } catch {
+      toast({ title: t("toasts.steamLinkFailed"), description: t("toasts.steamLinkFailedDefault"), variant: "destructive" });
+      setSteamLinking(false);
+    }
   };
 
   const handleSyncSteam = () => {
@@ -198,13 +213,18 @@ export default function LibraryPage() {
       toast({ title: t("toasts.noLaunchLinkTitle"), description: t("toasts.noLaunchLinkDescription", { name }) });
       return;
     }
-    // Protocol deep-link: opens the platform client if installed on the user's device.
-    window.location.href = launchUri;
+
+    // Show feedback immediately before any navigation attempt.
     toast({ title: t("toasts.launching", { name }), description: t("toasts.launchingDescription") });
-    // A web page can't detect the native process, so mark the game as our active
-    // presence ("ACTIVE PROCESS") when we trigger the launch.
+
+    // Mark the game as active presence.
+    // If the user is currently offline, flip them online so the server
+    // doesn't discard the currentGame (server clears it for offline users).
+    const statusPayload: { currentGame: string; status?: "online" } = { currentGame: name };
+    if (me?.status === "offline") statusPayload.status = "online";
+
     updateStatus.mutate(
-      { data: { currentGame: name } },
+      { data: statusPayload },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -212,6 +232,21 @@ export default function LibraryPage() {
         },
       },
     );
+
+    // Launch via a hidden anchor click — more reliable than window.location.href
+    // for custom protocol URLs (steam://, battlenet://, etc.) across browsers
+    // and sandboxed iframe environments.
+    try {
+      const a = document.createElement("a");
+      a.href = launchUri;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      // Fallback for environments where DOM manipulation is restricted.
+      try { window.open(launchUri, "_self"); } catch { /* silent */ }
+    }
   };
 
   return (
@@ -289,12 +324,19 @@ export default function LibraryPage() {
           ) : (
             <>
               <p className="text-xs font-mono text-muted-foreground">{t("steam.prompt")}</p>
-              <div className="flex gap-2">
-                <Input value={steamInput} onChange={(e) => setSteamInput(e.target.value)} placeholder={t("steam.inputPlaceholder")} className="font-mono rounded-none text-sm" />
-                <Button onClick={handleLinkSteam} disabled={linkSteam.isPending || !steamInput.trim()} className="font-mono rounded-none gap-2 shrink-0">
-                  <Link2 className="w-4 h-4" /> {linkSteam.isPending ? t("steam.importing") : t("steam.import")}
-                </Button>
-              </div>
+              <Button
+                onClick={handleLinkSteam}
+                disabled={steamLinking}
+                className="font-mono rounded-none gap-2 w-full justify-center"
+                style={{ background: "#1b2838", borderColor: "#66c0f4", color: "#66c0f4", border: "1px solid" }}
+              >
+                {steamLinking ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg viewBox="0 0 233 233" className="w-4 h-4 fill-current" aria-hidden><path d="M116.5 0C52.1 0 0 52.1 0 116.5c0 53.2 35.8 98.2 84.9 112.2l30.5-73.5c-1.2.1-2.4.1-3.7.1-24.1 0-43.7-19.6-43.7-43.7s19.6-43.7 43.7-43.7 43.7 19.6 43.7 43.7c0 20.6-14.2 37.9-33.4 42.5L88.3 229C97.6 231.3 107.4 233 117.5 233 181.9 233 233 180.9 233 116.5S181.9 0 116.5 0zm-4.3 168.5c-6.6 0-11.9-5.3-11.9-11.9s5.3-11.9 11.9-11.9 11.9 5.3 11.9 11.9-5.4 11.9-11.9 11.9zm4.3-50.5c-21.5 0-39-17.5-39-39s17.5-39 39-39 39 17.5 39 39-17.5 39-39 39z"/></svg>
+                )}
+                {steamLinking ? t("steam.signingIn") : t("steam.signIn")}
+              </Button>
             </>
           )}
         </div>

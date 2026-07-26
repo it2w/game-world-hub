@@ -190,23 +190,33 @@ function ProProfileCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave
 
 // ── Display Name Style ─────────────────────────────────────────────────────────
 
-const FONT_OPTIONS: { value: DisplayNameStyle["font"]; label: string }[] = [
-  { value: null,      label: "Default" },
-  { value: "bold",    label: "Bold" },
-  { value: "italic",  label: "Italic" },
-  { value: "mono",    label: "Mono" },
-  { value: "serif",   label: "Serif" },
-  { value: "cursive", label: "Cursive" },
+const FONT_OPTIONS: { value: DisplayNameStyle["font"]; label: string; preview: string }[] = [
+  { value: null,      label: "Default", preview: "font-sans" },
+  { value: "bold",    label: "Bold",    preview: "font-extrabold" },
+  { value: "italic",  label: "Italic",  preview: "italic font-semibold" },
+  { value: "mono",    label: "Mono",    preview: "font-mono" },
+  { value: "serif",   label: "Serif",   preview: "font-serif" },
+  { value: "cursive", label: "Cursive", preview: "[font-family:cursive]" },
 ];
 
-const EFFECT_OPTIONS: { value: DisplayNameStyle["effect"]; label: string }[] = [
-  { value: null,      label: "None" },
-  { value: "glow",    label: "✨ Glow" },
-  { value: "shadow",  label: "🖤 Shadow" },
-  { value: "shimmer", label: "🌈 Shimmer" },
+const EFFECT_OPTIONS: { value: DisplayNameStyle["effect"]; label: string; icon: string }[] = [
+  { value: null,       label: "None",     icon: "○" },
+  { value: "glow",     label: "Glow",     icon: "✨" },
+  { value: "shadow",   label: "Shadow",   icon: "🖤" },
+  { value: "shimmer",  label: "Shimmer",  icon: "🌈" },
+  { value: "rainbow",  label: "Rainbow",  icon: "🦄" },
+  { value: "outline",  label: "Outline",  icon: "◻" },
+  { value: "pulse",    label: "Pulse",    icon: "💫" },
 ];
 
-const SOLID_COLORS = ["#EC4899","#F97316","#22C55E","#EF4444","#06B6D4","#A855F7","#FFD700","#FFFFFF"];
+const SOLID_COLORS = [
+  "#EC4899","#F97316","#22C55E","#EF4444","#06B6D4",
+  "#A855F7","#FFD700","#FFFFFF","#FF0080","#00FFFF",
+];
+
+// gradient presets split into two rows for display
+const GRADIENT_ROW1 = ["fire","ocean","galaxy","gold","neon","candy","sunrise","ice"];
+const GRADIENT_ROW2 = ["aurora","chrome","royal","blood","holographic","midnight","toxic"];
 
 function DisplayNameStyleCard({ me, isPro, onSave }: { me: any; isPro: boolean; onSave: () => void }) {
   const { toast } = useToast();
@@ -215,8 +225,10 @@ function DisplayNameStyleCard({ me, isPro, onSave }: { me: any; isPro: boolean; 
   const [color,  setColor]  = useState<string>(existing.color ?? "");
   const [effect, setEffect] = useState<DisplayNameStyle["effect"]>(existing.effect ?? null);
   const [saving, setSaving] = useState(false);
+  const [hexInput, setHexInput] = useState("");
 
   const currentStyle: DisplayNameStyle = { font, color: color || null, effect };
+  const displayName = me?.displayName ?? "Your Name";
 
   const handleSave = async () => {
     if (!isPro) return;
@@ -243,7 +255,7 @@ function DisplayNameStyleCard({ me, isPro, onSave }: { me: any; isPro: boolean; 
         body: JSON.stringify({ displayNameStyle: null }),
         headers: { "Content-Type": "application/json" },
       });
-      setFont(null); setColor(""); setEffect(null);
+      setFont(null); setColor(""); setEffect(null); setHexInput("");
       toast({ title: "✓ Style cleared" });
       onSave();
     } catch {
@@ -251,82 +263,147 @@ function DisplayNameStyleCard({ me, isPro, onSave }: { me: any; isPro: boolean; 
     } finally { setSaving(false); }
   };
 
+  const applyHex = () => {
+    const v = hexInput.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { setColor(v); setHexInput(""); }
+  };
+
   return (
-    <div className={`bg-card border p-6 space-y-5 relative ${isPro ? "border-primary/30" : "border-border opacity-70"}`}>
+    <div className={`border relative overflow-hidden ${isPro ? "border-primary/20" : "border-border opacity-60"}`}
+      style={{ background: "linear-gradient(135deg,hsl(var(--card)) 0%,hsl(var(--card)/0.95) 100%)" }}>
       {!isPro && <ProLock />}
-      <SectionHeader icon={Type} title="Display Name Style" />
 
-      {/* Live preview */}
-      <div className="border border-primary/20 bg-background px-4 py-3 flex items-center gap-2 min-h-[46px]">
-        <span className="font-mono text-[10px] uppercase text-muted-foreground shrink-0">Preview →</span>
-        <span className="isolate text-base font-semibold">
-          <StyledDisplayName
-            displayName={me?.displayName ?? "Your Name"}
-            style={currentStyle}
-          />
-        </span>
+      {/* Header */}
+      <div className="px-6 pt-5 pb-4 border-b border-border/50 flex items-center gap-2">
+        <Type className="w-4 h-4 text-primary" />
+        <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary font-bold">Display Name Style</span>
+        <span className="ms-auto font-mono text-[10px] text-muted-foreground border border-border/50 px-1.5 py-0.5">PRO</span>
       </div>
 
-      {/* Font */}
-      <div className="space-y-2">
-        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Font</label>
-        <div className="flex flex-wrap gap-1.5">
-          {FONT_OPTIONS.map((f) => (
-            <button key={String(f.value)} onClick={() => setFont(f.value)}
-              className={`font-mono text-xs px-2.5 py-1 border rounded-none transition-colors ${font === f.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-              {f.label}
-            </button>
-          ))}
+      <div className="p-6 space-y-6">
+        {/* ── Live Preview ── */}
+        <div className="relative rounded-none overflow-hidden"
+          style={{ background: "linear-gradient(135deg,#0a0a0a 0%,#111 100%)", border: "1px solid rgba(168,85,247,0.3)" }}>
+          {/* grid overlay */}
+          <div className="absolute inset-0 opacity-[0.04]"
+            style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px)", backgroundSize: "24px 24px" }} />
+          <div className="relative px-5 py-4 flex items-center gap-3 min-h-[60px]">
+            <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-primary/40 shrink-0">Preview</span>
+            <div className="flex-1 flex items-center">
+              <StyledDisplayName displayName={displayName} style={currentStyle} className="text-xl font-bold" />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Color */}
-      <div className="space-y-2">
-        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Color</label>
-        {/* Solid presets */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {SOLID_COLORS.map((c) => (
-            <button key={c} onClick={() => setColor(c)}
-              className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${color === c ? "border-foreground scale-110" : "border-transparent"}`}
-              style={{ background: c }} />
-          ))}
-          <input type="color" value={color.startsWith("#") ? color : "#a855f7"} onChange={(e) => setColor(e.target.value)}
-            className="w-7 h-7 rounded-full border-2 border-border cursor-pointer bg-transparent p-0 appearance-none" title="Custom color" />
-          {color && !color.startsWith("gradient:") &&
-            <button onClick={() => setColor("")} className="font-mono text-[10px] text-muted-foreground hover:text-foreground">✕ clear</button>}
+        {/* ── Font ── */}
+        <div className="space-y-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Font</p>
+          <div className="flex flex-wrap gap-1.5">
+            {FONT_OPTIONS.map((f) => (
+              <button key={String(f.value)} onClick={() => setFont(f.value)}
+                className={`text-xs px-3 py-1.5 border transition-all duration-150 rounded-none
+                  ${font === f.value
+                    ? "border-primary/70 bg-primary/15 text-primary shadow-[0_0_8px_rgba(168,85,247,0.3)]"
+                    : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}
+                style={f.value && f.value !== "default" ? ({
+                  mono: { fontFamily: "monospace" },
+                  bold: { fontWeight: 800 },
+                  italic: { fontStyle: "italic", fontWeight: 600 },
+                  serif: { fontFamily: "serif" },
+                  cursive: { fontFamily: "cursive" },
+                } as any)[f.value] : {}}>
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
-        {/* Gradient presets */}
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {Object.entries(GRADIENT_PRESETS).map(([key, { label, css }]) => (
-            <button key={key} onClick={() => setColor(`gradient:${key}`)}
-              className={`font-mono text-[11px] px-2.5 py-1 border rounded-none transition-colors ${color === `gradient:${key}` ? "border-foreground" : "border-border"}`}
-              style={{ background: css, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* Effect */}
-      <div className="space-y-2">
-        <label className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Effect</label>
-        <div className="flex flex-wrap gap-1.5">
-          {EFFECT_OPTIONS.map((ef) => (
-            <button key={String(ef.value)} onClick={() => setEffect(ef.value)}
-              className={`font-mono text-xs px-2.5 py-1 border rounded-none transition-colors ${effect === ef.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-              {ef.label}
-            </button>
-          ))}
-        </div>
-      </div>
+        {/* ── Color ── */}
+        <div className="space-y-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Color</p>
 
-      <div className="flex gap-2">
-        <Button className="font-mono rounded-none" onClick={handleSave} disabled={saving || !isPro}>
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin me-1" />Saving…</> : "Save Style"}
-        </Button>
-        <Button variant="outline" className="font-mono rounded-none" onClick={handleClear} disabled={saving || !isPro}>
-          Clear Style
-        </Button>
+          {/* Solid swatches */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {SOLID_COLORS.map((c) => (
+              <button key={c} onClick={() => setColor(c)} title={c}
+                className="relative w-7 h-7 rounded-full transition-all duration-150 hover:scale-110"
+                style={{ background: c, outline: color === c ? `2px solid ${c}` : "2px solid transparent", outlineOffset: "2px", boxShadow: color === c ? `0 0 8px ${c}88` : "none" }} />
+            ))}
+            {/* Hex input */}
+            <div className="flex items-center gap-1 ms-1">
+              <Input
+                value={hexInput}
+                onChange={(e) => setHexInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && applyHex()}
+                placeholder="#FF0080"
+                className="font-mono text-xs rounded-none border-border/60 bg-black/30 w-24 h-7 text-center placeholder:text-muted-foreground/40"
+              />
+              <button onClick={applyHex}
+                className="font-mono text-[10px] px-2 h-7 border border-border/60 hover:border-primary/50 text-muted-foreground hover:text-primary transition-colors">
+                ✓
+              </button>
+            </div>
+            {color && !color.startsWith("gradient:") && (
+              <button onClick={() => { setColor(""); setHexInput(""); }}
+                className="font-mono text-[10px] text-muted-foreground/60 hover:text-destructive transition-colors">
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Gradient rows */}
+          <div className="space-y-1.5">
+            {[GRADIENT_ROW1, GRADIENT_ROW2].map((row, ri) => (
+              <div key={ri} className="flex flex-wrap gap-1.5">
+                {row.map((key) => {
+                  const g = GRADIENT_PRESETS[key];
+                  if (!g) return null;
+                  const active = color === `gradient:${key}`;
+                  return (
+                    <button key={key} onClick={() => setColor(`gradient:${key}`)}
+                      className={`relative flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all duration-150 rounded-none overflow-hidden
+                        ${active ? "border-white/50 shadow-[0_0_10px_rgba(255,255,255,0.15)]" : "border-white/10 hover:border-white/30"}`}
+                      style={{ background: active ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.3)" }}>
+                      {/* gradient swatch strip */}
+                      <span className="w-3 h-3 rounded-full shrink-0 ring-1 ring-white/20" style={{ background: g.css }} />
+                      <span className="text-foreground/80">{g.emoji} {g.label}</span>
+                      {active && <span className="ms-0.5 text-white/60 text-[9px]">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Effect ── */}
+        <div className="space-y-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Effect</p>
+          <div className="flex flex-wrap gap-1.5">
+            {EFFECT_OPTIONS.map((ef) => (
+              <button key={String(ef.value)} onClick={() => setEffect(ef.value)}
+                className={`font-mono text-xs px-3 py-1.5 border transition-all duration-150 rounded-none flex items-center gap-1.5
+                  ${effect === ef.value
+                    ? "border-primary/70 bg-primary/15 text-primary shadow-[0_0_8px_rgba(168,85,247,0.3)]"
+                    : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>
+                <span>{ef.icon}</span>
+                <span>{ef.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Actions ── */}
+        <div className="flex gap-2 pt-1">
+          <Button className="font-mono rounded-none flex-1" onClick={handleSave} disabled={saving || !isPro}
+            style={{ background: "linear-gradient(90deg,hsl(var(--primary)),hsl(var(--primary)/0.8))" }}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin me-1" />Saving…</> : "Save Style"}
+          </Button>
+          <Button variant="outline" className="font-mono rounded-none border-border/60 hover:border-destructive/60 hover:text-destructive"
+            onClick={handleClear} disabled={saving || !isPro}>
+            Clear
+          </Button>
+        </div>
       </div>
     </div>
   );

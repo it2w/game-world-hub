@@ -83,7 +83,7 @@ const POPULAR_GAMES = [
 interface ChatMsg { name: string; text: string; system: boolean }
 
 const CHAT_SCRIPT: ChatMsg[] = [
-  { name: "xKhaled99",    text: "جاهز؟ الحفلة بدأت! 🎮",       system: false },
+  { name: "xKhaled99",    text: "جاهز؟ اللوبي بدأ! 🎮",       system: false },
   { name: "ShadowSniper", text: "في الطريق ⚡",                  system: false },
   { name: "GWH",          text: "ShadowSniper joined voice",     system: true  },
   { name: "ProGamer_SA",  text: "LFG Ranked — نحتاج لاعب 🔥",   system: false },
@@ -958,7 +958,7 @@ const DEMO_CHAT: DemoMsg[] = [
   { name: "EliteClan_4",  isPro: true,  text: "نحتاج لاعب 4th للتورنمنت 🏆",          color: "#EC4899", isEdited: true },
   { name: "QuickScope44", isPro: false, text: "جاهز ✅ اضيفوني الحين" },
   { name: "MasterRank",   isPro: true,  text: "🔥🔥 ما في منصة أحسن من GWH 🔥🔥",    color: "#22C55E" },
-  { name: "xKhaled99",    isPro: false, text: "اتفقنا — انضموا للحفلة 👾" },
+  { name: "xKhaled99",    isPro: false, text: "اتفقنا — انضموا للوبي 👾" },
   { name: "ShadowSniper", isPro: true,  text: "👑 Pro بـ SAR 20 فقط — يستاهل!",       color: "#A855F7" },
   { name: "StarPlayer",   isPro: true,  text: "",                          isGif: true },
   { name: "BattleKing",   isPro: false, text: "هههههه 😂 صحيح والله" },

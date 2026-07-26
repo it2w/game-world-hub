@@ -853,3 +853,115 @@ describe("PATCH slowmodeSeconds cap validation — 0–21600 boundary", () => {
     );
   });
 });
+
+// ─── Mod cannot change channel type — owner-only guard ────────────────────────
+
+describe("PATCH /communities/:id/channels/:cid — mod cannot change channel type", () => {
+  let modId = 0;
+  let modUsername = "";
+
+  before(async () => {
+    // Create a mod user
+    const [mod] = await db
+      .insert(usersTable)
+      .values({
+        username: `type_guard_mod_${SUFFIX}`,
+        passwordHash: "x",
+        displayName: "Type Guard Mod",
+        status: "online" as const,
+      })
+      .returning({ id: usersTable.id, username: usersTable.username });
+    modId = mod.id;
+    modUsername = mod.username;
+    createdUserIds.push(modId);
+
+    // Join mod to the community
+    const [membership] = await db
+      .insert(communityMembersTable)
+      .values({ communityId, userId: modId })
+      .returning({ id: communityMembersTable.id });
+
+    // Create a role with can_manage_channels and assign it to the mod
+    const roleResult = await pool.query<{ id: number }>(
+      `INSERT INTO community_roles (community_id, name, color, position, permissions)
+       VALUES ($1, $2, '#ffffff', 0, '{"can_manage_channels":true}'::jsonb)
+       RETURNING id`,
+      [communityId, `type-guard-mod-role-${SUFFIX}`],
+    );
+    const roleId = roleResult.rows[0].id;
+    await pool.query(
+      `INSERT INTO community_member_roles (member_id, role_id) VALUES ($1, $2)`,
+      [membership.id, roleId],
+    );
+  });
+
+  test("mod PATCH with { type: 'announcement' } returns 403", async () => {
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { type: "announcement" },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod tries to change channel type to announcement, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after rejected type change confirms channel type is unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; type: string }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.notEqual(
+      plainCh.type,
+      "announcement",
+      `channel type must not be "announcement" after a mod's rejected type change, got ${JSON.stringify(plainCh.type)}`,
+    );
+  });
+
+  test("mod PATCH with { type: 'voice', slowmodeSeconds: 10 } returns 403", async () => {
+    // Even though slowmodeSeconds is a field mods are allowed to set,
+    // the presence of `type` in the same payload triggers the owner-only guard.
+    const { status, body } = await request(
+      "PATCH",
+      `/communities/${communityId}/channels/${plainChannelId}`,
+      auth(modId, modUsername),
+      { type: "voice", slowmodeSeconds: 10 },
+    );
+    assert.equal(
+      status,
+      403,
+      `expected 403 when mod sends type alongside slowmodeSeconds, got ${status}: ${JSON.stringify(body)}`,
+    );
+  });
+
+  test("GET after rejected type+slowmodeSeconds confirms channel type is still unchanged", async () => {
+    const { status, body } = await request(
+      "GET",
+      `/communities/${communityId}`,
+      auth(ownerId, ownerUsername),
+    );
+    assert.equal(status, 200, `expected 200 from GET, got ${status}: ${JSON.stringify(body)}`);
+
+    const community = body as { channels: Array<{ id: number; type: string }> };
+    assert.ok(Array.isArray(community.channels), "channels array must be present");
+
+    const plainCh = community.channels.find(c => c.id === plainChannelId);
+    assert.ok(plainCh, `channel ${plainChannelId} must be present in GET response`);
+    assert.notEqual(
+      plainCh.type,
+      "voice",
+      `channel type must not be "voice" after a mod's rejected type+slowmodeSeconds change, got ${JSON.stringify(plainCh.type)}`,
+    );
+  });
+});

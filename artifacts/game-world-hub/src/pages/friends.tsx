@@ -48,7 +48,7 @@ export default function Friends() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { callUser, activeRoom } = useVoice();
+  const { callUser, activeRoom, wsOnlineFriendIds } = useVoice();
 
   const sendRequest = useSendFriendRequest();
   const acceptRequest = useAcceptFriendRequest();
@@ -303,20 +303,31 @@ export default function Friends() {
                       ) : (
                         <div className="flex border-t border-border">
                           {/* voice call */}
-                          <button
-                            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-e border-border font-mono text-[10px] uppercase tracking-wider"
-                            title={activeRoom ? t("actions.leaveChannelFirst") : t("actions.startVoiceCall")}
-                            disabled={!!activeRoom}
-                            onClick={() => callUser({
-                              userId: f.id,
-                              username: f.username,
-                              displayName: f.displayName,
-                              avatarUrl: f.avatarUrl ?? null,
-                            })}
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            {t("actions.call")}
-                          </button>
+                          {(() => {
+                            const friendWsOnline = wsOnlineFriendIds.has(f.id);
+                            const callDisabled = !!activeRoom || !friendWsOnline;
+                            const callTitle = activeRoom
+                              ? t("actions.leaveChannelFirst")
+                              : !friendWsOnline
+                              ? t("actions.userOffline", { defaultValue: "المستخدم غير متصل حالياً" })
+                              : t("actions.startVoiceCall");
+                            return (
+                              <button
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-e border-border font-mono text-[10px] uppercase tracking-wider"
+                                title={callTitle}
+                                disabled={callDisabled}
+                                onClick={() => callUser({
+                                  userId: f.id,
+                                  username: f.username,
+                                  displayName: f.displayName,
+                                  avatarUrl: f.avatarUrl ?? null,
+                                })}
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                {t("actions.call")}
+                              </button>
+                            );
+                          })()}
                           {/* DM */}
                           <button
                             className="flex-1 flex items-center justify-center gap-2 py-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-e border-border font-mono text-[10px] uppercase tracking-wider"

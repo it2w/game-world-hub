@@ -22,6 +22,7 @@ import {
   type VideoCodec,
 } from "livekit-client";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { getApiBase, getSignalingUrl } from "./webrtc";
 import { RemoteAudioSink } from "./components/remote-audio-sink";
 import {
@@ -163,6 +164,8 @@ interface VoiceContextValue {
   grantSpeaker: (targetUserId: number) => Promise<void>;
   revokeSpeaker: (targetUserId: number) => Promise<void>;
   refreshStage: () => Promise<void>;
+  /** Friend IDs that currently have an active WS connection and can receive calls. */
+  wsOnlineFriendIds: Set<number>;
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -232,6 +235,7 @@ function buildPeerState(p: RemoteParticipant): PeerUiState {
 
 export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   // ── React state ────────────────────────────────────────────────────────────
   const [connected, setConnected] = useState(false);
@@ -259,6 +263,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [groupInviteStates, setGroupInviteStates] = useState<Record<number, "ringing" | "joined" | "declined">>({});
   /** Stage info for the current pro-room — null when not in a stage-mode room. */
   const [stageInfo, setStageInfo] = useState<StageInfo | null>(null);
+  /** Friend IDs with active WS connections — updated via friend-online/offline/snapshot. */
+  const [wsOnlineFriendIds, setWsOnlineFriendIds] = useState<Set<number>>(new Set());
 
   // ── Mutable refs ───────────────────────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);
@@ -675,7 +681,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             break;
           }
           setOutgoingCall((prev) => (prev && prev.callId === msg.callId ? null : prev));
-          setError("Call declined");
+          toast({ title: "رُفض الاتصال", variant: "destructive", duration: 4000 });
           break;
 
         case "call-cancelled":
@@ -695,7 +701,17 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             break;
           }
           setOutgoingCall(null);
-          setError(msg.reason === "offline" ? "User is offline" : "Call could not be completed");
+          toast({
+            title: msg.reason === "offline"
+              ? "المستخدم غير متصل"
+              : msg.reason === "blocked"
+              ? "لا يمكن إجراء الاتصال"
+              : msg.reason === "timeout"
+              ? "انتهت مهلة الاتصال"
+              : "فشل الاتصال",
+            variant: "destructive",
+            duration: 4000,
+          });
           break;
 
         case "force-leave":
@@ -889,6 +905,32 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           }
           break;
         }
+
+        case "friend-online":
+          if (typeof msg.userId === "number") {
+            setWsOnlineFriendIds((prev) => {
+              const next = new Set(prev);
+              next.add(msg.userId as number);
+              return next;
+            });
+          }
+          break;
+
+        case "friend-offline":
+          if (typeof msg.userId === "number") {
+            setWsOnlineFriendIds((prev) => {
+              const next = new Set(prev);
+              next.delete(msg.userId as number);
+              return next;
+            });
+          }
+          break;
+
+        case "friends-online-snapshot":
+          if (Array.isArray(msg.onlineIds)) {
+            setWsOnlineFriendIds(new Set(msg.onlineIds as number[]));
+          }
+          break;
 
         default:
           break;
@@ -1195,19 +1237,19 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     (user: CallUser) => {
       setError(null);
       if (activeRoomRef.current) {
-        setError("Leave your current channel before starting a call");
+        toast({ title: "اغادر قناتك الحالية أولاً قبل بدء مكالمة", variant: "destructive", duration: 4000 });
         return;
       }
       // Fail early if the signaling socket isn't open — the invite would be lost silently.
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        setError("Not connected — please wait a moment and try again");
+        toast({ title: "غير متصل — انتظر لحظة ثم حاول مرة أخرى", variant: "destructive", duration: 4000 });
         return;
       }
       setOutgoingCall({ callId: `pending-${user.userId}`, room: "", to: user });
       wsSend({ type: "call-invite", to: user.userId });
     },
-    [wsSend],
+    [wsSend, toast],
   );
 
   /**
@@ -1721,6 +1763,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     grantSpeaker,
     revokeSpeaker,
     refreshStage,
+    wsOnlineFriendIds,
   };
 
   return (

@@ -494,6 +494,9 @@ function handleClose(client: Client): void {
   const remainingSessions = clientsByUser.get(client.userId);
   if (remainingSessions && remainingSessions.size > 0) return;
 
+  // Last session for this user — notify friends they went offline
+  void notifyFriendsOffline(client.userId).catch(() => {});
+
   // Last session for this user — collect stage rooms BEFORE removing presence
   // so we know where to send the "left" notification.
   // We do NOT delete the stage_participants DB row — the role is intentionally
@@ -563,6 +566,43 @@ async function notifyFriendsOnline(client: Client): Promise<void> {
         avatarUrl: client.avatarUrl,
       });
     }
+  }
+}
+
+async function notifyFriendsOffline(userId: number): Promise<void> {
+  const rows = await db
+    .select({ friendId: friendshipsTable.friendId })
+    .from(friendshipsTable)
+    .where(eq(friendshipsTable.userId, userId));
+
+  for (const { friendId } of rows) {
+    const sessions = clientsByUser.get(friendId);
+    if (!sessions) continue;
+    for (const c of sessions) {
+      send(c.ws, { type: "friend-offline", userId });
+    }
+  }
+}
+
+/**
+ * Send the newly-connected client a snapshot of which of their friends
+ * already have active WS sessions so the client can initialise its
+ * ws-presence map without waiting for individual friend-online events.
+ */
+async function sendFriendsOnlineSnapshot(client: Client): Promise<void> {
+  const rows = await db
+    .select({ friendId: friendshipsTable.friendId })
+    .from(friendshipsTable)
+    .where(eq(friendshipsTable.userId, client.userId));
+
+  const onlineIds: number[] = [];
+  for (const { friendId } of rows) {
+    const sessions = clientsByUser.get(friendId);
+    if (sessions && sessions.size > 0) onlineIds.push(friendId);
+  }
+
+  if (onlineIds.length > 0) {
+    send(client.ws, { type: "friends-online-snapshot", onlineIds });
   }
 }
 
@@ -702,8 +742,10 @@ export function attachSignaling(server: Server): () => Promise<void> {
     send(ws, { type: "ready", userId: client.userId });
     logger.info({ userId: client.userId }, "voice: client connected");
 
-    // Fire-and-forget: notify friends that this user came online
+    // Fire-and-forget: notify friends that this user came online, and
+    // send the new client a snapshot of which friends are already online.
     void notifyFriendsOnline(client).catch(() => {});
+    void sendFriendsOnlineSnapshot(client).catch(() => {});
 
     ws.on("pong", () => { client.isAlive = true; });
     ws.on("message", (data) => {

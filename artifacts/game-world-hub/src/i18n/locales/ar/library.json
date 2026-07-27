@@ -37,6 +37,15 @@
     "signIn": "تسجيل الدخول عبر Steam",
     "signingIn": "جارٍ التحويل…"
   },
+  "epic": {
+    "title": "Epic Games — التحقق من الحساب",
+    "unlink": "إلغاء الربط",
+    "linked": "مرتبط ✓",
+    "prompt": "سجّل الدخول عبر Epic Games للتحقق من ملكية حسابك.",
+    "signIn": "تسجيل الدخول عبر Epic Games",
+    "signingIn": "جارٍ التحويل…",
+    "notConfigured": "تسجيل الدخول عبر Epic غير مُفعَّل على هذا الخادم بعد."
+  },
   "other": {
     "title": "حسابات أخرى",
     "handlePlaceholder": "اسم المستخدم لديك",
@@ -74,6 +83,12 @@
     "steamSyncedDescription_few": "{{count}} ألعاب في مكتبتك.",
     "steamSyncedDescription_many": "{{count}} لعبة في مكتبتك.",
     "steamSyncedDescription_other": "{{count}} لعبة في مكتبتك.",
+    "epicLinked": "تم ربط Epic Games",
+    "epicLinkedDesc": "تم التحقق من حسابك.",
+    "epicLinkFailed": "فشل ربط Epic",
+    "epicLinkFailedDefault": "تعذّر بدء تسجيل الدخول عبر Epic. حاول مجددًا.",
+    "epicLinkCancelled": "تم إلغاء تسجيل الدخول عبر Epic.",
+    "epicVerificationFailed": "تعذّر التحقق من تسجيل الدخول عبر Epic. حاول مجددًا.",
     "syncFailed": "فشلت المزامنة",
     "accountLinked": "تم ربط {{platform}}",
     "accountLinkFailed": "تعذّر ربط الحساب",

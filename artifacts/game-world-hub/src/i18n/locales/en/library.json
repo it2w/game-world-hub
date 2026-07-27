@@ -37,6 +37,15 @@
     "signIn": "Sign in through Steam",
     "signingIn": "Redirecting…"
   },
+  "epic": {
+    "title": "Epic Games — Verify Account",
+    "unlink": "Unlink",
+    "linked": "Linked ✓",
+    "prompt": "Sign in with Epic Games to verify your account ownership.",
+    "signIn": "Sign in through Epic Games",
+    "signingIn": "Redirecting…",
+    "notConfigured": "Epic Games sign-in is not configured on this server yet."
+  },
   "other": {
     "title": "Other Accounts",
     "handlePlaceholder": "your handle",
@@ -62,6 +71,12 @@
     "steamSynced": "Steam synced",
     "steamSyncedDescription_one": "{{count}} game in your library.",
     "steamSyncedDescription_other": "{{count}} games in your library.",
+    "epicLinked": "Epic Games linked",
+    "epicLinkedDesc": "Your account has been verified.",
+    "epicLinkFailed": "Epic link failed",
+    "epicLinkFailedDefault": "Couldn't start Epic login. Please try again.",
+    "epicLinkCancelled": "Epic login was cancelled.",
+    "epicVerificationFailed": "Epic login could not be verified. Please try again.",
     "syncFailed": "Sync failed",
     "accountLinked": "{{platform}} linked",
     "accountLinkFailed": "Couldn't link account",

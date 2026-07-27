@@ -60,6 +60,27 @@ export function verifySteamLinkToken(token: string): number {
   return payload.userId;
 }
 
+// ── Epic OAuth link tokens ────────────────────────────────────────────────────
+// Short-lived tokens encoding userId + redirectUri so the Epic callback can
+// identify the GWH account AND replay the exact redirect_uri to Epic's
+// token endpoint (which requires an exact match to the value sent during auth).
+
+export function signEpicLinkToken(userId: number, redirectUri: string): string {
+  return jwt.sign({ userId, purpose: "epic-link", redirectUri }, JWT_SECRET, { expiresIn: "10m" });
+}
+
+export function verifyEpicLinkToken(token: string): { userId: number; redirectUri: string } {
+  const payload = jwt.verify(token, JWT_SECRET) as { userId?: unknown; purpose?: unknown; redirectUri?: unknown };
+  if (
+    payload.purpose !== "epic-link" ||
+    typeof payload.userId !== "number" ||
+    typeof payload.redirectUri !== "string"
+  ) {
+    throw new Error("Invalid epic-link token");
+  }
+  return { userId: payload.userId, redirectUri: payload.redirectUri };
+}
+
 // ── Two-factor login challenge tokens ────────────────────────────────────────
 // Short-lived tokens issued after a correct password when 2FA is enabled.
 // They are NOT session tokens: requireAuth rejects them (different shape/purpose).

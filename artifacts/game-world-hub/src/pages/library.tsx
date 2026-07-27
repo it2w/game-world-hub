@@ -35,7 +35,10 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
   other: { label: "Other", color: "#9aa0a6" },
 };
 
-const MANUAL_PLATFORMS = ["epic", "battlenet", "xbox", "playstation", "nintendo", "riot", "ea", "gog", "other"];
+// Platforms shown in the add-game dialog (all non-steam platforms).
+const GAME_PLATFORMS = ["epic", "battlenet", "xbox", "playstation", "nintendo", "riot", "ea", "gog", "other"];
+// Platforms available for manual handle linking (Epic has its own OAuth card).
+const LINK_PLATFORMS = ["battlenet", "xbox", "playstation", "nintendo", "riot", "ea", "gog", "other"];
 
 // Mirrors the server allowlist — only real game-launcher protocols are accepted.
 const ALLOWED_LAUNCH_SCHEMES = [
@@ -89,7 +92,8 @@ export default function LibraryPage() {
   const removeGame = useRemoveLibraryGame();
 
   const [steamLinking, setSteamLinking] = useState(false);
-  const [manualPlatform, setManualPlatform] = useState("epic");
+  const [epicLinking, setEpicLinking] = useState(false);
+  const [manualPlatform, setManualPlatform] = useState("battlenet");
   const [manualHandle, setManualHandle] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [gForm, setGForm] = useState({ platform: "epic", name: "", coverUrl: "", launchUri: "" });
@@ -100,25 +104,40 @@ export default function LibraryPage() {
     queryClient.invalidateQueries({ queryKey: getGetGameAccountsQueryKey(myId) });
   };
 
-  // Detect Steam OpenID callback params on page load
+  // Detect OAuth callback params on page load (Steam OpenID + Epic OAuth)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("steam_linked") === "1") {
       toast({ title: t("toasts.steamLinked"), description: t("toasts.steamLinkedDesc") });
       queryClient.invalidateQueries();
-      window.history.replaceState({}, "", "/library");
+      window.history.replaceState({}, "", "/games");
     } else if (params.get("steam_error")) {
       const errKey = params.get("steam_error");
       const desc = errKey === "invalid_state"
         ? t("toasts.steamLinkFailedDefault")
         : t("toasts.steamVerificationFailed");
       toast({ title: t("toasts.steamLinkFailed"), description: desc, variant: "destructive" });
-      window.history.replaceState({}, "", "/library");
+      window.history.replaceState({}, "", "/games");
+    } else if (params.get("epic_linked") === "1") {
+      toast({ title: t("toasts.epicLinked"), description: t("toasts.epicLinkedDesc") });
+      queryClient.invalidateQueries();
+      window.history.replaceState({}, "", "/games");
+    } else if (params.get("epic_error")) {
+      const errKey = params.get("epic_error");
+      const desc = errKey === "invalid_state" || errKey === "no_code"
+        ? t("toasts.epicLinkFailedDefault")
+        : errKey === "user_cancelled"
+        ? t("toasts.epicLinkCancelled")
+        : t("toasts.epicVerificationFailed");
+      toast({ title: t("toasts.epicLinkFailed"), description: desc, variant: "destructive" });
+      window.history.replaceState({}, "", "/games");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const steamAccount = accounts?.find((a) => a.platform === "steam");
+  // epicAccount is only set when the account was verified via OAuth (has externalId)
+  const epicAccount  = accounts?.find((a) => a.platform === "epic" && !!a.externalId);
 
   const handleLinkSteam = async () => {
     setSteamLinking(true);
@@ -134,6 +153,30 @@ export default function LibraryPage() {
     } catch {
       toast({ title: t("toasts.steamLinkFailed"), description: t("toasts.steamLinkFailedDefault"), variant: "destructive" });
       setSteamLinking(false);
+    }
+  };
+
+  const handleLinkEpic = async () => {
+    setEpicLinking(true);
+    try {
+      const token = localStorage.getItem("gwh_token");
+      const base = window.location.origin;
+      const resp = await fetch(`/api/game-accounts/epic/auth-url?base=${encodeURIComponent(base)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) {
+        if (resp.status === 503) {
+          toast({ title: t("toasts.epicLinkFailed"), description: t("epic.notConfigured"), variant: "destructive" });
+          setEpicLinking(false);
+          return;
+        }
+        throw new Error("auth-url failed");
+      }
+      const { url } = (await resp.json()) as { url: string };
+      window.location.href = url;
+    } catch {
+      toast({ title: t("toasts.epicLinkFailed"), description: t("toasts.epicLinkFailedDefault"), variant: "destructive" });
+      setEpicLinking(false);
     }
   };
 
@@ -272,7 +315,7 @@ export default function LibraryPage() {
                   onChange={(e) => setGForm({ ...gForm, platform: e.target.value })}
                   className="w-full h-9 bg-background border border-border font-mono text-sm px-2 rounded-none"
                 >
-                  {MANUAL_PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}
+                  {GAME_PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}
                 </select>
               </div>
               <div>
@@ -297,7 +340,7 @@ export default function LibraryPage() {
         </Dialog>
       </div>
 
-      {/* Connect accounts */}
+      {/* Connect accounts — Steam + Epic side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Steam */}
         <div className="bg-card border border-border p-4 space-y-3">
@@ -341,27 +384,57 @@ export default function LibraryPage() {
           )}
         </div>
 
-        {/* Other platforms */}
+        {/* Epic Games */}
         <div className="bg-card border border-border p-4 space-y-3">
-          <h2 className="font-mono text-sm uppercase tracking-widest text-primary">{t("other.title")}</h2>
-          <div className="flex gap-2">
-            <select value={manualPlatform} onChange={(e) => setManualPlatform(e.target.value)} className="h-9 bg-background border border-border font-mono text-sm px-2 rounded-none">
-              {MANUAL_PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}
-            </select>
-            <Input value={manualHandle} onChange={(e) => setManualHandle(e.target.value)} placeholder={t("other.handlePlaceholder")} className="font-mono rounded-none text-sm" />
-            <Button onClick={handleLinkManual} disabled={linkAccount.isPending || !manualHandle.trim()} className="font-mono rounded-none shrink-0"><Link2 className="w-4 h-4" /></Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {accounts?.filter((a) => a.platform !== "steam").map((a) => (
-              <span key={a.id} className="inline-flex items-center gap-2 border border-border px-2 py-1 text-xs font-mono" style={{ color: platformColor(a.platform) }}>
-                {platformLabel(a.platform)}: <span className="text-foreground">{a.handle}</span>
-                <button onClick={() => handleUnlink(a.id, platformLabel(a.platform))} className="text-muted-foreground hover:text-destructive"><Unlink className="w-3 h-3" /></button>
-              </span>
-            ))}
-            {(!accounts || accounts.filter((a) => a.platform !== "steam").length === 0) && (
-              <span className="text-xs font-mono text-muted-foreground">{t("other.empty")}</span>
+          <div className="flex items-center justify-between">
+            <h2 className="font-mono text-sm uppercase tracking-widest" style={{ color: platformColor("epic") }}>{t("epic.title")}</h2>
+            {epicAccount && (
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-none text-destructive" title={t("epic.unlink")} onClick={() => handleUnlink(epicAccount.id, "Epic Games")} disabled={unlinkAccount.isPending}>
+                <Unlink className="w-4 h-4" />
+              </Button>
             )}
           </div>
+          {epicAccount ? (
+            <p className="text-xs font-mono text-muted-foreground">
+              {t("epic.linked")} — <span className="text-foreground">{epicAccount.handle ?? epicAccount.externalId}</span>
+            </p>
+          ) : (
+            <>
+              <p className="text-xs font-mono text-muted-foreground">{t("epic.prompt")}</p>
+              <Button
+                onClick={handleLinkEpic}
+                disabled={epicLinking}
+                className="font-mono rounded-none gap-2 w-full justify-center"
+                style={{ background: "#1a1a1a", borderColor: "#e0e0e0", color: "#e0e0e0", border: "1px solid" }}
+              >
+                {epicLinking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Gamepad2 className="w-4 h-4" />}
+                {epicLinking ? t("epic.signingIn") : t("epic.signIn")}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Other platforms — manual handle linking */}
+      <div className="bg-card border border-border p-4 space-y-3">
+        <h2 className="font-mono text-sm uppercase tracking-widest text-primary">{t("other.title")}</h2>
+        <div className="flex gap-2">
+          <select value={manualPlatform} onChange={(e) => setManualPlatform(e.target.value)} className="h-9 bg-background border border-border font-mono text-sm px-2 rounded-none">
+            {LINK_PLATFORMS.map((p) => <option key={p} value={p}>{platformLabel(p)}</option>)}
+          </select>
+          <Input value={manualHandle} onChange={(e) => setManualHandle(e.target.value)} placeholder={t("other.handlePlaceholder")} className="font-mono rounded-none text-sm" />
+          <Button onClick={handleLinkManual} disabled={linkAccount.isPending || !manualHandle.trim()} className="font-mono rounded-none shrink-0"><Link2 className="w-4 h-4" /></Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {accounts?.filter((a) => a.platform !== "steam" && a.platform !== "epic").map((a) => (
+            <span key={a.id} className="inline-flex items-center gap-2 border border-border px-2 py-1 text-xs font-mono" style={{ color: platformColor(a.platform) }}>
+              {platformLabel(a.platform)}: <span className="text-foreground">{a.handle}</span>
+              <button onClick={() => handleUnlink(a.id, platformLabel(a.platform))} className="text-muted-foreground hover:text-destructive"><Unlink className="w-3 h-3" /></button>
+            </span>
+          ))}
+          {(!accounts || accounts.filter((a) => a.platform !== "steam" && a.platform !== "epic").length === 0) && (
+            <span className="text-xs font-mono text-muted-foreground">{t("other.empty")}</span>
+          )}
         </div>
       </div>
 

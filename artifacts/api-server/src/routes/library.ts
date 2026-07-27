@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, gameAccountsTable, linkedGamesTable, usersTable } from "@workspace/db";
-import { requireAuth, signSteamLinkToken, verifySteamLinkToken } from "../middlewares/auth";
+import { requireAuth, signSteamLinkToken, verifySteamLinkToken, signEpicLinkToken, verifyEpicLinkToken } from "../middlewares/auth";
 import {
   resolveSteamId,
   fetchOwnedGames,
@@ -11,6 +11,7 @@ import {
   SteamConfigError,
   SteamResolveError,
 } from "../lib/steam";
+import { buildEpicOAuthUrl, exchangeEpicCode, EpicConfigError } from "../lib/epic";
 
 const router: IRouter = Router();
 
@@ -138,16 +139,85 @@ router.get("/game-accounts/steam/callback", async (req, res): Promise<void> => {
   try {
     userId = verifySteamLinkToken(state);
   } catch {
-    res.redirect("/library?steam_error=invalid_state");
+    res.redirect("/games?steam_error=invalid_state");
     return;
   }
 
   try {
     const steamId = await verifySteamOpenId(query);
     await importSteamLibrary(userId, steamId);
-    res.redirect("/library?steam_linked=1");
+    res.redirect("/games?steam_linked=1");
   } catch {
-    res.redirect("/library?steam_error=verification_failed");
+    res.redirect("/games?steam_error=verification_failed");
+  }
+});
+
+// GET /game-accounts/epic/auth-url — build Epic OAuth URL (requires JWT auth)
+// The client passes its own origin as ?base= so the callback URL is correct in
+// both development and production without the server needing to know its own URL.
+router.get("/game-accounts/epic/auth-url", requireAuth, (req, res): void => {
+  const myId = req.auth!.userId;
+  const rawBase = typeof req.query.base === "string" ? req.query.base.trim() : "";
+  const base =
+    rawBase.startsWith("https://") || rawBase.startsWith("http://localhost")
+      ? rawBase
+      : `https://${process.env.REPLIT_DEV_DOMAIN ?? "localhost"}`;
+
+  try {
+    const redirectUri = `${base}/api/game-accounts/epic/callback`;
+    const state = signEpicLinkToken(myId, redirectUri);
+    const url = buildEpicOAuthUrl(redirectUri, state);
+    res.json({ url });
+  } catch (err) {
+    if (err instanceof EpicConfigError) {
+      res.status(503).json({ error: "Epic Games OAuth is not configured on this server." });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /game-accounts/epic/callback — Epic OAuth back-redirect (no auth header — browser redirect)
+// Epic sends the user's browser here after login. We exchange the code for
+// an access token, resolve the account identity, then redirect back to /games.
+router.get("/game-accounts/epic/callback", async (req, res): Promise<void> => {
+  const state      = typeof req.query.state === "string" ? req.query.state : "";
+  const code       = typeof req.query.code  === "string" ? req.query.code  : "";
+  const errorParam = typeof req.query.error === "string" ? req.query.error : "";
+
+  if (errorParam) {
+    res.redirect("/games?epic_error=user_cancelled");
+    return;
+  }
+  if (!code) {
+    res.redirect("/games?epic_error=no_code");
+    return;
+  }
+
+  let userId: number;
+  let redirectUri: string;
+  try {
+    ({ userId, redirectUri } = verifyEpicLinkToken(state));
+  } catch {
+    res.redirect("/games?epic_error=invalid_state");
+    return;
+  }
+
+  try {
+    const { accountId, displayName } = await exchangeEpicCode(code, redirectUri);
+
+    // Upsert — replace any existing Epic link for this user
+    await db
+      .insert(gameAccountsTable)
+      .values({ userId, platform: "epic", externalId: accountId, handle: displayName })
+      .onConflictDoUpdate({
+        target: [gameAccountsTable.userId, gameAccountsTable.platform],
+        set: { externalId: accountId, handle: displayName },
+      });
+
+    res.redirect("/games?epic_linked=1");
+  } catch {
+    res.redirect("/games?epic_error=verification_failed");
   }
 });
 

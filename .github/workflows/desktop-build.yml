@@ -64,7 +64,10 @@ jobs:
 
       # ─── Dependencies ──────────────────────────────────────────────────────
       - name: Install all workspace dependencies
-        run: pnpm install --frozen-lockfile
+        # --no-frozen-lockfile is needed because the lockfile was generated on Linux
+        # and does not include Windows-specific optional natives (e.g. @rollup/rollup-win32-x64-msvc).
+        # pnpm resolves and installs the correct platform binaries at install time.
+        run: pnpm install --no-frozen-lockfile
 
       # ─── Build renderer (Vite) ─────────────────────────────────────────────
       - name: Build web renderer

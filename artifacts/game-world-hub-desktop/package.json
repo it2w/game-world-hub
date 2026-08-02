@@ -62,11 +62,7 @@
       ],
       "icon": "build/icon.ico",
       "requestedExecutionLevel": "asInvoker",
-      "verifyUpdateCodeSignature": false,
-      "signtoolOptions": {
-        "publisherName": "Game World Hub",
-        "signAndEditExecutable": false
-      }
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": true,
@@ -112,5 +108,6 @@
         ]
       }
     ]
-  }
+  },
+  "author": "Game World Hub"
 }

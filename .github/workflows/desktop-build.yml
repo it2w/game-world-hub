@@ -70,13 +70,6 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # ─── Build renderer (Vite) ─────────────────────────────────────────────
-      # rollup ships its Windows native binary as an optional dep that pnpm
-      # sometimes skips when the lockfile was generated on Linux. Install it
-      # explicitly with npm so Vite/rollup can find it on the Windows runner.
-      - name: Install rollup Windows native binary
-        shell: bash
-        run: npm install --no-save --prefer-offline @rollup/rollup-win32-x64-msvc 2>/dev/null || npm install --no-save @rollup/rollup-win32-x64-msvc
-
       - name: Build web renderer
         shell: bash
         env:

@@ -89,5 +89,8 @@
     "livekit-client": "^2.20.1",
     "qrcode.react": "^4.2.0",
     "react-i18next": "^17.0.9"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "*"
   }
 }

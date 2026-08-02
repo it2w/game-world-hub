@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -40,7 +41,7 @@ import Seasons from '@/pages/seasons';
 import Events from '@/pages/events';
 import HallOfFame from '@/pages/hall-of-fame';
 import Admin from '@/pages/admin';
-import Owner from '@/pages/owner';
+const Owner = lazy(() => import('@/pages/owner'));
 import JoinCommunity from '@/pages/join-community';
 import NotFound from '@/pages/not-found';
 import Landing from '@/pages/landing';
@@ -92,7 +93,11 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/join/:code" component={JoinCommunity} />
-      <Route path="/owner" component={Owner} />
+      <Route path="/owner">
+        <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          <Owner />
+        </Suspense>
+      </Route>
       <Route path="/privacy" component={PrivacyPolicy} />
 
       {/* Any non-auth route renders inside the authenticated Shell layout.

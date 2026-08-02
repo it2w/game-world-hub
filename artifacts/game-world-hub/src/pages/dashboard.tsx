@@ -60,20 +60,15 @@ const HIGHLIGHTS = [
 ];
 
 // ── LiveTicker ─────────────────────────────────────────────────────────────────
+// Uses CSS animation instead of JS setInterval — no JS thread load, GPU-accelerated.
 function LiveTicker({ events }: { events: Array<{text:string;color:string}> }) {
   const { t } = useTranslation("dashboard");
-  const [offset, setOffset] = useState(0);
   const items = events.length ? events : [{ text:t("ticker.welcome"), color:"#22C55E" }];
-  const text = items.map(e=>e.text).join("   ◆   ");
-  useEffect(() => {
-    const id = setInterval(() => setOffset(o => (o + 0.9) % (text.length * 7.2)), 20);
-    return () => clearInterval(id);
-  }, [text]);
   return (
     <div className="ticker-bar">
       <div className="ticker-live-pill"><span className="ticker-dot"/>LIVE</div>
-      <div className="ticker-track">
-        <div className="ticker-inner" style={{ transform:`translateX(-${offset}px)` }}>
+      <div className="ticker-track" style={{ overflow:"hidden" }}>
+        <div className="ticker-inner ticker-css-scroll">
           {[...items,...items].map((e,i) => (
             <span key={i} className="ticker-item">
               <span style={{ color:e.color }}>{e.text}</span>
@@ -116,10 +111,19 @@ function StatCard({ icon, value, label, color, sub }: { icon:string;value:string
   const [count, setCount] = useState(0);
   useEffect(() => {
     if (!target) { setCount(0); return; }
-    let s=0; const inc=target/28;
-    const id = setInterval(()=>{ s+=inc; if(s>=target){setCount(target);clearInterval(id);}else setCount(Math.floor(s)); },28);
-    return ()=>clearInterval(id);
-  },[target]);
+    const duration = 600; // ms
+    const start = performance.now();
+    let raf: number;
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      // ease-out quad
+      const eased = 1 - (1 - p) * (1 - p);
+      setCount(Math.floor(eased * target));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
   const display = str.replace(/\d+/, String(count));
   return (
     <div className="stat-card" style={{"--sc":color} as any}>

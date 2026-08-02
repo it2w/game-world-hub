@@ -69,6 +69,10 @@ export async function updateOwnerEmail(id: number, email: string) {
   await db.update(superAdminsTable).set({ email, emailVerified: false, updatedAt: new Date() }).where(eq(superAdminsTable.id, id));
 }
 
+export async function updateOwnerUsername(id: number, newUsername: string) {
+  await db.update(superAdminsTable).set({ username: newUsername, updatedAt: new Date() }).where(eq(superAdminsTable.id, id));
+}
+
 export async function markOwnerEmailVerified(id: number) {
   await db.update(superAdminsTable).set({ emailVerified: true, updatedAt: new Date() }).where(eq(superAdminsTable.id, id));
 }

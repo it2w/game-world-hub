@@ -23,16 +23,23 @@ const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY ?? "";
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET ?? "";
 export const VIP_LOUNGE_ROOM = "vip:lounge";
 
-/** Fetch VIP Lounge participant count from LiveKit via REST (no SDK import needed). */
+// 30-second cache so the LiveKit REST call doesn't block every dashboard load
+let _vipCountCache: { count: number; expiresAt: number } | null = null;
+
+/** Fetch VIP Lounge participant count from LiveKit, cached 30 s. */
 async function getVipParticipantCount(): Promise<number> {
+  const now = Date.now();
+  if (_vipCountCache && _vipCountCache.expiresAt > now) return _vipCountCache.count;
   if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) return 0;
   try {
-    // Import dynamically to avoid startup cost when env vars are missing
     const { RoomServiceClient } = await import("livekit-server-sdk");
     const svc = new RoomServiceClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
     const participants = await svc.listParticipants(VIP_LOUNGE_ROOM);
-    return participants.length;
+    const count = participants.length;
+    _vipCountCache = { count, expiresAt: now + 30_000 };
+    return count;
   } catch {
+    _vipCountCache = { count: 0, expiresAt: now + 30_000 };
     return 0;
   }
 }

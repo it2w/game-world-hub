@@ -14,7 +14,10 @@ import {
   FileText, Zap, MessageSquare, Swords, Megaphone,
   Trophy, Filter, Flag, Lock, Power, SlidersHorizontal, Trash2, Check,
   Download, Layers, Cpu, MemoryStick, Globe, Timer, ArrowUpDown, ServerCrash,
-  Edit2, UserPlus, CalendarClock,
+  Edit2, UserPlus, CalendarClock, Smartphone, AlertOctagon, Wifi, Send, WifiOff,
+  ShieldCheck, ShieldAlert, ScanLine, MonitorSmartphone, ToggleLeft, ToggleRight,
+  QrCode, Fingerprint, Eye, EyeOff, CalendarRange,
+  Database, Bug, Table2, PlayCircle, BookOpen, BookmarkPlus, BarChart2, KeyRound as KeyIcon,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -23,7 +26,7 @@ import { getApiUrl } from "@/lib/api";
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 
 interface OwnerSession  { token: string; username: string; ownerId: number }
-interface OwnerInfo     { id: number; username: string; email: string | null; emailVerified: boolean }
+interface OwnerInfo     { id: number; username: string; email: string | null; emailVerified: boolean; accessKey: string | null }
 
 interface Stats {
   totalUsers: number; proUsers: number; adminUsers: number;
@@ -66,7 +69,7 @@ interface LogRow {
   detail: string | null; ownerId: number; ownerName: string; createdAt: string;
 }
 
-type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "reports" | "denylist" | "settings" | "account" | "analytics" | "content";
+type Tab = "stats" | "users" | "admins" | "codes" | "subs" | "log" | "reports" | "denylist" | "settings" | "account" | "analytics" | "content" | "security" | "email" | "sql" | "errorlog";
 
 interface AdminNote    { id: number; author_id: number; author_name: string | null; body: string; created_at: string }
 interface UserDetail   {
@@ -215,9 +218,19 @@ export function ActivityLogRow({ log, t }: { log: LogRow; t: (k: string) => stri
 
 /* ─── Root ───────────────────────────────────────────────────────────────── */
 
+const OWNER_KEY_STORAGE = "gwh_owner_access_key";
+
+function getStoredAccessKey(): string {
+  try { return localStorage.getItem(OWNER_KEY_STORAGE) ?? ""; } catch { return ""; }
+}
+
 export default function Owner() {
   const { t } = useTranslation("owner");
   const { toast } = useToast();
+
+  // Gate state — verify access key before showing anything
+  const [gateStatus, setGateStatus] = useState<"checking" | "locked" | "open">("checking");
+  const [accessKey,  setAccessKey]  = useState(getStoredAccessKey);
 
   const [session,   setSession]   = useState<OwnerSession | null>(getStoredSession);
   const [ownerInfo, setOwnerInfo] = useState<OwnerInfo | null>(null);
@@ -225,6 +238,17 @@ export default function Owner() {
   const [mode,      setMode]      = useState<"login" | "reset" | "dashboard">(
     getStoredSession() ? "dashboard" : "login",
   );
+
+  // Verify gate key on mount (and whenever accessKey changes from gate input)
+  useEffect(() => {
+    setGateStatus("checking");
+    const k = getStoredAccessKey();
+    if (!k) { setGateStatus("locked"); return; }
+    fetch(`${getApiUrl()}owner-gate/check?k=${encodeURIComponent(k)}`)
+      .then((r) => r.json())
+      .then((d: { valid: boolean }) => setGateStatus(d.valid ? "open" : "locked"))
+      .catch(() => setGateStatus("locked"));
+  }, [accessKey]);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem("gwh_owner_session");
@@ -235,6 +259,10 @@ export default function Owner() {
     try {
       const data = await ownerFetch<OwnerInfo>("owner/me", tok);
       setOwnerInfo(data); setMode("dashboard");
+      // Sync access key returned from server (in case it was regenerated elsewhere)
+      if (data.accessKey) {
+        localStorage.setItem(OWNER_KEY_STORAGE, data.accessKey);
+      }
     } catch (e: unknown) {
       const err = e as { status?: number; message?: string };
       if (err.status === 401 || err.message?.toLowerCase().includes("not found") || err.message?.toLowerCase().includes("expired")) {
@@ -244,14 +272,49 @@ export default function Owner() {
   }, [handleLogout]);
 
   useEffect(() => {
-    if (session) { loadMe(session.token); }
-    else { setLoading(false); }
-  }, [session, loadMe]);
+    if (session && gateStatus === "open") { loadMe(session.token); }
+    else if (!session) { setLoading(false); }
+  }, [session, gateStatus, loadMe]);
 
   const handleLogin = (s: OwnerSession) => {
     localStorage.setItem("gwh_owner_session", JSON.stringify(s));
     setSession(s); setLoading(true);
   };
+
+  // Auto-logout on inactivity (30 minutes)
+  const INACTIVITY_MS = 30 * 60 * 1000;
+  useEffect(() => {
+    if (!session || mode !== "dashboard") return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        handleLogout();
+        toast({ title: "Logged out due to inactivity", variant: "destructive" });
+      }, INACTIVITY_MS);
+    };
+    reset();
+    window.addEventListener("mousemove", reset);
+    window.addEventListener("keydown", reset);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("mousemove", reset);
+      window.removeEventListener("keydown", reset);
+    };
+  }, [session, mode, handleLogout, toast]);
+
+  // ── Gate screen ──────────────────────────────────────────────────────────
+  if (gateStatus === "checking") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (gateStatus === "locked") {
+    return <GateLockScreen onUnlock={(k) => { localStorage.setItem(OWNER_KEY_STORAGE, k); setAccessKey(k); }} />;
+  }
 
   if (loading) {
     return (
@@ -300,19 +363,105 @@ export default function Owner() {
 
 /* ─── Login ──────────────────────────────────────────────────────────────── */
 
+/* ─── Gate Lock Screen ───────────────────────────────────────────────────── */
+
+function GateLockScreen({ onUnlock }: { onUnlock: (k: string) => void }) {
+  const [key,     setKey]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(""); setLoading(true);
+    try {
+      const r = await fetch(`${getApiUrl()}owner-gate/check?k=${encodeURIComponent(key.trim())}`);
+      const d = await r.json() as { valid: boolean };
+      if (d.valid) { onUnlock(key.trim()); }
+      else { setError("Invalid access key. Contact the owner administrator."); }
+    } catch { setError("Could not reach server. Try again."); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Looks like a generic 404 page until you enter the correct key */}
+      <div className="w-full max-w-md text-center space-y-6">
+        <div className="space-y-2">
+          <p className="font-mono text-6xl text-muted-foreground/30">404</p>
+          <p className="font-mono text-sm text-muted-foreground">Page not found</p>
+          <p className="font-mono text-xs text-muted-foreground/50">
+            The page you are looking for doesn't exist or has been moved.
+          </p>
+        </div>
+        {/* Hidden access field — appears when you click the "404" number */}
+        <form onSubmit={submit} className="space-y-3 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
+          <Input
+            type="password"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Access key"
+            className="font-mono rounded-none text-center"
+            autoComplete="off"
+          />
+          {error && <p className="font-mono text-[11px] text-destructive">{error}</p>}
+          <Button type="submit" className="w-full rounded-none font-mono" disabled={loading || !key.trim()}>
+            {loading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <KeyRound className="w-4 h-4 me-2" />}
+            Enter
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Login ──────────────────────────────────────────────────────────────── */
+
 function LoginForm({ onLogin, onReset, t, toast }: {
   onLogin: (s: OwnerSession) => void; onReset: () => void;
   t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [username,   setUsername]   = useState("");
+  const [password,   setPassword]   = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [showPass,   setShowPass]   = useState(false);
+  // Honeypot — filled by bots, must remain empty
+  const [honeypot,   setHoneypot]   = useState("");
 
-  const submit = async (e: React.FormEvent) => {
+  // 2FA state
+  const [step,       setStep]       = useState<"credentials" | "totp">("credentials");
+  const [preToken,   setPreToken]   = useState("");
+  const [totpCode,   setTotpCode]   = useState("");
+
+  const submitCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Honeypot check — if filled, silently drop (bot)
+    if (honeypot) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const data = await ownerFetch<{
+        token?: string;
+        owner?: { id: number; username: string };
+        requires2fa?: boolean;
+        preToken?: string;
+      }>(
+        "owner/login", "", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: username.trim(), password }) }
+      );
+      if (data.requires2fa && data.preToken) {
+        setPreToken(data.preToken);
+        setStep("totp");
+      } else if (data.token && data.owner) {
+        onLogin({ token: data.token, username: data.owner.username, ownerId: data.owner.id });
+        toast({ title: t("loginSuccess") });
+      }
+    } catch (err) {
+      toast({ title: (err as Error).message, variant: "destructive" });
+    } finally { setLoading(false); }
+  };
+
+  const submitTotp = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     try {
       const data = await ownerFetch<{ token: string; owner: { id: number; username: string } }>(
-        "owner/login", "", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: username.trim(), password }) }
+        "owner/2fa/verify", "", { method: "POST", body: JSON.stringify({ preToken, code: totpCode.trim() }) }
       );
       onLogin({ token: data.token, username: data.owner.username, ownerId: data.owner.id });
       toast({ title: t("loginSuccess") });
@@ -321,15 +470,58 @@ function LoginForm({ onLogin, onReset, t, toast }: {
     } finally { setLoading(false); }
   };
 
+  if (step === "totp") {
+    return (
+      <form onSubmit={submitTotp} className="space-y-4">
+        <div className="border border-primary/30 bg-primary/5 p-3 rounded-none">
+          <p className="font-mono text-xs text-primary flex items-center gap-2">
+            <Fingerprint className="w-3.5 h-3.5" /> Two-Factor Authentication required
+          </p>
+          <p className="font-mono text-[11px] text-muted-foreground mt-1">Enter the 6-digit code from your authenticator app.</p>
+        </div>
+        <Input
+          value={totpCode}
+          onChange={(e) => setTotpCode(e.target.value)}
+          placeholder="000000"
+          maxLength={6}
+          autoFocus
+          className="font-mono rounded-none tracking-[0.5em] text-center text-xl"
+        />
+        <Button type="submit" className="w-full rounded-none font-mono" disabled={loading || totpCode.length < 6}>
+          {loading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 me-2" />} Verify
+        </Button>
+        <Button type="button" variant="ghost" className="w-full rounded-none font-mono text-xs" onClick={() => { setStep("credentials"); setTotpCode(""); }}>
+          ← Back
+        </Button>
+      </form>
+    );
+  }
+
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submitCredentials} className="space-y-4">
+      {/* Honeypot — hidden from real users, traps bots that fill all fields */}
+      <div style={{ position: "absolute", left: "-9999px", top: "-9999px", opacity: 0, pointerEvents: "none", tabIndex: -1 } as React.CSSProperties}>
+        <input
+          tabIndex={-1}
+          autoComplete="off"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          aria-hidden="true"
+        />
+      </div>
       <div>
         <label className="font-mono text-xs uppercase block mb-1.5">{t("username")}</label>
         <Input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="font-mono rounded-none" />
       </div>
       <div>
         <label className="font-mono text-xs uppercase block mb-1.5">{t("password")}</label>
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="font-mono rounded-none" />
+        <div className="relative">
+          <Input type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="font-mono rounded-none pe-9" />
+          <button type="button" onClick={() => setShowPass((v) => !v)}
+            className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
       <Button type="submit" className="w-full rounded-none font-mono" disabled={loading}>
         {loading && <Loader2 className="w-4 h-4 me-2 animate-spin" />} {t("login")}
@@ -454,13 +646,22 @@ const NAV_GROUPS: { labelKey: string; items: { id: Tab; icon: React.ReactNode; k
       { id: "content",  icon: <Layers   className="w-3.5 h-3.5" />, key: "tabs.content"  },
       { id: "denylist", icon: <Ban      className="w-3.5 h-3.5" />, key: "tabs.denylist" },
       { id: "log",      icon: <Activity className="w-3.5 h-3.5" />, key: "tabs.log"      },
+      { id: "email",    icon: <Mail     className="w-3.5 h-3.5" />, key: "tabs.email"    },
     ],
   },
   {
     labelKey: "nav.system",
     items: [
-      { id: "settings", icon: <SlidersHorizontal className="w-3.5 h-3.5" />, key: "tabs.settings" },
-      { id: "account",  icon: <Settings          className="w-3.5 h-3.5" />, key: "tabs.account"  },
+      { id: "security", icon: <ShieldCheck        className="w-3.5 h-3.5" />, key: "tabs.security" },
+      { id: "settings", icon: <SlidersHorizontal  className="w-3.5 h-3.5" />, key: "tabs.settings" },
+      { id: "account",  icon: <Settings           className="w-3.5 h-3.5" />, key: "tabs.account"  },
+    ],
+  },
+  {
+    labelKey: "nav.tools",
+    items: [
+      { id: "sql",      icon: <Database   className="w-3.5 h-3.5" />, key: "tabs.sql"      },
+      { id: "errorlog", icon: <Bug        className="w-3.5 h-3.5" />, key: "tabs.errorlog" },
     ],
   },
 ];
@@ -481,11 +682,15 @@ function TabContent({ tab, session, ownerInfo, onRefreshMe, t, toast, onShowOnli
       {tab === "subs"      && <SubsTab      session={session} t={t} />}
       {tab === "analytics" && <AnalyticsTab session={session} t={t} />}
       {tab === "content"   && <ContentTab   session={session} t={t} toast={toast} />}
-      {tab === "log"       && <LogTab       session={session} t={t} />}
-      {tab === "reports"   && <ReportsTab   session={session} t={t} toast={toast} />}
-      {tab === "denylist"  && <DenylistTab  session={session} t={t} toast={toast} />}
-      {tab === "settings"  && <SettingsTab  session={session} t={t} toast={toast} />}
-      {tab === "account"   && <AccountTab   session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
+      {tab === "log"       && <LogTab        session={session} t={t} />}
+      {tab === "reports"   && <ReportsTab    session={session} t={t} toast={toast} />}
+      {tab === "denylist"  && <DenylistTab   session={session} t={t} toast={toast} />}
+      {tab === "settings"  && <SettingsTab   session={session} t={t} toast={toast} />}
+      {tab === "account"   && <AccountTab    session={session} ownerInfo={ownerInfo} onRefreshMe={onRefreshMe} t={t} toast={toast} />}
+      {tab === "security"  && <SecurityTab   session={session} t={t} toast={toast} />}
+      {tab === "email"     && <EmailBlastTab session={session} t={t} toast={toast} />}
+      {tab === "sql"       && <SqlExplorerTab session={session} toast={toast} />}
+      {tab === "errorlog"  && <ErrorLogTab    session={session} />}
     </>
   );
 }
@@ -764,6 +969,34 @@ function UsersTab({ session, t, toast, defaultFilter }: {
   const [bulkDays,    setBulkDays]    = useState("30");
   const [bulkRunning, setBulkRunning] = useState(false);
 
+  // ── IP Search ─────────────────────────────────────────────────────────────
+  const [ipQuery,     setIpQuery]     = useState("");
+  const [ipResults,   setIpResults]   = useState<{ user_id: number; username: string; display_name: string | null; is_admin: boolean; is_pro: boolean; first_seen: string; last_seen: string; session_count: number }[] | null>(null);
+  const [ipLoading,   setIpLoading]   = useState(false);
+  const [showIpSearch, setShowIpSearch] = useState(false);
+
+  const runIpSearch = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!ipQuery.trim()) return;
+    setIpLoading(true);
+    try {
+      const d = await ownerFetch<{ ip: string; items: typeof ipResults }>(`owner/users/ip-search?ip=${encodeURIComponent(ipQuery.trim())}`, session.token);
+      setIpResults(d.items ?? []);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setIpLoading(false); }
+  };
+
+  // ── Users at Risk ─────────────────────────────────────────────────────────
+  const [atRisk,    setAtRisk]    = useState<{ username: string; attempts: number; unique_ips: number; last_attempt: string; user_id: number | null; is_pro: boolean; is_admin: boolean }[] | null>(null);
+  const [atRiskLoading, setAtRiskLoading] = useState(false);
+  const [showAtRisk, setShowAtRisk] = useState(false);
+
+  const loadAtRisk = async () => {
+    setAtRiskLoading(true);
+    try { setAtRisk((await ownerFetch<{ items: typeof atRisk }>("owner/users/at-risk", session.token)).items ?? []); setShowAtRisk(true); }
+    catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setAtRiskLoading(false); }
+  };
+
   // ── Create user dialog ────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ username: "", displayName: "", email: "", password: "" });
@@ -999,7 +1232,70 @@ function UsersTab({ session, t, toast, defaultFilter }: {
         <Button size="sm" className="h-9 px-3 rounded-none font-mono text-xs shrink-0" onClick={() => setCreateOpen(true)}>
           <UserPlus className="w-3.5 h-3.5 me-1" /> إنشاء حساب
         </Button>
+        <Button size="sm" variant="outline" className="h-9 px-2.5 rounded-none font-mono text-xs shrink-0" onClick={() => setShowIpSearch((v) => !v)} title="IP Search">
+          <Globe className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="sm" variant="outline" className="h-9 px-2.5 rounded-none font-mono text-xs shrink-0 border-amber-500/50 text-amber-400 hover:bg-amber-500/10" onClick={loadAtRisk} title="Users at Risk" disabled={atRiskLoading}>
+          {atRiskLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+        </Button>
       </div>
+
+      {/* IP Search */}
+      {showIpSearch && (
+        <div className="border border-border bg-background p-3 space-y-3">
+          <form onSubmit={runIpSearch} className="flex gap-2">
+            <Input value={ipQuery} onChange={(e) => setIpQuery(e.target.value)} placeholder="IP address (e.g. 192.168.1.1)" className="font-mono rounded-none text-xs flex-1" />
+            <Button type="submit" disabled={ipLoading || !ipQuery.trim()} className="rounded-none font-mono text-xs">
+              {ipLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            </Button>
+          </form>
+          {ipResults !== null && (
+            ipResults.length === 0 ? (
+              <p className="font-mono text-xs text-muted-foreground">No accounts found for that IP</p>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="font-mono text-[10px] text-muted-foreground">{ipResults.length} accounts from <code>{ipQuery}</code></p>
+                {ipResults.map((u) => (
+                  <div key={u.user_id} className="border border-border px-3 py-2 flex items-center justify-between gap-2 flex-wrap font-mono text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-semibold">@{u.username}</span>
+                      {u.display_name && <span className="text-muted-foreground ms-2 text-[10px]">{u.display_name}</span>}
+                    </div>
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                      {u.is_admin && <Badge variant="outline" className="text-[9px] h-4 border-blue-500/50 text-blue-400">Admin</Badge>}
+                      {u.is_pro  && <Badge variant="outline" className="text-[9px] h-4 border-yellow-500/50 text-yellow-400">Pro</Badge>}
+                      <span>{u.session_count} sessions · Last: {u.last_seen}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Users at Risk */}
+      {showAtRisk && atRisk !== null && (
+        <div className="border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-[10px] uppercase text-amber-400">⚠ Accounts with ≥3 failed logins (7 days)</p>
+            <button onClick={() => setShowAtRisk(false)} className="text-muted-foreground hover:text-foreground"><XCircle className="w-3.5 h-3.5" /></button>
+          </div>
+          {atRisk.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground">No accounts at risk</p>
+          ) : atRisk.map((u) => (
+            <div key={u.username} className="border border-amber-500/20 bg-background px-3 py-2 flex items-center justify-between gap-2 font-mono text-xs">
+              <span className="font-semibold">@{u.username}</span>
+              <div className="flex gap-3 text-[10px] text-muted-foreground items-center">
+                {u.is_admin && <Badge variant="outline" className="text-[9px] h-4 border-blue-500/50 text-blue-400">Admin</Badge>}
+                <span className="text-amber-400">{u.attempts} attempts</span>
+                <span>{u.unique_ips} IPs</span>
+                <span>Last: {u.last_attempt}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filter chips */}
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -1453,13 +1749,40 @@ function CodesTab({ session, t, toast }: {
 function SubsTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
   const [subs,    setSubs]    = useState<SubRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Refund notes
+  const [refundNotes,    setRefundNotes]    = useState<{ id: number; username: string; amount: string | null; currency: string | null; reason: string | null; order_ref: string | null; owner_name: string | null; created_at: string }[]>([]);
+  const [showRefundForm, setShowRefundForm] = useState(false);
+  const [refundForm,     setRefundForm]     = useState({ username: "", amount: "", currency: "USD", reason: "", orderRef: "" });
+  const [savingRefund,   setSavingRefund]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setSubs((await ownerFetch<{ items: SubRow[] }>("owner/pro-subscriptions", session.token)).items); }
-    catch { /* ignore */ }
+    try {
+      const [subsData, notesData] = await Promise.all([
+        ownerFetch<{ items: SubRow[] }>("owner/pro-subscriptions", session.token),
+        ownerFetch<{ items: typeof refundNotes }>("owner/refund-notes", session.token),
+      ]);
+      setSubs(subsData.items);
+      setRefundNotes(notesData.items);
+    } catch { /* ignore */ }
     finally { setLoading(false); }
   }, [session.token]);
+
+  const saveRefund = async (e: React.FormEvent) => {
+    e.preventDefault(); setSavingRefund(true);
+    try {
+      await ownerFetch("owner/refund-notes", session.token, {
+        method: "POST", body: JSON.stringify({ username: refundForm.username.trim(), amount: refundForm.amount || null, currency: refundForm.currency || null, reason: refundForm.reason || null, orderRef: refundForm.orderRef || null }),
+      });
+      toast({ title: "Refund note saved" });
+      setRefundForm({ username: "", amount: "", currency: "USD", reason: "", orderRef: "" });
+      setShowRefundForm(false);
+      load();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setSavingRefund(false); }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -1498,6 +1821,51 @@ function SubsTab({ session, t }: { session: OwnerSession; t: (k: string) => stri
           ))}
         </div>
       )}
+
+      {/* ── Refund Log ───────────────────────────────────────────────────── */}
+      <div className="border border-border/50">
+        <button type="button" onClick={() => setShowRefundForm((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 font-mono text-xs uppercase text-muted-foreground hover:text-foreground transition-colors">
+          <span className="flex items-center gap-2"><BookmarkPlus className="w-3.5 h-3.5" /> Refund Log ({refundNotes.length})</span>
+          {showRefundForm ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {showRefundForm && (
+          <div className="border-t border-border/50 p-4 space-y-4">
+            <form onSubmit={saveRefund} className="space-y-2">
+              <p className="font-mono text-[10px] text-muted-foreground">Log a manual refund for record-keeping</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={refundForm.username} onChange={(e) => setRefundForm({ ...refundForm, username: e.target.value })} placeholder="Username" className="font-mono rounded-none text-xs" />
+                <Input value={refundForm.orderRef} onChange={(e) => setRefundForm({ ...refundForm, orderRef: e.target.value })} placeholder="Order ref" className="font-mono rounded-none text-xs" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Input value={refundForm.amount} onChange={(e) => setRefundForm({ ...refundForm, amount: e.target.value })} placeholder="Amount" className="font-mono rounded-none text-xs col-span-2" />
+                <Input value={refundForm.currency} onChange={(e) => setRefundForm({ ...refundForm, currency: e.target.value })} placeholder="USD" className="font-mono rounded-none text-xs" />
+              </div>
+              <Input value={refundForm.reason} onChange={(e) => setRefundForm({ ...refundForm, reason: e.target.value })} placeholder="Reason" className="font-mono rounded-none text-xs" />
+              <Button type="submit" disabled={savingRefund || !refundForm.username.trim()} className="w-full rounded-none font-mono text-xs">
+                {savingRefund ? <Loader2 className="w-3.5 h-3.5 me-2 animate-spin" /> : <Plus className="w-3.5 h-3.5 me-2" />} Save Refund Note
+              </Button>
+            </form>
+            {refundNotes.length > 0 && (
+              <div className="space-y-1.5 border-t border-border/50 pt-3">
+                {refundNotes.map((n) => (
+                  <div key={n.id} className="border border-border bg-background px-3 py-2 space-y-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold">@{n.username}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">{n.created_at}</span>
+                    </div>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      {n.amount ? `${n.amount} ${n.currency ?? ""}` : ""}{n.order_ref ? ` · #${n.order_ref}` : ""}
+                      {n.reason ? ` — ${n.reason}` : ""}
+                    </p>
+                    {n.owner_name && <p className="font-mono text-[9px] text-muted-foreground/50">by {n.owner_name}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1505,35 +1873,77 @@ function SubsTab({ session, t }: { session: OwnerSession; t: (k: string) => stri
 /* ─── Log Tab ────────────────────────────────────────────────────────────── */
 
 function LogTab({ session, t }: { session: OwnerSession; t: (k: string) => string }) {
-  const [logs,    setLogs]    = useState<LogRow[]>([]);
-  const [total,   setTotal]   = useState(0);
-  const [offset,  setOffset]  = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [logs,       setLogs]       = useState<LogRow[]>([]);
+  const [total,      setTotal]      = useState(0);
+  const [allActions, setAllActions] = useState<string[]>([]);
+  const [offset,     setOffset]     = useState(0);
+  const [loading,    setLoading]    = useState(true);
+
+  // Filters
+  const [filterAction, setFilterAction] = useState("");
+  const [filterFrom,   setFilterFrom]   = useState("");
+  const [filterTo,     setFilterTo]     = useState("");
+  const [showFilters,  setShowFilters]  = useState(false);
+
   const LIMIT = 50;
 
   const load = useCallback(async (off: number, append = false) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
-      const data = await ownerFetch<{ total: number; items: LogRow[] }>(`owner/activity-log?${params}`, session.token);
+      if (filterAction) params.set("action", filterAction);
+      if (filterFrom)   params.set("from",   filterFrom);
+      if (filterTo)     params.set("to",     filterTo);
+      const data = await ownerFetch<{ total: number; items: LogRow[]; actions: string[] }>(`owner/activity-log?${params}`, session.token);
       setTotal(data.total);
+      setAllActions(data.actions ?? []);
       setLogs((prev) => append ? [...prev, ...data.items] : data.items);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [session.token]);
+  }, [session.token, filterAction, filterFrom, filterTo]);
 
-  useEffect(() => { load(0); }, [load]);
+  useEffect(() => { setOffset(0); load(0); }, [load]);
 
   const loadMore = () => { const next = offset + LIMIT; setOffset(next); load(next, true); };
 
+  const hasFilters = filterAction || filterFrom || filterTo;
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-muted-foreground">{loading ? "…" : `${total} ${t("log.total")}`}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="font-mono text-xs text-muted-foreground flex-1">{loading ? "…" : `${total} ${t("log.total")}`}</p>
+        <Button size="sm" variant="outline" className={`h-7 px-2 font-mono text-xs rounded-none ${hasFilters ? "border-primary text-primary" : ""}`}
+          onClick={() => setShowFilters((v) => !v)}>
+          <Filter className="w-3 h-3 me-1" /> {hasFilters ? "Filtered" : "Filter"}
+        </Button>
         <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={() => { setOffset(0); load(0); }}>
           <RefreshCw className={`w-3.5 h-3.5 me-1 ${loading ? "animate-spin" : ""}`} /> {t("refresh")}
         </Button>
       </div>
+
+      {showFilters && (
+        <div className="border border-border bg-background p-3 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <select value={filterAction} onChange={(e) => setFilterAction(e.target.value)}
+              className="bg-transparent border border-border rounded-none px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">All actions</option>
+              {allActions.map((a) => <option key={a} value={a}>{ACTION_LABELS[a] ?? a}</option>)}
+            </select>
+            <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
+              placeholder="From"
+              className="bg-transparent border border-border rounded-none px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+            <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
+              placeholder="To"
+              className="bg-transparent border border-border rounded-none px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          {hasFilters && (
+            <Button size="sm" variant="ghost" className="h-6 text-[11px] font-mono text-muted-foreground"
+              onClick={() => { setFilterAction(""); setFilterFrom(""); setFilterTo(""); }}>
+              <XCircle className="w-3 h-3 me-1" /> Clear filters
+            </Button>
+          )}
+        </div>
+      )}
 
       {loading && logs.length === 0 ? (
         <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" /></div>
@@ -1541,9 +1951,7 @@ function LogTab({ session, t }: { session: OwnerSession; t: (k: string) => strin
         <p className="text-center font-mono text-xs text-muted-foreground py-8">{t("log.noResults")}</p>
       ) : (
         <div className="space-y-1">
-          {logs.map((l) => (
-            <ActivityLogRow key={l.id} log={l} t={t} />
-          ))}
+          {logs.map((l) => <ActivityLogRow key={l.id} log={l} t={t} />)}
           {!loading && logs.length < total && (
             <Button variant="outline" className="w-full rounded-none font-mono text-xs mt-2" onClick={loadMore}>
               {t("log.loadMore")} ({logs.length}/{total})
@@ -1569,7 +1977,37 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
   const [newPass,        setNewPass]        = useState("");
   const [loadingPass,    setLoadingPass]    = useState(false);
 
+  // Change username
+  const [showChangeUser,  setShowChangeUser]  = useState(false);
+  const [newUsername,     setNewUsername]     = useState("");
+  const [userConfirmPass, setUserConfirmPass] = useState("");
+  const [loadingUser,     setLoadingUser]     = useState(false);
+
+  // Panel access key
+  const [showKeySection,    setShowKeySection]    = useState(false);
+  const [accessKey,         setAccessKey]         = useState(ownerInfo.accessKey ?? "");
+  const [keyConfirmPass,    setKeyConfirmPass]     = useState("");
+  const [keyLoading,        setKeyLoading]         = useState(false);
+  const [keyCopied,         setKeyCopied]          = useState(false);
+
+  // 2FA state
+  const [twoFaEnabled,   setTwoFaEnabled]   = useState<boolean | null>(null);
+  const [totpUri,        setTotpUri]        = useState<string | null>(null);
+  const [totpSecret,     setTotpSecret]     = useState<string | null>(null);
+  const [totpCode,       setTotpCode]       = useState("");
+  const [disablePass,    setDisablePass]    = useState("");
+  const [loading2fa,     setLoading2fa]     = useState(false);
+  const [show2faSetup,   setShow2faSetup]   = useState(false);
+  const [showQr,         setShowQr]         = useState(false);
+
   useEffect(() => { setEmail(ownerInfo.email ?? ""); }, [ownerInfo.email]);
+  useEffect(() => { setAccessKey(ownerInfo.accessKey ?? ""); }, [ownerInfo.accessKey]);
+
+  useEffect(() => {
+    ownerFetch<{ enabled: boolean }>("owner/2fa/status", session.token)
+      .then((d) => setTwoFaEnabled(d.enabled))
+      .catch(() => setTwoFaEnabled(false));
+  }, [session.token]);
 
   const saveEmail = async (e: React.FormEvent) => {
     e.preventDefault(); setLoadingEmail(true);
@@ -1580,6 +2018,39 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
     finally { setLoadingEmail(false); }
   };
 
+  const changeUsername = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoadingUser(true);
+    try {
+      const d = await ownerFetch<{ ok: boolean; newUsername: string }>("owner/account/change-username", session.token, {
+        method: "POST", body: JSON.stringify({ newUsername: newUsername.trim(), currentPassword: userConfirmPass }),
+      });
+      toast({ title: `Username changed to ${d.newUsername}` });
+      setNewUsername(""); setUserConfirmPass(""); setShowChangeUser(false);
+      onRefreshMe();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoadingUser(false); }
+  };
+
+  const regenerateAccessKey = async (e: React.FormEvent) => {
+    e.preventDefault(); setKeyLoading(true);
+    try {
+      const d = await ownerFetch<{ ok: boolean; accessKey: string }>("owner/account/regenerate-access-key", session.token, {
+        method: "POST", body: JSON.stringify({ currentPassword: keyConfirmPass }),
+      });
+      setAccessKey(d.accessKey);
+      localStorage.setItem("gwh_owner_access_key", d.accessKey);
+      setKeyConfirmPass("");
+      toast({ title: "Access key regenerated — save it now!" });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setKeyLoading(false); }
+  };
+
+  const copyAccessKey = () => {
+    navigator.clipboard.writeText(accessKey).then(() => {
+      setKeyCopied(true); setTimeout(() => setKeyCopied(false), 2000);
+    });
+  };
+
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault(); setLoadingPass(true);
     try {
@@ -1588,6 +2059,36 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
       setCurrentPass(""); setNewPass(""); setShowChangePass(false);
     } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
     finally { setLoadingPass(false); }
+  };
+
+  const setup2fa = async () => {
+    setLoading2fa(true);
+    try {
+      const d = await ownerFetch<{ secret: string; uri: string }>("owner/2fa/setup", session.token, { method: "POST" });
+      setTotpSecret(d.secret); setTotpUri(d.uri); setShow2faSetup(true); setShowQr(true);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading2fa(false); }
+  };
+
+  const enable2fa = async () => {
+    setLoading2fa(true);
+    try {
+      await ownerFetch("owner/2fa/enable", session.token, { method: "POST", body: JSON.stringify({ code: totpCode }) });
+      toast({ title: "2FA enabled — your account is now protected" });
+      setTwoFaEnabled(true); setShow2faSetup(false); setTotpCode("");
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading2fa(false); }
+  };
+
+  const disable2fa = async () => {
+    if (!disablePass) { toast({ title: "Enter your password to disable 2FA", variant: "destructive" }); return; }
+    setLoading2fa(true);
+    try {
+      await ownerFetch("owner/2fa", session.token, { method: "DELETE", body: JSON.stringify({ password: disablePass }) });
+      toast({ title: "2FA disabled" });
+      setTwoFaEnabled(false); setDisablePass("");
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading2fa(false); }
   };
 
   return (
@@ -1602,6 +2103,28 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
         </Button>
       </form>
 
+      {/* ── Change username ──────────────────────────────────────────── */}
+      <div className="border border-border/50">
+        <button type="button" onClick={() => setShowChangeUser((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 font-mono text-xs uppercase text-muted-foreground hover:text-foreground transition-colors">
+          <span className="flex items-center gap-2">
+            <ScanLine className="w-3.5 h-3.5" /> Change Owner Username
+            <code className="ms-1 text-primary font-mono text-[10px] normal-case">{ownerInfo.username}</code>
+          </span>
+          {showChangeUser ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {showChangeUser && (
+          <form onSubmit={changeUsername} className="px-4 pb-4 space-y-2 border-t border-border/50 pt-3">
+            <p className="font-mono text-[10px] text-muted-foreground">Letters, numbers, underscores only (3–32 chars). After changing, use the new username to log in.</p>
+            <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="New username" autoComplete="off" className="font-mono rounded-none" />
+            <Input type="password" value={userConfirmPass} onChange={(e) => setUserConfirmPass(e.target.value)} placeholder={t("currentPassword")} autoComplete="current-password" className="font-mono rounded-none" />
+            <Button type="submit" className="w-full rounded-none font-mono" disabled={loadingUser || !newUsername.trim() || !userConfirmPass}>
+              {loadingUser ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <ScanLine className="w-4 h-4 me-2" />} Save New Username
+            </Button>
+          </form>
+        )}
+      </div>
+
+      {/* ── Change password ──────────────────────────────────────────── */}
       <div className="border border-border/50">
         <button type="button" onClick={() => setShowChangePass((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 font-mono text-xs uppercase text-muted-foreground hover:text-foreground transition-colors">
           <span className="flex items-center gap-2"><KeyRound className="w-3.5 h-3.5" /> {t("changePassword")}</span>
@@ -1615,6 +2138,95 @@ function AccountTab({ session, ownerInfo, onRefreshMe, t, toast }: {
               {loadingPass && <Loader2 className="w-4 h-4 me-2 animate-spin" />} {t("changePassword")}
             </Button>
           </form>
+        )}
+      </div>
+
+      {/* ── Panel Access Key ──────────────────────────────────────────── */}
+      <div className="border border-amber-500/30">
+        <button type="button" onClick={() => setShowKeySection((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 font-mono text-xs uppercase text-amber-400/70 hover:text-amber-400 transition-colors">
+          <span className="flex items-center gap-2"><Wifi className="w-3.5 h-3.5" /> Panel Access Key (URL Secret)</span>
+          {showKeySection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {showKeySection && (
+          <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-3">
+            <p className="font-mono text-[10px] text-muted-foreground">
+              This key is required to access the owner panel gate. Without it, the panel shows a generic 404 page.
+              Share only with trusted individuals. After regenerating, the old key stops working immediately.
+            </p>
+            <div className="flex gap-1.5">
+              <code className="flex-1 font-mono text-[11px] border border-amber-500/30 bg-amber-500/5 px-3 py-2 break-all text-amber-300">
+                {accessKey || "—"}
+              </code>
+              <Button size="sm" variant="ghost" className="h-auto px-2.5 border border-border text-muted-foreground hover:text-foreground shrink-0" onClick={copyAccessKey} disabled={!accessKey}>
+                {keyCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </Button>
+            </div>
+            <form onSubmit={regenerateAccessKey} className="space-y-2">
+              <Input type="password" value={keyConfirmPass} onChange={(e) => setKeyConfirmPass(e.target.value)} placeholder="Current password to confirm" autoComplete="current-password" className="font-mono rounded-none border-amber-500/30" />
+              <Button type="submit" variant="outline" className="w-full rounded-none font-mono text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10" disabled={keyLoading || !keyConfirmPass}>
+                {keyLoading ? <Loader2 className="w-3.5 h-3.5 me-2 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 me-2" />} Regenerate Access Key
+              </Button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* ── 2FA ─────────────────────────────────────────────────────────── */}
+      <div className="border border-border/50">
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="flex items-center gap-2 font-mono text-xs uppercase text-muted-foreground">
+            <Fingerprint className="w-3.5 h-3.5" /> Two-Factor Authentication (TOTP)
+          </span>
+          {twoFaEnabled === null ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+            <Badge variant="outline" className={twoFaEnabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}>
+              {twoFaEnabled ? "Enabled" : "Disabled"}
+            </Badge>
+          )}
+        </div>
+
+        {twoFaEnabled === false && !show2faSetup && (
+          <div className="px-4 pb-4 border-t border-border/50 pt-3 space-y-2">
+            <p className="font-mono text-[11px] text-muted-foreground">Protect your owner account with a TOTP authenticator app (Google Authenticator, Authy, etc.).</p>
+            <Button variant="outline" className="w-full rounded-none font-mono text-xs" onClick={setup2fa} disabled={loading2fa}>
+              {loading2fa ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <QrCode className="w-4 h-4 me-2" />} Set Up 2FA
+            </Button>
+          </div>
+        )}
+
+        {show2faSetup && (
+          <div className="px-4 pb-4 border-t border-border/50 pt-3 space-y-3">
+            <p className="font-mono text-[11px] text-muted-foreground">Scan the QR code with your authenticator app, then enter the 6-digit code to confirm.</p>
+            {showQr && totpUri && (
+              <div className="bg-white p-2 inline-block">
+                {/* Render QR as link fallback since we can't import qrcode */}
+                <p className="font-mono text-[9px] text-black break-all max-w-xs">{totpUri}</p>
+              </div>
+            )}
+            {totpSecret && (
+              <div className="border border-border p-2 flex items-center gap-2">
+                <code className="font-mono text-xs flex-1 select-all">{totpSecret}</code>
+                <button onClick={() => navigator.clipboard.writeText(totpSecret)} className="text-muted-foreground hover:text-foreground">
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <Input placeholder="Enter 6-digit code" value={totpCode} onChange={(e) => setTotpCode(e.target.value)}
+              maxLength={6} className="font-mono rounded-none tracking-widest text-center text-lg" />
+            <Button className="w-full rounded-none font-mono text-xs" onClick={enable2fa} disabled={loading2fa || totpCode.length < 6}>
+              {loading2fa ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <ShieldCheck className="w-4 h-4 me-2" />} Verify &amp; Enable 2FA
+            </Button>
+          </div>
+        )}
+
+        {twoFaEnabled === true && (
+          <div className="px-4 pb-4 border-t border-border/50 pt-3 space-y-2">
+            <p className="font-mono text-[11px] text-amber-400">⚠️ To disable 2FA, enter your password below. This removes your extra protection.</p>
+            <Input type="password" placeholder="Current password" value={disablePass} onChange={(e) => setDisablePass(e.target.value)}
+              className="font-mono rounded-none" />
+            <Button variant="destructive" className="w-full rounded-none font-mono text-xs" onClick={disable2fa} disabled={loading2fa}>
+              {loading2fa ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <ShieldAlert className="w-4 h-4 me-2" />} Disable 2FA
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -1637,6 +2249,38 @@ function ReportsTab({ session, t, toast }: {
   const [loading, setLoading] = useState(true);
   const [acting,  setActing]  = useState<number | null>(null);
   const [filter,  setFilter]  = useState("pending");
+
+  // Reply templates
+  type Template = { id: number; title: string; body: string; category: string };
+  const [templates,      setTemplates]      = useState<Template[]>([]);
+  const [showTemplates,  setShowTemplates]  = useState(false);
+  const [newTemplate,    setNewTemplate]    = useState({ title: "", body: "", category: "general" });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const loadTemplates = useCallback(async () => {
+    try { setTemplates((await ownerFetch<{ items: Template[] }>("owner/reply-templates", session.token)).items); }
+    catch { /* ignore */ }
+  }, [session.token]);
+
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
+
+  const saveTemplate = async (e: React.FormEvent) => {
+    e.preventDefault(); setSavingTemplate(true);
+    try {
+      await ownerFetch("owner/reply-templates", session.token, {
+        method: "POST", body: JSON.stringify(newTemplate),
+      });
+      setNewTemplate({ title: "", body: "", category: "general" });
+      loadTemplates();
+      toast({ title: "Template saved" });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setSavingTemplate(false); }
+  };
+
+  const deleteTemplate = async (id: number) => {
+    await ownerFetch(`owner/reply-templates/${id}`, session.token, { method: "DELETE" });
+    loadTemplates();
+  };
 
   const load = useCallback(async (f = filter) => {
     setLoading(true);
@@ -1687,6 +2331,48 @@ function ReportsTab({ session, t, toast }: {
         <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={() => load()}>
           <RefreshCw className={`w-3.5 h-3.5 me-1 ${loading ? "animate-spin" : ""}`} />{t("refresh")}
         </Button>
+      </div>
+
+      {/* Reply Templates */}
+      <div className="border border-border/50">
+        <button type="button" onClick={() => setShowTemplates((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 font-mono text-[11px] uppercase text-muted-foreground hover:text-foreground transition-colors">
+          <span className="flex items-center gap-2"><BookOpen className="w-3.5 h-3.5" /> Reply Templates ({templates.length})</span>
+          {showTemplates ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {showTemplates && (
+          <div className="border-t border-border/50 p-3 space-y-3">
+            <form onSubmit={saveTemplate} className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={newTemplate.title} onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value })} placeholder="Template title" className="font-mono rounded-none text-xs" />
+                <Input value={newTemplate.category} onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })} placeholder="Category" className="font-mono rounded-none text-xs" />
+              </div>
+              <textarea value={newTemplate.body} onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })} placeholder="Reply body..." rows={3}
+                className="w-full font-mono text-xs bg-background border border-border rounded-none px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+              <Button type="submit" size="sm" disabled={savingTemplate || !newTemplate.title.trim() || !newTemplate.body.trim()} className="w-full rounded-none font-mono text-xs">
+                {savingTemplate ? <Loader2 className="w-3.5 h-3.5 me-2 animate-spin" /> : <Plus className="w-3.5 h-3.5 me-2" />} Save Template
+              </Button>
+            </form>
+            {templates.length > 0 && (
+              <div className="space-y-1.5 border-t border-border/50 pt-2">
+                {templates.map((tpl) => (
+                  <div key={tpl.id} className="border border-border bg-background px-3 py-2 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-semibold">{tpl.title}</span>
+                        <Badge variant="outline" className="text-[9px] h-4">{tpl.category}</Badge>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => deleteTemplate(tpl.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <p className="font-mono text-[10px] text-muted-foreground line-clamp-2">{tpl.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -1858,18 +2544,58 @@ function DenylistTab({ session, t, toast }: {
 
 /* ─── Settings Tab ───────────────────────────────────────────────────────── */
 
-type PlatformSettings = { registrations_enabled: string; maintenance_mode: string; maintenance_message: string };
+type PlatformSettings = {
+  registrations_enabled: string;
+  maintenance_mode: string;
+  maintenance_message: string;
+  username_min_length: string;
+  username_max_length: string;
+  display_name_min_length: string;
+  display_name_max_length: string;
+  bio_max_length: string;
+  lfg_cooldown_minutes: string;
+  max_party_size: string;
+  feature_clips: string;
+  feature_polls: string;
+  feature_shop: string;
+  feature_events: string;
+  feature_stages: string;
+  feature_leaderboards: string;
+  [key: string]: string;
+};
+
+const DEFAULT_SETTINGS: PlatformSettings = {
+  registrations_enabled: "true",
+  maintenance_mode: "false",
+  maintenance_message: "",
+  username_min_length: "3",
+  username_max_length: "30",
+  display_name_min_length: "2",
+  display_name_max_length: "40",
+  bio_max_length: "500",
+  lfg_cooldown_minutes: "5",
+  max_party_size: "20",
+  feature_clips: "true",
+  feature_polls: "true",
+  feature_shop: "true",
+  feature_events: "true",
+  feature_stages: "true",
+  feature_leaderboards: "true",
+};
 
 function SettingsTab({ session, t, toast }: {
   session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [settings,  setSettings]  = useState<PlatformSettings>({ registrations_enabled: "true", maintenance_mode: "false", maintenance_message: "" });
+  const [settings,  setSettings]  = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setSettings(await ownerFetch<PlatformSettings>("owner/settings", session.token)); }
+    try {
+      const data = await ownerFetch<PlatformSettings>("owner/settings", session.token);
+      setSettings((prev) => ({ ...prev, ...data }));
+    }
     catch { /* ignore */ }
     finally { setLoading(false); }
   }, [session.token]);
@@ -1885,19 +2611,20 @@ function SettingsTab({ session, t, toast }: {
     finally { setSaving(false); }
   };
 
-  const toggle = (key: "registrations_enabled" | "maintenance_mode") => {
+  const set = (key: keyof PlatformSettings, value: string) =>
+    setSettings((p) => ({ ...p, [key]: value }));
+  const toggle = (key: keyof PlatformSettings) =>
     setSettings((p) => ({ ...p, [key]: p[key] === "true" ? "false" : "true" }));
-  };
 
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
-  const ToggleRow = ({ k, labelKey, descKey }: { k: "registrations_enabled" | "maintenance_mode"; labelKey: string; descKey: string }) => {
+  const ToggleRow = ({ k, label, desc }: { k: keyof PlatformSettings; label: string; desc?: string }) => {
     const isOn = settings[k] === "true";
     return (
       <div className="flex items-center justify-between gap-4 border border-border bg-background px-4 py-3">
         <div>
-          <p className="font-mono text-sm">{t(labelKey)}</p>
-          <p className="font-mono text-[11px] text-muted-foreground mt-0.5">{t(descKey)}</p>
+          <p className="font-mono text-sm">{label}</p>
+          {desc && <p className="font-mono text-[11px] text-muted-foreground mt-0.5">{desc}</p>}
         </div>
         <button onClick={() => toggle(k)} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${isOn ? "bg-primary" : "bg-muted"}`}>
           <span className={`inline-block h-5 w-5 rounded-full bg-background shadow ring-0 transition-transform ${isOn ? "translate-x-5" : "translate-x-0"}`} />
@@ -1906,20 +2633,71 @@ function SettingsTab({ session, t, toast }: {
     );
   };
 
-  return (
-    <div className="space-y-3">
-      <ToggleRow k="registrations_enabled"  labelKey="settings.registrationsEnabled" descKey="settings.registrationsDesc" />
-      <ToggleRow k="maintenance_mode"        labelKey="settings.maintenanceMode"       descKey="settings.maintenanceDesc" />
+  const NumberRow = ({ k, label, min, max }: { k: keyof PlatformSettings; label: string; min?: number; max?: number }) => (
+    <div className="flex items-center justify-between gap-4 border border-border bg-background px-4 py-2.5">
+      <p className="font-mono text-sm flex-1">{label}</p>
+      <input
+        type="number"
+        value={settings[k] ?? ""}
+        min={min} max={max}
+        onChange={(e) => set(k, e.target.value)}
+        className="w-20 bg-transparent border border-border rounded-none px-2 py-1 font-mono text-xs text-right focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
+  );
 
-      <div className="border border-border bg-background px-4 py-3 space-y-1.5">
-        <p className="font-mono text-sm">{t("settings.maintenanceMessage")}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">{t("settings.maintenanceMessageDesc")}</p>
-        <textarea
-          value={settings.maintenance_message}
-          onChange={(e) => setSettings((p) => ({ ...p, maintenance_message: e.target.value }))}
-          rows={2}
-          className="w-full mt-1 bg-transparent border border-border rounded-none px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-        />
+  return (
+    <div className="space-y-4">
+      {/* Platform */}
+      <div>
+        <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2 px-1">Platform</p>
+        <div className="space-y-1">
+          <ToggleRow k="registrations_enabled"  label={t("settings.registrationsEnabled")} desc={t("settings.registrationsDesc")} />
+          <ToggleRow k="maintenance_mode"        label={t("settings.maintenanceMode")}       desc={t("settings.maintenanceDesc")} />
+          <div className="border border-border bg-background px-4 py-3 space-y-1.5">
+            <p className="font-mono text-sm">{t("settings.maintenanceMessage")}</p>
+            <textarea
+              value={settings.maintenance_message}
+              onChange={(e) => set("maintenance_message", e.target.value)}
+              rows={2}
+              className="w-full mt-1 bg-transparent border border-border rounded-none px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Username & Profile */}
+      <div>
+        <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2 px-1">Username &amp; Profile Limits</p>
+        <div className="space-y-1">
+          <NumberRow k="username_min_length"      label="Username — min chars" min={1} max={20} />
+          <NumberRow k="username_max_length"      label="Username — max chars" min={3} max={50} />
+          <NumberRow k="display_name_min_length"  label="Display name — min chars" min={1} max={20} />
+          <NumberRow k="display_name_max_length"  label="Display name — max chars" min={2} max={100} />
+          <NumberRow k="bio_max_length"           label="Bio — max chars" min={0} max={5000} />
+        </div>
+      </div>
+
+      {/* Gameplay Limits */}
+      <div>
+        <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2 px-1">Gameplay Limits</p>
+        <div className="space-y-1">
+          <NumberRow k="lfg_cooldown_minutes" label="LFG post cooldown (minutes)" min={0} max={1440} />
+          <NumberRow k="max_party_size"       label="Max party size" min={2} max={200} />
+        </div>
+      </div>
+
+      {/* Feature Flags */}
+      <div>
+        <p className="font-mono text-[10px] uppercase text-muted-foreground mb-2 px-1">Feature Flags</p>
+        <div className="space-y-1">
+          <ToggleRow k="feature_clips"        label="🎬 Clips" />
+          <ToggleRow k="feature_polls"        label="📊 Polls" />
+          <ToggleRow k="feature_shop"         label="🛒 Shop" />
+          <ToggleRow k="feature_events"       label="📅 Events" />
+          <ToggleRow k="feature_stages"       label="🎙️ Stages" />
+          <ToggleRow k="feature_leaderboards" label="🏆 Leaderboards" />
+        </div>
       </div>
 
       <Button onClick={save} className="rounded-none font-mono text-xs" disabled={saving}>
@@ -2124,6 +2902,9 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
                 </div>
               )}
 
+              {/* GDPR / Danger Zone */}
+              <GdprSection userId={user.id} session={session} t={t} toast={toast} onClose={onClose} />
+
               {/* Admin notes */}
               <div className="space-y-2">
                 <p className="font-mono text-[10px] uppercase text-muted-foreground flex items-center gap-1.5">
@@ -2165,6 +2946,936 @@ function UserDetailDrawer({ user, session, t, toast, onClose }: {
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/* ─── GDPR / Danger Zone (inside UserDetailDrawer) ──────────────────────── */
+
+function GdprSection({ userId, session, t, toast, onClose }: {
+  userId: number; session: OwnerSession;
+  t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+  onClose: () => void;
+}) {
+  const [open,          setOpen]          = useState(false);
+  const [action,        setAction]        = useState<"anonymize" | "hard_delete">("anonymize");
+  const [confirm,       setConfirm]       = useState("");
+  const [loading,       setLoading]       = useState(false);
+
+  const run = async () => {
+    if (action === "anonymize" && confirm !== "ANONYMIZE") {
+      toast({ title: "Type ANONYMIZE to confirm", variant: "destructive" }); return;
+    }
+    if (action === "hard_delete" && confirm !== "DELETE") {
+      toast({ title: "Type DELETE to confirm", variant: "destructive" }); return;
+    }
+    setLoading(true);
+    try {
+      if (action === "anonymize") {
+        await ownerFetch(`owner/users/${userId}/anonymize`, session.token, { method: "POST" });
+        toast({ title: "User anonymized (GDPR)" });
+      } else {
+        await ownerFetch(`owner/users/${userId}`, session.token, { method: "DELETE" });
+        toast({ title: "User permanently deleted" });
+      }
+      onClose();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="border border-red-900/50">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 font-mono text-xs uppercase text-red-400 hover:bg-red-500/5 transition-colors"
+      >
+        <span className="flex items-center gap-1.5"><AlertOctagon className="w-3.5 h-3.5" /> Danger Zone (GDPR)</span>
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-2 space-y-3 border-t border-red-900/40">
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setAction("anonymize")}
+              className={`font-mono text-[11px] border px-2 py-1.5 transition-colors ${action === "anonymize" ? "border-red-500 bg-red-500/10 text-red-300" : "border-border text-muted-foreground"}`}
+            >Anonymize (safe)</button>
+            <button
+              onClick={() => setAction("hard_delete")}
+              className={`font-mono text-[11px] border px-2 py-1.5 transition-colors ${action === "hard_delete" ? "border-red-600 bg-red-600/20 text-red-200" : "border-border text-muted-foreground"}`}
+            >Hard Delete</button>
+          </div>
+          <p className="font-mono text-[10px] text-muted-foreground">
+            {action === "anonymize"
+              ? "Replaces all PII (username, email, avatar, bio) with placeholder values. Account stays but is unidentifiable."
+              : "⚠️ Permanently removes the user and all associated data. Irreversible."}
+          </p>
+          <Input
+            placeholder={action === "anonymize" ? "Type ANONYMIZE" : "Type DELETE"}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            className="font-mono rounded-none text-xs border-red-900/50"
+          />
+          <Button
+            variant="destructive"
+            className="w-full rounded-none font-mono text-xs"
+            onClick={run}
+            disabled={loading || (action === "anonymize" ? confirm !== "ANONYMIZE" : confirm !== "DELETE")}
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 me-1.5" />}
+            {action === "anonymize" ? "Anonymize User" : "Delete User Permanently"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Security Tab ───────────────────────────────────────────────────────── */
+
+interface OwnerSessionRow {
+  id: number; ip: string | null; user_agent: string | null;
+  created_at: string; last_used_at: string; is_current: boolean;
+}
+interface IpAllowlistRow { id: number; cidr: string; label: string | null; added_by: number; created_at: string }
+interface IpBanRow { id: number; ip: string; reason: string | null; added_by: number | null; expires_at: string | null; created_at: string }
+interface FailedLoginData {
+  total: number; hours: number;
+  recent: { ip: string; count: number; usernames: string; last_attempt: string }[];
+  timeline: { ts: string; count: number }[];
+  currentlyBlocked: string[];
+}
+
+function SecurityTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [subTab, setSubTab] = useState<"sessions" | "adminsess" | "ipallow" | "ipban" | "failedlogins" | "panic" | "webhook">("sessions");
+
+  // Sessions
+  const [sessions,     setSessions]     = useState<OwnerSessionRow[]>([]);
+  const [loadSess,     setLoadSess]     = useState(true);
+  const [revokingId,   setRevokingId]   = useState<number | null>(null);
+  const [revokeAll,    setRevokeAll]    = useState(false);
+
+  // IP Allowlist
+  const [allowlist,    setAllowlist]    = useState<IpAllowlistRow[]>([]);
+  const [loadAllow,    setLoadAllow]    = useState(true);
+  const [newCidr,      setNewCidr]      = useState("");
+  const [newCidrLabel, setNewCidrLabel] = useState("");
+  const [addingAllow,  setAddingAllow]  = useState(false);
+
+  // IP Ban
+  const [bans,         setBans]         = useState<IpBanRow[]>([]);
+  const [loadBans,     setLoadBans]     = useState(true);
+  const [newIp,        setNewIp]        = useState("");
+  const [newIpReason,  setNewIpReason]  = useState("");
+  const [newIpExpiry,  setNewIpExpiry]  = useState("");
+  const [addingBan,    setAddingBan]    = useState(false);
+  const [removingBan,  setRemovingBan]  = useState<number | null>(null);
+
+  // Failed logins
+  const [failedData,   setFailedData]   = useState<FailedLoginData | null>(null);
+  const [loadFail,     setLoadFail]     = useState(false);
+  const [hours,        setHours]        = useState(24);
+
+  // Load sessions
+  const loadSessions = useCallback(async () => {
+    setLoadSess(true);
+    try { setSessions((await ownerFetch<{ items: OwnerSessionRow[] }>("owner/sessions", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoadSess(false); }
+  }, [session.token]);
+
+  // Load allowlist
+  const loadAllowlist = useCallback(async () => {
+    setLoadAllow(true);
+    try { setAllowlist((await ownerFetch<{ items: IpAllowlistRow[] }>("owner/ip-allowlist", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoadAllow(false); }
+  }, [session.token]);
+
+  // Load bans
+  const loadBanList = useCallback(async () => {
+    setLoadBans(true);
+    try { setBans((await ownerFetch<{ items: IpBanRow[] }>("owner/ip-bans", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoadBans(false); }
+  }, [session.token]);
+
+  // Load failed logins
+  const loadFailed = useCallback(async (h: number) => {
+    setLoadFail(true);
+    try { setFailedData(await ownerFetch<FailedLoginData>(`owner/security/failed-logins?hours=${h}`, session.token)); }
+    catch { /* ignore */ }
+    finally { setLoadFail(false); }
+  }, [session.token]);
+
+  useEffect(() => {
+    loadSessions(); loadAllowlist(); loadBanList();
+  }, [loadSessions, loadAllowlist, loadBanList]);
+
+  useEffect(() => {
+    if (subTab === "failedlogins") loadFailed(hours);
+  }, [subTab, hours, loadFailed]);
+
+  const revokeSession = async (id: number) => {
+    setRevokingId(id);
+    try {
+      await ownerFetch(`owner/sessions/${id}`, session.token, { method: "DELETE" });
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      toast({ title: "Session revoked" });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setRevokingId(null); }
+  };
+
+  const revokeAllSessions = async () => {
+    setRevokeAll(true);
+    try {
+      const d = await ownerFetch<{ revoked: number }>("owner/sessions", session.token, { method: "DELETE" });
+      toast({ title: `${d.revoked} session(s) revoked` });
+      await loadSessions();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setRevokeAll(false); }
+  };
+
+  const addAllowlistEntry = async () => {
+    if (!newCidr.trim()) return;
+    setAddingAllow(true);
+    try {
+      await ownerFetch("owner/ip-allowlist", session.token, {
+        method: "POST", body: JSON.stringify({ cidr: newCidr.trim(), label: newCidrLabel.trim() || undefined }),
+      });
+      toast({ title: `${newCidr.trim()} added to allowlist` });
+      setNewCidr(""); setNewCidrLabel(""); loadAllowlist();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setAddingAllow(false); }
+  };
+
+  const removeAllowlistEntry = async (id: number, cidr: string) => {
+    try {
+      await ownerFetch(`owner/ip-allowlist/${id}`, session.token, { method: "DELETE" });
+      setAllowlist((prev) => prev.filter((e) => e.id !== id));
+      toast({ title: `${cidr} removed` });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+  };
+
+  const addBan = async () => {
+    if (!newIp.trim()) return;
+    setAddingBan(true);
+    try {
+      await ownerFetch("owner/ip-bans", session.token, {
+        method: "POST",
+        body: JSON.stringify({
+          ip: newIp.trim(),
+          reason: newIpReason.trim() || undefined,
+          expiresAt: newIpExpiry || undefined,
+        }),
+      });
+      toast({ title: `${newIp.trim()} banned` });
+      setNewIp(""); setNewIpReason(""); setNewIpExpiry(""); loadBanList();
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setAddingBan(false); }
+  };
+
+  const removeBan = async (id: number, ip: string) => {
+    setRemovingBan(id);
+    try {
+      await ownerFetch(`owner/ip-bans/${id}`, session.token, { method: "DELETE" });
+      setBans((prev) => prev.filter((b) => b.id !== id));
+      toast({ title: `${ip} unbanned` });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setRemovingBan(null); }
+  };
+
+  const SUB_TABS = [
+    { id: "sessions"    as const, label: "Sessions",         icon: <MonitorSmartphone className="w-3.5 h-3.5" /> },
+    { id: "adminsess"   as const, label: "Admin Sessions",   icon: <Shield            className="w-3.5 h-3.5" /> },
+    { id: "ipallow"     as const, label: "IP Allowlist",     icon: <Wifi              className="w-3.5 h-3.5" /> },
+    { id: "ipban"       as const, label: "IP Bans",          icon: <WifiOff           className="w-3.5 h-3.5" /> },
+    { id: "failedlogins"as const, label: "Failed Logins",    icon: <AlertOctagon      className="w-3.5 h-3.5" /> },
+    { id: "panic"       as const, label: "Panic Lock",       icon: <Lock              className="w-3.5 h-3.5" /> },
+    { id: "webhook"     as const, label: "Webhook",          icon: <Send              className="w-3.5 h-3.5" /> },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Sub-tab nav */}
+      <div className="flex gap-1 flex-wrap">
+        {SUB_TABS.map((s) => (
+          <button key={s.id} onClick={() => setSubTab(s.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[11px] border transition-colors ${subTab === s.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            {s.icon} {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sessions */}
+      {subTab === "sessions" && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="font-mono text-xs text-muted-foreground">{sessions.length} active session(s)</p>
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={loadSessions} disabled={loadSess}>
+                <RefreshCw className={`w-3.5 h-3.5 me-1 ${loadSess ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none text-orange-400 border-orange-500/50"
+                onClick={revokeAllSessions} disabled={revokeAll}>
+                {revokeAll ? <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" /> : <XCircle className="w-3.5 h-3.5 me-1" />} Revoke All Others
+              </Button>
+            </div>
+          </div>
+          {loadSess ? <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div> : (
+            <div className="space-y-1">
+              {sessions.map((s) => (
+                <div key={s.id} className={`border ${s.is_current ? "border-primary/50 bg-primary/5" : "border-border bg-background"} px-3 py-2.5 flex items-center justify-between gap-2`}>
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="font-mono text-xs">{s.ip ?? "unknown"}</code>
+                      {s.is_current && <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary text-primary">Current</Badge>}
+                    </div>
+                    <p className="font-mono text-[10px] text-muted-foreground truncate">{s.user_agent ?? "—"}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      Created: {timeAgo(s.created_at)} · Last: {timeAgo(s.last_used_at)}
+                    </p>
+                  </div>
+                  {!s.is_current && (
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => revokeSession(s.id)} disabled={revokingId === s.id}>
+                      {revokingId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {sessions.length === 0 && <p className="text-center font-mono text-xs text-muted-foreground py-6">No active sessions</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* IP Allowlist */}
+      {subTab === "ipallow" && (
+        <div className="space-y-3">
+          <div className="border border-border/50 bg-amber-500/5 border-amber-500/20 p-3">
+            <p className="font-mono text-[11px] text-amber-400">
+              ⚠️ When the allowlist is non-empty, the owner panel only accepts logins from the listed IPs/CIDRs. Add your current IP first.
+            </p>
+          </div>
+          <div className="flex gap-1.5">
+            <Input placeholder="IP or CIDR (e.g. 1.2.3.4 or 10.0.0.0/24)" value={newCidr} onChange={(e) => setNewCidr(e.target.value)}
+              className="font-mono rounded-none text-xs" />
+            <Input placeholder="Label (optional)" value={newCidrLabel} onChange={(e) => setNewCidrLabel(e.target.value)}
+              className="font-mono rounded-none text-xs w-36" />
+            <Button className="rounded-none font-mono text-xs shrink-0" onClick={addAllowlistEntry} disabled={addingAllow || !newCidr.trim()}>
+              {addingAllow ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </Button>
+          </div>
+          {loadAllow ? <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div> : (
+            <div className="space-y-1">
+              {allowlist.map((e) => (
+                <div key={e.id} className="border border-border bg-background px-3 py-2 flex items-center justify-between gap-2">
+                  <div>
+                    <code className="font-mono text-xs">{e.cidr}</code>
+                    {e.label && <span className="font-mono text-[10px] text-muted-foreground ms-2">{e.label}</span>}
+                    <p className="font-mono text-[10px] text-muted-foreground">{timeAgo(e.created_at)}</p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeAllowlistEntry(e.id, e.cidr)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+              {allowlist.length === 0 && <p className="text-center font-mono text-xs text-muted-foreground py-6">No entries — all IPs allowed</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* IP Bans */}
+      {subTab === "ipban" && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+            <Input placeholder="IP address (e.g. 1.2.3.4)" value={newIp} onChange={(e) => setNewIp(e.target.value)}
+              className="font-mono rounded-none text-xs sm:col-span-1" />
+            <Input placeholder="Reason (optional)" value={newIpReason} onChange={(e) => setNewIpReason(e.target.value)}
+              className="font-mono rounded-none text-xs" />
+            <div className="flex gap-1.5">
+              <input type="date" value={newIpExpiry} onChange={(e) => setNewIpExpiry(e.target.value)}
+                className="flex-1 bg-transparent border border-border rounded-none px-2 py-1 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+              <Button className="rounded-none font-mono text-xs px-3" onClick={addBan} disabled={addingBan || !newIp.trim()}>
+                {addingBan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+          {loadBans ? <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div> : (
+            <div className="space-y-1">
+              {bans.map((b) => (
+                <div key={b.id} className="border border-red-900/40 bg-background px-3 py-2 flex items-center justify-between gap-2">
+                  <div>
+                    <code className="font-mono text-xs text-red-400">{b.ip}</code>
+                    {b.reason && <span className="font-mono text-[10px] text-muted-foreground ms-2">{b.reason}</span>}
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      {timeAgo(b.created_at)}{b.expires_at ? ` · expires ${timeAgo(b.expires_at)}` : " · permanent"}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-green-400"
+                    onClick={() => removeBan(b.id, b.ip)} disabled={removingBan === b.id}>
+                    {removingBan === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+              ))}
+              {bans.length === 0 && <p className="text-center font-mono text-xs text-muted-foreground py-6">No IP bans</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Failed Logins */}
+      {subTab === "failedlogins" && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <select value={hours} onChange={(e) => setHours(Number(e.target.value))}
+              className="bg-transparent border border-border rounded-none px-2 py-1 font-mono text-xs">
+              <option value={6}>Last 6h</option>
+              <option value={24}>Last 24h</option>
+              <option value={72}>Last 72h</option>
+              <option value={168}>Last 7d</option>
+            </select>
+            <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={() => loadFailed(hours)} disabled={loadFail}>
+              <RefreshCw className={`w-3.5 h-3.5 me-1 ${loadFail ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+            {failedData && <p className="font-mono text-xs text-muted-foreground">{failedData.total} failed attempt(s)</p>}
+          </div>
+
+          {failedData?.currentlyBlocked?.length ? (
+            <div className="border border-red-900/50 bg-red-500/5 p-3">
+              <p className="font-mono text-[10px] uppercase text-red-400 mb-1">Currently Blocked</p>
+              <div className="flex flex-wrap gap-1">
+                {failedData.currentlyBlocked.map((key) => (
+                  <code key={key} className="font-mono text-[11px] border border-red-700/50 px-1.5 py-0.5 text-red-300">{key}</code>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {loadFail ? <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div> : failedData && (
+            <div className="space-y-1">
+              {failedData.recent.length === 0 ? (
+                <p className="text-center font-mono text-xs text-muted-foreground py-6">No failed login attempts</p>
+              ) : failedData.recent.map((r) => (
+                <div key={r.ip} className="border border-border bg-background px-3 py-2 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <code className="font-mono text-xs">{r.ip}</code>
+                      <Badge variant="outline" className="text-[9px] h-4 px-1 border-red-600 text-red-400">{r.count}×</Badge>
+                    </div>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      Tried: {r.usernames} · Last: {timeAgo(r.last_attempt)}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-[10px] text-red-400 hover:text-red-300 border border-red-800/30"
+                    onClick={() => { setSubTab("ipban"); setNewIp(r.ip); }}>
+                    <Ban className="w-3 h-3 me-1" /> Ban
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Panic Lock */}
+      {subTab === "panic"     && <PanicLockPanel session={session} toast={toast} />}
+      {subTab === "adminsess" && <AdminSessionsPanel session={session} />}
+      {subTab === "webhook"   && <WebhookPanel session={session} toast={toast} />}
+    </div>
+  );
+}
+
+/* ─── Admin Sessions Panel ───────────────────────────────────────────────── */
+
+function AdminSessionsPanel({ session }: { session: OwnerSession }) {
+  const [items,   setItems]   = useState<{ user_id: number; username: string; display_name: string | null; last_active_at: string | null; session_count: number; ip_address: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setItems((await ownerFetch<{ items: typeof items }>("owner/admin-sessions", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-xs text-muted-foreground">Admin accounts with active sessions</p>
+        <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={load}>
+          <RefreshCw className={`w-3.5 h-3.5 me-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="font-mono text-xs text-muted-foreground text-center py-6">No active admin sessions</p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((u) => (
+            <div key={u.user_id} className="border border-border bg-background px-3 py-2.5 flex items-center justify-between gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <div className="font-mono text-sm font-semibold">@{u.username}</div>
+                <div className="font-mono text-[10px] text-muted-foreground">
+                  {u.display_name} · {u.session_count} session{u.session_count !== 1 ? "s" : ""} · Last: {u.last_active_at ?? "—"}
+                </div>
+              </div>
+              {u.ip_address && (
+                <code className="font-mono text-[10px] text-muted-foreground shrink-0">{u.ip_address}</code>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Webhook Panel ──────────────────────────────────────────────────────── */
+
+function WebhookPanel({ session, toast }: { session: OwnerSession; toast: ReturnType<typeof useToast>["toast"] }) {
+  const [url,     setUrl]     = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    ownerFetch<Record<string, string>>("owner/settings", session.token)
+      .then((d) => { setUrl(d["owner_webhook_url"] ?? ""); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [session.token]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await ownerFetch("owner/settings", session.token, { method: "PUT", body: JSON.stringify({ owner_webhook_url: url.trim() }) });
+      toast({ title: "Webhook URL saved" });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const test = async () => {
+    setTesting(true);
+    try {
+      await ownerFetch("owner/test-webhook", session.token, { method: "POST" });
+      toast({ title: "Test event sent — check your webhook receiver" });
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setTesting(false); }
+  };
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-border/50 bg-background p-3 space-y-2">
+        <p className="font-mono text-[10px] uppercase text-muted-foreground">Webhook Events</p>
+        <ul className="font-mono text-[11px] text-muted-foreground space-y-0.5 list-disc list-inside">
+          <li><code>owner_login</code> — fired on every successful owner login</li>
+          <li><code>test</code> — fired when you click "Send Test Event"</li>
+        </ul>
+        <p className="font-mono text-[10px] text-muted-foreground">
+          Works with Discord (incoming webhooks), Slack webhooks, n8n, Make, Zapier, or any HTTPS endpoint that accepts POST JSON.
+        </p>
+      </div>
+      <form onSubmit={save} className="space-y-2">
+        <label className="font-mono text-xs uppercase text-muted-foreground block">Webhook URL</label>
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://discord.com/api/webhooks/..." className="font-mono rounded-none" />
+        <div className="flex gap-2">
+          <Button type="submit" className="flex-1 rounded-none font-mono" disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Check className="w-4 h-4 me-2" />} Save URL
+          </Button>
+          <Button type="button" variant="outline" className="rounded-none font-mono" onClick={test} disabled={testing || !url.trim()}>
+            {testing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />} Send Test
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ─── Panic Lock Panel ───────────────────────────────────────────────────── */
+
+function PanicLockPanel({ session, toast }: {
+  session: OwnerSession; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [locked,  setLocked]  = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+
+  useEffect(() => {
+    ownerFetch<Record<string, string>>("owner/settings", session.token)
+      .then((d) => setLocked(d["owner_panel_locked"] === "true"))
+      .catch(() => setLocked(false));
+  }, [session.token]);
+
+  const toggle = async (lock: boolean) => {
+    setLoading(true);
+    try {
+      if (lock) {
+        await ownerFetch("owner/account/panic-lock", session.token, { method: "POST" });
+        setLocked(true);
+        toast({ title: "🔴 Panic Lock activated — all owner logins are now blocked", variant: "destructive" });
+      } else {
+        await ownerFetch("owner/account/panic-lock", session.token, { method: "DELETE" });
+        setLocked(false);
+        toast({ title: "✓ Panic Lock lifted — owner logins are allowed again" });
+      }
+      setConfirm(false);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  if (locked === null) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className={`border p-4 ${locked ? "border-red-500/60 bg-red-500/5" : "border-border/50 bg-background"}`}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`w-3 h-3 rounded-full ${locked ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
+          <span className="font-mono text-sm font-bold">{locked ? "PANIC LOCK ACTIVE" : "Panel Unlocked"}</span>
+          <Badge variant="outline" className={locked ? "border-red-500 text-red-400" : "border-green-500 text-green-400"}>
+            {locked ? "Locked" : "Normal"}
+          </Badge>
+        </div>
+        <p className="font-mono text-[11px] text-muted-foreground">
+          {locked
+            ? "All owner login attempts are currently blocked, including correct credentials. Only you (already logged in) can unlock the panel."
+            : "The owner panel is open. Anyone with correct credentials (and the access key) can log in. Activate Panic Lock if you suspect your account is under attack."}
+        </p>
+      </div>
+
+      <div className="border border-border/50 bg-background p-4 space-y-3">
+        <p className="font-mono text-[10px] uppercase text-muted-foreground">When to use Panic Lock</p>
+        <ul className="font-mono text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
+          <li>You received a login notification you didn't initiate</li>
+          <li>You see unexpected activity in the Failed Logins tab</li>
+          <li>Your email was compromised and someone may try to reset the password</li>
+          <li>You need to perform sensitive maintenance without interference</li>
+        </ul>
+      </div>
+
+      {!confirm ? (
+        <Button
+          variant={locked ? "outline" : "destructive"}
+          className="w-full rounded-none font-mono"
+          onClick={() => setConfirm(true)}
+          disabled={loading}
+        >
+          {locked
+            ? <><Check className="w-4 h-4 me-2 text-green-400" /> Lift Panic Lock</>
+            : <><Lock  className="w-4 h-4 me-2" /> Activate Panic Lock</>}
+        </Button>
+      ) : (
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 space-y-3">
+          <p className="font-mono text-sm text-amber-400">
+            {locked ? "Lift the panic lock? Owner logins will resume." : "⚠️ Activate Panic Lock? All owner logins will be blocked."}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 rounded-none font-mono text-xs" onClick={() => setConfirm(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              variant={locked ? "default" : "destructive"}
+              className="flex-1 rounded-none font-mono text-xs"
+              onClick={() => toggle(!locked)}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Power className="w-4 h-4 me-2" />}
+              Confirm
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── SQL Explorer Tab ───────────────────────────────────────────────────── */
+
+function SqlExplorerTab({ session, toast }: {
+  session: OwnerSession; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [sql,     setSql]     = useState("SELECT id, username, is_admin, is_pro, created_at FROM users ORDER BY created_at DESC LIMIT 20;");
+  const [loading, setLoading] = useState(false);
+  const [result,  setResult]  = useState<{ fields: string[]; rows: unknown[][]; rowCount: number; elapsed: number; truncated: boolean } | null>(null);
+  const [error,   setError]   = useState("");
+
+  const run = async () => {
+    setLoading(true); setError(""); setResult(null);
+    try {
+      const data = await ownerFetch<{ fields: string[]; rows: unknown[][]; rowCount: number; elapsed: number; truncated: boolean }>(
+        "owner/sql-explorer", session.token, { method: "POST", body: JSON.stringify({ sql }) },
+      );
+      setResult(data);
+      toast({ title: `✓ ${data.rowCount ?? 0} rows in ${data.elapsed}ms` });
+    } catch (err) { setError((err as Error).message); }
+    finally { setLoading(false); }
+  };
+
+  const exportResultCsv = () => {
+    if (!result) return;
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [result.fields.join(","), ...result.rows.map((r) => (r as unknown[]).map(esc).join(","))].join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `query-${Date.now()}.csv`; a.click();
+  };
+
+  const QUICK = [
+    { label: "Users (last 20)", sql: "SELECT id, username, is_admin, is_pro, created_at FROM users ORDER BY created_at DESC LIMIT 20;" },
+    { label: "Pro Subscriptions", sql: "SELECT ps.id, u.username, ps.provider, ps.status, ps.amount, ps.currency, ps.expires_at FROM pro_subscriptions ps JOIN users u ON u.id=ps.user_id ORDER BY ps.created_at DESC LIMIT 20;" },
+    { label: "Activity Log", sql: "SELECT al.id, sa.username AS owner, al.action, al.detail, al.created_at FROM owner_activity_log al LEFT JOIN super_admins sa ON sa.id=al.owner_id ORDER BY al.created_at DESC LIMIT 30;" },
+    { label: "Platform Settings", sql: "SELECT key, value, updated_at FROM platform_settings ORDER BY key;" },
+    { label: "Failed Logins (7d)", sql: "SELECT username, ip, created_at FROM owner_failed_logins WHERE created_at > NOW()-INTERVAL '7 days' ORDER BY created_at DESC LIMIT 50;" },
+    { label: "Top Users by XP", sql: "SELECT username, prestige_xp_offset, prestige_level FROM users ORDER BY prestige_xp_offset DESC LIMIT 20;" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex items-center gap-2">
+        <Database className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        <p className="font-mono text-[11px] text-amber-300">Read-only — only SELECT / WITH / EXPLAIN are allowed. Results capped at 500 rows.</p>
+      </div>
+
+      {/* Quick queries */}
+      <div className="flex flex-wrap gap-1.5">
+        {QUICK.map((q) => (
+          <button key={q.label} onClick={() => setSql(q.sql)}
+            className="font-mono text-[10px] px-2 py-1 border border-border rounded-none text-muted-foreground hover:text-foreground hover:border-muted-foreground/60 transition-colors">
+            {q.label}
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={sql}
+        onChange={(e) => setSql(e.target.value)}
+        rows={5}
+        spellCheck={false}
+        className="w-full font-mono text-xs bg-background border border-border rounded-none px-3 py-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+        placeholder="SELECT ..."
+        onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); } }}
+      />
+      <p className="font-mono text-[10px] text-muted-foreground -mt-2">Ctrl+Enter to run</p>
+
+      <div className="flex gap-2">
+        <Button onClick={run} disabled={loading || !sql.trim()} className="rounded-none font-mono">
+          {loading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <PlayCircle className="w-4 h-4 me-2" />} Run Query
+        </Button>
+        {result && (
+          <Button onClick={exportResultCsv} variant="outline" className="rounded-none font-mono text-xs">
+            <Download className="w-3.5 h-3.5 me-1.5" /> Export CSV
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <div className="border border-red-500/40 bg-red-500/5 px-3 py-2 font-mono text-[11px] text-red-400">{error}</div>
+      )}
+
+      {result && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {result.rowCount ?? result.rows.length} rows · {result.elapsed}ms
+              {result.truncated ? " · truncated at 500" : ""}
+            </p>
+          </div>
+          <div className="overflow-x-auto border border-border">
+            <table className="w-full text-left font-mono text-[10px]">
+              <thead>
+                <tr className="border-b border-border bg-border/20">
+                  {result.fields.map((f) => (
+                    <th key={f} className="px-2 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">{f}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.map((row, ri) => (
+                  <tr key={ri} className="border-b border-border/40 hover:bg-border/10">
+                    {(row as unknown[]).map((cell, ci) => (
+                      <td key={ci} className="px-2 py-1 text-muted-foreground max-w-[200px] truncate" title={String(cell ?? "")}>
+                        {cell === null ? <span className="opacity-30 italic">null</span> : String(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Error Log Tab ──────────────────────────────────────────────────────── */
+
+interface ErrorEntry { id: number; ts: string; method: string; url: string; status: number; message: string; stack?: string; }
+
+function ErrorLogTab({ session }: { session: OwnerSession }) {
+  const [items,   setItems]   = useState<ErrorEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setItems((await ownerFetch<{ items: ErrorEntry[] }>("owner/error-log", session.token)).items); }
+    catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [session.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const STATUS_COLOR = (s: number) => s >= 500 ? "text-red-400" : s >= 400 ? "text-yellow-400" : "text-muted-foreground";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-xs text-muted-foreground">Last {items.length} errors (in-memory, reset on restart)</p>
+        <Button size="sm" variant="ghost" className="h-7 px-2 font-mono text-xs" onClick={load}>
+          <RefreshCw className={`w-3.5 h-3.5 me-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-12 space-y-2">
+          <ShieldCheck className="w-8 h-8 text-green-400 mx-auto" />
+          <p className="font-mono text-sm text-green-400">No errors logged</p>
+          <p className="font-mono text-xs text-muted-foreground">Server errors will appear here as they occur.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <div key={item.id} className="border border-border bg-background">
+              <button type="button" onClick={() => setExpanded(expanded === item.id ? null : item.id)}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-border/10 text-start">
+                <span className={`font-mono text-xs font-bold w-10 shrink-0 ${STATUS_COLOR(item.status)}`}>{item.status}</span>
+                <span className="font-mono text-[10px] text-muted-foreground w-20 shrink-0">{item.method}</span>
+                <span className="font-mono text-[11px] flex-1 truncate">{item.url}</span>
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0">{item.ts.slice(0, 16).replace("T", " ")}</span>
+                {expanded === item.id ? <ChevronUp className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+              </button>
+              {expanded === item.id && (
+                <div className="border-t border-border px-3 pb-3 pt-2 space-y-1.5">
+                  <p className="font-mono text-[11px] text-red-300">{item.message}</p>
+                  {item.stack && (
+                    <pre className="font-mono text-[9px] text-muted-foreground bg-border/20 px-2 py-2 overflow-x-auto whitespace-pre-wrap">{item.stack}</pre>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Email Blast Tab ────────────────────────────────────────────────────── */
+
+function EmailBlastTab({ session, t, toast }: {
+  session: OwnerSession; t: (k: string) => string; toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [subject,  setSubject]  = useState("");
+  const [body,     setBody]     = useState("");
+  const [filter,   setFilter]   = useState<"all" | "pro" | "non_pro">("all");
+  const [loading,  setLoading]  = useState(false);
+  const [result,   setResult]   = useState<{ sent: number; failed: number } | null>(null);
+  const [confirm,  setConfirm]  = useState(false);
+
+  const send = async () => {
+    setLoading(true); setResult(null);
+    try {
+      const data = await ownerFetch<{ sent: number; failed: number }>("owner/email-blast", session.token, {
+        method: "POST",
+        body: JSON.stringify({ subject: subject.trim(), body: body.trim(), filter }),
+      });
+      setResult(data);
+      toast({ title: `✓ ${data.sent} email(s) sent${data.failed ? ` · ${data.failed} failed` : ""}` });
+      setConfirm(false);
+    } catch (err) { toast({ title: (err as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-border/50 bg-blue-500/5 border-blue-500/20 p-3">
+        <p className="font-mono text-[11px] text-blue-400">
+          📧 Email blast sends to all users with a confirmed email address. Use <code className="bg-blue-500/10 px-1">{"{name}"}</code> in the body to personalise.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="font-mono text-[10px] uppercase text-muted-foreground">Recipient Filter</label>
+        <div className="flex gap-1">
+          {(["all", "pro", "non_pro"] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`font-mono text-[11px] border px-3 py-1.5 transition-colors ${filter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>
+              {f === "all" ? "All Users" : f === "pro" ? "Pro only" : "Non-Pro only"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] uppercase text-muted-foreground">Subject</label>
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line"
+          className="font-mono rounded-none" />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="font-mono text-[10px] uppercase text-muted-foreground">Body</label>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={8}
+          placeholder={"Dear {name},\n\n...\n\n— Game World Hub Team"}
+          className="w-full bg-transparent border border-border rounded-none px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      {!confirm ? (
+        <Button
+          className="w-full rounded-none font-mono"
+          disabled={!subject.trim() || !body.trim()}
+          onClick={() => setConfirm(true)}
+        >
+          <Send className="w-4 h-4 me-2" /> Preview &amp; Send
+        </Button>
+      ) : (
+        <div className="border border-amber-500/40 bg-amber-500/5 p-3 space-y-3">
+          <p className="font-mono text-sm text-amber-400">⚠️ Confirm Email Blast</p>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            Subject: <strong className="text-foreground">{subject}</strong><br/>
+            Recipients: <strong className="text-foreground">{filter === "all" ? "All users with email" : filter === "pro" ? "Pro users" : "Non-Pro users"}</strong>
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 rounded-none font-mono text-xs" onClick={() => setConfirm(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button className="flex-1 rounded-none font-mono text-xs" onClick={send} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />} Send Now
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="border border-green-700/50 bg-green-500/5 p-3">
+          <p className="font-mono text-sm text-green-400">✓ Blast complete</p>
+          <p className="font-mono text-[11px] text-muted-foreground">{result.sent} sent · {result.failed} failed</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2220,8 +3931,9 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
   }, [loadHealth]);
 
   const exportCsv = async (type: "users" | "log") => {
+    const endpoint = type === "users" ? "owner/users/csv" : "owner/export/log";
     try {
-      const res = await fetch(`${getApiUrl()}owner/export/${type}`, {
+      const res = await fetch(`${getApiUrl()}${endpoint}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       });
       if (!res.ok) return;
@@ -2230,6 +3942,17 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
       const a    = document.createElement("a");
       a.href = url; a.download = `${type}-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click(); URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  };
+
+  const [monthly,      setMonthly]      = useState<{ month: string; new_users: number; pro_activations: number; lfg_posts: number }[] | null>(null);
+  const [showMonthly,  setShowMonthly]  = useState(false);
+
+  const loadMonthly = async () => {
+    if (monthly) { setShowMonthly((v) => !v); return; }
+    try {
+      const d = await ownerFetch<{ items: { month: string; new_users: number; pro_activations: number; lfg_posts: number }[] }>("owner/analytics/monthly", session.token);
+      setMonthly(d.items); setShowMonthly(true);
     } catch { /* ignore */ }
   };
 
@@ -2256,15 +3979,49 @@ function AnalyticsTab({ session, t }: { session: OwnerSession; t: (k: string) =>
             </button>
           ))}
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 flex-wrap">
           <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => exportCsv("users")}>
             <Download className="w-3 h-3 me-1" /> {t("analytics.exportUsers")}
           </Button>
           <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={() => exportCsv("log")}>
             <Download className="w-3 h-3 me-1" /> {t("analytics.exportLog")}
           </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 font-mono text-xs rounded-none" onClick={loadMonthly}>
+            <BarChart2 className="w-3 h-3 me-1" /> Monthly Growth
+          </Button>
         </div>
       </div>
+
+      {/* Monthly Growth Table */}
+      {showMonthly && monthly && (
+        <div className="border border-border bg-background">
+          <div className="px-3 py-2 border-b border-border">
+            <p className="font-mono text-[10px] uppercase text-muted-foreground">Monthly Growth — Last 12 Months</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono text-[11px]">
+              <thead>
+                <tr className="border-b border-border/60 bg-border/10">
+                  <th className="px-3 py-1.5 text-start text-muted-foreground font-normal">Month</th>
+                  <th className="px-3 py-1.5 text-end text-muted-foreground font-normal">New Users</th>
+                  <th className="px-3 py-1.5 text-end text-muted-foreground font-normal">Pro Activations</th>
+                  <th className="px-3 py-1.5 text-end text-muted-foreground font-normal">LFG Posts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map((m) => (
+                  <tr key={m.month} className="border-b border-border/30 hover:bg-border/10">
+                    <td className="px-3 py-1.5 text-muted-foreground">{m.month}</td>
+                    <td className="px-3 py-1.5 text-end text-green-400">{m.new_users.toLocaleString()}</td>
+                    <td className="px-3 py-1.5 text-end text-yellow-400">{m.pro_activations.toLocaleString()}</td>
+                    <td className="px-3 py-1.5 text-end text-blue-400">{m.lfg_posts.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Summary row */}
       {data && !loading && (

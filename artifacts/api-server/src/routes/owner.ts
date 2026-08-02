@@ -1,16 +1,18 @@
 import { Router, type IRouter } from "express";
 import { eq, like, or, desc, sql, inArray, ne, and, gte } from "drizzle-orm";
 import os from "node:os";
+import crypto from "node:crypto";
 import { getMetrics, getCpuPct } from "../lib/metrics";
 import { db, pool, superAdminsTable, usersTable, proSubscriptionsTable, activationCodesTable, lfgPostsTable, messagesTable, partiesTable, notificationsTable } from "@workspace/db";
-import { requireOwner, signOwnerToken, verifyOwnerToken } from "../middlewares/owner";
-import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, isPasswordStrong } from "../lib/owner";
+import { requireOwner, signOwnerToken, verifyOwnerToken, signOwnerPreAuthToken, verifyOwnerPreAuthToken } from "../middlewares/owner";
+import { findOwnerByUsername, findOwnerById, verifyPassword, updateOwnerPassword, updateOwnerEmail, updateOwnerUsername, isPasswordStrong } from "../lib/owner";
 import { activateProForUser, deactivatePro, generateActivationCode } from "../lib/pro";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { disconnectUser } from "../ws/signaling";
 import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
+import { generateSecret, generateURI, verify as totpVerify } from "otplib/functional";
 
 const router: IRouter = Router();
 
@@ -249,6 +251,10 @@ router.post("/owner/login", async (req, res): Promise<void> => {
   const owner = await findOwnerByUsername(username.trim());
   if (!owner || !(await verifyPassword(password, owner.passwordHash))) {
     const { allowed } = recordFailedLogin(key);
+    // Persist failed attempt to DB for monitoring
+    const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    pool.query(`INSERT INTO owner_failed_logins (username, ip) VALUES ($1, $2)`,
+      [username.trim().toLowerCase(), ip]).catch(() => {/* non-fatal */});
     if (!allowed) {
       res.status(429).json({ error: "Too many failed login attempts. Please try again later." }); return;
     }
@@ -258,16 +264,152 @@ router.post("/owner/login", async (req, res): Promise<void> => {
   // Successful login — clear the failure bucket.
   loginBuckets.delete(key);
 
+  // Check panic lock
+  const { rows: lockRows } = await pool.query<{ value: string }>(
+    `SELECT value FROM platform_settings WHERE key='owner_panel_locked' LIMIT 1`,
+  );
+  if (lockRows[0]?.value === "true") {
+    logger.warn({ ownerId: owner.id }, "owner: login blocked — panic lock active");
+    res.status(403).json({ error: "Owner panel is currently locked. Contact your system administrator." });
+    return;
+  }
+
+  // Check if 2FA is enabled
+  const { rows: totpRows } = await pool.query<{ secret: string; enabled: boolean }>(
+    `SELECT secret, enabled FROM owner_totp WHERE owner_id = $1`, [owner.id],
+  );
+  const totp = totpRows[0];
+  if (totp?.enabled) {
+    // Issue short-lived pre-auth token; frontend must complete 2FA challenge
+    const preToken = signOwnerPreAuthToken({ ownerId: owner.id, username: owner.username, purpose: "owner_pre_auth" });
+    logger.info({ ownerId: owner.id }, "owner: login requires 2FA");
+    res.json({ requires2fa: true, preToken });
+    return;
+  }
+
   const token = signOwnerToken({ ownerId: owner.id, username: owner.username, purpose: "owner" });
+  // Track session
+  const loginIp = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const ua = req.headers["user-agent"] ?? null;
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  pool.query(`INSERT INTO owner_sessions (owner_id, token_hash, ip, user_agent) VALUES ($1,$2,$3,$4)`,
+    [owner.id, tokenHash, loginIp, ua]).catch(() => {/* non-fatal */});
+
+  // Send login notification email
+  if (owner.email) {
+    sendEmail({
+      to: owner.email,
+      subject: "Owner panel login",
+      text: `A new owner session was started.\n\nUsername: ${owner.username}\nIP: ${loginIp}\nTime: ${new Date().toUTCString()}\nUser-Agent: ${ua ?? "unknown"}\n\nIf this was not you, activate Panic Lock immediately from the Security tab.`,
+    }).catch((e) => logger.error(e, "owner: failed to send login notification"));
+  }
+  // Webhook
+  fireOwnerWebhook("owner_login", { username: owner.username, ip: loginIp, ua });
+
   logger.info({ ownerId: owner.id }, "owner: logged in");
   res.json({ token, owner: { id: owner.id, username: owner.username, email: owner.email ?? null } });
 });
 
+/* ─── Public gate check (no auth) ───────────────────────────────────────── */
+
+router.get("/owner-gate/check", async (req, res): Promise<void> => {
+  const k = (req.query.k as string | undefined) ?? "";
+  if (!k) { res.status(400).json({ valid: false }); return; }
+  const { rows } = await pool.query<{ value: string }>(
+    `SELECT value FROM platform_settings WHERE key = 'owner_panel_access_key' LIMIT 1`,
+  );
+  const stored = rows[0]?.value ?? "";
+  // Constant-time compare to prevent timing attacks
+  const valid = stored.length > 0 && crypto.timingSafeEqual(
+    Buffer.from(k.padEnd(64, "\0")), Buffer.from(stored.padEnd(64, "\0")),
+  ) && k === stored;
+  res.json({ valid });
+});
+
+/* ─── Owner me / profile ─────────────────────────────────────────────────── */
+
 router.get("/owner/me", requireOwner, async (req, res): Promise<void> => {
   const owner = await findOwnerById(req.owner!.ownerId);
   if (!owner) { res.status(401).json({ error: "Owner not found" }); return; }
-  res.json({ id: owner.id, username: owner.username, email: owner.email ?? null, emailVerified: owner.emailVerified });
+  const { rows: skRows } = await pool.query<{ value: string }>(
+    `SELECT value FROM platform_settings WHERE key = 'owner_panel_access_key' LIMIT 1`,
+  );
+  res.json({ id: owner.id, username: owner.username, email: owner.email ?? null, emailVerified: owner.emailVerified, accessKey: skRows[0]?.value ?? null });
 });
+
+/* ─── Change username ────────────────────────────────────────────────────── */
+
+router.post("/owner/account/change-username", requireOwner, async (req, res): Promise<void> => {
+  const { newUsername, currentPassword } = req.body as { newUsername?: string; currentPassword?: string };
+  if (!newUsername || !currentPassword || typeof newUsername !== "string" || typeof currentPassword !== "string") {
+    res.status(400).json({ error: "New username and current password are required" }); return;
+  }
+  const trimmed = newUsername.trim();
+  if (!/^[a-zA-Z0-9_]{3,32}$/.test(trimmed)) {
+    res.status(400).json({ error: "Username must be 3–32 characters (letters, numbers, underscores only)" }); return;
+  }
+  const owner = await findOwnerById(req.owner!.ownerId);
+  if (!owner || !(await verifyPassword(currentPassword, owner.passwordHash))) {
+    res.status(401).json({ error: "Current password is incorrect" }); return;
+  }
+  // Check uniqueness
+  const existing = await findOwnerByUsername(trimmed);
+  if (existing && existing.id !== owner.id) {
+    res.status(409).json({ error: "Username is already taken" }); return;
+  }
+  await updateOwnerUsername(owner.id, trimmed);
+  await logOwnerAction(owner.id, trimmed, "change_username", { detail: `${owner.username} → ${trimmed}` });
+  logger.info({ ownerId: owner.id, from: owner.username, to: trimmed }, "owner: changed username");
+  res.json({ ok: true, newUsername: trimmed });
+});
+
+/* ─── Regenerate panel access key ───────────────────────────────────────── */
+
+router.post("/owner/account/regenerate-access-key", requireOwner, async (req, res): Promise<void> => {
+  const { currentPassword } = req.body as { currentPassword?: string };
+  if (!currentPassword || typeof currentPassword !== "string") {
+    res.status(400).json({ error: "Current password is required to regenerate the access key" }); return;
+  }
+  const owner = await findOwnerById(req.owner!.ownerId);
+  if (!owner || !(await verifyPassword(currentPassword, owner.passwordHash))) {
+    res.status(401).json({ error: "Current password is incorrect" }); return;
+  }
+  const newKey = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO platform_settings (key, value, updated_by, updated_at) VALUES ('owner_panel_access_key',$1,$2,NOW())
+     ON CONFLICT (key) DO UPDATE SET value=$1, updated_by=$2, updated_at=NOW()`,
+    [newKey, req.owner!.ownerId],
+  );
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "regenerate_access_key", {});
+  logger.info({ ownerId: req.owner!.ownerId }, "owner: access key regenerated");
+  res.json({ ok: true, accessKey: newKey });
+});
+
+/* ─── Panic lock ─────────────────────────────────────────────────────────── */
+
+router.post("/owner/account/panic-lock", requireOwner, async (req, res): Promise<void> => {
+  await pool.query(
+    `INSERT INTO platform_settings (key, value, updated_by, updated_at) VALUES ('owner_panel_locked','true',$1,NOW())
+     ON CONFLICT (key) DO UPDATE SET value='true', updated_by=$1, updated_at=NOW()`,
+    [req.owner!.ownerId],
+  );
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "panic_lock", {});
+  logger.warn({ ownerId: req.owner!.ownerId }, "owner: PANIC LOCK ACTIVATED — all logins disabled");
+  res.json({ ok: true, locked: true });
+});
+
+router.delete("/owner/account/panic-lock", requireOwner, async (req, res): Promise<void> => {
+  await pool.query(
+    `INSERT INTO platform_settings (key, value, updated_by, updated_at) VALUES ('owner_panel_locked','false',$1,NOW())
+     ON CONFLICT (key) DO UPDATE SET value='false', updated_by=$1, updated_at=NOW()`,
+    [req.owner!.ownerId],
+  );
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "panic_unlock", {});
+  logger.info({ ownerId: req.owner!.ownerId }, "owner: panic lock lifted");
+  res.json({ ok: true, locked: false });
+});
+
+/* ─── Change password ────────────────────────────────────────────────────── */
 
 router.post("/owner/change-password", requireOwner, async (req, res): Promise<void> => {
   const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
@@ -670,27 +812,54 @@ router.get("/owner/admins", requireOwner, async (_req, res): Promise<void> => {
   });
 });
 
-/* ─── Activity Log ───────────────────────────────────────────────────────── */
+/* ─── Activity Log (with filters) ───────────────────────────────────────── */
 
 router.get("/owner/activity-log", requireOwner, async (req, res): Promise<void> => {
-  const limit  = Math.min(Number(req.query.limit) || 50, 200);
-  const offset = Number(req.query.offset) || 0;
+  const limit   = Math.min(Number(req.query.limit) || 50, 200);
+  const offset  = Number(req.query.offset) || 0;
+  const action  = typeof req.query.action === "string" && req.query.action ? req.query.action : null;
+  const from    = typeof req.query.from   === "string" && req.query.from   ? req.query.from   : null;
+  const to      = typeof req.query.to     === "string" && req.query.to     ? req.query.to     : null;
+  const ownerId = typeof req.query.ownerId === "string" && req.query.ownerId ? Number(req.query.ownerId) : null;
 
+  // Build parameterised WHERE clause
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (action)  { params.push(action);           conditions.push(`action = $${params.length}`); }
+  if (from)    { params.push(new Date(from));   conditions.push(`created_at >= $${params.length}`); }
+  if (to)      { params.push(new Date(to));     conditions.push(`created_at <= $${params.length}`); }
+  if (ownerId) { params.push(ownerId);          conditions.push(`owner_id = $${params.length}`); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Paginated items
+  const itemParams = [...params, limit, offset];
   const { rows } = await pool.query<{
     id: number; action: string; target_id: number | null; target_name: string | null;
     detail: string | null; owner_id: number; owner_name: string; created_at: string;
   }>(
     `SELECT id, action, target_id, target_name, detail, owner_id, owner_name, created_at
-     FROM owner_activity_log
+     FROM owner_activity_log ${where}
      ORDER BY created_at DESC
-     LIMIT $1 OFFSET $2`,
-    [limit, offset],
+     LIMIT $${itemParams.length - 1} OFFSET $${itemParams.length}`,
+    itemParams,
   );
 
-  const [{ total }] = (await pool.query<{ total: number }>("SELECT count(*)::int AS total FROM owner_activity_log")).rows;
+  // Total count with same filters
+  const countParams = [...params];
+  const [{ total }] = (await pool.query<{ total: number }>(
+    `SELECT count(*)::int AS total FROM owner_activity_log ${where}`, countParams,
+  )).rows;
+
+  // Return distinct action names for the filter dropdown
+  const { rows: actionRows } = await pool.query<{ action: string }>(
+    `SELECT DISTINCT action FROM owner_activity_log ORDER BY action`,
+  );
 
   res.json({
     total,
+    actions: actionRows.map((r) => r.action),
     items: rows.map((r) => ({
       id: r.id,
       action:     r.action,
@@ -826,6 +995,64 @@ router.get("/owner/pro-subscriptions", requireOwner, async (_req, res): Promise<
   });
 });
 
+/* ─── DB migrations for NEW security/feature tables (run once at startup) ─── */
+
+/* Tables for 2FA, IP allowlist, owner sessions, IP ban, email blast log */
+Promise.allSettled([
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_totp (
+      owner_id   INTEGER PRIMARY KEY REFERENCES super_admins(id) ON DELETE CASCADE,
+      secret     TEXT NOT NULL,
+      enabled    BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_ip_allowlist (
+      id         SERIAL PRIMARY KEY,
+      cidr       TEXT NOT NULL UNIQUE,
+      label      TEXT,
+      added_by   INTEGER NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_sessions (
+      id           SERIAL PRIMARY KEY,
+      owner_id     INTEGER NOT NULL REFERENCES super_admins(id) ON DELETE CASCADE,
+      token_hash   TEXT NOT NULL UNIQUE,
+      ip           TEXT,
+      user_agent   TEXT,
+      created_at   TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      last_used_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      revoked_at   TIMESTAMPTZ
+    )
+  `),
+  pool.query(`CREATE INDEX IF NOT EXISTS owner_sessions_owner_id_idx ON owner_sessions(owner_id)`),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS ip_bans (
+      id         SERIAL PRIMARY KEY,
+      ip         TEXT NOT NULL UNIQUE,
+      reason     TEXT,
+      added_by   INTEGER,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_failed_logins (
+      id         SERIAL PRIMARY KEY,
+      username   TEXT NOT NULL,
+      ip         TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    )
+  `),
+  pool.query(`CREATE INDEX IF NOT EXISTS owner_failed_logins_ip_idx ON owner_failed_logins(ip)`),
+  pool.query(`CREATE INDEX IF NOT EXISTS owner_failed_logins_ts_idx ON owner_failed_logins(created_at)`),
+]).catch((e) => logger.error(e, "owner: new security tables migration failed"));
+
+/* ─── Original security table migrations ────────────────────────────────── */
+
 /* ─── DB migrations for new security tables (run once at startup) ────────── */
 
 Promise.allSettled([
@@ -910,9 +1137,11 @@ Promise.allSettled([
 ]).then(async () => {
   await pool.query(`
     INSERT INTO platform_settings (key, value) VALUES
-      ('registrations_enabled', 'true'),
-      ('maintenance_mode',      'false'),
-      ('maintenance_message',   'The platform is currently under maintenance. Please try again later.')
+      ('registrations_enabled',  'true'),
+      ('maintenance_mode',       'false'),
+      ('maintenance_message',    'The platform is currently under maintenance. Please try again later.'),
+      ('owner_panel_locked',     'false'),
+      ('owner_panel_access_key', gen_random_uuid()::text)
     ON CONFLICT (key) DO NOTHING
   `).catch(() => {/* non-fatal */});
 }).catch((e) => logger.error(e, "owner: security tables migration failed"));
@@ -1076,7 +1305,31 @@ router.get("/owner/settings", requireOwner, async (_req, res): Promise<void> => 
   res.json(settings);
 });
 
-const ALLOWED_SETTINGS = new Set(["registrations_enabled", "maintenance_mode", "maintenance_message"]);
+const ALLOWED_SETTINGS = new Set([
+  "registrations_enabled",
+  "maintenance_mode",
+  "maintenance_message",
+  "username_min_length",
+  "username_max_length",
+  "display_name_min_length",
+  "display_name_max_length",
+  "bio_max_length",
+  "lfg_cooldown_minutes",
+  "max_party_size",
+  "feature_clips",
+  "feature_polls",
+  "feature_shop",
+  "feature_events",
+  "feature_stages",
+  "feature_leaderboards",
+  // Security & notifications
+  "owner_webhook_url",
+  "pro_expiry_notify_days",
+  // Media limits
+  "max_upload_size_mb",
+  "max_clip_size_mb",
+  "max_avatar_size_mb",
+]);
 
 router.put("/owner/settings", requireOwner, async (req, res): Promise<void> => {
   const updates = req.body as Record<string, string | boolean>;
@@ -1346,6 +1599,391 @@ router.delete("/owner/content/party/:id", requireOwner, async (req, res): Promis
   res.json({ ok: true });
 });
 
+/* ════════════════════════════════════════════════════════════════════════════
+   OWNER 2FA (TOTP)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/** Step 1: Generate secret + URI (call when owner wants to set up 2FA). */
+router.post("/owner/2fa/setup", requireOwner, async (req, res): Promise<void> => {
+  const owner = await findOwnerById(req.owner!.ownerId);
+  if (!owner) { res.status(404).json({ error: "Owner not found" }); return; }
+
+  // Generate a new secret even if one exists (allows re-keying)
+  const secret = generateSecret();
+  const uri    = generateURI({ type: "totp", label: owner.username, params: { secret, issuer: "Game World Hub" } });
+
+  // Persist (upsert) secret but leave enabled=false until verified
+  await pool.query(`
+    INSERT INTO owner_totp (owner_id, secret, enabled) VALUES ($1,$2,false)
+    ON CONFLICT (owner_id) DO UPDATE SET secret=$2, enabled=false
+  `, [owner.id, secret]);
+
+  res.json({ secret, uri });
+});
+
+/** Step 2: Verify TOTP code to activate 2FA. */
+router.post("/owner/2fa/enable", requireOwner, async (req, res): Promise<void> => {
+  const { code } = req.body as { code?: string };
+  if (!code || typeof code !== "string") { res.status(400).json({ error: "TOTP code is required" }); return; }
+
+  const { rows } = await pool.query<{ secret: string }>(
+    `SELECT secret FROM owner_totp WHERE owner_id=$1`, [req.owner!.ownerId],
+  );
+  if (!rows[0]) { res.status(400).json({ error: "Call /2fa/setup first" }); return; }
+
+  const valid = await totpVerify({ token: code.trim(), secret: rows[0].secret });
+  if (!valid) { res.status(400).json({ error: "Invalid TOTP code" }); return; }
+
+  await pool.query(`UPDATE owner_totp SET enabled=true WHERE owner_id=$1`, [req.owner!.ownerId]);
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "enable_2fa");
+  logger.info({ ownerId: req.owner!.ownerId }, "owner: 2FA enabled");
+  res.json({ ok: true });
+});
+
+/** Disable 2FA (requires current password for confirmation). */
+router.delete("/owner/2fa", requireOwner, async (req, res): Promise<void> => {
+  const { password } = req.body as { password?: string };
+  if (!password || typeof password !== "string") { res.status(400).json({ error: "Password is required to disable 2FA" }); return; }
+
+  const owner = await findOwnerById(req.owner!.ownerId);
+  if (!owner || !(await verifyPassword(password, owner.passwordHash))) {
+    res.status(401).json({ error: "Incorrect password" }); return;
+  }
+
+  await pool.query(`DELETE FROM owner_totp WHERE owner_id=$1`, [req.owner!.ownerId]);
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "disable_2fa");
+  logger.info({ ownerId: req.owner!.ownerId }, "owner: 2FA disabled");
+  res.json({ ok: true });
+});
+
+/** Get 2FA status. */
+router.get("/owner/2fa/status", requireOwner, async (req, res): Promise<void> => {
+  const { rows } = await pool.query<{ enabled: boolean }>(
+    `SELECT enabled FROM owner_totp WHERE owner_id=$1`, [req.owner!.ownerId],
+  );
+  res.json({ enabled: rows[0]?.enabled ?? false });
+});
+
+/** Verify TOTP during login (exchanges pre-auth token for full owner token). */
+router.post("/owner/2fa/verify", async (req, res): Promise<void> => {
+  const { preToken, code } = req.body as { preToken?: string; code?: string };
+  if (!preToken || !code || typeof preToken !== "string" || typeof code !== "string") {
+    res.status(400).json({ error: "preToken and code are required" }); return;
+  }
+
+  let payload;
+  try { payload = verifyOwnerPreAuthToken(preToken); }
+  catch { res.status(401).json({ error: "Invalid or expired pre-auth token" }); return; }
+
+  const { rows } = await pool.query<{ secret: string; enabled: boolean }>(
+    `SELECT secret, enabled FROM owner_totp WHERE owner_id=$1`, [payload.ownerId],
+  );
+  if (!rows[0]?.enabled) { res.status(400).json({ error: "2FA is not enabled for this account" }); return; }
+
+  if (!(await totpVerify({ token: code.trim(), secret: rows[0].secret }))) {
+    res.status(401).json({ error: "Invalid TOTP code" }); return;
+  }
+
+  const token = signOwnerToken({ ownerId: payload.ownerId, username: payload.username, purpose: "owner" });
+  // Track session
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const ua = req.headers["user-agent"] ?? null;
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  pool.query(`INSERT INTO owner_sessions (owner_id, token_hash, ip, user_agent) VALUES ($1,$2,$3,$4)`,
+    [payload.ownerId, tokenHash, ip, ua]).catch(() => {/* non-fatal */});
+
+  // Send login notification email
+  const owner2fa = await findOwnerById(payload.ownerId);
+  if (owner2fa?.email) {
+    sendEmail({
+      to: owner2fa.email,
+      subject: "Owner panel login (2FA verified)",
+      text: `A new owner session was started (with 2FA).\n\nUsername: ${payload.username}\nIP: ${ip}\nTime: ${new Date().toUTCString()}\nUser-Agent: ${ua ?? "unknown"}\n\nIf this was not you, activate Panic Lock immediately from the Security tab.`,
+    }).catch((e) => logger.error(e, "owner: failed to send 2FA login notification"));
+  }
+
+  logger.info({ ownerId: payload.ownerId }, "owner: 2FA verified, logged in");
+  res.json({ token, owner: { id: payload.ownerId, username: payload.username, email: owner2fa?.email ?? null } });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   OWNER SESSIONS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/sessions", requireOwner, async (req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; ip: string | null; user_agent: string | null;
+    created_at: string; last_used_at: string; is_current: boolean;
+  }>(`
+    SELECT id, ip, user_agent, created_at, last_used_at,
+           token_hash = $1 AS is_current
+    FROM owner_sessions
+    WHERE owner_id=$2 AND revoked_at IS NULL
+    ORDER BY last_used_at DESC
+  `, [
+    crypto.createHash("sha256").update(req.headers.authorization!.slice(7)).digest("hex"),
+    req.owner!.ownerId,
+  ]);
+  res.json({ items: rows });
+});
+
+router.delete("/owner/sessions/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rowCount } = await pool.query(
+    `UPDATE owner_sessions SET revoked_at=NOW() WHERE id=$1 AND owner_id=$2 AND revoked_at IS NULL`,
+    [id, req.owner!.ownerId],
+  );
+  if (!rowCount) { res.status(404).json({ error: "Session not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "revoke_session", { detail: `session #${id}` });
+  res.json({ ok: true });
+});
+
+/** Revoke all OTHER sessions (keep current). */
+router.delete("/owner/sessions", requireOwner, async (req, res): Promise<void> => {
+  const currentHash = crypto.createHash("sha256").update(req.headers.authorization!.slice(7)).digest("hex");
+  const { rowCount } = await pool.query(
+    `UPDATE owner_sessions SET revoked_at=NOW()
+     WHERE owner_id=$1 AND revoked_at IS NULL AND token_hash != $2`,
+    [req.owner!.ownerId, currentHash],
+  );
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "revoke_all_sessions", { detail: `${rowCount ?? 0} sessions revoked` });
+  res.json({ ok: true, revoked: rowCount ?? 0 });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   IP ALLOWLIST
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/ip-allowlist", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{ id: number; cidr: string; label: string | null; added_by: number; created_at: string }>(
+    `SELECT id, cidr, label, added_by, created_at FROM owner_ip_allowlist ORDER BY created_at DESC`,
+  );
+  res.json({ items: rows });
+});
+
+router.post("/owner/ip-allowlist", requireOwner, async (req, res): Promise<void> => {
+  const { cidr, label } = req.body as { cidr?: string; label?: string };
+  if (!cidr || typeof cidr !== "string") { res.status(400).json({ error: "cidr is required" }); return; }
+  const normalized = cidr.trim();
+  // Basic IP/CIDR validation
+  if (!/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(normalized) && !/^[0-9a-fA-F:]+$/.test(normalized)) {
+    res.status(400).json({ error: "Invalid IP or CIDR" }); return;
+  }
+  try {
+    const { rows } = await pool.query<{ id: number; cidr: string; created_at: string }>(
+      `INSERT INTO owner_ip_allowlist (cidr, label, added_by) VALUES ($1,$2,$3) RETURNING id, cidr, created_at`,
+      [normalized, label?.trim() || null, req.owner!.ownerId],
+    );
+    await logOwnerAction(req.owner!.ownerId, req.owner!.username, "ip_allowlist_add", { detail: normalized });
+    res.status(201).json(rows[0]);
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === "23505") { res.status(409).json({ error: "IP already in allowlist" }); return; }
+    throw e;
+  }
+});
+
+router.delete("/owner/ip-allowlist/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rows } = await pool.query<{ cidr: string }>(`DELETE FROM owner_ip_allowlist WHERE id=$1 RETURNING cidr`, [id]);
+  if (!rows[0]) { res.status(404).json({ error: "Not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "ip_allowlist_remove", { detail: rows[0].cidr });
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   IP BAN
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/ip-bans", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; ip: string; reason: string | null; added_by: number | null; expires_at: string | null; created_at: string;
+  }>(`SELECT id, ip, reason, added_by, expires_at, created_at FROM ip_bans ORDER BY created_at DESC`);
+  res.json({ items: rows });
+});
+
+router.post("/owner/ip-bans", requireOwner, async (req, res): Promise<void> => {
+  const { ip, reason, expiresAt } = req.body as { ip?: string; reason?: string; expiresAt?: string };
+  if (!ip || typeof ip !== "string") { res.status(400).json({ error: "ip is required" }); return; }
+  const normalized = ip.trim();
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(normalized) && !/^[0-9a-fA-F:]+$/.test(normalized)) {
+    res.status(400).json({ error: "Invalid IP address" }); return;
+  }
+  try {
+    const { rows } = await pool.query<{ id: number; ip: string; created_at: string }>(
+      `INSERT INTO ip_bans (ip, reason, added_by, expires_at) VALUES ($1,$2,$3,$4) RETURNING id, ip, created_at`,
+      [normalized, reason?.trim() || null, req.owner!.ownerId, expiresAt ? new Date(expiresAt) : null],
+    );
+    await logOwnerAction(req.owner!.ownerId, req.owner!.username, "ip_ban_add", { detail: normalized });
+    res.status(201).json(rows[0]);
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === "23505") { res.status(409).json({ error: "IP already banned" }); return; }
+    throw e;
+  }
+});
+
+router.delete("/owner/ip-bans/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { rows } = await pool.query<{ ip: string }>(`DELETE FROM ip_bans WHERE id=$1 RETURNING ip`, [id]);
+  if (!rows[0]) { res.status(404).json({ error: "Not found" }); return; }
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "ip_ban_remove", { detail: rows[0].ip });
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   USER DELETE / GDPR ANONYMIZE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.post("/owner/users/:id/anonymize", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const anon = `deleted_${crypto.randomBytes(6).toString("hex")}`;
+  await db.update(usersTable).set({
+    username:    anon,
+    displayName: "Deleted User",
+    email:       null,
+    bio:         null,
+    avatarUrl:   null,
+    bannerUrl:   null,
+    status:      "suspended",
+  } as Partial<typeof usersTable.$inferInsert>).where(eq(usersTable.id, userId));
+
+  // Remove linked accounts, social links, etc.
+  await Promise.allSettled([
+    pool.query(`DELETE FROM steam_accounts WHERE user_id=$1`, [userId]),
+    pool.query(`DELETE FROM epic_accounts  WHERE user_id=$1`, [userId]),
+    pool.query(`DELETE FROM stored_images  WHERE user_id=$1`, [userId]),
+    pool.query(`DELETE FROM social_links   WHERE user_id=$1`, [userId]),
+  ]);
+
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "anonymize_user", {
+    targetId: userId, targetName: user.username,
+    detail: `anonymized → ${anon}`,
+  });
+  logger.info({ userId, by: req.owner!.ownerId }, "owner: anonymized user (GDPR)");
+  res.json({ ok: true, anonymizedUsername: anon });
+});
+
+router.delete("/owner/users/:id", requireOwner, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const [user] = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  // Hard delete — cascades via FK constraints
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "hard_delete_user", {
+    targetId: userId, targetName: user.username,
+  });
+  logger.info({ userId, by: req.owner!.ownerId }, "owner: hard-deleted user");
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EMAIL BLAST
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.post("/owner/email-blast", requireOwner, async (req, res): Promise<void> => {
+  const { subject, body, filter } = req.body as {
+    subject?: string; body?: string;
+    filter?: "all" | "pro" | "non_pro";
+  };
+  if (!subject || typeof subject !== "string" || !subject.trim()) {
+    res.status(400).json({ error: "subject is required" }); return;
+  }
+  if (!body || typeof body !== "string" || !body.trim()) {
+    res.status(400).json({ error: "body is required" }); return;
+  }
+
+  const where =
+    filter === "pro"     ? sql`is_pro = true AND email IS NOT NULL AND status != 'suspended'` :
+    filter === "non_pro" ? sql`is_pro = false AND email IS NOT NULL AND status != 'suspended'` :
+    sql`email IS NOT NULL AND status != 'suspended'`;
+
+  const { rows: recipients } = await pool.query<{ id: number; email: string; display_name: string | null }>(
+    `SELECT id, email, display_name FROM users WHERE ${where.sql}`,
+  );
+
+  if (recipients.length === 0) { res.json({ ok: true, sent: 0 }); return; }
+
+  let sent = 0;
+  let failed = 0;
+
+  // Send in batches of 10 concurrently (Resend rate limit safe)
+  const BATCH = 10;
+  for (let i = 0; i < recipients.length; i += BATCH) {
+    const chunk = recipients.slice(i, i + BATCH);
+    await Promise.allSettled(chunk.map(async (u) => {
+      try {
+        await sendEmail({
+          to: u.email,
+          subject: subject.trim(),
+          text: body.trim().replace(/\{name\}/g, u.display_name ?? u.email.split("@")[0]),
+        });
+        sent++;
+      } catch { failed++; }
+    }));
+  }
+
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "email_blast", {
+    detail: `"${subject.trim()}" → ${sent} sent, ${failed} failed (filter: ${filter ?? "all"})`,
+  });
+  logger.info({ sent, failed, filter, by: req.owner!.ownerId }, "owner: email blast complete");
+  res.json({ ok: true, sent, failed });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FAILED LOGIN MONITORING
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/security/failed-logins", requireOwner, async (req, res): Promise<void> => {
+  const hours = Math.min(Number(req.query.hours) || 24, 168); // max 7 days
+
+  const { rows: recent } = await pool.query<{
+    ip: string; count: number; usernames: string; last_attempt: string;
+  }>(`
+    SELECT ip,
+           count(*)::int               AS count,
+           string_agg(DISTINCT username, ', ' ORDER BY username) AS usernames,
+           max(created_at)             AS last_attempt
+    FROM owner_failed_logins
+    WHERE created_at > NOW() - ($1 || ' hours')::interval
+    GROUP BY ip
+    ORDER BY count DESC
+    LIMIT 100
+  `, [hours]);
+
+  const { rows: timeline } = await pool.query<{ ts: string; count: number }>(`
+    SELECT to_char(date_trunc('hour', created_at), 'YYYY-MM-DD HH24:00') AS ts,
+           count(*)::int AS count
+    FROM owner_failed_logins
+    WHERE created_at > NOW() - ($1 || ' hours')::interval
+    GROUP BY 1 ORDER BY 1
+  `, [hours]);
+
+  const { rows: [{ total }] } = await pool.query<{ total: number }>(
+    `SELECT count(*)::int AS total FROM owner_failed_logins WHERE created_at > NOW() - ($1 || ' hours')::interval`,
+    [hours],
+  );
+
+  // In-memory buckets currently blocked
+  const blocked: string[] = [];
+  for (const [key, bucket] of loginBuckets) {
+    if (bucket.count >= LOGIN_MAX_ATTEMPTS) blocked.push(key);
+  }
+
+  res.json({ total, hours, recent, timeline, currentlyBlocked: blocked });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ENHANCED ACTIVITY LOG (with filters)
+   ════════════════════════════════════════════════════════════════════════════ */
+
 /* ─── Bulk Actions ────────────────────────────────────────────────────────── */
 
 const BULK_ACTIONS = ["activate_pro", "deactivate_pro", "suspend", "unsuspend", "force_logout"] as const;
@@ -1485,6 +2123,366 @@ router.get("/owner/export/log", async (req, res): Promise<void> => {
   res.setHeader("Content-Disposition", `attachment; filename="log-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(csv);
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WEBHOOK NOTIFICATIONS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function fireOwnerWebhook(event: string, payload: Record<string, unknown>): Promise<void> {
+  try {
+    const { rows } = await pool.query(`SELECT value FROM platform_settings WHERE key='owner_webhook_url'`);
+    const url = rows[0]?.value?.trim();
+    if (!url) return;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch { /* non-fatal */ }
+}
+
+router.post("/owner/test-webhook", requireOwner, async (req, res): Promise<void> => {
+  await fireOwnerWebhook("test", { message: "Webhook test from owner panel", triggeredBy: req.owner!.username });
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ERROR LOG (in-memory ring buffer)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+interface ErrorLogEntry {
+  id: number; ts: string; method: string; url: string;
+  status: number; message: string; stack?: string;
+}
+let _errorLogSeq = 0;
+const _errorLog: ErrorLogEntry[] = [];
+const ERROR_LOG_MAX = 200;
+
+export function captureErrorLog(method: string, url: string, status: number, err: unknown): void {
+  _errorLogSeq++;
+  const entry: ErrorLogEntry = {
+    id: _errorLogSeq, ts: new Date().toISOString(), method, url, status,
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack?.split("\n").slice(0, 6).join("\n") : undefined,
+  };
+  _errorLog.unshift(entry);
+  if (_errorLog.length > ERROR_LOG_MAX) _errorLog.length = ERROR_LOG_MAX;
+}
+
+router.get("/owner/error-log", requireOwner, async (_req, res): Promise<void> => {
+  res.json({ items: _errorLog });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CSV EXPORT — USERS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/users/csv", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; username: string; display_name: string | null; email: string | null;
+    is_admin: boolean; is_pro: boolean; pro_expires_at: string | null;
+    created_at: string; last_active_at: string | null; status: string | null;
+  }>(`
+    SELECT id, username, display_name, email, is_admin, is_pro,
+           to_char(pro_expires_at,'YYYY-MM-DD') AS pro_expires_at,
+           to_char(created_at,'YYYY-MM-DD HH24:MI:SS') AS created_at,
+           to_char(last_active_at,'YYYY-MM-DD HH24:MI:SS') AS last_active_at,
+           status
+    FROM users WHERE is_bot=false ORDER BY created_at DESC
+  `);
+  const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = "id,username,display_name,email,is_admin,is_pro,pro_expires_at,status,created_at,last_active_at";
+  const csv = [header, ...rows.map((r) =>
+    [r.id, esc(r.username), esc(r.display_name), esc(r.email), r.is_admin, r.is_pro,
+     esc(r.pro_expires_at), esc(r.status), esc(r.created_at), esc(r.last_active_at)].join(","),
+  )].join("\n");
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="users-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   IP SEARCH — find all accounts from same IP
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/users/ip-search", requireOwner, async (req, res): Promise<void> => {
+  const ip = String(req.query.ip ?? "").trim();
+  if (!ip) { res.status(400).json({ error: "ip required" }); return; }
+  const { rows } = await pool.query<{
+    user_id: number; username: string; display_name: string | null;
+    is_admin: boolean; is_pro: boolean; first_seen: string; last_seen: string; session_count: number;
+  }>(`
+    SELECT s.user_id,
+           u.username, u.display_name, u.is_admin, u.is_pro,
+           to_char(MIN(s.created_at),'YYYY-MM-DD HH24:MI') AS first_seen,
+           to_char(MAX(s.last_active_at),'YYYY-MM-DD HH24:MI') AS last_seen,
+           count(*)::int AS session_count
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.ip_address = $1
+    GROUP BY s.user_id, u.username, u.display_name, u.is_admin, u.is_pro
+    ORDER BY last_seen DESC
+    LIMIT 50
+  `, [ip]);
+  res.json({ ip, items: rows });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   USERS AT RISK — accounts with recent failed login attempts
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/users/at-risk", requireOwner, async (_req, res): Promise<void> => {
+  /* Uses owner_failed_logins username field to match users */
+  const { rows } = await pool.query<{
+    username: string; attempts: number; unique_ips: number; last_attempt: string;
+    user_id: number | null; is_pro: boolean; is_admin: boolean;
+  }>(`
+    SELECT fl.username,
+           count(*)::int AS attempts,
+           count(DISTINCT fl.ip)::int AS unique_ips,
+           to_char(MAX(fl.created_at),'YYYY-MM-DD HH24:MI') AS last_attempt,
+           u.id AS user_id, COALESCE(u.is_pro, false) AS is_pro, COALESCE(u.is_admin, false) AS is_admin
+    FROM owner_failed_logins fl
+    LEFT JOIN users u ON lower(u.username) = lower(fl.username)
+    WHERE fl.created_at > NOW() - INTERVAL '7 days'
+    GROUP BY fl.username, u.id, u.is_pro, u.is_admin
+    HAVING count(*) >= 3
+    ORDER BY attempts DESC
+    LIMIT 50
+  `);
+  res.json({ items: rows });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SQL EXPLORER (read-only)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.post("/owner/sql-explorer", requireOwner, async (req, res): Promise<void> => {
+  const { sql } = req.body as { sql?: string };
+  if (!sql?.trim()) { res.status(400).json({ error: "sql required" }); return; }
+
+  const trimmed = sql.trim().toUpperCase();
+  const ALLOWED_PREFIXES = ["SELECT", "WITH", "EXPLAIN"];
+  const BLOCKED_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE", "COPY", "CALL", "DO "];
+  if (!ALLOWED_PREFIXES.some((p) => trimmed.startsWith(p))) {
+    res.status(400).json({ error: "Only SELECT / WITH / EXPLAIN queries are allowed" }); return;
+  }
+  if (BLOCKED_KEYWORDS.some((k) => trimmed.includes(k))) {
+    res.status(400).json({ error: "Query contains a forbidden keyword" }); return;
+  }
+
+  try {
+    const start = Date.now();
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query("BEGIN READ ONLY");
+      result = await client.query({ text: sql, rowMode: "array" });
+      await client.query("COMMIT");
+    } finally { client.release(); }
+
+    const elapsed = Date.now() - start;
+    await logOwnerAction(req.owner!.ownerId, req.owner!.username, "sql_explorer", { detail: sql.slice(0, 200) });
+    res.json({
+      fields: result.fields.map((f) => f.name),
+      rows: result.rows.slice(0, 500),
+      rowCount: result.rowCount,
+      elapsed,
+      truncated: (result.rowCount ?? 0) > 500,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Query failed" });
+  }
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MONTHLY GROWTH ANALYTICS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/analytics/monthly", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    month: string; new_users: number; pro_activations: number; lfg_posts: number;
+  }>(`
+    SELECT to_char(date_trunc('month', m), 'YYYY-MM') AS month,
+           coalesce((SELECT count(*)::int FROM users u WHERE date_trunc('month', u.created_at AT TIME ZONE 'UTC') = m), 0) AS new_users,
+           coalesce((SELECT count(*)::int FROM pro_subscriptions ps WHERE date_trunc('month', ps.created_at AT TIME ZONE 'UTC') = m AND ps.provider != 'manual-expiry'), 0) AS pro_activations,
+           coalesce((SELECT count(*)::int FROM lfg_posts lp WHERE date_trunc('month', lp.created_at AT TIME ZONE 'UTC') = m), 0) AS lfg_posts
+    FROM generate_series(
+      date_trunc('month', NOW() AT TIME ZONE 'UTC' - INTERVAL '11 months'),
+      date_trunc('month', NOW() AT TIME ZONE 'UTC'),
+      '1 month'::interval
+    ) AS m
+    ORDER BY m
+  `);
+  res.json({ items: rows });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   REFUND LOG
+   ════════════════════════════════════════════════════════════════════════════ */
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS owner_refund_notes (
+    id          SERIAL PRIMARY KEY,
+    user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+    username    TEXT NOT NULL,
+    amount      TEXT,
+    currency    TEXT,
+    reason      TEXT,
+    order_ref   TEXT,
+    owner_id    INT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {/* non-fatal */});
+
+router.get("/owner/refund-notes", requireOwner, async (req, res): Promise<void> => {
+  const userId = req.query.userId ? Number(req.query.userId) : null;
+  const { rows } = await pool.query<{
+    id: number; user_id: number | null; username: string; amount: string | null;
+    currency: string | null; reason: string | null; order_ref: string | null;
+    owner_name: string | null; created_at: string;
+  }>(`
+    SELECT rn.id, rn.user_id, rn.username, rn.amount, rn.currency, rn.reason, rn.order_ref,
+           sa.username AS owner_name,
+           to_char(rn.created_at,'YYYY-MM-DD HH24:MI') AS created_at
+    FROM owner_refund_notes rn
+    LEFT JOIN super_admins sa ON sa.id = rn.owner_id
+    ${userId ? "WHERE rn.user_id = $1" : ""}
+    ORDER BY rn.created_at DESC LIMIT 200
+  `, userId ? [userId] : []);
+  res.json({ items: rows });
+});
+
+router.post("/owner/refund-notes", requireOwner, async (req, res): Promise<void> => {
+  const { userId, username, amount, currency, reason, orderRef } = req.body as {
+    userId?: number; username: string; amount?: string; currency?: string; reason?: string; orderRef?: string;
+  };
+  if (!username?.trim()) { res.status(400).json({ error: "username required" }); return; }
+  const { rows: [note] } = await pool.query<{ id: number }>(`
+    INSERT INTO owner_refund_notes (user_id, username, amount, currency, reason, order_ref, owner_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
+  `, [userId ?? null, username.trim(), amount ?? null, currency ?? null, reason ?? null, orderRef ?? null, req.owner!.ownerId]);
+  await logOwnerAction(req.owner!.ownerId, req.owner!.username, "refund_note", {
+    targetId: userId ?? null, detail: `${username} – ${amount ?? "?"} ${currency ?? ""} – ${reason ?? ""}`,
+  });
+  res.json({ ok: true, id: note.id });
+});
+
+router.delete("/owner/refund-notes/:id", requireOwner, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  await pool.query(`DELETE FROM owner_refund_notes WHERE id=$1`, [id]);
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   REPLY TEMPLATES
+   ════════════════════════════════════════════════════════════════════════════ */
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS owner_reply_templates (
+    id         SERIAL PRIMARY KEY,
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    category   TEXT DEFAULT 'general',
+    owner_id   INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {/* non-fatal */});
+
+router.get("/owner/reply-templates", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    id: number; title: string; body: string; category: string; created_at: string;
+  }>(`SELECT id, title, body, category, to_char(created_at,'YYYY-MM-DD') AS created_at
+      FROM owner_reply_templates ORDER BY category, title`);
+  res.json({ items: rows });
+});
+
+router.post("/owner/reply-templates", requireOwner, async (req, res): Promise<void> => {
+  const { title, body, category } = req.body as { title?: string; body?: string; category?: string };
+  if (!title?.trim() || !body?.trim()) { res.status(400).json({ error: "title and body required" }); return; }
+  const { rows: [t] } = await pool.query<{ id: number }>(`
+    INSERT INTO owner_reply_templates (title, body, category, owner_id)
+    VALUES ($1,$2,$3,$4) RETURNING id
+  `, [title.trim(), body.trim(), category?.trim() || "general", req.owner!.ownerId]);
+  res.json({ ok: true, id: t.id });
+});
+
+router.delete("/owner/reply-templates/:id", requireOwner, async (req, res): Promise<void> => {
+  await pool.query(`DELETE FROM owner_reply_templates WHERE id=$1`, [Number(req.params.id)]);
+  res.json({ ok: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ADMIN USER SESSIONS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+router.get("/owner/admin-sessions", requireOwner, async (_req, res): Promise<void> => {
+  const { rows } = await pool.query<{
+    user_id: number; username: string; display_name: string | null;
+    last_active_at: string | null; session_count: number; ip_address: string | null;
+  }>(`
+    SELECT s.user_id,
+           u.username, u.display_name,
+           to_char(MAX(s.last_active_at),'YYYY-MM-DD HH24:MI') AS last_active_at,
+           count(*)::int AS session_count,
+           (SELECT ip_address FROM user_sessions ss WHERE ss.user_id=s.user_id
+            ORDER BY last_active_at DESC LIMIT 1) AS ip_address
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE u.is_admin = true
+      AND s.expires_at > NOW()
+    GROUP BY s.user_id, u.username, u.display_name
+    ORDER BY last_active_at DESC NULLS LAST
+    LIMIT 50
+  `);
+  res.json({ items: rows });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PRO EXPIRY NOTIFICATION SCHEDULER
+   ════════════════════════════════════════════════════════════════════════════ */
+
+async function sweepProExpiryNotifications(): Promise<void> {
+  try {
+    const { rows: [cfg] } = await pool.query(
+      `SELECT value FROM platform_settings WHERE key='pro_expiry_notify_days'`,
+    );
+    const days = Math.max(1, Math.min(30, Number(cfg?.value) || 3));
+    const { rows } = await pool.query<{ user_id: number; email: string; username: string; expires_at: string }>(`
+      SELECT u.id AS user_id, u.email, u.username,
+             to_char(u.pro_expires_at,'YYYY-MM-DD') AS expires_at
+      FROM users u
+      WHERE u.is_pro = true
+        AND u.email IS NOT NULL
+        AND u.pro_expires_at IS NOT NULL
+        AND u.pro_expires_at BETWEEN NOW() + INTERVAL '1 day' AND NOW() + ($1::int || ' days')::interval
+        AND NOT EXISTS (
+          SELECT 1 FROM platform_settings
+          WHERE key = 'pro_notified_' || u.id::text
+            AND updated_at > NOW() - INTERVAL '25 days'
+        )
+    `, [days]);
+
+    for (const user of rows) {
+      await sendEmail({
+        to: user.email,
+        subject: "Your Pro subscription is expiring soon",
+        text: `Hi ${user.username},\n\nYour Pro subscription expires on ${user.expires_at}. Renew now to keep all your benefits.\n\nThank you for being a Pro member!`,
+      }).catch(() => {/* non-fatal */});
+      /* Mark as notified */
+      await pool.query(
+        `INSERT INTO platform_settings (key, value) VALUES ($1,'sent') ON CONFLICT (key) DO UPDATE SET value='sent', updated_at=NOW()`,
+        [`pro_notified_${user.user_id}`],
+      ).catch(() => {/* non-fatal */});
+    }
+    if (rows.length) logger.info({ count: rows.length }, "owner: pro-expiry notifications sent");
+  } catch (e) { logger.error(e, "owner: pro-expiry sweep failed"); }
+}
+
+/* Run once at startup (in case of missed window) + every 6 hours */
+sweepProExpiryNotifications();
+setInterval(sweepProExpiryNotifications, 6 * 60 * 60 * 1000);
 
 export default router;
 

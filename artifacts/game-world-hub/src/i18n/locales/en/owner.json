@@ -41,12 +41,18 @@
   "tabs.content":   "Content",
   "tabs.settings":  "Settings",
   "tabs.account":   "Account",
+  "tabs.security":  "Security",
+  "tabs.email":     "Email Blast",
+
+  "tabs.sql":      "SQL Explorer",
+  "tabs.errorlog": "Error Log",
 
   "nav.overview": "Overview",
   "nav.users":    "Users",
   "nav.commerce": "Commerce",
   "nav.platform": "Platform",
   "nav.system":   "System",
+  "nav.tools":    "Dev Tools",
 
   "stats.onlineNow":              "Online Now",
   "stats.totalUsers":             "Total Users",

@@ -11,6 +11,8 @@
 @keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
 .ticker-track { flex:1;overflow:hidden;white-space:nowrap;mask-image:linear-gradient(to right,transparent,black 3%,black 97%,transparent); }
 .ticker-inner { display:inline-flex;align-items:center; }
+.ticker-css-scroll { animation: ticker-scroll 30s linear infinite; white-space:nowrap; will-change:transform; }
+@keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .ticker-item { display:inline-flex;align-items:center;font-size:10px; }
 .ticker-sep { color:#444;padding:0 16px;font-size:9px; }
 

@@ -135,7 +135,7 @@ jobs:
           # Pass GH_TOKEN so electron-builder can create/update the release itself.
           # Set to empty here; we publish via softprops below for cleaner control.
           ELECTRON_BUILDER_PUBLISH: never
-        run: npx electron-builder --win nsis --publish never
+        run: npx electron-builder --win nsis appx --publish never
 
       # ─── Verify output ─────────────────────────────────────────────────────
       - name: List build output
@@ -152,6 +152,7 @@ jobs:
           path: |
             artifacts/game-world-hub-desktop/dist-electron/GameWorldHubSetup.exe
             artifacts/game-world-hub-desktop/dist-electron/latest.yml
+            artifacts/game-world-hub-desktop/dist-electron/*.msix
           if-no-files-found: error
           retention-days: 14
 
@@ -178,6 +179,7 @@ jobs:
           files: |
             artifacts/game-world-hub-desktop/dist-electron/GameWorldHubSetup.exe
             artifacts/game-world-hub-desktop/dist-electron/latest.yml
+            artifacts/game-world-hub-desktop/dist-electron/*.msix
           body: |
             ## 🎮 Game World Hub v${{ steps.pkg.outputs.version }}
 

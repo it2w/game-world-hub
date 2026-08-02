@@ -80,9 +80,9 @@
       "artifactName": "GameWorldHubSetup.exe"
     },
     "appx": {
-      "identityName": "GameWorldHub.GameWorldHub",
-      "publisher": "CN=86042C5F-91A6-4FD9-BFF9-FFE37C24DB2C",
-      "publisherDisplayName": "Game World Hub",
+      "identityName": "GAMEWORLDHUB",
+      "publisher": "CN=0e4b2342-f630-4227-a765-2c6d93878a33",
+      "publisherDisplayName": "naif salem",
       "applicationId": "GameWorldHub",
       "displayName": "Game World Hub",
       "backgroundColor": "#0a0a0a",
@@ -91,7 +91,7 @@
         "ar-SA",
         "en-US"
       ],
-      "artifactName": "GameWorldHub-${version}-x64.msix",
+      "artifactName": "GameWorldHub-Store.msix",
       "minVersion": "10.0.17763.0"
     },
     "publish": {

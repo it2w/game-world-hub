@@ -102,3 +102,31 @@ id = "FAPIXbDP5vmQbd70HoIqJ"
 uri = "file://artifacts/game-world-hub-desktop/dist-electron/GameWorldHub-1.0.0-win.zip"
 type = "unspecified"
 title = "GameWorldHub-1.0.0-win.zip"
+
+[[outputs]]
+id = "0DE2pC4kBbvmfpCshJMHu"
+uri = "file://artifacts/game-world-hub-desktop/build/icon.png"
+type = "image"
+title = "أيقونة Game World Hub (PNG)"
+description = "أيقونة التطبيق بصيغة PNG بحجم 256×256 — للاستخدام في صفحة المتجر"
+
+[[outputs]]
+id = "cUkuTVLvgGDSMPAlMIywI"
+uri = "file://artifacts/game-world-hub-desktop/build/icon.ico"
+type = "image"
+title = "أيقونة Game World Hub (ICO)"
+description = "ملف الأيقونة الخاص بويندوز (يتضمن عدة مقاسات)"
+
+[[outputs]]
+id = "PmdUKIUWXIHVvjC_M1tiA"
+uri = "file://artifacts/game-world-hub-desktop/build/store-logo-1080.png"
+type = "image"
+title = "شعار المتجر 1080×1080 (PNG)"
+description = "شعار Game World Hub بحجم 1080×1080 بكسل — جاهز للرفع في Partner Center"
+
+[[outputs]]
+id = "l2z0mZlaRX7hbqLndZGX8"
+uri = "file://artifacts/game-world-hub-desktop/build/store-poster-1440x2160.png"
+type = "image"
+title = "ملصق المتجر 1440×2160 (نسبة 2:3)"
+description = "ملصق فني بهوية Game World Hub — جاهز للرفع في Partner Center"

@@ -20,32 +20,43 @@ cd artifacts/game-world-hub-desktop
 pnpm run build:win
 ```
 
-The build creates `dist-electron/win-unpacked/` (the unpacked app).  
-Then zip it for distribution:
-
-```bash
-cd dist-electron
-zip -0 -r GameWorldHub-1.0.0-win.zip win-unpacked/
-```
+The build creates `dist-electron/win-unpacked/` (the unpacked app).
 
 ---
 
 ## Distribution
 
-### Current method: ZIP archive
+### Current method: GitHub Releases (CI-built NSIS installer)
 
-The `GameWorldHub-1.0.0-win.zip` (~350 MB) is hosted on Replit Object Storage and served at:
+Releases are built by the `desktop-build.yml` GitHub Actions workflow on a
+native Windows runner and published to GitHub Releases at
+`it2w/game-world-hub`, containing:
+
+- `GameWorldHubSetup.exe` — NSIS one-click installer
+- `latest.yml` — electron-updater metadata (version + sha512), read by
+  installed apps to auto-update
+- `GameWorldHub-Store.msix` — Microsoft Store package (not used by the updater)
+
+To ship a release: bump `package.json → version`, commit, and push a `v<version>`
+tag. See `README.md` (Auto-updater section) and `RELEASES.md` for the verified flow.
+
+The site's download button hits:
 
 ```
-GET /api/download/windows  →  302 → signed GCS URL → browser downloads ZIP
+GET /api/download/windows  →  streams GameWorldHubSetup.exe from the latest GitHub release
 ```
 
-**User instructions (include in release notes):**
-1. Download `GameWorldHub-1.0.0-win.zip`
-2. Extract to a folder of your choice (e.g. `C:\GWH\`)
-3. Run `Game World Hub.exe`
+(`artifacts/api-server/src/routes/download.ts` fetches
+`releases/latest/download/GameWorldHubSetup.exe`, so it always serves the
+newest published version.)
 
-### NSIS installer (optional — creates a proper Setup.exe)
+### Legacy method (historical): ZIP on Replit Object Storage
+
+Earlier builds were zipped from `win-unpacked/` and uploaded to Object Storage
+via the sidecar presigned-PUT flow. This is no longer the distribution path;
+the sidecar upload snippet below is kept only for reference.
+
+### NSIS installer (local fallback — creates a Setup.exe without CI)
 
 If `makensis` is available (Linux or Windows), run:
 
@@ -71,9 +82,9 @@ nix-env -iA nixpkgs.nsis
 
 ---
 
-## Upload a new release to Object Storage
+## Upload to Object Storage (legacy reference only)
 
-After building and zipping, upload the ZIP with the sidecar script:
+Not used for current releases. After building and zipping, the ZIP used to be uploaded with the sidecar script:
 
 ```bash
 # From repo root — the sidecar runs at http://127.0.0.1:1106 (Replit env only)

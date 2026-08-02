@@ -16,9 +16,12 @@ const router: IRouter = Router();
 
 const RELEASE_FILENAME = 'GameWorldHubSetup.exe';
 
-// Direct GitHub release asset URL (redirects server-side, transparent to client)
+// Latest-release asset URL: GitHub resolves `releases/latest/download/...` to
+// the newest published release, so this never goes stale when a new version
+// (vX.Y.Z tag) is published. Redirects are followed server-side, transparent
+// to the client.
 const GITHUB_RELEASE_URL =
-  'https://github.com/it2w/game-world-hub/releases/download/main/GameWorldHubSetup.exe';
+  'https://github.com/it2w/game-world-hub/releases/latest/download/GameWorldHubSetup.exe';
 
 router.get('/download/windows', async (_req: Request, res: Response) => {
   try {

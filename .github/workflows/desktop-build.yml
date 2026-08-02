@@ -1,19 +1,33 @@
-name: Build & Publish Windows Desktop Installer
+name: Build & Publish Windows Desktop App
 
-# Cross-compiles the Electron desktop app into a signed Windows installer.
-# The .exe cannot be produced in the Replit/Linux environment (electron-builder
-# needs a Windows toolchain), so this runs on a native windows-latest runner
-# and attaches the artifacts to the GitHub Release for the pushed tag.
+# Builds the Electron desktop app on a native Windows runner and publishes it
+# to a GitHub Release.  The auto-updater (electron-updater) reads the
+# generated latest.yml from the release assets to detect new versions.
+#
+# Triggers:
+#   - push of any v* tag  → full build + publish to GitHub Release
+#   - workflow_dispatch   → full build + optional publish (manually triggered)
+#
+# Secrets needed (add in repo Settings → Secrets and variables → Actions):
+#   WINDOWS_CERT_BASE64    – PFX code-signing cert as base64  (optional)
+#   WINDOWS_CERT_PASSWORD  – password for the PFX file        (optional)
+#   If neither is set the installer is signed with an ephemeral self-signed cert.
 
 on:
   push:
     tags:
       - 'v*'
-  # Allow manual runs for testing the pipeline without cutting a release.
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to GitHub Release?'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
 
 permissions:
-  contents: write # required to upload assets to the GitHub Release
+  contents: write   # needed to create releases and upload assets
 
 concurrency:
   group: desktop-build-${{ github.ref }}
@@ -21,105 +35,165 @@ concurrency:
 
 jobs:
   build-windows:
-    name: Build Windows installer
+    name: 🪟 Build Windows installer
     runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      # electron-builder publish config points here; we handle upload ourselves
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - name: Checkout
+      # ─── Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so electron-builder can read git tags
 
+      # ─── Toolchain ─────────────────────────────────────────────────────────
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Install dependencies
+      # ─── Dependencies ──────────────────────────────────────────────────────
+      - name: Install all workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build web app (renderer)
+      # ─── Build renderer (Vite) ─────────────────────────────────────────────
+      - name: Build web renderer
         shell: bash
+        env:
+          NODE_ENV: production
         run: pnpm --filter @workspace/game-world-hub run build
 
-      - name: Stage renderer for Electron
+      - name: Stage renderer inside desktop package
         shell: bash
-        # main.ts loads renderer/index.html in production and electron-builder
-        # packages renderer/**/*, so copy the Vite output into place.
+        # electron-builder packages everything in renderer/ — copy Vite output there
         run: |
           rm -rf artifacts/game-world-hub-desktop/renderer
           mkdir -p artifacts/game-world-hub-desktop/renderer
           cp -r artifacts/game-world-hub/dist/public/. artifacts/game-world-hub-desktop/renderer/
 
-      - name: Check for signing certificate
-        id: cert_check
-        shell: bash
-        env:
-          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
-        run: |
-          if [ -n "$WINDOWS_CERT_BASE64" ]; then
-            echo "has_cert=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_cert=false" >> "$GITHUB_OUTPUT"
-          fi
+      # ─── Build Electron main process (TypeScript) ──────────────────────────
+      - name: Compile Electron main + preloads (TypeScript)
+        working-directory: artifacts/game-world-hub-desktop
+        run: pnpm run build:main
 
+      # ─── Code-signing certificate ──────────────────────────────────────────
       - name: Prepare code-signing certificate
-        id: import_cert
+        id: cert
         shell: pwsh
         env:
-          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_BASE64:   ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
           if ($env:WINDOWS_CERT_BASE64) {
-            # Use the real code-signing certificate supplied via repo secret.
-            $pfxPath = Join-Path $env:RUNNER_TEMP "code-sign.pfx"
-            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
-            "csc_link=$pfxPath" >> $env:GITHUB_OUTPUT
-            Write-Host "Using code-signing certificate from WINDOWS_CERT_BASE64 secret."
+            $pfxPath = Join-Path $env:RUNNER_TEMP "gwh-code-sign.pfx"
+            [IO.File]::WriteAllBytes(
+              $pfxPath,
+              [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64)
+            )
+            "csc_link=$pfxPath"          >> $env:GITHUB_OUTPUT
+            "csc_password=$($env:WINDOWS_CERT_PASSWORD)" >> $env:GITHUB_OUTPUT
+            Write-Host "✅ Using code-signing certificate from WINDOWS_CERT_BASE64 secret."
           } else {
-            # Fall back to an ephemeral self-signed certificate so the installer
-            # is still signed. SmartScreen may warn until a real cert is added.
-            $pfxPwd = [Guid]::NewGuid().ToString("N")
-            $cert = New-SelfSignedCertificate `
-              -Type CodeSigningCert `
-              -Subject "CN=Game World Hub" `
-              -CertStoreLocation Cert:\CurrentUser\My `
-              -KeyExportPolicy Exportable `
-              -KeyUsage DigitalSignature
-            $pfxPath = Join-Path $env:RUNNER_TEMP "self-signed.pfx"
-            $secure = ConvertTo-SecureString -String $pfxPwd -Force -AsPlainText
+            # Ephemeral self-signed cert — SmartScreen may warn until a real cert is added.
+            $pfxPwd  = [Guid]::NewGuid().ToString("N")
+            $cert    = New-SelfSignedCertificate `
+                         -Type CodeSigningCert `
+                         -Subject "CN=Game World Hub" `
+                         -CertStoreLocation Cert:\CurrentUser\My `
+                         -KeyExportPolicy Exportable `
+                         -KeyUsage DigitalSignature `
+                         -NotAfter (Get-Date).AddYears(1)
+            $pfxPath = Join-Path $env:RUNNER_TEMP "gwh-self-signed.pfx"
+            $secure  = ConvertTo-SecureString -String $pfxPwd -Force -AsPlainText
             Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $secure | Out-Null
-            "csc_link=$pfxPath" >> $env:GITHUB_OUTPUT
-            "self_signed_password=$pfxPwd" >> $env:GITHUB_OUTPUT
-            Write-Host "::warning::No WINDOWS_CERT_BASE64 secret set - signing with an ephemeral self-signed certificate. Windows SmartScreen may still warn users. Add WINDOWS_CERT_BASE64 and WINDOWS_CERT_PASSWORD secrets to sign with a trusted certificate."
+            "csc_link=$pfxPath"  >> $env:GITHUB_OUTPUT
+            "csc_password=$pfxPwd" >> $env:GITHUB_OUTPUT
+            Write-Host "::warning::No WINDOWS_CERT_BASE64 secret — signing with ephemeral self-signed cert."
+            Write-Host "           SmartScreen may warn users. Add WINDOWS_CERT_BASE64 to enable trusted signing."
           }
 
-      - name: Build Windows installer
-        shell: bash
+      # ─── electron-builder ──────────────────────────────────────────────────
+      - name: Build Windows installer + auto-updater metadata
         working-directory: artifacts/game-world-hub-desktop
+        shell: bash
         env:
-          # electron-builder reads these to sign the NSIS installer + portable exe.
-          CSC_LINK: ${{ steps.import_cert.outputs.csc_link }}
-          CSC_KEY_PASSWORD: ${{ steps.cert_check.outputs.has_cert == 'true' && secrets.WINDOWS_CERT_PASSWORD || steps.import_cert.outputs.self_signed_password }}
-          # Do not let electron-builder attempt to publish; we upload explicitly below.
-          GH_TOKEN: ''
-        run: pnpm run build:win
+          CSC_LINK:         ${{ steps.cert.outputs.csc_link }}
+          CSC_KEY_PASSWORD: ${{ steps.cert.outputs.csc_password }}
+          # Pass GH_TOKEN so electron-builder can create/update the release itself.
+          # Set to empty here; we publish via softprops below for cleaner control.
+          ELECTRON_BUILDER_PUBLISH: never
+        run: npx electron-builder --win nsis --publish never
 
-      - name: Upload installer as workflow artifact
+      # ─── Verify output ─────────────────────────────────────────────────────
+      - name: List build output
+        shell: bash
+        run: |
+          echo "=== dist-electron contents ==="
+          ls -lh artifacts/game-world-hub-desktop/dist-electron/ || true
+
+      # ─── Upload workflow artifacts (always — useful for manual runs) ────────
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: artifacts/game-world-hub-desktop/dist-electron/*.exe
+          name: GameWorldHub-Windows-${{ github.ref_name }}
+          path: |
+            artifacts/game-world-hub-desktop/dist-electron/GameWorldHubSetup.exe
+            artifacts/game-world-hub-desktop/dist-electron/latest.yml
           if-no-files-found: error
+          retention-days: 14
 
-      - name: Publish installer to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # ─── Generate release notes ────────────────────────────────────────────
+      - name: Extract version from package.json
+        id: pkg
+        shell: bash
+        working-directory: artifacts/game-world-hub-desktop
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ─── Publish to GitHub Release (tags only, or manual opt-in) ──────────
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/game-world-hub-desktop/dist-electron/*.exe
+          name: Game World Hub v${{ steps.pkg.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+          generate_release_notes: true
           fail_on_unmatched_files: true
+          files: |
+            artifacts/game-world-hub-desktop/dist-electron/GameWorldHubSetup.exe
+            artifacts/game-world-hub-desktop/dist-electron/latest.yml
+          body: |
+            ## 🎮 Game World Hub v${{ steps.pkg.outputs.version }}
+
+            ### Windows Installation
+            1. Download **GameWorldHubSetup.exe** below
+            2. Run the installer — it installs automatically and creates a desktop shortcut
+            3. The app updates itself silently in the background
+
+            ### ⌨️ Keyboard Shortcuts
+            | Shortcut | Action |
+            |---|---|
+            | `Ctrl+Shift+G` | Show / hide window |
+            | `Ctrl+Shift+M` | Toggle mini-player HUD |
+            | `Ctrl+Shift+S` | Take screenshot → Pictures\GameWorldHub\ |
+            | `Ctrl+Shift+N` | Open LFG |
+            | `Ctrl+Shift+F` | Open Friends |
+            | `F12` | Open DevTools |
+
+            ### 🆕 What's New
+            See full changes below ↓
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline';" />
-  <title>Loading</title>
+  <title>Loading — Game World Hub</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -23,13 +23,13 @@
     .card {
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #0d0d12 0%, #12121a 50%, #0a0a10 100%);
+      background: linear-gradient(145deg, #0b0b12 0%, #0e0e1a 55%, #090910 100%);
       border: 1px solid rgba(0, 255, 100, 0.15);
-      border-radius: 12px;
+      border-radius: 14px;
       box-shadow:
-        0 0 0 1px rgba(0,255,100,0.06),
-        0 0 40px rgba(0,200,80,0.12),
-        0 20px 60px rgba(0,0,0,0.8);
+        0 0 0 1px rgba(0,255,100,0.05),
+        0 0 60px rgba(0,180,70,0.1),
+        0 24px 80px rgba(0,0,0,0.85);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -39,175 +39,255 @@
       overflow: hidden;
     }
 
-    /* Scanline overlay */
+    /* Scanlines */
     .card::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(255,255,255,0.012) 2px,
-        rgba(255,255,255,0.012) 4px
-      );
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.008) 2px, rgba(255,255,255,0.008) 4px);
       pointer-events: none;
       border-radius: inherit;
     }
 
-    /* Corner accent */
-    .card::after {
-      content: '';
+    /* Corner glows */
+    .corner-tl, .corner-br {
       position: absolute;
-      top: 0; left: 0;
-      width: 80px; height: 80px;
-      background: radial-gradient(circle at 0 0, rgba(0,255,100,0.15) 0%, transparent 70%);
+      width: 100px;
+      height: 100px;
       pointer-events: none;
     }
+    .corner-tl { top: 0; left: 0; background: radial-gradient(circle at 0 0, rgba(0,255,100,0.12) 0%, transparent 65%); }
+    .corner-br { bottom: 0; right: 0; background: radial-gradient(circle at 100% 100%, rgba(0,200,80,0.08) 0%, transparent 65%); }
 
-    /* Logo mark */
-    .logo-wrap {
-      position: relative;
-      width: 72px;
-      height: 72px;
-      margin-bottom: 20px;
+    /* Particles */
+    .particles { position: absolute; inset: 0; pointer-events: none; }
+    .particle {
+      position: absolute;
+      width: 2px; height: 2px;
+      border-radius: 50%;
+      background: rgba(0,255,100,0.4);
+      animation: float-up linear infinite;
+    }
+    @keyframes float-up {
+      0%   { opacity: 0; transform: translateY(0) scale(0); }
+      20%  { opacity: 1; }
+      80%  { opacity: 0.6; }
+      100% { opacity: 0; transform: translateY(-240px) scale(1.5); }
     }
 
-    .logo-ring {
+    /* Logo */
+    .logo-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 18px;
+    }
+
+    /* Outer rotating ring */
+    .ring {
       position: absolute;
       inset: 0;
       border-radius: 50%;
-      border: 1.5px solid rgba(0, 255, 100, 0.3);
-      animation: spin-ring 3s linear infinite;
+      border: 1.5px solid transparent;
+      animation: spin 3s linear infinite;
+    }
+    .ring-1 {
+      border-top-color:   rgba(0,255,100,0.7);
+      border-right-color: rgba(0,255,100,0.2);
+    }
+    .ring-2 {
+      inset: 8px;
+      border-bottom-color: rgba(0,255,100,0.5);
+      border-left-color:   rgba(0,255,100,0.15);
+      animation: spin 2s linear infinite reverse;
+    }
+    .ring-3 {
+      inset: 16px;
+      border-top-color:  rgba(0,255,100,0.3);
+      border-left-color: rgba(0,255,100,0.1);
+      animation: spin 5s linear infinite;
     }
 
-    .logo-ring-2 {
-      inset: 6px;
-      border-color: rgba(0, 255, 100, 0.15);
-      animation: spin-ring 5s linear infinite reverse;
-    }
-
-    @keyframes spin-ring {
+    @keyframes spin {
       from { transform: rotate(0deg); }
       to   { transform: rotate(360deg); }
     }
 
-    .logo-inner {
+    /* Logo center */
+    .logo-center {
       position: absolute;
-      inset: 12px;
-      background: radial-gradient(circle, rgba(0,255,100,0.18) 0%, transparent 70%);
+      inset: 22px;
       border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,255,100,0.22) 0%, rgba(0,200,70,0.05) 60%, transparent 100%);
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 0 20px rgba(0,255,100,0.25) inset;
     }
 
-    .logo-letter {
-      font-size: 22px;
-      font-weight: 800;
+    .logo-letters {
+      font-size: 13px;
+      font-weight: 900;
       color: #00ff64;
-      text-shadow: 0 0 20px rgba(0,255,100,0.6);
-      letter-spacing: -0.5px;
+      letter-spacing: -1px;
+      text-shadow:
+        0 0 10px rgba(0,255,100,0.9),
+        0 0 25px rgba(0,255,100,0.5);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { text-shadow: 0 0 10px rgba(0,255,100,0.9), 0 0 25px rgba(0,255,100,0.5); }
+      50%       { text-shadow: 0 0 16px rgba(0,255,100,1),   0 0 40px rgba(0,255,100,0.7), 0 0 60px rgba(0,255,100,0.3); }
     }
 
     /* App name */
     .app-name {
-      font-size: 22px;
-      font-weight: 700;
-      color: #f0f0f0;
+      font-size: 24px;
+      font-weight: 800;
+      color: #f2f2f2;
       letter-spacing: 0.04em;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
     }
 
+    .app-name span { color: #00ff64; }
+
     .app-tagline {
-      font-size: 10px;
-      color: rgba(0,255,100,0.7);
-      letter-spacing: 0.25em;
+      font-size: 9px;
+      color: rgba(0,255,100,0.6);
+      letter-spacing: 0.3em;
       text-transform: uppercase;
-      margin-bottom: 28px;
+      margin-bottom: 26px;
+    }
+
+    /* Status message */
+    .status-msg {
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+      min-height: 14px;
+      transition: opacity 0.3s;
     }
 
     /* Progress bar */
     .progress-track {
-      width: 240px;
+      width: 250px;
       height: 2px;
-      background: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.07);
       border-radius: 2px;
       overflow: hidden;
-      position: relative;
+      margin-bottom: 14px;
     }
 
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #00cc50 0%, #00ff64 100%);
+      background: linear-gradient(90deg, #00cc50 0%, #00ff64 50%, #80ffb0 100%);
       border-radius: 2px;
       width: 0%;
-      animation: load-progress 2.2s ease-out forwards;
-      box-shadow: 0 0 8px rgba(0,255,100,0.6);
+      animation: load-bar 2.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+      box-shadow: 0 0 10px rgba(0,255,100,0.7), 0 0 20px rgba(0,255,100,0.3);
     }
 
-    @keyframes load-progress {
-      0%   { width: 0%;   opacity: 1; }
-      70%  { width: 88%;  opacity: 1; }
-      90%  { width: 95%;  opacity: 1; }
-      100% { width: 100%; opacity: 1; }
-    }
-
-    .loading-text {
-      margin-top: 12px;
-      font-size: 9px;
-      color: rgba(255,255,255,0.25);
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      animation: blink-text 1.2s ease-in-out infinite;
-    }
-
-    @keyframes blink-text {
-      0%, 100% { opacity: 0.25; }
-      50%       { opacity: 0.55; }
+    @keyframes load-bar {
+      0%   { width: 0%;   }
+      30%  { width: 40%;  }
+      60%  { width: 72%;  }
+      85%  { width: 90%;  }
+      100% { width: 100%; opacity: 0.6; }
     }
 
     /* Version */
     .version {
       position: absolute;
       bottom: 14px;
-      right: 16px;
+      right: 18px;
+      font-size: 9px;
+      color: rgba(255,255,255,0.18);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Shortcut hints */
+    .hints {
+      position: absolute;
+      bottom: 14px;
+      left: 18px;
       font-size: 9px;
       color: rgba(255,255,255,0.15);
-      letter-spacing: 0.1em;
     }
   </style>
 </head>
 <body>
   <div class="card">
+    <div class="corner-tl"></div>
+    <div class="corner-br"></div>
+
+    <!-- Floating particles -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Logo mark -->
     <div class="logo-wrap">
-      <div class="logo-ring"></div>
-      <div class="logo-ring logo-ring-2"></div>
-      <div class="logo-inner">
-        <span class="logo-letter">GW</span>
+      <div class="ring ring-1"></div>
+      <div class="ring ring-2"></div>
+      <div class="ring ring-3"></div>
+      <div class="logo-center">
+        <div class="logo-letters">GWH</div>
       </div>
     </div>
 
-    <div class="app-name">Game World Hub</div>
-    <div class="app-tagline">Your gaming universe</div>
+    <!-- App name -->
+    <div class="app-name">GAME <span>WORLD</span> HUB</div>
+    <div class="app-tagline">Your Squad is Waiting</div>
 
+    <!-- Status message -->
+    <div class="status-msg" id="statusMsg">Initializing...</div>
+
+    <!-- Progress -->
     <div class="progress-track">
-      <div class="progress-fill"></div>
+      <div class="progress-fill" id="progressFill"></div>
     </div>
-    <div class="loading-text">Connecting...</div>
 
-    <div class="version" id="ver">v1.0.0</div>
+    <div class="version" id="versionLabel">v1.0.0</div>
+    <div class="hints">Ctrl+Shift+G to toggle window</div>
   </div>
 
   <script>
-    // Scroll through status messages
-    const msgs = ['Connecting...', 'Loading...', 'Almost ready...'];
-    let i = 0;
-    const el = document.querySelector('.loading-text');
-    setInterval(() => {
-      i = (i + 1) % msgs.length;
-      el.textContent = msgs[i];
-    }, 900);
+    // Particles
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left     = Math.random() * 100 + '%';
+      p.style.bottom   = Math.random() * 20 + 'px';
+      p.style.opacity  = '0';
+      p.style.animationDuration  = (4 + Math.random() * 6) + 's';
+      p.style.animationDelay     = (Math.random() * 5) + 's';
+      p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+      container.appendChild(p);
+    }
+
+    // Status messages
+    const msgs = [
+      'Initializing...',
+      'Connecting to servers...',
+      'Loading your profile...',
+      'Syncing friends list...',
+      'Almost ready...',
+    ];
+    let idx = 0;
+    const msgEl = document.getElementById('statusMsg');
+    const timer = setInterval(() => {
+      idx = (idx + 1) % msgs.length;
+      msgEl.style.opacity = '0';
+      setTimeout(() => {
+        msgEl.textContent  = msgs[idx];
+        msgEl.style.opacity = '1';
+      }, 150);
+    }, 500);
+
+    // Auto-close hint after progress completes
+    setTimeout(() => clearInterval(timer), 2500);
   </script>
 </body>
 </html>

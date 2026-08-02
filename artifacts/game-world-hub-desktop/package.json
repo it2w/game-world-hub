@@ -18,11 +18,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "discord-rpc": "^4.0.1",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "electron-window-state": "^5.0.3"
   },
   "devDependencies": {
+    "@types/discord-rpc": "^4.0.11",
     "@types/node": "catalog:",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.7",
@@ -47,11 +49,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "appx",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico",
@@ -83,20 +89,25 @@
       "displayName": "Game World Hub",
       "backgroundColor": "#0a0a0a",
       "showNameOnTiles": true,
-      "languages": ["ar-SA", "en-US"],
+      "languages": [
+        "ar-SA",
+        "en-US"
+      ],
       "artifactName": "GameWorldHub-${version}-x64.msix",
       "minVersion": "10.0.17763.0"
     },
     "publish": {
       "provider": "github",
-      "owner": "gameworldhub",
-      "repo": "desktop-releases",
+      "owner": "it2w",
+      "repo": "game-world-hub",
       "releaseType": "release"
     },
     "protocols": [
       {
         "name": "Game World Hub",
-        "schemes": ["gameworldhub"]
+        "schemes": [
+          "gameworldhub"
+        ]
       }
     ]
   }

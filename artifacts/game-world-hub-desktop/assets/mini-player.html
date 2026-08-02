@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline';" />
+  <title>GWH Mini</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      width: 320px;
+      height: 96px;
+      background: transparent;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(10,10,16,0.96) 0%, rgba(14,14,22,0.96) 100%);
+      border: 1px solid rgba(0,255,100,0.18);
+      border-radius: 10px;
+      box-shadow:
+        0 0 0 1px rgba(0,255,100,0.06),
+        0 8px 32px rgba(0,0,0,0.7),
+        0 0 20px rgba(0,200,80,0.08);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      position: relative;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+
+    /* scanlines */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.01) 3px, rgba(255,255,255,0.01) 4px);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    /* left accent */
+    .accent {
+      width: 3px;
+      height: 50px;
+      background: linear-gradient(180deg, #00ff64, #00cc50);
+      border-radius: 2px;
+      flex-shrink: 0;
+      box-shadow: 0 0 10px rgba(0,255,100,0.5);
+      transition: background 0.3s;
+    }
+
+    .logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,100,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: radial-gradient(circle, rgba(0,255,100,0.15) 0%, transparent 70%);
+    }
+
+    .logo-text {
+      font-size: 11px;
+      font-weight: 800;
+      color: #00ff64;
+      letter-spacing: -0.5px;
+    }
+
+    .info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .top-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .username {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f0f0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 120px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #00ff64;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #00ff64;
+    }
+
+    .status-dot.away    { background: #facc15; box-shadow: 0 0 6px #facc15; }
+    .status-dot.busy    { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    .status-dot.offline { background: #6b7280; box-shadow: none; }
+
+    .game-row {
+      font-size: 10px;
+      color: rgba(0,255,100,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .game-row.idle { color: rgba(255,255,255,0.3); }
+
+    .perf-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .perf-item {
+      font-size: 9px;
+      color: rgba(255,255,255,0.35);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .perf-item span { color: rgba(255,255,255,0.55); }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn {
+      width: 22px;
+      height: 22px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.5);
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: rgba(0,255,100,0.12); border-color: rgba(0,255,100,0.3); color: #00ff64; }
+    .btn.close:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="accent" id="accent"></div>
+    <div class="logo"><div class="logo-text">GWH</div></div>
+    <div class="info">
+      <div class="top-row">
+        <div class="status-dot" id="dot"></div>
+        <div class="username" id="username">Game World Hub</div>
+      </div>
+      <div class="game-row idle" id="gameRow">🎮 No game detected</div>
+      <div class="perf-row">
+        <div class="perf-item">CPU <span id="cpu">0%</span></div>
+        <div class="perf-item">RAM <span id="ram">—</span></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnExpand" title="Open GWH">↗</button>
+      <button class="btn close" id="btnClose" title="Close">✕</button>
+    </div>
+  </div>
+
+  <script>
+    const dot      = document.getElementById('dot');
+    const username = document.getElementById('username');
+    const gameRow  = document.getElementById('gameRow');
+    const accent   = document.getElementById('accent');
+    const cpuEl    = document.getElementById('cpu');
+    const ramEl    = document.getElementById('ram');
+
+    const STATUS_COLORS = {
+      online:  '#00ff64',
+      away:    '#facc15',
+      busy:    '#ef4444',
+      offline: '#6b7280',
+    };
+
+    window.miniAPI.onUpdate((data) => {
+      if (data.username != null) {
+        username.textContent = data.username ? `@${data.username}` : 'Game World Hub';
+      }
+      if (data.game !== undefined) {
+        if (data.game) {
+          gameRow.textContent = `🎮 ${data.game}`;
+          gameRow.classList.remove('idle');
+        } else {
+          gameRow.textContent = '🎮 No game detected';
+          gameRow.classList.add('idle');
+        }
+      }
+      if (data.status) {
+        dot.className = 'status-dot ' + (data.status !== 'online' ? data.status : '');
+        const c = STATUS_COLORS[data.status] ?? STATUS_COLORS.online;
+        accent.style.background = `linear-gradient(180deg, ${c}, ${c}88)`;
+        accent.style.boxShadow  = `0 0 10px ${c}55`;
+      }
+      if (data.cpuPct !== undefined) cpuEl.textContent = data.cpuPct + '%';
+      if (data.ramMb  !== undefined) ramEl.textContent = data.ramMb  + ' MB';
+    });
+
+    document.getElementById('btnExpand').addEventListener('click', () => window.miniAPI.expand());
+    document.getElementById('btnClose').addEventListener('click',  () => window.miniAPI.close());
+  </script>
+</body>
+</html>

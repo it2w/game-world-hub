@@ -4,12 +4,19 @@ import {
 } from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
-import { TrayManager }         from './tray';
-import { NotificationPoller }  from './notifications';
+import { TrayManager }            from './tray';
+import { NotificationPoller }     from './notifications';
 import { createSplash, closeSplash } from './splash';
 import { GameDetector, type DetectedGame } from './game-detector';
-import { ConnectivityMonitor } from './connectivity';
+import { ConnectivityMonitor }    from './connectivity';
 import { showOverlay, destroyOverlay } from './overlay';
+import { DiscordRPCManager }      from './discord-rpc';
+import { setupAutoUpdater }       from './auto-updater';
+import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
+import { MiniPlayerManager }      from './mini-player';
+import { PerfMonitor }            from './perf-monitor';
+import { ScreenshotManager }      from './screenshot';
+import { SoundManager }           from './sound-manager';
 import {
   HOSTED_URL, HOSTED_API_BASE,
   MIN_WIDTH, MIN_HEIGHT, DEFAULT_WIDTH, DEFAULT_HEIGHT,
@@ -20,20 +27,22 @@ import {
 const isDev    = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_PORT = process.env.VITE_PORT ?? '5173';
 
-/** URL the BrowserWindow loads */
-const WEB_URL = isDev ? `http://localhost:${DEV_PORT}` : HOSTED_URL;
-/** API base for notification polling */
+const WEB_URL  = isDev ? `http://localhost:${DEV_PORT}` : HOSTED_URL;
 const API_BASE = isDev ? `http://localhost:${DEV_PORT}` : HOSTED_API_BASE;
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
-let mainWindow:          BrowserWindow           | null = null;
-let trayManager:         TrayManager             | null = null;
-let notificationPoller:  NotificationPoller      | null = null;
-let gameDetector:        GameDetector            | null = null;
-let connectivityMonitor: ConnectivityMonitor     | null = null;
+let mainWindow:          BrowserWindow       | null = null;
+let trayManager:         TrayManager         | null = null;
+let notificationPoller:  NotificationPoller  | null = null;
+let gameDetector:        GameDetector        | null = null;
+let connectivityMonitor: ConnectivityMonitor | null = null;
+let discordRPC:          DiscordRPCManager   | null = null;
+let miniPlayer:          MiniPlayerManager   | null = null;
+let perfMonitor:         PerfMonitor         | null = null;
+let screenshotMgr:       ScreenshotManager   | null = null;
+let soundMgr:            SoundManager        | null = null;
 
-/** Set to true before programmatic quit so close-to-tray is bypassed */
 let isQuitting = false;
 
 // ─── Single Instance Lock ──────────────────────────────────────────────────
@@ -106,7 +115,6 @@ function createWindow(): void {
       nodeIntegration:  false,
       sandbox:          false,
       webSecurity:      true,
-      // Pass the hosted API base to the preload bridge
       additionalArguments: [
         `--gwh-api-base=${API_BASE}`,
         `--gwh-platform=electron`,
@@ -143,7 +151,7 @@ function createWindow(): void {
     setTimeout(() => {
       mainWindow?.show();
       if (isDev) mainWindow?.webContents.openDevTools({ mode: 'detach' });
-    }, 450); // slight delay for splash fade-out
+    }, 450);
   });
 
   // Close-to-tray
@@ -179,23 +187,32 @@ function createWindow(): void {
 // ─── IPC Handlers ──────────────────────────────────────────────────────────
 
 function registerIpcHandlers(): void {
-  // Auth token forwarding to notification poller
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
   ipcMain.on('set-auth-token', (_event, token: string) => {
     notificationPoller?.setToken(token);
   });
   ipcMain.on('clear-auth-token', () => {
     notificationPoller?.clearToken();
+    discordRPC?.clearUsername();
   });
 
-  // Status → tray indicator
+  // ── Status ─────────────────────────────────────────────────────────────────
   ipcMain.on('set-status', (_event, status: string) => {
     trayManager?.updateStatusLabel(status);
+    miniPlayer?.update({ status });
   });
 
-  // App metadata
+  // ── Username (for Discord RPC & mini-player) ───────────────────────────────
+  ipcMain.on('set-username', (_event, username: string) => {
+    discordRPC?.setUsername(username);
+    miniPlayer?.update({ username });
+  });
+
+  // ── App metadata ───────────────────────────────────────────────────────────
   ipcMain.handle('get-app-version', () => app.getVersion());
 
-  // Launch-at-startup
+  // ── Launch at Windows startup ──────────────────────────────────────────────
   ipcMain.handle('get-login-item-settings', () => {
     const settings = app.getLoginItemSettings();
     return { openAtLogin: settings.openAtLogin };
@@ -205,29 +222,63 @@ function registerIpcHandlers(): void {
     return { openAtLogin };
   });
 
-  // Show window from tray click / notification click
+  // ── Window ─────────────────────────────────────────────────────────────────
   ipcMain.on('show-window', () => {
     if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
   });
+  ipcMain.on('reload-window', () => { mainWindow?.webContents.reload(); });
 
-  // Connectivity status query
-  ipcMain.handle('get-connectivity', () => {
-    return connectivityMonitor?.getStatus() ?? 'online';
-  });
+  // ── Connectivity ───────────────────────────────────────────────────────────
+  ipcMain.handle('get-connectivity', () => connectivityMonitor?.getStatus() ?? 'online');
 
-  // Renderer requests to reload after coming back online
-  ipcMain.on('reload-window', () => {
-    mainWindow?.webContents.reload();
-  });
+  // ── Game detection ─────────────────────────────────────────────────────────
+  ipcMain.handle('get-current-game', () => gameDetector?.getCurrentGame() ?? null);
 
-  // Game detection status query
-  ipcMain.handle('get-current-game', () => {
-    return gameDetector?.getCurrentGame() ?? null;
-  });
-
-  // Renderer triggers an overlay notification directly
+  // ── Overlay ────────────────────────────────────────────────────────────────
   ipcMain.on('show-overlay', (_event, notif) => {
     showOverlay(notif as import('./overlay').OverlayNotification);
+  });
+
+  // ── Mini player ────────────────────────────────────────────────────────────
+  ipcMain.handle('mini-player-toggle', () => miniPlayer?.toggle());
+  ipcMain.handle('mini-player-show',   () => miniPlayer?.show());
+  ipcMain.handle('mini-player-hide',   () => miniPlayer?.hide());
+
+  // ── Screenshot ─────────────────────────────────────────────────────────────
+  ipcMain.handle('take-screenshot', async (_event, saveDialog: boolean) => {
+    if (!screenshotMgr) return null;
+    if (saveDialog) return screenshotMgr.captureToDialog();
+    return screenshotMgr.capture();
+  });
+  ipcMain.handle('open-screenshots-folder', () => {
+    const dir = require('path').join(app.getPath('pictures'), 'GameWorldHub');
+    require('fs').mkdirSync(dir, { recursive: true });
+    shell.openPath(dir);
+  });
+
+  // ── Perf stats ─────────────────────────────────────────────────────────────
+  ipcMain.handle('get-perf-snapshot', () => perfMonitor?.getSnapshot() ?? { cpuPercent: 0, ramMb: 0, uptimeSec: 0 });
+
+  // ── Sounds ─────────────────────────────────────────────────────────────────
+  ipcMain.on('set-sound-enabled', (_event, enabled: boolean) => soundMgr?.setEnabled(enabled));
+  ipcMain.on('set-sound-volume',  (_event, volume: number)   => soundMgr?.setVolume(volume));
+  ipcMain.handle('get-sound-settings', () => ({
+    enabled: soundMgr?.isEnabled() ?? true,
+    volume:  soundMgr?.getVolume()  ?? 0.6,
+  }));
+
+  // ── Auto-updater ───────────────────────────────────────────────────────────
+  ipcMain.handle('check-for-updates', () => {
+    try {
+      const { autoUpdater } = require('electron-updater');
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    } catch { /* dev mode */ }
+  });
+  ipcMain.handle('install-update', () => {
+    try {
+      const { autoUpdater } = require('electron-updater');
+      autoUpdater.quitAndInstall(false, true);
+    } catch { /* dev mode */ }
   });
 }
 
@@ -238,12 +289,8 @@ registerProtocol();
 app.whenReady().then(async () => {
   registerIpcHandlers();
 
-  // Show splash immediately
   createSplash();
-
-  // Small pause so splash renders before we do heavier work
   await new Promise(r => setTimeout(r, 200));
-
   createWindow();
 
   if (!mainWindow) {
@@ -253,28 +300,69 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // System tray
+  // ── Tray ─────────────────────────────────────────────────────────────────
   trayManager = new TrayManager(mainWindow, {
-    onQuit: () => { isQuitting = true; app.quit(); },
+    onQuit:     () => { isQuitting = true; app.quit(); },
     onNavigate: (navPath: string) => {
       mainWindow?.webContents.send('navigate', navPath);
       mainWindow?.show();
       mainWindow?.focus();
     },
+    onMiniPlayer: () => miniPlayer?.toggle(),
+    onScreenshot: async () => {
+      const p = await screenshotMgr?.capture();
+      if (p) soundMgr?.play('screenshot');
+    },
   });
 
-  // Notification polling against the production API
-  notificationPoller = new NotificationPoller(mainWindow, API_BASE, showOverlay);
+  // ── Notification poller ──────────────────────────────────────────────────
+  notificationPoller = new NotificationPoller(mainWindow, API_BASE, (notif) => {
+    showOverlay(notif);
+    soundMgr?.play('notification');
+  });
 
-  // Game detection (Windows only) — updates tray label on change
+  // ── Game detection ────────────────────────────────────────────────────────
   gameDetector = new GameDetector(mainWindow, (game: DetectedGame | null) => {
     trayManager?.updateCurrentGame(game);
+    discordRPC?.setGame(game);
+    miniPlayer?.update({ game: game?.name ?? null });
+    if (game) soundMgr?.play('game-start');
   });
   gameDetector.start();
 
-  // Connectivity monitoring
+  // ── Connectivity ──────────────────────────────────────────────────────────
   connectivityMonitor = new ConnectivityMonitor(mainWindow);
   connectivityMonitor.start();
+
+  // ── Mini player ───────────────────────────────────────────────────────────
+  miniPlayer = new MiniPlayerManager(mainWindow);
+
+  // ── Performance monitor ───────────────────────────────────────────────────
+  perfMonitor = new PerfMonitor(mainWindow);
+  perfMonitor.start(5_000);
+
+  // Forward perf data to mini player too
+  mainWindow.webContents.on('ipc-message', (_e, ch, ...args) => {
+    if (ch === 'perf-update') miniPlayer?.update({ cpuPct: args[0]?.cpuPercent, ramMb: args[0]?.ramMb });
+  });
+
+  // ── Screenshot manager ────────────────────────────────────────────────────
+  screenshotMgr = new ScreenshotManager(mainWindow);
+
+  // ── Sound manager ─────────────────────────────────────────────────────────
+  soundMgr = new SoundManager(mainWindow);
+
+  // ── Global shortcuts ──────────────────────────────────────────────────────
+  registerGlobalShortcuts({ mainWindow, miniPlayer, screenshot: screenshotMgr });
+
+  // ── Discord RPC ───────────────────────────────────────────────────────────
+  discordRPC = new DiscordRPCManager();
+  discordRPC.connect().catch(() => {}); // non-fatal
+
+  // ── Auto-updater ──────────────────────────────────────────────────────────
+  if (app.isPackaged) {
+    setupAutoUpdater(mainWindow);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -291,14 +379,19 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  unregisterGlobalShortcuts();
   notificationPoller?.stop();
   gameDetector?.stop();
   connectivityMonitor?.stop();
+  perfMonitor?.stop();
+  miniPlayer?.destroy();
+  discordRPC?.destroy().catch(() => {});
   destroyOverlay();
 });
 
 process.on('exit', () => {
   gameDetector?.stop();
   connectivityMonitor?.stop();
+  perfMonitor?.stop();
   destroyOverlay();
 });

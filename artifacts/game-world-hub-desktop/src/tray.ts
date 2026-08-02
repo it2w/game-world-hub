@@ -3,8 +3,10 @@ import path from 'path';
 import type { DetectedGame } from './game-detector';
 
 type TrayManagerOptions = {
-  onQuit:     () => void;
-  onNavigate: (path: string) => void;
+  onQuit:        () => void;
+  onNavigate:    (path: string) => void;
+  onMiniPlayer?: () => void;
+  onScreenshot?: () => void;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -99,6 +101,9 @@ export class TrayManager {
       { label: '👥 Friends',  click: () => this.options.onNavigate('/friends') },
       { label: '🎮 Parties',  click: () => this.options.onNavigate('/parties') },
       { label: '🔍 Find LFG', click: () => this.options.onNavigate('/lfg') },
+      { type: 'separator' },
+      { label: '📌 Toggle Mini Player', click: () => this.options.onMiniPlayer?.() },
+      { label: '📸 Take Screenshot',    click: () => this.options.onScreenshot?.() },
       { type: 'separator' },
       { label: 'Quit Game World Hub', accelerator: 'CmdOrCtrl+Q', click: () => this.options.onQuit() },
     ]);

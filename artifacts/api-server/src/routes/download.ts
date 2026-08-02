@@ -1,90 +1,81 @@
 /**
  * GET /download/windows
  *
- * Public, no-auth endpoint.  Generates a short-lived presigned GCS GET URL
- * via the Replit sidecar and redirects the browser there, so the 350 MB ZIP
- * never passes through the API server.
+ * Public, no-auth endpoint. Streams the Windows installer directly from the
+ * GitHub release so the client receives bytes from this server with no
+ * redirect — required by Microsoft Store package URL validation.
  *
- * Returns 503 when the file has not been uploaded yet so the landing page
- * can still show a "coming soon" fallback if needed.
+ * The GitHub releases URL redirects to objects.githubusercontent.com; we
+ * follow that redirect server-side and pipe the body to the client, so from
+ * the client's perspective there is a single 200 response with the binary.
  */
 
 import { Router, type IRouter, type Request, type Response } from 'express';
-import { objectStorageClient } from '../lib/objectStorage';
 
 const router: IRouter = Router();
 
 const RELEASE_FILENAME = 'GameWorldHubSetup.exe';
-const REPLIT_SIDECAR = 'http://127.0.0.1:1106';
-/** Signed URL valid for 10 min – enough for the slowest connection to start. */
-const SIGNED_TTL_MS = 10 * 60 * 1000;
+
+// Direct GitHub release asset URL (redirects server-side, transparent to client)
+const GITHUB_RELEASE_URL =
+  'https://github.com/it2w/game-world-hub/releases/download/main/GameWorldHubSetup.exe';
 
 router.get('/download/windows', async (_req: Request, res: Response) => {
   try {
-    // ── Resolve bucket + object from PUBLIC_OBJECT_SEARCH_PATHS ──────────
-    const publicPaths = (process.env.PUBLIC_OBJECT_SEARCH_PATHS || '')
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
+    // Follow GitHub's redirect server-side with a 30-second timeout
+    const upstream = await fetch(GITHUB_RELEASE_URL, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(30_000),
+    });
 
-    if (publicPaths.length === 0) {
-      res.status(503).json({ error: 'Object storage not configured' });
-      return;
-    }
-
-    // Path format: /bucket-name/optional/prefix
-    const firstPath = publicPaths[0].replace(/^\//, '');
-    const parts = firstPath.split('/');
-    const bucketName = parts[0];
-    const prefix = parts.slice(1).join('/');
-    const objectName = prefix
-      ? `${prefix}/${RELEASE_FILENAME}`
-      : RELEASE_FILENAME;
-
-    // ── Check the file actually exists ───────────────────────────────────
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    const [exists] = await file.exists();
-
-    if (!exists) {
-      res.status(503).json({
-        error: 'Release not yet available',
-        message: 'The Windows desktop app will be available soon.',
+    if (!upstream.ok) {
+      res.status(502).json({
+        error: 'Release not available',
+        message: 'The Windows installer could not be fetched. Please try again later.',
       });
       return;
     }
 
-    // ── Ask the Replit sidecar for a short-lived signed GET URL ──────────
-    const sideCar = await fetch(
-      `${REPLIT_SIDECAR}/object-storage/signed-object-url`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bucket_name: bucketName,
-          object_name: objectName,
-          method: 'GET',
-          expires_at: new Date(Date.now() + SIGNED_TTL_MS).toISOString(),
-        }),
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-
-    if (!sideCar.ok) {
-      throw new Error(`Sidecar error ${sideCar.status}`);
+    // Forward content length so browsers show a progress bar
+    const contentLength = upstream.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
     }
 
-    const { signed_url } = (await sideCar.json()) as { signed_url: string };
-
-    // ── Redirect – browser follows to GCS and downloads directly ─────────
+    res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${RELEASE_FILENAME}"`,
     );
-    res.redirect(302, signed_url);
+    // Allow CDN/proxy caching for 1 hour
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    // Stream body directly to the client
+    if (!upstream.body) {
+      res.status(502).json({ error: 'Empty response from upstream' });
+      return;
+    }
+
+    const reader = upstream.body.getReader();
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const ok = res.write(value);
+        // Respect backpressure
+        if (!ok) {
+          await new Promise<void>((resolve) => res.once('drain', resolve));
+        }
+      }
+      res.end();
+    };
+
+    await pump();
   } catch (err) {
     console.error('[download/windows]', err);
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 });
 

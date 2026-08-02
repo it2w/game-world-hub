@@ -134,6 +134,18 @@ gameworldhub://chat/7         → opens /chat/7
 
 ## Auto-updater
 
-`electron-updater` is installed and configured in `package.json → build.publish`.
-To enable live updates, deploy a static file server at the URL in `publish.url`
-and run `electron-builder --publish always` in CI to push update metadata.
+`electron-updater` is configured in `package.json → build.publish` with the
+**GitHub Releases** provider (`owner: it2w`, `repo: game-world-hub`). The
+installed app checks the repo's latest release for `latest.yml`, and downloads
+`GameWorldHubSetup.exe` automatically when the version there is newer
+(`autoDownload` + `autoInstallOnAppQuit`; a restart prompt appears when the
+download completes).
+
+To ship an update:
+
+1. Bump `version` in `artifacts/game-world-hub-desktop/package.json`.
+2. Commit, then push a matching tag: `git tag v<version> && git push origin main v<version>`.
+3. The `desktop-build.yml` GitHub Actions workflow builds on a Windows runner
+   and publishes a release containing `GameWorldHubSetup.exe` + `latest.yml`.
+4. Installed apps pick up the new version on their next check (10 s after
+   launch, then every 4 h). See `RELEASES.md` for verification records.

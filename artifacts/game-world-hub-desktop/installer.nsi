@@ -4,7 +4,7 @@
 ;   NSISDIR="$NSIS_DIR" $NSIS_DIR/linux/makensis installer.nsi
 
 !define APP_NAME       "Game World Hub"
-!define APP_VERSION    "1.0.0"
+!define APP_VERSION    "1.0.1"
 !define APP_EXE        "Game World Hub.exe"
 !define APP_PUBLISHER  "Game World Hub"
 !define APP_URL        "https://gmes.app"

@@ -135,7 +135,15 @@ jobs:
           # Pass GH_TOKEN so electron-builder can create/update the release itself.
           # Set to empty here; we publish via softprops below for cleaner control.
           ELECTRON_BUILDER_PUBLISH: never
-        run: npx electron-builder --win nsis appx --publish never
+        run: npx electron-builder --win nsis --publish never
+
+      # ─── Microsoft Store package (unsigned — the Store signs it) ──────────
+      - name: Build Microsoft Store MSIX (unsigned)
+        working-directory: artifacts/game-world-hub-desktop
+        shell: bash
+        env:
+          ELECTRON_BUILDER_PUBLISH: never
+        run: npx electron-builder --win appx --publish never
 
       # ─── Verify output ─────────────────────────────────────────────────────
       - name: List build output

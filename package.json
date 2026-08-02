@@ -15,5 +15,22 @@
   "devDependencies": {
     "prettier": "^3.9.4",
     "typescript": "~5.9.3"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "linux",
+        "win32",
+        "current"
+      ],
+      "cpu": [
+        "x64",
+        "current"
+      ],
+      "libc": [
+        "glibc",
+        "current"
+      ]
+    }
   }
 }

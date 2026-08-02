@@ -13,4 +13,6 @@ The desktop `.exe` cannot be built locally (Linux env, GCS sidecar broken). It i
 - electron-builder 26: `win.publisherName`/`signAndEditExecutable` are no longer valid keys (neither top-level nor in `signtoolOptions` for signAndEditExecutable). Build unsigned: just omit signing options, keep `verifyUpdateCodeSignature: false`.
 - Pushes: the `gitPush` callback fails (BRANCH_ALREADY_EXISTS); use `git push https://$(printenv GITHUB_PAT)@github.com/it2w/game-world-hub.git main`.
 
+**Auto-update release flow (verified):** bump `artifacts/game-world-hub-desktop/package.json` version, push a `v*` tag → workflow builds & publishes release with `GameWorldHubSetup.exe` + `latest.yml` (sha512 verified to match the exe). electron-updater (github provider, it2w/game-world-hub) picks up the latest release; installed older versions auto-download and prompt to restart.
+
 **How to apply:** any time the desktop installer needs a rebuild — commit, push, POST `/actions/workflows/316301851/dispatches` with `{"ref":"main","inputs":{"publish":"true"}}`, poll runs (~3 min).

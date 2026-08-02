@@ -1,6 +1,6 @@
 {
   "name": "@workspace/game-world-hub-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Game World Hub — Windows Desktop App",
   "private": true,
   "main": "dist/main.js",
